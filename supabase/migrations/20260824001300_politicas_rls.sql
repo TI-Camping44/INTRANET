@@ -108,7 +108,11 @@ security definer
 set search_path = public
 as $$
 begin
-  if public.es_admin_sgc() then
+  -- Sin sesion de usuario (clave de servicio, migraciones, seed o el
+  -- trabajo programado) la operacion ya es de confianza. Este control
+  -- existe para impedir que una persona se eleve el rol editando su
+  -- propio perfil desde la aplicacion.
+  if auth.uid() is null or public.es_admin_sgc() then
     return new;
   end if;
 
