@@ -876,13 +876,16 @@ insert into public.indicador_mediciones (indicador_id, periodo, valor_real, meta
 select
   i.id,
   (date_trunc('month', current_date) - (mes || ' months')::interval)::date,
+  -- mes = 0 es el periodo mas reciente. Los valores mejoran hacia el
+  -- presente, de modo que el tablero muestre una mezcla realista de
+  -- indicadores en meta y fuera de meta, no un escenario uniforme.
   case i.codigo
-    when 'KPI-01' then (96.4 + mes * 0.3)::numeric(14,2)
-    when 'KPI-02' then greatest(0, 4 - mes)::numeric(14,2)
-    when 'KPI-03' then (11.5 - mes * 0.6)::numeric(14,2)
-    when 'KPI-04' then (50 + mes * 5)::numeric(14,2)
-    when 'KPI-05' then (84 + mes * 1.5)::numeric(14,2)
-    else (92.5 + mes * 0.4)::numeric(14,2)
+    when 'KPI-01' then (98.6 - mes * 0.20)::numeric(14,2)   -- meta 98, mayor mejor
+    when 'KPI-02' then greatest(0, mes - 2)::numeric(14,2)  -- meta 2, menor mejor
+    when 'KPI-03' then (7.2 + mes * 0.45)::numeric(14,2)    -- meta 8, menor mejor
+    when 'KPI-04' then (100 - mes * 10)::numeric(14,2)      -- meta 100, trimestral
+    when 'KPI-05' then (93 - mes * 1.20)::numeric(14,2)     -- meta 90, mayor mejor
+    else (95.8 - mes * 0.40)::numeric(14,2)                 -- meta 95, mayor mejor
   end,
   i.meta,
   'e1000000-0000-4000-8000-000000000002'

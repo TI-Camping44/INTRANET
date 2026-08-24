@@ -35,7 +35,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
     titulo: "Módulos core",
     entradas: [
       {
-        titulo: "Información documentada",
+        titulo: "Documentación",
         ruta: "/documentos",
         icono: "FileText",
         fase: "operativo",
@@ -101,7 +101,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         notaFase: "Evaluación y reevaluación periódica. Interfaz prevista para septiembre de 2026.",
       },
       {
-        titulo: "Infraestructura y activos",
+        titulo: "Infraestructura",
         ruta: "/activos",
         icono: "Wrench",
         fase: "en_construccion",
