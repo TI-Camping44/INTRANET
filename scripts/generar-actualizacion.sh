@@ -19,14 +19,18 @@ set -euo pipefail
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SALIDA="$RAIZ/supabase/actualizacion.sql"
 
-# Ultima migracion que ya esta aplicada en produccion. Lo posterior entra
-# en la actualizacion.
+# Ultima migracion de la instalacion original. Todo lo posterior entra en
+# la actualizacion.
 #
-# El instalador con el que se monto la demo llegaba hasta
-# 20260825000400_documentos_enlazados, e incluia ademas los perfiles de
-# puesto y los documentos de TI. Se comprobo reconstruyendo esa base y
-# aplicando esto encima, no suponiendolo.
-CORTE="20260825000400"
+# El corte va en la instalacion original y no mas adelante a proposito.
+# Se intento afinarlo al estado real de produccion y salio mal: esa base
+# tenia unas migraciones del 25 aplicadas y otras no, en un estado
+# intermedio que desde afuera no se puede adivinar.
+#
+# La solucion no es adivinar mejor. Todas las migraciones del 25 son
+# idempotentes, asi que se incluyen todas y cada una se saltea sola si ya
+# esta aplicada. El archivo funciona desde cualquier estado.
+CORTE="20260824999999"
 
 {
   echo "-- ====================================================================="

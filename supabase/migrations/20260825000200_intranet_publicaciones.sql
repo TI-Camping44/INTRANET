@@ -28,18 +28,28 @@ comment on column public.usuarios.fecha_nacimiento is
 -- ---------------------------------------------------------------------
 -- Tipos de publicacion
 -- ---------------------------------------------------------------------
-create type public.tipo_publicacion as enum (
-  'anuncio',          -- comunicado interno
-  'novedad_producto', -- lanzamientos, para que comercial se entere antes
-  'logro',            -- licitaciones ganadas, records, certificaciones
-  'reconocimiento',   -- a una persona o a un area
-  'bienvenida',       -- nuevos ingresos
-  'evento'            -- ferias, feriados, fechas de cierre
-);
+-- PostgreSQL no admite "create type if not exists", y este archivo tiene
+-- que poder aplicarse sobre una base que ya lo tenga.
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'tipo_publicacion') then
+    create type public.tipo_publicacion as enum (
+      'anuncio',          -- comunicado interno
+      'novedad_producto', -- lanzamientos, para que comercial se entere antes
+      'logro',            -- licitaciones ganadas, records, certificaciones
+      'reconocimiento',   -- a una persona o a un area
+      'bienvenida',       -- nuevos ingresos
+      'evento'            -- ferias, feriados, fechas de cierre
+    );
+  end if;
 
-create type public.estado_publicacion as enum ('borrador', 'publicada', 'archivada');
+  if not exists (select 1 from pg_type where typname = 'estado_publicacion') then
+    create type public.estado_publicacion as enum ('borrador', 'publicada', 'archivada');
+  end if;
+end;
+$$;
 
-create table public.publicaciones (
+create table if not exists public.publicaciones (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references public.empresas (id) on delete cascade,
   tipo tipo_publicacion not null default 'anuncio',
@@ -72,10 +82,11 @@ create table public.publicaciones (
     check (estado <> 'publicada' or fecha_publicacion is not null)
 );
 
-create index publicaciones_muro_idx
+create index if not exists publicaciones_muro_idx
   on public.publicaciones (empresa_id, estado, fecha_publicacion desc);
-create index publicaciones_tipo_idx on public.publicaciones (empresa_id, tipo);
+create index if not exists publicaciones_tipo_idx on public.publicaciones (empresa_id, tipo);
 
+drop trigger if exists publicaciones_actualizacion on public.publicaciones;
 create trigger publicaciones_actualizacion before update on public.publicaciones
   for each row execute function public.marcar_actualizacion();
 
@@ -102,6 +113,7 @@ begin
 end;
 $$;
 
+drop trigger if exists publicaciones_sellar_fecha on public.publicaciones;
 create trigger publicaciones_sellar_fecha
   before insert or update on public.publicaciones
   for each row execute function public.sellar_fecha_publicacion();
@@ -114,6 +126,7 @@ alter table public.publicaciones enable row level security;
 -- Todos leen lo publicado de su empresa. El borrador solo lo ve quien lo
 -- escribe y quien gestiona: un comunicado a medio redactar no debe
 -- aparecer en el inicio de cuarenta y nueve personas.
+drop policy if exists "publicaciones_lectura" on public.publicaciones;
 create policy "publicaciones_lectura" on public.publicaciones
   for select to authenticated
   using (
@@ -126,6 +139,7 @@ create policy "publicaciones_lectura" on public.publicaciones
     )
   );
 
+drop policy if exists "publicaciones_gestion" on public.publicaciones;
 create policy "publicaciones_gestion" on public.publicaciones
   for all to authenticated
   using (public.puede_gestionar() and public.misma_empresa(empresa_id))
@@ -140,6 +154,7 @@ grant select, insert, update, delete on public.publicaciones to authenticated;
 -- Trazabilidad: quien publico que y cuando es informacion sensible en
 -- una comunicacion interna.
 -- ---------------------------------------------------------------------
+drop trigger if exists bitacora_publicaciones on public.publicaciones;
 create trigger bitacora_publicaciones
   after insert or update or delete on public.publicaciones
   for each row execute function public.registrar_bitacora();
