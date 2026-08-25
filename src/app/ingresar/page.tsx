@@ -8,7 +8,12 @@ export const metadata: Metadata = { title: "Ingresar" };
 export default function PaginaIngreso({
   searchParams,
 }: {
-  searchParams: { continuar?: string; error?: string };
+  searchParams: {
+    continuar?: string;
+    error?: string;
+    detalle?: string;
+    error_description?: string;
+  };
 }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-fondo px-4 py-10">
@@ -31,6 +36,7 @@ export default function PaginaIngreso({
           <FormularioIngreso
             continuar={searchParams.continuar}
             errorInicial={searchParams.error}
+            detalleInicial={searchParams.detalle ?? searchParams.error_description}
           />
         </div>
 

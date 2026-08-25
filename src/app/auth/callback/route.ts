@@ -42,7 +42,13 @@ export async function GET(peticion: NextRequest) {
   const { data, error } = await supabase.auth.exchangeCodeForSession(codigo);
 
   if (error || !data.user) {
-    return NextResponse.redirect(`${origin}/ingresar?error=intercambio`);
+    // El motivo se propaga a la pantalla de ingreso. Un "no se pudo,
+    // vuelva a intentarlo" sin mas obliga a adivinar, y quien atiende el
+    // problema no siempre tiene acceso a los registros del servidor.
+    const destino = new URL("/ingresar", origin);
+    destino.searchParams.set("error", "intercambio");
+    if (error?.message) destino.searchParams.set("detalle", error.message);
+    return NextResponse.redirect(destino);
   }
 
   const dominio = data.user.email?.split("@")[1]?.toLowerCase();

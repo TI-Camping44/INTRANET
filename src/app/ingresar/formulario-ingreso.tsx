@@ -11,23 +11,32 @@ const MENSAJES_ERROR: Record<string, string> = {
   intercambio: "No se pudo completar el ingreso. Vuelva a intentarlo.",
   sin_codigo: "El enlace de ingreso no es válido o ya expiró.",
   inactivo: "Su usuario está inactivo. Comuníquese con el Administrador SGC.",
+  // Lo devuelve Supabase cuando el retorno de Google no corresponde a un
+  // ingreso que haya empezado en esta pantalla: tipicamente una pestana
+  // vieja que se recarga, o el boton de atras del navegador.
+  invalid_request: "Ese intento de ingreso ya no es válido. Empiece de nuevo desde este botón.",
 };
 
 export function FormularioIngreso({
   continuar,
   errorInicial,
+  detalleInicial,
 }: {
   continuar?: string;
   errorInicial?: string;
+  /** Motivo tecnico que devolvio el servidor, para poder diagnosticar. */
+  detalleInicial?: string;
 }) {
   const [cargando, definirCargando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(
     errorInicial ? (MENSAJES_ERROR[errorInicial] ?? MENSAJES_ERROR.intercambio) : null,
   );
+  const [detalle, definirDetalle] = React.useState<string | null>(detalleInicial ?? null);
 
   async function ingresarConGoogle() {
     definirCargando(true);
     definirError(null);
+    definirDetalle(null);
 
     const supabase = crearClienteNavegador();
     const destino = new URL("/auth/callback", window.location.origin);
@@ -53,7 +62,12 @@ export function FormularioIngreso({
     <div className="mt-5 flex flex-col gap-3">
       {error ? (
         <Aviso variante="peligro">
-          <AvisoDescripcion>{error}</AvisoDescripcion>
+          <AvisoDescripcion>
+            {error}
+            {detalle ? (
+              <span className="mt-1 block text-[11px] opacity-80">Motivo: {detalle}</span>
+            ) : null}
+          </AvisoDescripcion>
         </Aviso>
       ) : null}
 

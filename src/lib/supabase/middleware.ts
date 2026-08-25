@@ -18,6 +18,15 @@ function esRutaPublica(ruta: string) {
  * la interfaz por si sola no es un control de acceso.
  */
 export async function actualizarSesion(peticion: NextRequest) {
+  // El retorno del ingreso con Google se valida en su propia ruta, y el
+  // middleware no debe tocar las cookies de esa peticion: entre ellas
+  // viaja el verificador PKCE que la ruta necesita para canjear el
+  // codigo por la sesion. Si el middleware lo borra al comprobar que
+  // todavia no hay sesion, el canje falla y el ingreso queda trabado.
+  if (peticion.nextUrl.pathname.startsWith("/auth/")) {
+    return NextResponse.next({ request: peticion });
+  }
+
   let respuesta = NextResponse.next({ request: peticion });
 
   const supabase = createServerClient(
