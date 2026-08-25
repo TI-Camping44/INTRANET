@@ -94,8 +94,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Proveedores",
         ruta: "/proveedores",
         icono: "Truck",
-        fase: "en_construccion",
-        notaFase: "Evaluación y reevaluación periódica. Interfaz prevista para septiembre de 2026.",
+        fase: "operativo",
       },
       {
         titulo: "Infraestructura",

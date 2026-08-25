@@ -16,7 +16,7 @@ navegable, y se completan en fases posteriores.
 | 5 · Indicadores y objetivos | Operativo |
 | 6 · Satisfacción del cliente | Esquema y consulta |
 | 7 · Recursos humanos | Esquema y consulta |
-| 8 · Proveedores | Esquema y consulta |
+| 8 · Proveedores | Operativo |
 | 9 · Infraestructura y activos | Esquema y consulta |
 
 ## Tecnología
@@ -196,8 +196,9 @@ src/
       riesgos/           Módulo 3
       auditorias/        Módulo 4
       indicadores/       Módulo 5
+      proveedores/       Módulo 8
       satisfaccion/
-      recursos-humanos/  proveedores/  activos/
+      recursos-humanos/  activos/
       buscar/  notificaciones/  bitacora/  perfil/
       administracion/    Usuarios y roles
     api/cron/alertas/    Trabajo programado de vencimientos

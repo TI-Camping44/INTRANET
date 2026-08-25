@@ -170,6 +170,10 @@ src/app/(sgc)/<modulo>/
   [id]/<panel>.tsx         Paneles interactivos de la ficha
 ```
 
+> Un archivo `"use server"` **solo puede exportar funciones asíncronas**.
+> Las constantes y las reglas sincronas que comparten servidor y cliente
+> van en `src/lib/`, como se hizo con `lib/proveedores.ts`.
+
 ### Servidor y cliente
 
 - Los **componentes de servidor** consultan datos. Es el modo por defecto.
@@ -248,6 +252,7 @@ en la base de datos y en `src/lib/`.
 | Código de documento: `MP-SOP-XX`, `F-XXX-XX-XX` | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
 | Adjuntos: 20 MB máximo | `CHECK` en `adjuntos`, bucket y `TAMANO_MAXIMO_ADJUNTO` |
 | Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
+| Evaluación de proveedores: 5 criterios de 1 a 5, nota 0-100; 80+ aprobado, 60-79 condicional | `puntaje` generado en SQL y `lib/proveedores.ts` |
 
 ### Decisiones tomadas por defecto
 
@@ -305,10 +310,10 @@ antes de subirlas. No alcanza con que el SQL «se vea bien».
 
 **Operativos:** Control de información documentada · No conformidades y
 acciones correctivas · Riesgos y oportunidades · Auditorías internas ·
-Indicadores y objetivos.
+Indicadores y objetivos · Proveedores.
 
 **Con esquema completo y pantalla de consulta:** Satisfacción del cliente ·
-Recursos humanos · Proveedores · Infraestructura y activos.
+Recursos humanos · Infraestructura y activos.
 
 Las tablas de los nueve módulos ya existen, con sus políticas RLS y sus
 disparadores de bitácora. Completar un módulo es trabajo de pantallas y
@@ -316,8 +321,7 @@ acciones de servidor: **no hace falta volver a tocar el esquema**.
 
 ### Orden previsto
 
-1. Proveedores, con el circuito completo de evaluación.
-2. Activos, con calendario de mantenimientos.
-3. Recursos humanos, con la matriz de competencias.
-4. Satisfacción del cliente, consumiendo el panel de NPS existente
+1. Activos, con calendario de mantenimientos.
+2. Recursos humanos, con la matriz de competencias.
+3. Satisfacción del cliente, consumiendo el panel de NPS existente
    (Apps Script y GitHub Pages), que **no se reemplaza**.

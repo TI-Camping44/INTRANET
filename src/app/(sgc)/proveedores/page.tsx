@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Truck } from "lucide-react";
+import Link from "next/link";
+import { Plus, Truck } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
-import { ModuloEnConstruccion } from "@/components/comunes/modulo-en-construccion";
 import {
   InsigniaDemostracion,
   InsigniaEstadoProveedor,
@@ -10,6 +10,8 @@ import {
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { Boton } from "@/components/ui/boton";
+import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import {
   Tabla,
   TablaCabecera,
@@ -18,11 +20,16 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { entradaPorRuta } from "@/lib/navegacion";
 import { ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
-import { describirVencimiento, diasHasta, formatearFecha, formatearNumero } from "@/lib/formato";
+import {
+  describirVencimiento,
+  diasHasta,
+  formatearFecha,
+  formatearNumero,
+  hoyEnAsuncion,
+} from "@/lib/formato";
 import type { EstadoProveedor } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Proveedores" };
@@ -31,14 +38,17 @@ export const dynamic = "force-dynamic";
 export default async function PaginaProveedores({
   searchParams,
 }: {
-  searchParams: { q?: string; estado?: string };
+  searchParams: { q?: string; estado?: string; reevaluacion?: string };
 }) {
-  await requerirUsuario();
+  const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
   let consulta = supabase.from("proveedores").select("*").order("razon_social");
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
+  if (searchParams.reevaluacion === "vencida") {
+    consulta = consulta.lte("fecha_proxima_evaluacion", hoyEnAsuncion());
+  }
   if (searchParams.q) {
     const texto = `%${searchParams.q}%`;
     consulta = consulta.or(
@@ -48,15 +58,55 @@ export default async function PaginaProveedores({
 
   const { data } = await consulta;
   const proveedores = (data ?? []) as any[];
+  const hoy = hoyEnAsuncion();
+
+  const criticos = proveedores.filter((proveedor) => proveedor.critico).length;
+  const porReevaluar = proveedores.filter(
+    (proveedor) =>
+      proveedor.fecha_proxima_evaluacion !== null && proveedor.fecha_proxima_evaluacion <= hoy,
+  ).length;
+  const sinEvaluar = proveedores.filter(
+    (proveedor) => proveedor.calificacion_actual === null,
+  ).length;
+  const gestiona = puedeGestionar(usuario);
 
   return (
     <>
       <EncabezadoPagina
         titulo="Proveedores"
-        descripcion="Evaluación y reevaluación periódica de proveedores, con calificación sobre cinco criterios."
+        descripcion="Evaluación y reevaluación periódica de proveedores, con calificación sobre cinco criterios de 1 a 5."
+        acciones={
+          gestiona ? (
+            <Boton comoHijo>
+              <Link href="/proveedores/nuevo">
+                <Plus /> Nuevo proveedor
+              </Link>
+            </Boton>
+          ) : null
+        }
       />
 
-      <ModuloEnConstruccion nota={entradaPorRuta("/proveedores")?.notaFase} />
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <TarjetaIndicador titulo="Proveedores" valor={proveedores.length} />
+        <TarjetaIndicador
+          titulo="Críticos"
+          valor={criticos}
+          contexto="Se evalúan con mayor frecuencia"
+        />
+        <TarjetaIndicador
+          titulo="Por reevaluar"
+          valor={porReevaluar}
+          contexto={porReevaluar > 0 ? "Fecha alcanzada" : "Al día"}
+          tono={porReevaluar > 0 ? "atencion" : "exito"}
+          enlace="/proveedores?reevaluacion=vencida"
+        />
+        <TarjetaIndicador
+          titulo="Sin evaluar"
+          valor={sinEvaluar}
+          contexto="Sin ninguna evaluación"
+          tono={sinEvaluar > 0 ? "advertencia" : "exito"}
+        />
+      </div>
 
       <FiltrosListado
         marcadorBusqueda="Buscar por razón social, código o RUC…"
@@ -77,6 +127,15 @@ export default async function PaginaProveedores({
           icono={<Truck className="size-6" />}
           titulo="Sin proveedores registrados"
           descripcion="El padrón se completa con la importación desde Sofidya o con la carga manual."
+          accion={
+            gestiona ? (
+              <Boton comoHijo tamano="pequeno">
+                <Link href="/proveedores/nuevo">
+                  <Plus /> Nuevo proveedor
+                </Link>
+              </Boton>
+            ) : null
+          }
         />
       ) : (
         <Tarjeta>
@@ -99,15 +158,22 @@ export default async function PaginaProveedores({
 
                 return (
                   <TablaFila key={proveedor.id}>
-                    <TablaCelda className="font-medium tabular">{proveedor.codigo}</TablaCelda>
+                    <TablaCelda className="font-medium tabular">
+                      <Link href={`/proveedores/${proveedor.id}`} className="hover:text-primario">
+                        {proveedor.codigo}
+                      </Link>
+                    </TablaCelda>
                     <TablaCelda>
-                      <span className="flex flex-wrap items-center gap-2 text-xs">
+                      <Link
+                        href={`/proveedores/${proveedor.id}`}
+                        className="flex flex-wrap items-center gap-2 text-xs hover:text-primario"
+                      >
                         {proveedor.razon_social}
                         {proveedor.critico ? (
                           <Insignia variante="atencion">Crítico</Insignia>
                         ) : null}
                         {proveedor.es_demostracion ? <InsigniaDemostracion /> : null}
-                      </span>
+                      </Link>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
                       {proveedor.rubro ?? "—"}
