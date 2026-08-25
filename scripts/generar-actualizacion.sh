@@ -7,17 +7,27 @@
 # en produccion no se puede reinstalar: `create type` y `create table`
 # fallan al segundo intento y la carga se corta a la mitad.
 #
-# Este archivo junta lo que vino despues de la primera instalacion: las
-# migraciones del 25 de agosto y los datos reales. Se puede aplicar sobre
-# una base que tenga solo la instalacion original, y tambien sobre una
-# que ya este al dia: todo lo que incluye es idempotente.
+# Genera DOS archivos, y son dos por una razon de PostgreSQL, no por
+# prolijidad: `alter type ... add value` agrega un valor al enumerado
+# pero ese valor no se puede USAR hasta que la transaccion termine. El
+# editor SQL de Supabase corre todo lo que se le pega en una sola
+# transaccion, asi que agregar el valor "plan" a tipo_documento y cargar
+# en la misma pasada un documento de tipo "plan" falla con
+# "unsafe use of new value".
+#
+#   1-esquema  las migraciones
+#   2-datos    los datos reales del SGC
+#
+# Se aplican en ese orden, uno y despues el otro. Los dos son
+# idempotentes: correrlos de nuevo no rompe nada ni duplica registros.
 #
 # Uso:
 #   bash scripts/generar-actualizacion.sh
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SALIDA="$RAIZ/supabase/actualizacion.sql"
+ESQUEMA="$RAIZ/supabase/actualizacion-1-esquema.sql"
+DATOS="$RAIZ/supabase/actualizacion-2-datos.sql"
 
 # Ultima migracion de la instalacion original. Todo lo posterior entra en
 # la actualizacion.
@@ -35,21 +45,18 @@ CORTE="20260824999999"
 {
   echo "-- ====================================================================="
   echo "-- Intranet SGC - Camping 44 S.A."
-  echo "-- ACTUALIZACION sobre una base ya instalada"
+  echo "-- ACTUALIZACION · 1 de 2 · ESQUEMA"
   echo "-- ====================================================================="
   echo "--"
   echo "-- Generado por scripts/generar-actualizacion.sh. No editar a mano."
   echo "--"
-  echo "-- Aplicar en el editor SQL de Supabase, de una sola vez, sobre una"
-  echo "-- base que ya tenga la instalacion original."
+  echo "-- Pegar entero en el editor SQL de Supabase y correr. Despues, y solo"
+  echo "-- despues, correr actualizacion-2-datos.sql."
   echo "--"
-  echo "-- Es idempotente: si se corre dos veces, la segunda no rompe nada"
-  echo "-- ni duplica registros."
+  echo "-- Van separados porque un valor nuevo de un tipo enumerado no se puede"
+  echo "-- usar en la misma transaccion en que se agrega."
   echo "--"
-  echo "-- Incluye:"
-  echo "--   · Las migraciones posteriores a la instalacion original"
-  echo "--   · Los datos reales del SGC (mapa de procesos, perfiles de"
-  echo "--     puesto, juego documental) y el retiro de lo inventado"
+  echo "-- Es idempotente: cada migracion se saltea sola si ya esta aplicada."
   echo "-- ====================================================================="
   echo ""
 
@@ -64,6 +71,26 @@ CORTE="20260824999999"
     cat "$f"
     echo ""
   done
+} > "$ESQUEMA"
+
+{
+  echo "-- ====================================================================="
+  echo "-- Intranet SGC - Camping 44 S.A."
+  echo "-- ACTUALIZACION · 2 de 2 · DATOS REALES"
+  echo "-- ====================================================================="
+  echo "--"
+  echo "-- Generado por scripts/generar-actualizacion.sh. No editar a mano."
+  echo "--"
+  echo "-- Correr DESPUES de actualizacion-1-esquema.sql: necesita las columnas"
+  echo "-- y los tipos que agrega aquel."
+  echo "--"
+  echo "-- Trae el mapa de procesos real de Camping 44, los perfiles de puesto"
+  echo "-- del formulario R-02-01, el juego documental de la unidad compartida"
+  echo "-- del SGC, y retira los procesos que habia inventado el seed."
+  echo "--"
+  echo "-- Es idempotente: correrlo de nuevo no duplica nada."
+  echo "-- ====================================================================="
+  echo ""
 
   for f in "$RAIZ"/supabase/datos-reales/*.sql; do
     [ -e "$f" ] || continue
@@ -74,6 +101,7 @@ CORTE="20260824999999"
     cat "$f"
     echo ""
   done
-} > "$SALIDA"
+} > "$DATOS"
 
-echo "Generado: supabase/actualizacion.sql ($(wc -l < "$SALIDA") lineas)"
+echo "Generado: supabase/actualizacion-1-esquema.sql ($(wc -l < "$ESQUEMA") lineas)"
+echo "Generado: supabase/actualizacion-2-datos.sql   ($(wc -l < "$DATOS") lineas)"

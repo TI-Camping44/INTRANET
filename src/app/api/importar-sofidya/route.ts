@@ -156,11 +156,32 @@ export async function GET(peticion: NextRequest) {
   const cabecera = peticion.headers.get("authorization");
   const enlace = peticion.nextUrl.searchParams.get("secreto");
 
-  const autorizado =
-    Boolean(secreto) && (cabecera === `Bearer ${secreto}` || enlace === secreto);
+  // Sin la variable no hay con que comparar. Se distingue de una clave
+  // equivocada a proposito: «no autorizado» a secas manda a buscar el
+  // error donde no esta.
+  if (!secreto) {
+    return NextResponse.json(
+      {
+        error: "CRON_SECRETO no está configurada",
+        detalle:
+          "Cárguela en Vercel (Settings → Environment Variables) y vuelva a " +
+          "desplegar. Es la que protege esta ruta: sin ella no se puede entrar.",
+      },
+      { status: 503 },
+    );
+  }
 
-  if (!autorizado) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (cabecera !== `Bearer ${secreto}` && enlace !== secreto) {
+    return NextResponse.json(
+      {
+        error: "No autorizado",
+        detalle:
+          "El valor de ?secreto= no coincide con CRON_SECRETO. Cópielo desde " +
+          "Vercel, tal cual: no es un texto de ejemplo sino el valor guardado.",
+        recibioParametro: enlace !== null,
+      },
+      { status: 401 },
+    );
   }
 
   const url = process.env.SOFIDYA_API_URL;
