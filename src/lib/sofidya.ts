@@ -43,7 +43,7 @@ export const ENTIDADES = [
 
 export type Entidad = (typeof ENTIDADES)[number];
 
-/** Las que se escriben. Procesos y personas solo se informan. */
+/** Las que se escriben. Solo los procesos se informan sin escribirse. */
 export const ENTIDADES_QUE_SE_IMPORTAN: readonly Entidad[] = [
   "normas",
   "sedes",
@@ -51,6 +51,7 @@ export const ENTIDADES_QUE_SE_IMPORTAN: readonly Entidad[] = [
   "proveedores",
   "clientes",
   "activos",
+  "personas",
 ];
 
 export interface Resultado {
@@ -187,37 +188,67 @@ async function guardar(
    * uno derivado del identificador interno de Sofidya.
    */
   soloAlCrear: Record<string, unknown> = {},
+  /**
+   * Codigo derivado del identificador interno de Sofidya, si lo hay.
+   *
+   * Se busca por aca ANTES que por nombre, porque es la identidad mas
+   * firme que tenemos: el nombre de un puesto se corrige y el id de
+   * Sofidya no. Buscando solo por nombre, una fila que una corrida
+   * anterior habia creado con este codigo no se encontraba, y el insert
+   * siguiente chocaba contra el indice unico del codigo.
+   */
+  codigoDeSofidya?: { columna: string; valor: string },
 ): Promise<string | null> {
-  let consulta = supabase.from(tabla).select("id");
-  for (const [columna, valor] of Object.entries(filtros)) consulta = consulta.eq(columna, valor);
-  consulta = consulta.ilike(claveTexto.columna, claveTexto.valor);
+  const buscar = async (columna: string, valor: string, exacto: boolean) => {
+    let consulta = supabase.from(tabla).select("id");
+    for (const [c, v] of Object.entries(filtros)) consulta = consulta.eq(c, v);
+    consulta = exacto ? consulta.eq(columna, valor) : consulta.ilike(columna, valor);
 
-  const { data: existente, error: errorBusqueda } = await consulta.maybeSingle();
+    // `limit(1)` porque en Sofidya hay nombres repetidos —dos «Vendedor
+    // de Salón», por ejemplo— y dos filas harian fallar la consulta. La
+    // identidad firme es el codigo, que se busca antes; esto es solo el
+    // reconocimiento inicial contra lo que ya estaba cargado.
+    const { data, error } = await consulta.limit(1).maybeSingle();
 
-  // El error de la busqueda no se ignora: si no se sabe si la fila
-  // existe, insertar es exactamente lo que no hay que hacer.
-  if (errorBusqueda) {
-    throw new Error(
-      `${tabla}: no se pudo comprobar si «${claveTexto.valor}» ya existe ` +
-        `(${errorBusqueda.message}).`,
-    );
-  }
+    // El error de la busqueda no se ignora: si no se sabe si la fila
+    // existe, insertar es exactamente lo que no hay que hacer.
+    if (error) {
+      throw new Error(
+        `${tabla}: no se pudo comprobar si «${valor}» ya existe (${error.message}).`,
+      );
+    }
+    return (data?.id as string) ?? null;
+  };
 
-  if (ensayo) return (existente?.id as string) ?? null;
+  // Primero por el codigo de Sofidya, que es la identidad firme; si no
+  // aparece, por el nombre, que es lo que permite reconocer una fila que
+  // ya existia antes de la primera importacion.
+  const idExistente =
+    (codigoDeSofidya
+      ? await buscar(codigoDeSofidya.columna, codigoDeSofidya.valor, true)
+      : null) ?? (await buscar(claveTexto.columna, claveTexto.valor, false));
 
-  if (existente) {
+  if (ensayo) return idExistente;
+
+  if (idExistente) {
     // Un campo vacio en Sofidya no es una correccion: es que Sofidya no
     // lo tiene. Escribir ese vacio encima borraria lo que ya cargamos
     // desde el R-02-01 o desde la unidad compartida del SGC.
+    //
+    // La clave de texto si se actualiza: cuando la fila se encontro por
+    // el codigo de Sofidya, un nombre distinto significa que alla lo
+    // renombraron, y ese cambio hay que traerlo.
     const aActualizar = Object.fromEntries(
-      Object.entries(datos).filter(([, valor]) => valor !== null && valor !== undefined),
+      Object.entries({ ...datos, [claveTexto.columna]: claveTexto.valor }).filter(
+        ([, valor]) => valor !== null && valor !== undefined,
+      ),
     );
 
     if (Object.keys(aActualizar).length > 0) {
-      const { error } = await supabase.from(tabla).update(aActualizar).eq("id", existente.id);
+      const { error } = await supabase.from(tabla).update(aActualizar).eq("id", idExistente);
       if (error) throw new Error(`${tabla}: ${error.message}`);
     }
-    return existente.id as string;
+    return idExistente;
   }
 
   const { data: creado, error } = await supabase
@@ -226,7 +257,9 @@ async function guardar(
     .select("id")
     .single();
 
-  if (error) throw new Error(`${tabla}: ${error.message}`);
+  if (error) {
+    throw new Error(`${tabla}: al crear «${claveTexto.valor}» · ${error.message}`);
+  }
   return (creado?.id as string) ?? null;
 }
 
@@ -367,6 +400,7 @@ export async function importarDesdeSofidya(
           },
           ensayo,
           { codigo: `${PREFIJO}-P-${idSofidya}` },
+          { columna: "codigo", valor: `${PREFIJO}-P-${idSofidya}` },
         );
         n += 1;
       }
@@ -419,6 +453,7 @@ export async function importarDesdeSofidya(
             : { ...comunes, activo: true },
           ensayo,
           { codigo: `${PREFIJO}-${sigla}-${idSofidya}` },
+          { columna: "codigo", valor: `${PREFIJO}-${sigla}-${idSofidya}` },
         );
         n += 1;
       }
@@ -497,19 +532,48 @@ export async function importarDesdeSofidya(
   if (pedida("personas")) {
     try {
       const filas = await sofidya.listar("get_users");
+      let n = 0;
+
+      for (const fila of filas) {
+        const idSofidya = texto(fila.id);
+        const nombre = [texto(fila.nombre), texto(fila.apellidos)].filter(Boolean).join(" ").trim();
+        if (!idSofidya || !nombre) continue;
+
+        // Van a `personas_sofidya`, no a `usuarios`: un usuario no puede
+        // existir sin cuenta de Google, porque `usuarios.id` referencia a
+        // `auth.users`. Esta tabla es el legajo, y su disparador enlaza a
+        // la persona con su usuario en el primer ingreso.
+        await guardar(
+          supabase,
+          "personas_sofidya",
+          { empresa_id: empresaId },
+          { columna: "codigo_externo", valor: idSofidya },
+          {
+            nombre_completo: nombre,
+            correo: texto(fila.email),
+            puesto_nombre: texto(fila.cargo),
+            sede_nombre: texto(fila.sede),
+            area: texto(fila.organizacion),
+            activo: booleano(fila.activo, true),
+          },
+          ensayo,
+        );
+        n += 1;
+      }
+
       const activas = filas.filter((f) => booleano(f.activo, false)).length;
       const conCorreo = filas.filter((f) => texto(f.email)).length;
       anotar(
         "personas",
         filas.length,
-        0,
-        "—",
-        `${activas} activas, ${conCorreo} con correo. No se importan porque ` +
-          "usuarios.id referencia a auth.users: un perfil no puede existir sin " +
-          "cuenta de Google. Hace falta una tabla de legajo aparte.",
+        n,
+        "personas_sofidya",
+        `${activas} activas, ${conCorreo} con correo. Van al legajo y no a ` +
+          "usuarios: una cuenta no puede existir sin ingreso con Google. " +
+          "Cuando cada persona entra, el disparador la enlaza sola.",
       );
     } catch (error) {
-      anotar("personas", 0, 0, "—", `Falló: ${(error as Error).message}`);
+      anotar("personas", 0, 0, "personas_sofidya", `Falló: ${(error as Error).message}`);
     }
   }
 
