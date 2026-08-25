@@ -74,7 +74,7 @@ export default async function PaginaProveedores({
     <>
       <EncabezadoPagina
         titulo="Proveedores"
-        descripcion="Evaluación y reevaluación periódica de proveedores, con calificación sobre cinco criterios de 1 a 5."
+        descripcion="Evaluación y reevaluación periódica de proveedores, sobre los cuatro criterios del formulario F-SOP-08-01."
         acciones={
           gestiona ? (
             <Boton comoHijo>

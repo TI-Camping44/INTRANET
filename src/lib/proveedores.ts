@@ -8,17 +8,19 @@ import type { EstadoProveedor } from "@/lib/tipos";
  * consumen tanto el servidor como los componentes de cliente.
  */
 
-/** Los cinco criterios de la evaluacion, cada uno de 1 a 5. */
+/**
+ * Los cuatro criterios del formulario F-SOP-08-01 "Evaluación de
+ * Asociados de Negocio y Proveedores", cada uno de 1 a 5.
+ */
 export const CRITERIOS_EVALUACION = [
-  { campo: "calidad", etiqueta: "Calidad del producto o servicio" },
-  { campo: "plazo_entrega", etiqueta: "Cumplimiento del plazo de entrega" },
-  { campo: "precio", etiqueta: "Precio y condiciones comerciales" },
-  { campo: "servicio_posventa", etiqueta: "Servicio de posventa" },
-  { campo: "documentacion", etiqueta: "Documentación y cumplimiento formal" },
+  { campo: "calidad", etiqueta: "Calidad" },
+  { campo: "logistica", etiqueta: "Logística" },
+  { campo: "legal", etiqueta: "Legal" },
+  { campo: "servicio", etiqueta: "Servicio" },
 ] as const;
 
-/** Cinco criterios de 1 a 5 escalados a una nota de 0 a 100. */
-export const FACTOR_PUNTAJE = 4;
+/** Cuatro criterios de 1 a 5 escalados a una nota de 0 a 100. */
+export const FACTOR_PUNTAJE = 5;
 
 /**
  * Resultado que corresponde al puntaje obtenido:

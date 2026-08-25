@@ -124,6 +124,15 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
             </label>
           </div>
 
+          <GrupoCampo
+            etiqueta="¿De qué manera afecta a la calidad?"
+            htmlFor="impacto_en_calidad"
+            className="sm:col-span-2"
+            ayuda="Del formulario F-SOP-08-01. Es el fundamento de por qué este proveedor se evalúa."
+          >
+            <AreaTexto id="impacto_en_calidad" name="impacto_en_calidad" rows={2} />
+          </GrupoCampo>
+
           <GrupoCampo etiqueta="Observaciones" htmlFor="observaciones" className="sm:col-span-2">
             <AreaTexto id="observaciones" name="observaciones" rows={2} />
           </GrupoCampo>

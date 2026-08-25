@@ -43,6 +43,7 @@ interface ProveedorDetalle {
   fecha_ultima_evaluacion: string | null;
   fecha_proxima_evaluacion: string | null;
   periodicidad_evaluacion_meses: number;
+  impacto_en_calidad: string | null;
   observaciones: string | null;
   es_demostracion: boolean;
 }
@@ -210,6 +211,15 @@ export default async function PaginaProveedor({ params }: { params: { id: string
                   valor={[proveedor.ciudad, proveedor.pais].filter(Boolean).join(", ") || "—"}
                 />
               </dl>
+
+              {proveedor.impacto_en_calidad ? (
+                <div className="mt-3 border-t border-borde pt-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
+                    Impacto en la calidad
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed">{proveedor.impacto_en_calidad}</p>
+                </div>
+              ) : null}
 
               {proveedor.observaciones ? (
                 <div className="mt-3 border-t border-borde pt-3">
