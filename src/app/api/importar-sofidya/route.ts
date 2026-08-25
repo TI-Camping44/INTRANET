@@ -10,29 +10,33 @@ import {
 } from "@/lib/sofidya";
 
 /**
- * Sondeo del API de Sofidya.
+ * Importación desde Sofidya, y sondeo de su API.
  *
- * Existe por una razón concreta: la pantalla de clave API solo documenta
- * los comandos de «Listados Predefinidos», y hay que saber si el API
- * expone además riesgos, no conformidades, auditorías y personas, que es
- * lo que falta traer. Se pregunta en vez de suponer.
+ * Es la manera de correr la importación sin montar un entorno de Node:
+ * se abre una dirección y listo. Existe porque el entorno donde se
+ * desarrolla no tiene salida hacia sofidya.com y el despliegue de Vercel
+ * sí. La lógica está en `lib/sofidya.ts`, compartida con
+ * `scripts/migrar-sofidya.ts`.
  *
- * La documentación de Sofidya fija tres cosas que conviene no olvidar:
+ * El contrato del API está en `docs/api-sofidya.md`. Lo esencial:
  *
  *   · El endpoint es https://www.sofidya.com/api/api.php
  *   · Los parámetros van codificados en la URL (`command`, `SecretKey`),
  *     no como cuerpo JSON.
- *   · Los comandos están EN INGLÉS: el ejemplo es `get_organizations`.
- *     `scripts/migrar-sofidya.ts` los tiene en español y por lo tanto
- *     mal; este sondeo es lo que va a decir cuáles son los correctos.
+ *   · Los comandos están EN INGLÉS: `get_organizations`, `get_users`.
  *
- * El código de respuesta es lo que hace útil al sondeo:
+ * Los modos de sondeo quedan porque siguen sirviendo: cuando Sofidya
+ * agregue un módulo al API, `?comandos=` dice si ya está sin tener que
+ * tocar código. Y el código de respuesta es lo que los hace útiles:
+ *
  *   1000  el comando existe y devolvió datos
  *   2000  parámetro desconocido: el comando NO existe
+ *   2010  el comando existe pero le falta un parámetro
  *   3000  no se encontró la clave
  *   3010  clave errónea o usuario inactivo
  *
- * NO ESCRIBE NADA. Ni en Sofidya, ni en la base. Solo pregunta.
+ * Los sondeos no escriben nada. La importación sí, y por eso arranca en
+ * `ensayo` salvo que se le pida otra cosa.
  *
  * Uso:
  *   /api/importar-sofidya?secreto=<CRON_SECRET>
@@ -57,7 +61,8 @@ import {
  * nombres de los campos, nunca su contenido. La clave sale de la
  * variable de entorno y no aparece en la respuesta.
  *
- * Es temporal: se elimina cuando sepamos qué expone el API.
+ * Va protegida con el secreto de los trabajos programados. Cuando la
+ * intranet reemplace a Sofidya del todo, esta ruta se elimina.
  */
 
 export const dynamic = "force-dynamic";
