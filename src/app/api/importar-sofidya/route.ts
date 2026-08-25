@@ -1,5 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { nombreDelSecretoEnUso, revisarSecreto } from "@/lib/trabajos-programados";
+import { crearClienteAdministrador } from "@/lib/supabase/administrador";
+import {
+  ClienteSofidya,
+  ENTIDADES,
+  ENTIDADES_QUE_SE_IMPORTAN,
+  importarDesdeSofidya,
+  type Entidad,
+} from "@/lib/sofidya";
 
 /**
  * Sondeo del API de Sofidya.
@@ -34,6 +42,16 @@ import { nombreDelSecretoEnUso, revisarSecreto } from "@/lib/trabajos-programado
  *
  *   /api/importar-sofidya?secreto=<...>&comando=get_procedures
  *   /api/importar-sofidya?secreto=<...>&comando=get_assets&valor=1
+ *
+ *   Ya conocido el contrato, la importacion de verdad:
+ *
+ *   /api/importar-sofidya?secreto=<...>&importar=ensayo
+ *   /api/importar-sofidya?secreto=<...>&importar=activos,puestos
+ *   /api/importar-sofidya?secreto=<...>&importar=todo
+ *
+ *   `ensayo` no escribe nada: cuenta que haria. Se puede pedir de a una
+ *   entidad porque el tope de un minuto de Vercel no alcanza para todas
+ *   si Sofidya tiene muchas sedes.
  *
  * De cada comando informa el estado, la cantidad de registros y los
  * nombres de los campos, nunca su contenido. La clave sale de la
@@ -277,6 +295,79 @@ export async function GET(peticion: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  // Modo importación. Va antes que los sondeos porque es el que
+  // interesa una vez que el contrato ya se conoce.
+  const importar = peticion.nextUrl.searchParams.get("importar");
+
+  if (importar) {
+    const ensayo = importar === "ensayo";
+    const entidades: readonly Entidad[] =
+      ensayo || importar === "todo"
+        ? ENTIDADES
+        : importar
+            .split(",")
+            .map((e) => e.trim())
+            .filter((e): e is Entidad => (ENTIDADES as readonly string[]).includes(e));
+
+    if (entidades.length === 0) {
+      return NextResponse.json(
+        {
+          error: "No se reconoció ninguna entidad",
+          pedido: importar,
+          disponibles: ENTIDADES,
+          seEscriben: ENTIDADES_QUE_SE_IMPORTAN,
+        },
+        { status: 400 },
+      );
+    }
+
+    const supabase = crearClienteAdministrador();
+    const { data: empresa } = await supabase
+      .from("empresas")
+      .select("id, nombre")
+      .order("creado_en")
+      .limit(1)
+      .maybeSingle();
+
+    if (!empresa) {
+      return NextResponse.json(
+        { error: "No hay ninguna empresa cargada en la base." },
+        { status: 400 },
+      );
+    }
+
+    const resultados = await importarDesdeSofidya(
+      supabase,
+      new ClienteSofidya(url, clave),
+      empresa.id,
+      { entidades, ensayo },
+    );
+
+    if (!ensayo) {
+      for (const r of resultados) {
+        await supabase.from("importaciones_sofidya").insert({
+          comando: r.entidad,
+          registros_recibidos: r.recibidos,
+          registros_importados: r.importados,
+          tabla_destino: r.tabla,
+          observacion: r.observacion,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      modo: ensayo ? "ensayo · no se escribió nada" : "importación · se escribió en la base",
+      empresa: empresa.nombre,
+      entidades,
+      recibidos: resultados.reduce((suma, r) => suma + r.recibidos, 0),
+      importados: resultados.reduce((suma, r) => suma + r.importados, 0),
+      resultados,
+      recordatorio:
+        "Riesgos, no conformidades, auditorías, indicadores, objetivos y " +
+        "documentos no vienen por el API: hay que exportarlos a mano desde Sofidya.",
+    });
   }
 
   // Modo «buscar el parámetro»: un solo comando, muchos nombres.
