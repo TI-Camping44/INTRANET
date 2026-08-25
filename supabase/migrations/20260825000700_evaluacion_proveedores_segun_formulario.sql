@@ -37,10 +37,24 @@ alter table public.proveedor_evaluaciones
   add column if not exists legal smallint,
   add column if not exists servicio smallint;
 
-update public.proveedor_evaluaciones set
-  logistica = coalesce(logistica, plazo_entrega),
-  legal     = coalesce(legal, documentacion),
-  servicio  = coalesce(servicio, servicio_posventa);
+-- La traduccion solo tiene sentido mientras existan las columnas
+-- viejas. En una base ya migrada esto no hace nada, que es lo que
+-- permite volver a correr el archivo entero sin romperlo.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'proveedor_evaluaciones'
+       and column_name = 'plazo_entrega'
+  ) then
+    update public.proveedor_evaluaciones set
+      logistica = coalesce(logistica, plazo_entrega),
+      legal     = coalesce(legal, documentacion),
+      servicio  = coalesce(servicio, servicio_posventa);
+  end if;
+end;
+$$;
 
 alter table public.proveedor_evaluaciones
   alter column logistica set not null,
@@ -52,12 +66,26 @@ alter table public.proveedor_evaluaciones
 -- ---------------------------------------------------------------------
 -- Una columna generada no se puede redefinir: se quita y se vuelve a
 -- crear. El disparador que copia el puntaje al proveedor no cambia.
-alter table public.proveedor_evaluaciones drop column puntaje;
+--
+-- Se hace solo si todavia esta la formula vieja, para que volver a
+-- correr la migracion no tire la columna buena.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'proveedor_evaluaciones'
+       and column_name = 'plazo_entrega'
+  ) then
+    alter table public.proveedor_evaluaciones drop column puntaje;
 
-alter table public.proveedor_evaluaciones
-  add column puntaje numeric(5, 2) generated always as (
-    (calidad + logistica + legal + servicio) * 5.0
-  ) stored;
+    alter table public.proveedor_evaluaciones
+      add column puntaje numeric(5, 2) generated always as (
+        (calidad + logistica + legal + servicio) * 5.0
+      ) stored;
+  end if;
+end;
+$$;
 
 -- ---------------------------------------------------------------------
 -- 3 · Fuera los criterios que el formulario no usa
@@ -73,6 +101,12 @@ alter table public.proveedor_evaluaciones
   drop column if exists precio,
   drop column if exists servicio_posventa,
   drop column if exists documentacion;
+
+-- Se quitan antes de agregarlas: asi la migracion se puede repetir.
+alter table public.proveedor_evaluaciones
+  drop constraint if exists proveedor_evaluaciones_logistica,
+  drop constraint if exists proveedor_evaluaciones_legal,
+  drop constraint if exists proveedor_evaluaciones_servicio;
 
 alter table public.proveedor_evaluaciones
   add constraint proveedor_evaluaciones_logistica check (logistica between 1 and 5),

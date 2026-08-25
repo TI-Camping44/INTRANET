@@ -31,4 +31,9 @@ alter table public.documentos
 
 alter table public.documentos
   add constraint documentos_codigo_formato
-  check (codigo is null or codigo ~ '^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$');
+  check (codigo is null or codigo ~ '^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$')
+  not valid;
+
+-- Se valida aparte para que la migracion se pueda volver a correr sin
+-- chocar: el `drop constraint if exists` de arriba la quita primero.
+alter table public.documentos validate constraint documentos_codigo_formato;

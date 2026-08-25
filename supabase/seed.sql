@@ -289,8 +289,12 @@ insert into public.proveedor_evaluaciones (
   ('f2000000-0000-4000-8000-000000000002', current_date - 60, 'Semestre 1',
    5, 3, 5, 4, 'aprobado', 'Demoras puntuales por trámites de importación.',
    'e1000000-0000-4000-8000-000000000005'),
+  -- Queda rechazado: 11 de 20 son 55 puntos, debajo del corte de 60. Es
+  -- el mismo valor al que llega una base ya instalada cuando la
+  -- migracion traduce sus criterios viejos, y conviene que los dos
+  -- caminos den identico.
   ('f2000000-0000-4000-8000-000000000003', current_date - 200, 'Anual',
-   3, 2, 4, 3, 'condicional', 'Reiteradas demoras en la entrega al depósito.',
+   3, 2, 3, 3, 'rechazado', 'Reiteradas demoras en la entrega al depósito.',
    'e1000000-0000-4000-8000-000000000005'),
   ('f2000000-0000-4000-8000-000000000004', current_date - 300, 'Anual',
    4, 5, 4, 4, 'aprobado', 'Sin observaciones en el período.',

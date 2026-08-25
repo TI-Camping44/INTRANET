@@ -3652,7 +3652,12 @@ alter table public.documentos
 
 alter table public.documentos
   add constraint documentos_codigo_formato
-  check (codigo is null or codigo ~ '^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$');
+  check (codigo is null or codigo ~ '^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$')
+  not valid;
+
+-- Se valida aparte para que la migracion se pueda volver a correr sin
+-- chocar: el `drop constraint if exists` de arriba la quita primero.
+alter table public.documentos validate constraint documentos_codigo_formato;
 
 
 -- =====================================================================
@@ -3799,10 +3804,24 @@ alter table public.proveedor_evaluaciones
   add column if not exists legal smallint,
   add column if not exists servicio smallint;
 
-update public.proveedor_evaluaciones set
-  logistica = coalesce(logistica, plazo_entrega),
-  legal     = coalesce(legal, documentacion),
-  servicio  = coalesce(servicio, servicio_posventa);
+-- La traduccion solo tiene sentido mientras existan las columnas
+-- viejas. En una base ya migrada esto no hace nada, que es lo que
+-- permite volver a correr el archivo entero sin romperlo.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'proveedor_evaluaciones'
+       and column_name = 'plazo_entrega'
+  ) then
+    update public.proveedor_evaluaciones set
+      logistica = coalesce(logistica, plazo_entrega),
+      legal     = coalesce(legal, documentacion),
+      servicio  = coalesce(servicio, servicio_posventa);
+  end if;
+end;
+$$;
 
 alter table public.proveedor_evaluaciones
   alter column logistica set not null,
@@ -3814,12 +3833,26 @@ alter table public.proveedor_evaluaciones
 -- ---------------------------------------------------------------------
 -- Una columna generada no se puede redefinir: se quita y se vuelve a
 -- crear. El disparador que copia el puntaje al proveedor no cambia.
-alter table public.proveedor_evaluaciones drop column puntaje;
+--
+-- Se hace solo si todavia esta la formula vieja, para que volver a
+-- correr la migracion no tire la columna buena.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'proveedor_evaluaciones'
+       and column_name = 'plazo_entrega'
+  ) then
+    alter table public.proveedor_evaluaciones drop column puntaje;
 
-alter table public.proveedor_evaluaciones
-  add column puntaje numeric(5, 2) generated always as (
-    (calidad + logistica + legal + servicio) * 5.0
-  ) stored;
+    alter table public.proveedor_evaluaciones
+      add column puntaje numeric(5, 2) generated always as (
+        (calidad + logistica + legal + servicio) * 5.0
+      ) stored;
+  end if;
+end;
+$$;
 
 -- ---------------------------------------------------------------------
 -- 3 · Fuera los criterios que el formulario no usa
@@ -3835,6 +3868,12 @@ alter table public.proveedor_evaluaciones
   drop column if exists precio,
   drop column if exists servicio_posventa,
   drop column if exists documentacion;
+
+-- Se quitan antes de agregarlas: asi la migracion se puede repetir.
+alter table public.proveedor_evaluaciones
+  drop constraint if exists proveedor_evaluaciones_logistica,
+  drop constraint if exists proveedor_evaluaciones_legal,
+  drop constraint if exists proveedor_evaluaciones_servicio;
 
 alter table public.proveedor_evaluaciones
   add constraint proveedor_evaluaciones_logistica check (logistica between 1 and 5),
@@ -4171,8 +4210,12 @@ insert into public.proveedor_evaluaciones (
   ('f2000000-0000-4000-8000-000000000002', current_date - 60, 'Semestre 1',
    5, 3, 5, 4, 'aprobado', 'Demoras puntuales por trámites de importación.',
    'e1000000-0000-4000-8000-000000000005'),
+  -- Queda rechazado: 11 de 20 son 55 puntos, debajo del corte de 60. Es
+  -- el mismo valor al que llega una base ya instalada cuando la
+  -- migracion traduce sus criterios viejos, y conviene que los dos
+  -- caminos den identico.
   ('f2000000-0000-4000-8000-000000000003', current_date - 200, 'Anual',
-   3, 2, 4, 3, 'condicional', 'Reiteradas demoras en la entrega al depósito.',
+   3, 2, 3, 3, 'rechazado', 'Reiteradas demoras en la entrega al depósito.',
    'e1000000-0000-4000-8000-000000000005'),
   ('f2000000-0000-4000-8000-000000000004', current_date - 300, 'Anual',
    4, 5, 4, 4, 'aprobado', 'Sin observaciones en el período.',
