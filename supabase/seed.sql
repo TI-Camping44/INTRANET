@@ -956,6 +956,57 @@ insert into public.encuesta_respuestas (encuesta_id, cliente_id, fecha, puntaje,
    'Todo correcto, sin observaciones.', 'correo', 'a1000000-0000-4000-8000-000000000001', 'demo-008')
 on conflict do nothing;
 
+-- Historia de doce meses para que la tendencia de NPS tenga de donde
+-- salir. La mayoria de quien responde un NPS no deja comentario: estas
+-- filas son solo el puntaje, y las de arriba, las que si comentaron.
+-- La mezcla mensual esta elegida para reflejar una mejora sostenida
+-- desde el arranque del sistema de gestion.
+insert into public.encuesta_respuestas (encuesta_id, cliente_id, fecha, puntaje, canal, sede_id, referencia_externa)
+select
+  '08000000-0000-4000-8000-000000000001',
+  case (n % 4)
+    when 0 then 'f1000000-0000-4000-8000-000000000001'
+    when 1 then 'f1000000-0000-4000-8000-000000000002'
+    when 2 then 'f1000000-0000-4000-8000-000000000003'
+    else 'f1000000-0000-4000-8000-000000000004'
+  end::uuid,
+  -- Repartidas dentro del mes, no todas el mismo dia. El "least" evita
+  -- que el mes en curso genere respuestas con fecha futura.
+  least(
+    (date_trunc('month', current_date) - (m.mes_atras || ' months')::interval)::date
+      + ((n * 3) % 26),
+    current_date
+  ),
+  case
+    when n <= m.promotores then 9 + (n % 2)              -- 9 o 10
+    when n <= m.promotores + m.pasivos then 7 + (n % 2)  -- 7 u 8
+    else 3 + (n % 4)                                     -- 3 a 6
+  end,
+  case (n % 3) when 0 then 'correo' when 1 then 'whatsapp' else 'telefono' end,
+  case (n % 3)
+    when 0 then 'a1000000-0000-4000-8000-000000000001'
+    when 1 then 'a1000000-0000-4000-8000-000000000002'
+    else 'a1000000-0000-4000-8000-000000000003'
+  end::uuid,
+  'demo-hist-' || m.mes_atras || '-' || n
+from (values
+  -- mes_atras, promotores, pasivos, detractores  (NPS resultante)
+  (11, 3, 2, 2),   -- +14
+  (10, 4, 2, 2),   -- +25
+  ( 9, 4, 3, 2),   -- +22
+  ( 8, 5, 2, 2),   -- +33
+  ( 7, 5, 3, 1),   -- +44
+  ( 6, 6, 2, 2),   -- +40
+  ( 5, 6, 3, 1),   -- +50
+  ( 4, 7, 2, 1),   -- +60
+  ( 3, 6, 3, 2),   -- +36
+  ( 2, 7, 3, 1),   -- +55
+  ( 1, 8, 2, 1),   -- +64
+  ( 0, 5, 2, 1)    -- mes en curso, todavia parcial
+) as m(mes_atras, promotores, pasivos, detractores),
+lateral generate_series(1, m.promotores + m.pasivos + m.detractores) as n
+on conflict do nothing;
+
 -- ---------------------------------------------------------------------
 -- Recursos humanos
 -- ---------------------------------------------------------------------

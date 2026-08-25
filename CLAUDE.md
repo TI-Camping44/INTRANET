@@ -234,6 +234,14 @@ Se llegó a esto por un caso real: una acción de servidor tardó 45 segundos
 esperando a un SMTP inalcanzable. **Nada que dependa de un servicio externo
 debe demorar la respuesta que ve la persona.**
 
+Aun con el tope, la persona puede esperar hasta seis segundos. Por eso
+todo botón que dispara una acción de servidor va con `cargando`, no con
+`disabled`: un botón apagado y sin señal de avance se lee como roto.
+
+```tsx
+<Boton type="submit" cargando={procesando}>Guardar</Boton>
+```
+
 ---
 
 ## 6. Reglas de negocio a respetar
@@ -258,6 +266,10 @@ en la base de datos y en `src/lib/`.
 | El nivel exigido sale de la matriz del puesto de la persona, no se escribe a mano | `evaluarCompetencia()` |
 | Solo el jefe inmediato o Calidad evalúan a una persona | `evaluarCompetencia()` |
 | La eficacia de una capacitación se verifica por persona, no por curso | `verificarEficacia()` y `capacitacion_participantes.eficacia` |
+| NPS = % promotores (9-10) menos % detractores (0-6); los pasivos cuentan en el denominador | `resumirNps()` y `categoria_nps` generada en SQL |
+| Solo un detractor con comentario genera no conformidad, de origen `reclamo_cliente` | `generar_no_conformidad_desde_respuesta()` |
+| Un mes con menos de 5 respuestas no se grafica: el índice deja de significar algo | `RESPUESTAS_MINIMAS_NPS` |
+| Plazo por defecto para cerrar una NC recién abierta: 30 días | `DIAS_LIMITE_CIERRE_NC` y las funciones que generan NC |
 
 ### Decisiones tomadas por defecto
 
@@ -313,18 +325,22 @@ antes de subirlas. No alcanza con que el SQL «se vea bien».
 
 ## 9. Estado del proyecto
 
-**Operativos:** Control de información documentada · No conformidades y
-acciones correctivas · Riesgos y oportunidades · Auditorías internas ·
-Indicadores y objetivos · Proveedores · Infraestructura y activos ·
-Recursos humanos.
+**Los nueve módulos están operativos:** Control de información
+documentada · No conformidades y acciones correctivas · Riesgos y
+oportunidades · Auditorías internas · Indicadores y objetivos ·
+Satisfacción del cliente · Recursos humanos · Proveedores ·
+Infraestructura y activos.
 
-**Con esquema completo y pantalla de consulta:** Satisfacción del cliente.
+### Lo que falta para poner el sistema en producción
 
-Las tablas de los nueve módulos ya existen, con sus políticas RLS y sus
-disparadores de bitácora. Completar un módulo es trabajo de pantallas y
-acciones de servidor: **no hace falta volver a tocar el esquema**.
+No es trabajo de pantallas, es de puesta en marcha:
 
-### Orden previsto
-
-1. Satisfacción del cliente, consumiendo el panel de NPS existente
-   (Apps Script y GitHub Pages), que **no se reemplaza**.
+1. **Credenciales**: proyecto de Supabase, cliente de OAuth de Google,
+   contraseña de aplicación del SMTP de Workspace, proyecto en Vercel.
+2. **Ingesta del panel de NPS** (Apps Script y GitHub Pages), que **no se
+   reemplaza**: escribe en `encuesta_respuestas` usando `fuente_externa`
+   y `referencia_externa`, que es lo que evita duplicar respuestas.
+3. **Datos reales en lugar del seed**: mapa de procesos, procedimientos
+   vigentes, histórico de no conformidades y matriz de riesgos.
+4. **Importación desde Sofidya** con `scripts/migrar-sofidya.ts` y la
+   `SecretKey` en variable de entorno.

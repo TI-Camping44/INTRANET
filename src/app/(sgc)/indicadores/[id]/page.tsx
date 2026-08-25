@@ -181,7 +181,9 @@ export default async function PaginaIndicador({ params }: { params: { id: string
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+        {/* min-w-0: sin eso el ancho minimo del grafico estira la columna
+            y arrastra la pagina al desplazamiento horizontal en celular. */}
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           <Tarjeta>
             <TarjetaCabecera>
               <TarjetaTitulo>Tendencia</TarjetaTitulo>

@@ -196,6 +196,14 @@ export const ESTADOS_NC_ABIERTOS: EstadoNoConformidad[] = [
   "en_verificacion",
 ];
 
+/**
+ * Plazo por defecto para cerrar una no conformidad recien abierta. El
+ * mismo valor esta en generar_no_conformidad_desde_hallazgo() y
+ * generar_no_conformidad_desde_respuesta(): si cambia, cambia en los dos
+ * lados.
+ */
+export const DIAS_LIMITE_CIERRE_NC = 30;
+
 /** Dias sin resolver a partir de los cuales se escala al jefe inmediato. */
 export const DIAS_ESCALAMIENTO_NC = 10;
 

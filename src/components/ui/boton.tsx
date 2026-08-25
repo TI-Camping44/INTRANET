@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
+import { Loader2 } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utilidades";
 
@@ -34,17 +35,46 @@ export interface PropiedadesBoton
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof variantesBoton> {
   comoHijo?: boolean;
+  /**
+   * Marca la accion en curso: deshabilita el boton y muestra un giro.
+   *
+   * Es necesario porque una accion de servidor que notifica puede tardar
+   * hasta seis segundos si el SMTP no responde (ESPERA_MAXIMA_CORREO).
+   * Un boton solo deshabilitado, sin senal de avance, se lee como roto.
+   */
+  cargando?: boolean;
 }
 
 const Boton = React.forwardRef<HTMLButtonElement, PropiedadesBoton>(
-  ({ className, variante, tamano, comoHijo = false, ...props }, ref) => {
-    const Componente = comoHijo ? Slot : "button";
+  (
+    { className, variante, tamano, comoHijo = false, cargando = false, children, ...props },
+    ref,
+  ) => {
+    // "comoHijo" delega el marcado a su unico hijo: ahi no se puede
+    // inyectar el giro sin romper esa promesa.
+    if (comoHijo) {
+      return (
+        <Slot
+          className={cn(variantesBoton({ variante, tamano }), className)}
+          ref={ref}
+          {...props}
+        >
+          {children}
+        </Slot>
+      );
+    }
+
     return (
-      <Componente
+      <button
         className={cn(variantesBoton({ variante, tamano }), className)}
         ref={ref}
         {...props}
-      />
+        disabled={cargando || props.disabled}
+        aria-busy={cargando || undefined}
+      >
+        {cargando ? <Loader2 className="animate-spin" aria-hidden /> : null}
+        {children}
+      </button>
     );
   },
 );

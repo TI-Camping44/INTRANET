@@ -14,7 +14,7 @@ navegable, y se completan en fases posteriores.
 | 3 · Riesgos y oportunidades | Operativo |
 | 4 · Auditorías internas | Operativo |
 | 5 · Indicadores y objetivos | Operativo |
-| 6 · Satisfacción del cliente | Esquema y consulta |
+| 6 · Satisfacción del cliente | Operativo |
 | 7 · Recursos humanos | Operativo |
 | 8 · Proveedores | Operativo |
 | 9 · Infraestructura y activos | Operativo |

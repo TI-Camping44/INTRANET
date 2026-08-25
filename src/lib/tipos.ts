@@ -68,6 +68,8 @@ export type TratamientoRiesgo = "evitar" | "mitigar" | "transferir" | "aceptar" 
 
 export type TipoProceso = "estrategico" | "operativo" | "apoyo";
 
+export type TipoEncuesta = "nps" | "csat" | "ces" | "personalizada";
+
 export type ResultadoEficacia = "eficaz" | "parcialmente_eficaz" | "no_eficaz" | "pendiente";
 
 export type TipoCapacitacion = "interna" | "externa" | "en_linea" | "induccion";

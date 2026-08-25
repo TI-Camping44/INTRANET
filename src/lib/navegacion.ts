@@ -73,9 +73,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Satisfacción del cliente",
         ruta: "/satisfaccion",
         icono: "Smile",
-        fase: "en_construccion",
-        notaFase:
-          "Preparado para consumir el panel de NPS existente. Integración prevista para octubre de 2026.",
+        fase: "operativo",
       },
     ],
   },

@@ -5,6 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { notificar, notificarAVarios } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import { DIAS_LIMITE_CIERRE_NC } from "@/lib/constantes";
 import type { EstadoAuditoria, ResultadoAccion, TipoHallazgo } from "@/lib/tipos";
 
 /** Programa anual de auditorias. Hay uno por empresa y por ano. */
@@ -409,7 +410,7 @@ export async function generarNoConformidad(
   const { data: ncId, error } = await supabase.rpc("generar_no_conformidad_desde_hallazgo", {
     p_hallazgo_id: hallazgoId,
     p_responsable_id: responsableId,
-    p_fecha_limite: fechaLimite || sumarDias(hoyEnAsuncion(), 30),
+    p_fecha_limite: fechaLimite || sumarDias(hoyEnAsuncion(), DIAS_LIMITE_CIERRE_NC),
   });
 
   if (error) return { exito: false, error: error.message };
