@@ -100,9 +100,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Infraestructura",
         ruta: "/activos",
         icono: "Wrench",
-        fase: "en_construccion",
-        notaFase:
-          "Inventario y mantenimientos preventivos con calendario. Interfaz prevista para octubre de 2026.",
+        fase: "operativo",
       },
     ],
   },

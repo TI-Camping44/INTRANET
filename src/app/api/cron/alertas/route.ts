@@ -221,13 +221,16 @@ export async function GET(peticion: NextRequest) {
   // -------------------------------------------------------------------
   // 5 · Mantenimientos preventivos de la semana
   // -------------------------------------------------------------------
+  // Primero se marcan como vencidos los que ya pasaron de fecha.
+  await supabase.rpc("marcar_mantenimientos_vencidos");
+
   const { data: mantenimientos } = await supabase
     .from("mantenimientos")
     .select(
       "id, descripcion, fecha_programada, activo_id, activos:activo_id (codigo, nombre), " +
         "responsable:responsable_id (id, correo)",
     )
-    .eq("estado", "programado")
+    .in("estado", ["programado", "vencido"])
     .lte("fecha_programada", sumarDias(hoy, 7));
 
   for (const mantenimiento of (mantenimientos ?? []) as any[]) {
