@@ -18,6 +18,7 @@ export type TipoDocumento =
   | "formulario"
   | "politica"
   | "registro"
+  | "plan"
   | "externo";
 
 export type EstadoDocumento = "borrador" | "en_revision" | "vigente" | "obsoleto";

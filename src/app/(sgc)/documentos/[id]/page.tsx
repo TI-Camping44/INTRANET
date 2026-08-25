@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import {
@@ -52,6 +52,7 @@ interface DocumentoDetalle {
   responsable: { id: string; nombre_completo: string } | null;
   elaborador: { nombre_completo: string } | null;
   aprobador: { nombre_completo: string } | null;
+  url_documento: string | null;
 }
 
 export async function generateMetadata({
@@ -154,6 +155,14 @@ export default async function PaginaDocumento({ params }: { params: { id: string
         titulo={documento.titulo}
         descripcion={documento.descripcion ?? undefined}
         acciones={
+          <div className="flex flex-wrap items-center gap-2">
+            {documento.url_documento ? (
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                <a href={documento.url_documento} target="_blank" rel="noreferrer">
+                  <ExternalLink /> Abrir el archivo
+                </a>
+              </Boton>
+            ) : null}
           <AccionesDocumento
             documentoId={documento.id}
             estadoDocumento={documento.estado}
@@ -165,6 +174,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             )}
             puedeGestionar={gestiona}
           />
+          </div>
         }
       />
 

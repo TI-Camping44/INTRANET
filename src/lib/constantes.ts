@@ -68,6 +68,7 @@ export const ETIQUETAS_TIPO_DOCUMENTO: Record<TipoDocumento, string> = {
   formulario: "Formulario",
   politica: "Política",
   registro: "Registro",
+  plan: "Plan",
   externo: "Documento externo",
 };
 
@@ -84,14 +85,23 @@ export const ETIQUETAS_ESTADO_REVISION: Record<EstadoRevision, string> = {
   rechazado: "Rechazado",
 };
 
-/** Prefijo de codigo sugerido segun el tipo de documento. */
+/**
+ * Prefijo de codigo sugerido segun el tipo de documento.
+ *
+ * Ojo: estos prefijos los definio el proyecto a falta de dato, y la
+ * codificacion real de Camping 44 es otra. El juego documental de TI usa
+ * <TIPO>-<AREA>-<NN> (POL-IT-01, PROC-IT-02, PLAN-IT-04) y el perfil de
+ * puesto usa R-02-01. Cuando Calidad confirme la codificacion definitiva,
+ * es este mapa el que hay que corregir.
+ */
 export const PREFIJO_CODIGO_DOCUMENTO: Record<TipoDocumento, string> = {
   manual: "MP",
-  procedimiento: "MP-SOP",
+  procedimiento: "PROC",
   instructivo: "IT",
   formulario: "F",
   politica: "POL",
   registro: "REG",
+  plan: "PLAN",
   externo: "EXT",
 };
 
