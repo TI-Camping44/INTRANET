@@ -1,0 +1,4526 @@
+-- =====================================================================
+-- Intranet SGC · Camping 44 S.A.
+-- INSTALACION COMPLETA EN UN SOLO ARCHIVO
+-- =====================================================================
+-- Este archivo se genera con scripts/generar-instalacion.sh y reune, en
+-- orden, todas las migraciones de supabase/migrations/ mas el seed de
+-- datos de demostracion.
+--
+-- Para que sirve: montar una instancia nueva de Supabase de una sola
+-- pegada en el editor SQL, sin instalar la CLI ni tener acceso directo a
+-- la base. Es lo que se usa para la demostracion.
+--
+-- COMO SE USA
+--   1. Panel de Supabase → SQL Editor → New query.
+--   2. Pegue TODO este archivo y ejecute (Run).
+--   3. Deberia terminar con el aviso "Datos de demostracion cargados".
+--
+-- ADVERTENCIA
+--   Carga datos de demostracion, marcados con es_demostracion = true.
+--   Para borrarlos mas adelante, vea la seccion correspondiente del
+--   README. Para una instancia de produccion sin datos de ejemplo,
+--   corte este archivo antes del bloque "SEED".
+--
+-- El archivo NO se edita a mano: se regenera.
+-- =====================================================================
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000100_extensiones_y_tipos.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 001 · Extensiones y tipos enumerados
+-- =====================================================================
+-- Todo el esquema esta en espanol: nombres de tablas, columnas y tipos.
+-- Zona horaria de referencia del negocio: America/Asuncion.
+
+create extension if not exists "pgcrypto";
+create extension if not exists "pg_trgm";
+create extension if not exists "unaccent";
+
+-- ---------------------------------------------------------------------
+-- Roles del sistema. Los permisos se resuelven en RLS, no en la interfaz.
+-- ---------------------------------------------------------------------
+create type public.rol_usuario as enum (
+  'administrador_sgc',    -- Calidad. Control total del sistema.
+  'responsable_proceso',  -- Escribe sobre los procesos a su cargo.
+  'colaborador',          -- Lee documentacion vigente y registra desviaciones.
+  'auditor',              -- Lectura amplia y escritura sobre auditorias.
+  'direccion'             -- Solo lectura, orientado a indicadores.
+);
+
+-- ---------------------------------------------------------------------
+-- Control de informacion documentada
+-- ---------------------------------------------------------------------
+create type public.tipo_documento as enum (
+  'manual',
+  'procedimiento',
+  'instructivo',
+  'formulario',
+  'politica',
+  'registro',
+  'externo'
+);
+
+create type public.estado_documento as enum (
+  'borrador',
+  'en_revision',
+  'vigente',
+  'obsoleto'
+);
+
+create type public.estado_revision as enum (
+  'pendiente',
+  'aprobado',
+  'rechazado'
+);
+
+-- ---------------------------------------------------------------------
+-- No conformidades y acciones
+-- ---------------------------------------------------------------------
+create type public.origen_no_conformidad as enum (
+  'auditoria_interna',
+  'auditoria_externa',
+  'reclamo_cliente',
+  'proceso_interno',
+  'proveedor',
+  'inspeccion',
+  'requisito_legal',
+  'otro'
+);
+
+create type public.severidad_no_conformidad as enum ('menor', 'mayor', 'critica');
+
+create type public.estado_no_conformidad as enum (
+  'abierta',
+  'en_analisis',
+  'en_tratamiento',
+  'en_verificacion',
+  'cerrada',
+  'anulada'
+);
+
+create type public.tipo_accion as enum (
+  'correccion',
+  'accion_correctiva',
+  'accion_preventiva',
+  'mejora'
+);
+
+create type public.estado_accion as enum (
+  'pendiente',
+  'en_curso',
+  'ejecutada',
+  'verificada',
+  'cancelada'
+);
+
+-- Categorias del diagrama de Ishikawa (6M).
+create type public.categoria_ishikawa as enum (
+  'metodo',
+  'maquina',
+  'mano_de_obra',
+  'material',
+  'medicion',
+  'medio_ambiente'
+);
+
+-- ---------------------------------------------------------------------
+-- Riesgos y oportunidades
+-- ---------------------------------------------------------------------
+create type public.tipo_riesgo as enum ('riesgo', 'oportunidad');
+
+create type public.estado_riesgo as enum (
+  'identificado',
+  'en_tratamiento',
+  'controlado',
+  'materializado',
+  'cerrado'
+);
+
+create type public.tratamiento_riesgo as enum (
+  'evitar',
+  'mitigar',
+  'transferir',
+  'aceptar',
+  'explotar'   -- aplica a oportunidades
+);
+
+-- ---------------------------------------------------------------------
+-- Auditorias
+-- ---------------------------------------------------------------------
+create type public.tipo_auditoria as enum ('interna', 'externa', 'proveedor', 'seguimiento');
+
+create type public.estado_auditoria as enum (
+  'planificada',
+  'en_ejecucion',
+  'informe_pendiente',
+  'cerrada',
+  'cancelada'
+);
+
+create type public.tipo_hallazgo as enum (
+  'no_conformidad_mayor',
+  'no_conformidad_menor',
+  'observacion',
+  'oportunidad_mejora',
+  'fortaleza'
+);
+
+-- ---------------------------------------------------------------------
+-- Indicadores
+-- ---------------------------------------------------------------------
+create type public.frecuencia_medicion as enum (
+  'diaria',
+  'semanal',
+  'mensual',
+  'bimestral',
+  'trimestral',
+  'semestral',
+  'anual'
+);
+
+-- Define si un valor alto es bueno (ventas) o malo (reclamos).
+create type public.sentido_indicador as enum ('mayor_mejor', 'menor_mejor', 'rango');
+
+-- ---------------------------------------------------------------------
+-- Satisfaccion del cliente
+-- ---------------------------------------------------------------------
+create type public.tipo_encuesta as enum ('nps', 'csat', 'ces', 'personalizada');
+
+-- ---------------------------------------------------------------------
+-- Recursos humanos
+-- ---------------------------------------------------------------------
+create type public.tipo_capacitacion as enum ('interna', 'externa', 'en_linea', 'induccion');
+
+create type public.estado_capacitacion as enum ('planificada', 'en_curso', 'finalizada', 'cancelada');
+
+create type public.resultado_eficacia as enum ('eficaz', 'parcialmente_eficaz', 'no_eficaz', 'pendiente');
+
+-- ---------------------------------------------------------------------
+-- Proveedores
+-- ---------------------------------------------------------------------
+create type public.estado_proveedor as enum (
+  'en_evaluacion',
+  'aprobado',
+  'condicional',
+  'rechazado',
+  'inactivo'
+);
+
+-- ---------------------------------------------------------------------
+-- Infraestructura y activos
+-- ---------------------------------------------------------------------
+create type public.estado_activo as enum (
+  'operativo',
+  'en_mantenimiento',
+  'fuera_de_servicio',
+  'dado_de_baja'
+);
+
+create type public.tipo_mantenimiento as enum ('preventivo', 'correctivo', 'calibracion', 'verificacion');
+
+create type public.estado_mantenimiento as enum ('programado', 'en_curso', 'ejecutado', 'vencido', 'cancelado');
+
+-- ---------------------------------------------------------------------
+-- Transversales
+-- ---------------------------------------------------------------------
+create type public.tipo_proceso as enum ('estrategico', 'operativo', 'apoyo');
+
+create type public.accion_bitacora as enum ('creacion', 'edicion', 'eliminacion');
+
+create type public.tipo_notificacion as enum (
+  'documento_publicado',
+  'documento_por_revisar',
+  'revision_solicitada',
+  'no_conformidad_asignada',
+  'accion_por_vencer',
+  'accion_vencida',
+  'escalamiento',
+  'riesgo_por_reevaluar',
+  'auditoria_programada',
+  'indicador_fuera_de_meta',
+  'mantenimiento_programado',
+  'general'
+);
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000200_tablas_base.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 002 · Tablas base: empresas, sedes, normas, procesos, puestos, usuarios
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Funcion utilitaria: mantiene actualizado el campo "actualizado_en".
+-- ---------------------------------------------------------------------
+create or replace function public.marcar_actualizacion()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.actualizado_en := now();
+  return new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Empresas. Camping 44 y Vitalica comparten el mismo espacio de trabajo
+-- de Google, por eso el modelo contempla la empresa desde el inicio.
+-- Hoy solo Camping 44 opera en el sistema.
+-- ---------------------------------------------------------------------
+create table public.empresas (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null,
+  razon_social text not null,
+  ruc text,
+  activa boolean not null default true,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index empresas_nombre_unico on public.empresas (lower(nombre));
+
+-- ---------------------------------------------------------------------
+-- Sedes / locales
+-- ---------------------------------------------------------------------
+create table public.sedes (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  nombre text not null,
+  direccion text,
+  ciudad text,
+  telefono text,
+  activa boolean not null default true,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create index sedes_empresa_idx on public.sedes (empresa_id);
+
+-- ---------------------------------------------------------------------
+-- Normas de referencia del sistema de gestion
+-- ---------------------------------------------------------------------
+create table public.normas (
+  id uuid primary key default gen_random_uuid(),
+  codigo text not null,
+  nombre text not null,
+  version text,
+  descripcion text,
+  vigente boolean not null default true,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index normas_codigo_unico on public.normas (lower(codigo));
+
+-- ---------------------------------------------------------------------
+-- Procesos del mapa de procesos.
+-- responsable_id se enlaza a usuarios mas abajo (referencia circular).
+-- ---------------------------------------------------------------------
+create table public.procesos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  tipo tipo_proceso not null default 'operativo',
+  descripcion text,
+  responsable_id uuid,
+  activo boolean not null default true,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index procesos_codigo_unico on public.procesos (empresa_id, lower(codigo));
+create index procesos_responsable_idx on public.procesos (responsable_id);
+
+-- ---------------------------------------------------------------------
+-- Puestos de trabajo (modulo Recursos Humanos, tambien usado por usuarios)
+-- ---------------------------------------------------------------------
+create table public.puestos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  area text,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  mision text,
+  reporta_a_puesto_id uuid references public.puestos (id) on delete set null,
+  activo boolean not null default true,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index puestos_codigo_unico on public.puestos (empresa_id, lower(codigo));
+
+-- ---------------------------------------------------------------------
+-- Usuarios. El identificador es el mismo de auth.users, de modo que las
+-- politicas RLS puedan comparar directamente contra auth.uid().
+-- El campo "superior_id" sostiene el escalamiento de no conformidades.
+-- ---------------------------------------------------------------------
+create table public.usuarios (
+  id uuid primary key references auth.users (id) on delete cascade,
+  empresa_id uuid not null references public.empresas (id) on delete restrict,
+  correo text not null,
+  nombre_completo text not null,
+  rol rol_usuario not null default 'colaborador',
+  puesto_id uuid references public.puestos (id) on delete set null,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  superior_id uuid references public.usuarios (id) on delete set null,
+  telefono text,
+  url_avatar text,
+  activo boolean not null default true,
+  ultimo_ingreso timestamptz,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index usuarios_correo_unico on public.usuarios (lower(correo));
+create index usuarios_empresa_idx on public.usuarios (empresa_id);
+create index usuarios_superior_idx on public.usuarios (superior_id);
+create index usuarios_proceso_idx on public.usuarios (proceso_id);
+
+-- Cierre de la referencia circular procesos -> usuarios.
+alter table public.procesos
+  add constraint procesos_responsable_fk
+  foreign key (responsable_id) references public.usuarios (id) on delete set null;
+
+-- ---------------------------------------------------------------------
+-- Clientes (usado por Satisfaccion del Cliente y No Conformidades)
+-- ---------------------------------------------------------------------
+create table public.clientes (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text,
+  razon_social text not null,
+  ruc text,
+  correo text,
+  telefono text,
+  ciudad text,
+  activo boolean not null default true,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create index clientes_empresa_idx on public.clientes (empresa_id);
+
+-- ---------------------------------------------------------------------
+-- Disparadores de actualizacion
+-- ---------------------------------------------------------------------
+create trigger empresas_actualizacion before update on public.empresas
+  for each row execute function public.marcar_actualizacion();
+create trigger sedes_actualizacion before update on public.sedes
+  for each row execute function public.marcar_actualizacion();
+create trigger normas_actualizacion before update on public.normas
+  for each row execute function public.marcar_actualizacion();
+create trigger procesos_actualizacion before update on public.procesos
+  for each row execute function public.marcar_actualizacion();
+create trigger puestos_actualizacion before update on public.puestos
+  for each row execute function public.marcar_actualizacion();
+create trigger usuarios_actualizacion before update on public.usuarios
+  for each row execute function public.marcar_actualizacion();
+create trigger clientes_actualizacion before update on public.clientes
+  for each row execute function public.marcar_actualizacion();
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000300_documentos.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 003 · Modulo 1: Control de Informacion Documentada
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Documentos. El codigo es controlado y sigue el formato acordado con
+-- Calidad: MP-SOP-01 (manuales y procedimientos) o F-COM-01-02
+-- (formularios). Se valida el formato general y la unicidad por empresa.
+-- ---------------------------------------------------------------------
+create table public.documentos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  titulo text not null,
+  descripcion text,
+  tipo tipo_documento not null default 'procedimiento',
+  estado estado_documento not null default 'borrador',
+  proceso_id uuid references public.procesos (id) on delete set null,
+  norma_id uuid references public.normas (id) on delete set null,
+  responsable_id uuid not null references public.usuarios (id) on delete restrict,
+  elaborador_id uuid references public.usuarios (id) on delete set null,
+  aprobador_id uuid references public.usuarios (id) on delete set null,
+  version_actual integer not null default 0,
+  fecha_aprobacion date,
+  fecha_vigencia date,
+  fecha_proxima_revision date,
+  periodicidad_revision_meses integer not null default 12,
+  es_demostracion boolean not null default false,
+  creado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint documentos_codigo_formato
+    check (codigo ~ '^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$'),
+  constraint documentos_version_valida check (version_actual >= 0),
+  constraint documentos_periodicidad_valida
+    check (periodicidad_revision_meses between 1 and 60)
+);
+
+create unique index documentos_codigo_unico on public.documentos (empresa_id, upper(codigo));
+create index documentos_estado_idx on public.documentos (empresa_id, estado);
+create index documentos_proceso_idx on public.documentos (proceso_id);
+create index documentos_responsable_idx on public.documentos (responsable_id);
+create index documentos_proxima_revision_idx on public.documentos (fecha_proxima_revision)
+  where estado = 'vigente';
+
+-- Indice de texto completo en espanol para la busqueda global.
+alter table public.documentos add column busqueda tsvector
+  generated always as (
+    to_tsvector('spanish',
+      coalesce(codigo, '') || ' ' || coalesce(titulo, '') || ' ' || coalesce(descripcion, ''))
+  ) stored;
+
+create index documentos_busqueda_idx on public.documentos using gin (busqueda);
+
+-- ---------------------------------------------------------------------
+-- Versiones. El versionado es automatico: v00 es el borrador inicial y
+-- cada aprobacion incrementa la version. La version anterior queda
+-- consultable como historico, requisito de ISO 9001 7.5.3.
+-- ---------------------------------------------------------------------
+create table public.documento_versiones (
+  id uuid primary key default gen_random_uuid(),
+  documento_id uuid not null references public.documentos (id) on delete cascade,
+  version integer not null,
+  etiqueta text generated always as ('v' || lpad(version::text, 2, '0')) stored,
+  estado estado_documento not null default 'borrador',
+  resumen_cambios text,
+  ruta_archivo text,
+  nombre_archivo text,
+  tamano_bytes bigint,
+  tipo_mime text,
+  elaborado_por uuid references public.usuarios (id) on delete set null,
+  aprobado_por uuid references public.usuarios (id) on delete set null,
+  fecha_aprobacion timestamptz,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint documento_versiones_version_valida check (version >= 0)
+);
+
+create unique index documento_versiones_unico
+  on public.documento_versiones (documento_id, version);
+create index documento_versiones_documento_idx
+  on public.documento_versiones (documento_id, version desc);
+
+-- ---------------------------------------------------------------------
+-- Revisores asignados a una version concreta. El flujo es
+-- elaboracion -> revision (uno o mas revisores) -> aprobacion (uno).
+-- ---------------------------------------------------------------------
+create table public.documento_revisores (
+  id uuid primary key default gen_random_uuid(),
+  version_id uuid not null references public.documento_versiones (id) on delete cascade,
+  usuario_id uuid not null references public.usuarios (id) on delete cascade,
+  estado estado_revision not null default 'pendiente',
+  comentario text,
+  fecha_respuesta timestamptz,
+  creado_en timestamptz not null default now()
+);
+
+create unique index documento_revisores_unico
+  on public.documento_revisores (version_id, usuario_id);
+create index documento_revisores_usuario_idx
+  on public.documento_revisores (usuario_id, estado);
+
+-- ---------------------------------------------------------------------
+-- Lista de difusion: usuarios alcanzados por el documento. Se les
+-- notifica cada vez que se publica una version nueva.
+-- ---------------------------------------------------------------------
+create table public.documento_difusion (
+  id uuid primary key default gen_random_uuid(),
+  documento_id uuid not null references public.documentos (id) on delete cascade,
+  usuario_id uuid references public.usuarios (id) on delete cascade,
+  proceso_id uuid references public.procesos (id) on delete cascade,
+  creado_en timestamptz not null default now(),
+
+  -- Se alcanza a una persona o a todo un proceso, no a ambos a la vez.
+  constraint documento_difusion_destino
+    check (num_nonnulls(usuario_id, proceso_id) = 1)
+);
+
+create unique index documento_difusion_usuario_unico
+  on public.documento_difusion (documento_id, usuario_id)
+  where usuario_id is not null;
+create unique index documento_difusion_proceso_unico
+  on public.documento_difusion (documento_id, proceso_id)
+  where proceso_id is not null;
+
+create trigger documentos_actualizacion before update on public.documentos
+  for each row execute function public.marcar_actualizacion();
+create trigger documento_versiones_actualizacion before update on public.documento_versiones
+  for each row execute function public.marcar_actualizacion();
+
+-- ---------------------------------------------------------------------
+-- Al aprobar una version se sincroniza la cabecera del documento:
+-- version vigente, fechas y estado de las versiones anteriores.
+-- ---------------------------------------------------------------------
+create or replace function public.sincronizar_documento_al_aprobar()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_periodicidad integer;
+begin
+  if new.estado = 'vigente' and (old.estado is distinct from 'vigente') then
+    select periodicidad_revision_meses into v_periodicidad
+      from public.documentos where id = new.documento_id;
+
+    -- Las versiones previas pasan a obsoletas, pero siguen consultables.
+    update public.documento_versiones
+       set estado = 'obsoleto'
+     where documento_id = new.documento_id
+       and id <> new.id
+       and estado <> 'obsoleto';
+
+    update public.documentos
+       set estado = 'vigente',
+           version_actual = new.version,
+           fecha_aprobacion = coalesce(new.fecha_aprobacion::date, current_date),
+           fecha_vigencia = coalesce(new.fecha_aprobacion::date, current_date),
+           fecha_proxima_revision =
+             coalesce(new.fecha_aprobacion::date, current_date)
+             + (coalesce(v_periodicidad, 12) || ' months')::interval,
+           aprobador_id = coalesce(new.aprobado_por, aprobador_id)
+     where id = new.documento_id;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger documento_versiones_aprobacion
+  after update on public.documento_versiones
+  for each row execute function public.sincronizar_documento_al_aprobar();
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000400_no_conformidades.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 004 · Modulo 2: No Conformidades y Acciones Correctivas
+-- =====================================================================
+
+create table public.no_conformidades (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  titulo text not null,
+  descripcion text not null,
+  origen origen_no_conformidad not null default 'proceso_interno',
+  severidad severidad_no_conformidad not null default 'menor',
+  estado estado_no_conformidad not null default 'abierta',
+  proceso_id uuid references public.procesos (id) on delete set null,
+  sede_id uuid references public.sedes (id) on delete set null,
+  norma_id uuid references public.normas (id) on delete set null,
+  cliente_id uuid references public.clientes (id) on delete set null,
+  requisito_incumplido text,
+  correccion_inmediata text,
+  conclusion_causa_raiz text,
+  detectado_por uuid references public.usuarios (id) on delete set null,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  fecha_deteccion date not null default current_date,
+  fecha_limite_cierre date,
+  fecha_cierre date,
+  cerrado_por uuid references public.usuarios (id) on delete set null,
+  eficacia resultado_eficacia not null default 'pendiente',
+  observacion_eficacia text,
+  -- Vinculo con el modulo de Riesgos cuando el analisis de causa raiz
+  -- revela un riesgo que no estaba contemplado en la matriz.
+  riesgo_id uuid,
+  es_demostracion boolean not null default false,
+  creado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint no_conformidades_codigo_formato check (codigo ~ '^NC-[0-9]{4}-[0-9]{3}$')
+);
+
+create unique index no_conformidades_codigo_unico
+  on public.no_conformidades (empresa_id, upper(codigo));
+create index no_conformidades_estado_idx on public.no_conformidades (empresa_id, estado);
+create index no_conformidades_proceso_idx on public.no_conformidades (proceso_id);
+create index no_conformidades_responsable_idx on public.no_conformidades (responsable_id);
+create index no_conformidades_riesgo_idx on public.no_conformidades (riesgo_id);
+
+alter table public.no_conformidades add column busqueda tsvector
+  generated always as (
+    to_tsvector('spanish',
+      coalesce(codigo, '') || ' ' || coalesce(titulo, '') || ' ' ||
+      coalesce(descripcion, '') || ' ' || coalesce(requisito_incumplido, ''))
+  ) stored;
+
+create index no_conformidades_busqueda_idx on public.no_conformidades using gin (busqueda);
+
+-- ---------------------------------------------------------------------
+-- Analisis de causa raiz - 5 porques (cadena ordenada)
+-- ---------------------------------------------------------------------
+create table public.nc_porques (
+  id uuid primary key default gen_random_uuid(),
+  no_conformidad_id uuid not null references public.no_conformidades (id) on delete cascade,
+  orden integer not null,
+  pregunta text not null,
+  respuesta text not null,
+  creado_en timestamptz not null default now(),
+
+  constraint nc_porques_orden_valido check (orden between 1 and 10)
+);
+
+create unique index nc_porques_unico on public.nc_porques (no_conformidad_id, orden);
+
+-- ---------------------------------------------------------------------
+-- Analisis de causa raiz - Ishikawa (6M)
+-- ---------------------------------------------------------------------
+create table public.nc_ishikawa (
+  id uuid primary key default gen_random_uuid(),
+  no_conformidad_id uuid not null references public.no_conformidades (id) on delete cascade,
+  categoria categoria_ishikawa not null,
+  causa text not null,
+  es_causa_raiz boolean not null default false,
+  creado_en timestamptz not null default now()
+);
+
+create index nc_ishikawa_nc_idx on public.nc_ishikawa (no_conformidad_id, categoria);
+
+-- ---------------------------------------------------------------------
+-- Plan de accion. El escalamiento se apoya en "nivel_escalamiento":
+-- 0 sin escalar, 1 notificado el superior, 2 notificado el nivel siguiente.
+-- ---------------------------------------------------------------------
+create table public.nc_acciones (
+  id uuid primary key default gen_random_uuid(),
+  no_conformidad_id uuid not null references public.no_conformidades (id) on delete cascade,
+  tipo tipo_accion not null default 'accion_correctiva',
+  descripcion text not null,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  fecha_limite date not null,
+  estado estado_accion not null default 'pendiente',
+  fecha_ejecucion date,
+  evidencia text,
+  verificado_por uuid references public.usuarios (id) on delete set null,
+  fecha_verificacion date,
+  nivel_escalamiento smallint not null default 0,
+  fecha_ultima_alerta timestamptz,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint nc_acciones_escalamiento_valido check (nivel_escalamiento between 0 and 3)
+);
+
+create index nc_acciones_nc_idx on public.nc_acciones (no_conformidad_id);
+create index nc_acciones_responsable_idx on public.nc_acciones (responsable_id, estado);
+create index nc_acciones_vencimiento_idx on public.nc_acciones (fecha_limite)
+  where estado in ('pendiente', 'en_curso');
+
+create trigger no_conformidades_actualizacion before update on public.no_conformidades
+  for each row execute function public.marcar_actualizacion();
+create trigger nc_acciones_actualizacion before update on public.nc_acciones
+  for each row execute function public.marcar_actualizacion();
+
+-- ---------------------------------------------------------------------
+-- Numeracion correlativa automatica: NC-2026-001.
+-- ---------------------------------------------------------------------
+create or replace function public.siguiente_codigo_no_conformidad(p_empresa_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_anio text := to_char(now() at time zone 'America/Asuncion', 'YYYY');
+  v_secuencia integer;
+begin
+  select coalesce(max(split_part(codigo, '-', 3)::integer), 0) + 1
+    into v_secuencia
+    from public.no_conformidades
+   where empresa_id = p_empresa_id
+     and codigo like 'NC-' || v_anio || '-%';
+
+  return 'NC-' || v_anio || '-' || lpad(v_secuencia::text, 3, '0');
+end;
+$$;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000500_riesgos.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 005 · Modulo 3: Gestion de Riesgos y Oportunidades
+-- =====================================================================
+-- Matriz 5x5. Nivel = Probabilidad x Impacto (1 a 25).
+-- Semaforo acordado con Calidad:
+--   1  a  4  -> bajo
+--   5  a  9  -> medio
+--   10 a 14  -> alto
+--   15 a 25  -> critico
+
+create or replace function public.etiqueta_nivel_riesgo(p_nivel integer)
+returns text
+language sql
+immutable
+as $$
+  select case
+    when p_nivel is null then null
+    when p_nivel <= 4  then 'bajo'
+    when p_nivel <= 9  then 'medio'
+    when p_nivel <= 14 then 'alto'
+    else 'critico'
+  end;
+$$;
+
+-- Periodicidad de reevaluacion segun el nivel, en dias.
+create or replace function public.dias_reevaluacion_riesgo(p_nivel integer)
+returns integer
+language sql
+immutable
+as $$
+  select case
+    when p_nivel is null then 365
+    when p_nivel <= 4  then 365
+    when p_nivel <= 9  then 180
+    when p_nivel <= 14 then 90
+    else 30
+  end;
+$$;
+
+create table public.riesgos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  titulo text not null,
+  descripcion text,
+  tipo tipo_riesgo not null default 'riesgo',
+  categoria text,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  estado estado_riesgo not null default 'identificado',
+  causas text,
+  consecuencias text,
+  controles_existentes text,
+  tratamiento tratamiento_riesgo not null default 'mitigar',
+
+  -- Evaluacion inicial (inherente)
+  probabilidad smallint not null default 1,
+  impacto smallint not null default 1,
+  nivel integer generated always as (probabilidad * impacto) stored,
+
+  -- Evaluacion residual, posterior a las acciones de tratamiento
+  probabilidad_residual smallint,
+  impacto_residual smallint,
+  nivel_residual integer generated always as (probabilidad_residual * impacto_residual) stored,
+
+  fecha_identificacion date not null default current_date,
+  fecha_ultima_evaluacion date not null default current_date,
+  fecha_proxima_revision date,
+  es_demostracion boolean not null default false,
+  creado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint riesgos_codigo_formato check (codigo ~ '^R-[0-9]{4}-[0-9]{3}$'),
+  constraint riesgos_probabilidad_valida check (probabilidad between 1 and 5),
+  constraint riesgos_impacto_valido check (impacto between 1 and 5),
+  constraint riesgos_probabilidad_residual_valida
+    check (probabilidad_residual is null or probabilidad_residual between 1 and 5),
+  constraint riesgos_impacto_residual_valido
+    check (impacto_residual is null or impacto_residual between 1 and 5)
+);
+
+create unique index riesgos_codigo_unico on public.riesgos (empresa_id, upper(codigo));
+create index riesgos_estado_idx on public.riesgos (empresa_id, estado);
+create index riesgos_nivel_idx on public.riesgos (empresa_id, nivel desc);
+create index riesgos_proceso_idx on public.riesgos (proceso_id);
+create index riesgos_proxima_revision_idx on public.riesgos (fecha_proxima_revision)
+  where estado in ('identificado', 'en_tratamiento');
+
+alter table public.riesgos add column busqueda tsvector
+  generated always as (
+    to_tsvector('spanish',
+      coalesce(codigo, '') || ' ' || coalesce(titulo, '') || ' ' ||
+      coalesce(descripcion, '') || ' ' || coalesce(categoria, ''))
+  ) stored;
+
+create index riesgos_busqueda_idx on public.riesgos using gin (busqueda);
+
+-- Vinculo de vuelta desde No Conformidades (declarado alli sin restriccion
+-- para evitar una dependencia circular entre migraciones).
+alter table public.no_conformidades
+  add constraint no_conformidades_riesgo_fk
+  foreign key (riesgo_id) references public.riesgos (id) on delete set null;
+
+-- ---------------------------------------------------------------------
+-- Acciones de tratamiento del riesgo
+-- ---------------------------------------------------------------------
+create table public.riesgo_acciones (
+  id uuid primary key default gen_random_uuid(),
+  riesgo_id uuid not null references public.riesgos (id) on delete cascade,
+  descripcion text not null,
+  tratamiento tratamiento_riesgo not null default 'mitigar',
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  fecha_limite date,
+  estado estado_accion not null default 'pendiente',
+  fecha_ejecucion date,
+  evidencia text,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create index riesgo_acciones_riesgo_idx on public.riesgo_acciones (riesgo_id);
+create index riesgo_acciones_responsable_idx on public.riesgo_acciones (responsable_id, estado);
+
+-- ---------------------------------------------------------------------
+-- Historial de evaluaciones. Cada reevaluacion deja registro, de modo que
+-- se pueda mostrar la evolucion del riesgo en el tiempo.
+-- ---------------------------------------------------------------------
+create table public.riesgo_evaluaciones (
+  id uuid primary key default gen_random_uuid(),
+  riesgo_id uuid not null references public.riesgos (id) on delete cascade,
+  fecha date not null default current_date,
+  probabilidad smallint not null,
+  impacto smallint not null,
+  nivel integer generated always as (probabilidad * impacto) stored,
+  comentario text,
+  evaluado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+
+  constraint riesgo_evaluaciones_probabilidad_valida check (probabilidad between 1 and 5),
+  constraint riesgo_evaluaciones_impacto_valido check (impacto between 1 and 5)
+);
+
+create index riesgo_evaluaciones_riesgo_idx on public.riesgo_evaluaciones (riesgo_id, fecha desc);
+
+create trigger riesgos_actualizacion before update on public.riesgos
+  for each row execute function public.marcar_actualizacion();
+create trigger riesgo_acciones_actualizacion before update on public.riesgo_acciones
+  for each row execute function public.marcar_actualizacion();
+
+-- ---------------------------------------------------------------------
+-- La fecha de proxima revision se recalcula sola segun el nivel vigente.
+-- ---------------------------------------------------------------------
+create or replace function public.calcular_proxima_revision_riesgo()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_nivel integer := coalesce(new.probabilidad_residual * new.impacto_residual,
+                              new.probabilidad * new.impacto);
+begin
+  if tg_op = 'INSERT'
+     or new.probabilidad is distinct from old.probabilidad
+     or new.impacto is distinct from old.impacto
+     or new.probabilidad_residual is distinct from old.probabilidad_residual
+     or new.impacto_residual is distinct from old.impacto_residual
+     or new.fecha_proxima_revision is null then
+    new.fecha_ultima_evaluacion := current_date;
+    new.fecha_proxima_revision :=
+      current_date + public.dias_reevaluacion_riesgo(v_nivel);
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger riesgos_proxima_revision
+  before insert or update on public.riesgos
+  for each row execute function public.calcular_proxima_revision_riesgo();
+
+-- ---------------------------------------------------------------------
+-- Numeracion correlativa automatica: R-2026-001.
+-- ---------------------------------------------------------------------
+create or replace function public.siguiente_codigo_riesgo(p_empresa_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_anio text := to_char(now() at time zone 'America/Asuncion', 'YYYY');
+  v_secuencia integer;
+begin
+  select coalesce(max(split_part(codigo, '-', 3)::integer), 0) + 1
+    into v_secuencia
+    from public.riesgos
+   where empresa_id = p_empresa_id
+     and codigo like 'R-' || v_anio || '-%';
+
+  return 'R-' || v_anio || '-' || lpad(v_secuencia::text, 3, '0');
+end;
+$$;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000600_auditorias.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 006 · Modulo 4: Auditorias Internas
+-- =====================================================================
+-- Esquema completo. La interfaz de este modulo se construye despues del
+-- 31/08/2026; por ahora la pantalla es de consulta.
+
+create table public.programas_auditoria (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  anio integer not null,
+  nombre text not null,
+  objetivo text,
+  estado estado_auditoria not null default 'planificada',
+  aprobado_por uuid references public.usuarios (id) on delete set null,
+  fecha_aprobacion date,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint programas_auditoria_anio_valido check (anio between 2000 and 2100)
+);
+
+create unique index programas_auditoria_unico on public.programas_auditoria (empresa_id, anio);
+
+create table public.auditorias (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  programa_id uuid references public.programas_auditoria (id) on delete set null,
+  codigo text not null,
+  tipo tipo_auditoria not null default 'interna',
+  proceso_id uuid references public.procesos (id) on delete set null,
+  norma_id uuid references public.normas (id) on delete set null,
+  sede_id uuid references public.sedes (id) on delete set null,
+  auditor_lider_id uuid references public.usuarios (id) on delete set null,
+  objetivo text,
+  alcance text,
+  criterios text,
+  fecha_planificada date,
+  fecha_inicio date,
+  fecha_fin date,
+  estado estado_auditoria not null default 'planificada',
+  conclusiones text,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index auditorias_codigo_unico on public.auditorias (empresa_id, upper(codigo));
+create index auditorias_programa_idx on public.auditorias (programa_id);
+create index auditorias_estado_idx on public.auditorias (empresa_id, estado);
+
+create table public.auditoria_equipo (
+  id uuid primary key default gen_random_uuid(),
+  auditoria_id uuid not null references public.auditorias (id) on delete cascade,
+  usuario_id uuid not null references public.usuarios (id) on delete cascade,
+  rol_equipo text not null default 'auditor',
+  creado_en timestamptz not null default now()
+);
+
+create unique index auditoria_equipo_unico on public.auditoria_equipo (auditoria_id, usuario_id);
+
+-- Los hallazgos pueden generar automaticamente una No Conformidad.
+create table public.auditoria_hallazgos (
+  id uuid primary key default gen_random_uuid(),
+  auditoria_id uuid not null references public.auditorias (id) on delete cascade,
+  codigo text,
+  tipo tipo_hallazgo not null default 'observacion',
+  requisito text,
+  descripcion text not null,
+  evidencia text,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  no_conformidad_id uuid references public.no_conformidades (id) on delete set null,
+  registrado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create index auditoria_hallazgos_auditoria_idx on public.auditoria_hallazgos (auditoria_id);
+create index auditoria_hallazgos_nc_idx on public.auditoria_hallazgos (no_conformidad_id);
+
+create trigger programas_auditoria_actualizacion before update on public.programas_auditoria
+  for each row execute function public.marcar_actualizacion();
+create trigger auditorias_actualizacion before update on public.auditorias
+  for each row execute function public.marcar_actualizacion();
+create trigger auditoria_hallazgos_actualizacion before update on public.auditoria_hallazgos
+  for each row execute function public.marcar_actualizacion();
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000700_indicadores.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 007 · Modulo 5: Indicadores (KPI) y Objetivos
+-- =====================================================================
+-- Las mediciones se exponen mediante la vista publica
+-- "vista_indicadores_looker" para su consumo desde Looker Studio.
+
+create table public.indicadores (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  descripcion text,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  formula text,
+  unidad text not null default '%',
+  frecuencia frecuencia_medicion not null default 'mensual',
+  sentido sentido_indicador not null default 'mayor_mejor',
+  meta numeric(14, 2),
+  meta_minima numeric(14, 2),
+  meta_maxima numeric(14, 2),
+  activo boolean not null default true,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index indicadores_codigo_unico on public.indicadores (empresa_id, upper(codigo));
+create index indicadores_proceso_idx on public.indicadores (proceso_id);
+
+create table public.indicador_mediciones (
+  id uuid primary key default gen_random_uuid(),
+  indicador_id uuid not null references public.indicadores (id) on delete cascade,
+  periodo date not null,             -- primer dia del periodo medido
+  valor_real numeric(14, 2) not null,
+  meta_periodo numeric(14, 2),
+  observacion text,
+  cargado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index indicador_mediciones_unico on public.indicador_mediciones (indicador_id, periodo);
+create index indicador_mediciones_periodo_idx on public.indicador_mediciones (periodo desc);
+
+create table public.objetivos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  descripcion text,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  anio integer not null,
+  meta text,
+  avance_porcentaje numeric(5, 2) not null default 0,
+  estado text not null default 'en_curso',
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint objetivos_avance_valido check (avance_porcentaje between 0 and 100)
+);
+
+create unique index objetivos_codigo_unico on public.objetivos (empresa_id, upper(codigo));
+
+create table public.objetivo_indicadores (
+  id uuid primary key default gen_random_uuid(),
+  objetivo_id uuid not null references public.objetivos (id) on delete cascade,
+  indicador_id uuid not null references public.indicadores (id) on delete cascade
+);
+
+create unique index objetivo_indicadores_unico
+  on public.objetivo_indicadores (objetivo_id, indicador_id);
+
+create trigger indicadores_actualizacion before update on public.indicadores
+  for each row execute function public.marcar_actualizacion();
+create trigger indicador_mediciones_actualizacion before update on public.indicador_mediciones
+  for each row execute function public.marcar_actualizacion();
+create trigger objetivos_actualizacion before update on public.objetivos
+  for each row execute function public.marcar_actualizacion();
+
+-- ---------------------------------------------------------------------
+-- Vista de consumo para Looker Studio. Entrega la medicion ya comparada
+-- contra la meta, para no repetir la logica del semaforo fuera del SGC.
+-- ---------------------------------------------------------------------
+-- security_invoker: la vista respeta las politicas RLS de quien consulta.
+create or replace view public.vista_indicadores_looker
+  with (security_invoker = on) as
+select
+  m.id                                as medicion_id,
+  i.empresa_id,
+  e.nombre                            as empresa,
+  i.codigo                            as indicador_codigo,
+  i.nombre                            as indicador,
+  p.nombre                            as proceso,
+  i.unidad,
+  i.frecuencia::text                  as frecuencia,
+  i.sentido::text                     as sentido,
+  m.periodo,
+  extract(year from m.periodo)::int   as anio,
+  extract(month from m.periodo)::int  as mes,
+  m.valor_real,
+  coalesce(m.meta_periodo, i.meta)    as meta,
+  case
+    when coalesce(m.meta_periodo, i.meta) is null then null
+    when i.sentido = 'mayor_mejor' then m.valor_real >= coalesce(m.meta_periodo, i.meta)
+    when i.sentido = 'menor_mejor' then m.valor_real <= coalesce(m.meta_periodo, i.meta)
+    else m.valor_real between coalesce(i.meta_minima, '-Infinity'::numeric)
+                          and coalesce(i.meta_maxima, 'Infinity'::numeric)
+  end                                 as cumple_meta,
+  m.observacion
+from public.indicador_mediciones m
+join public.indicadores i on i.id = m.indicador_id
+join public.empresas e on e.id = i.empresa_id
+left join public.procesos p on p.id = i.proceso_id;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000800_satisfaccion.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 008 · Modulo 6: Satisfaccion del Cliente
+-- =====================================================================
+-- Camping 44 ya cuenta con un panel de NPS propio (Apps Script +
+-- GitHub Pages). Este modulo NO lo reemplaza: el esquema esta preparado
+-- para ingerir esas respuestas mas adelante mediante los campos
+-- "fuente_externa" y "referencia_externa".
+
+create table public.encuestas (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  tipo tipo_encuesta not null default 'nps',
+  descripcion text,
+  fecha_inicio date,
+  fecha_fin date,
+  activa boolean not null default true,
+  fuente_externa text,             -- identificador del sistema de origen
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index encuestas_codigo_unico on public.encuestas (empresa_id, upper(codigo));
+
+create table public.encuesta_respuestas (
+  id uuid primary key default gen_random_uuid(),
+  encuesta_id uuid not null references public.encuestas (id) on delete cascade,
+  cliente_id uuid references public.clientes (id) on delete set null,
+  fecha date not null default current_date,
+  puntaje smallint not null,
+  categoria_nps text generated always as (
+    case
+      when puntaje >= 9 then 'promotor'
+      when puntaje >= 7 then 'pasivo'
+      else 'detractor'
+    end
+  ) stored,
+  comentario text,
+  canal text,
+  sede_id uuid references public.sedes (id) on delete set null,
+  referencia_externa text,         -- identificador del registro de origen
+  creado_en timestamptz not null default now(),
+
+  constraint encuesta_respuestas_puntaje_valido check (puntaje between 0 and 10)
+);
+
+create index encuesta_respuestas_encuesta_idx on public.encuesta_respuestas (encuesta_id, fecha desc);
+create unique index encuesta_respuestas_externa_unica
+  on public.encuesta_respuestas (encuesta_id, referencia_externa)
+  where referencia_externa is not null;
+
+create trigger encuestas_actualizacion before update on public.encuestas
+  for each row execute function public.marcar_actualizacion();
+
+
+-- =====================================================================
+-- MIGRACION: 20260824000900_recursos_humanos.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 009 · Modulo 7: Recursos Humanos
+-- =====================================================================
+-- La tabla "puestos" se creo en la migracion 002 porque los usuarios la
+-- referencian. Aqui se agregan competencias, capacitaciones y eficacia.
+
+create table public.competencias (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  descripcion text,
+  tipo text not null default 'tecnica',   -- tecnica | conductual | legal
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index competencias_codigo_unico on public.competencias (empresa_id, upper(codigo));
+
+-- Matriz de competencias: nivel requerido por puesto (escala 1 a 5).
+create table public.puesto_competencias (
+  id uuid primary key default gen_random_uuid(),
+  puesto_id uuid not null references public.puestos (id) on delete cascade,
+  competencia_id uuid not null references public.competencias (id) on delete cascade,
+  nivel_requerido smallint not null default 3,
+  critica boolean not null default false,
+
+  constraint puesto_competencias_nivel_valido check (nivel_requerido between 1 and 5)
+);
+
+create unique index puesto_competencias_unico
+  on public.puesto_competencias (puesto_id, competencia_id);
+
+-- Evaluacion de la persona frente a la competencia. La brecha se calcula
+-- sola y alimenta el plan de capacitacion.
+create table public.evaluaciones_competencia (
+  id uuid primary key default gen_random_uuid(),
+  usuario_id uuid not null references public.usuarios (id) on delete cascade,
+  competencia_id uuid not null references public.competencias (id) on delete cascade,
+  nivel_actual smallint not null,
+  nivel_requerido smallint not null,
+  brecha smallint generated always as (nivel_requerido - nivel_actual) stored,
+  fecha date not null default current_date,
+  evaluado_por uuid references public.usuarios (id) on delete set null,
+  observacion text,
+  creado_en timestamptz not null default now(),
+
+  constraint evaluaciones_competencia_actual_valido check (nivel_actual between 0 and 5),
+  constraint evaluaciones_competencia_requerido_valido check (nivel_requerido between 1 and 5)
+);
+
+create index evaluaciones_competencia_usuario_idx
+  on public.evaluaciones_competencia (usuario_id, fecha desc);
+
+create table public.capacitaciones (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  descripcion text,
+  tipo tipo_capacitacion not null default 'interna',
+  proveedor_nombre text,
+  instructor text,
+  fecha_inicio date,
+  fecha_fin date,
+  horas numeric(6, 2),
+  costo_gs bigint not null default 0,       -- guaranies, sin decimales
+  estado estado_capacitacion not null default 'planificada',
+  competencia_id uuid references public.competencias (id) on delete set null,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create unique index capacitaciones_codigo_unico on public.capacitaciones (empresa_id, upper(codigo));
+
+create table public.capacitacion_participantes (
+  id uuid primary key default gen_random_uuid(),
+  capacitacion_id uuid not null references public.capacitaciones (id) on delete cascade,
+  usuario_id uuid not null references public.usuarios (id) on delete cascade,
+  asistio boolean not null default false,
+  calificacion numeric(5, 2),
+  eficacia resultado_eficacia not null default 'pendiente',
+  fecha_evaluacion_eficacia date,
+  observacion text,
+  creado_en timestamptz not null default now()
+);
+
+create unique index capacitacion_participantes_unico
+  on public.capacitacion_participantes (capacitacion_id, usuario_id);
+
+create trigger competencias_actualizacion before update on public.competencias
+  for each row execute function public.marcar_actualizacion();
+create trigger capacitaciones_actualizacion before update on public.capacitaciones
+  for each row execute function public.marcar_actualizacion();
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001000_proveedores_activos.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 010 · Modulos 8 y 9: Proveedores / Infraestructura y Activos
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Proveedores. La calificacion es el promedio ponderado de la ultima
+-- evaluacion; la reevaluacion es periodica segun criticidad.
+-- ---------------------------------------------------------------------
+create table public.proveedores (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  razon_social text not null,
+  nombre_comercial text,
+  ruc text,
+  rubro text,
+  critico boolean not null default false,
+  correo text,
+  telefono text,
+  ciudad text,
+  pais text default 'Paraguay',
+  contacto text,
+  estado estado_proveedor not null default 'en_evaluacion',
+  calificacion_actual numeric(5, 2),
+  fecha_ultima_evaluacion date,
+  fecha_proxima_evaluacion date,
+  periodicidad_evaluacion_meses integer not null default 12,
+  observaciones text,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint proveedores_periodicidad_valida
+    check (periodicidad_evaluacion_meses between 1 and 60)
+);
+
+create unique index proveedores_codigo_unico on public.proveedores (empresa_id, upper(codigo));
+create index proveedores_estado_idx on public.proveedores (empresa_id, estado);
+
+alter table public.proveedores add column busqueda tsvector
+  generated always as (
+    to_tsvector('spanish',
+      coalesce(codigo, '') || ' ' || coalesce(razon_social, '') || ' ' ||
+      coalesce(nombre_comercial, '') || ' ' || coalesce(rubro, '') || ' ' ||
+      coalesce(ruc, ''))
+  ) stored;
+
+create index proveedores_busqueda_idx on public.proveedores using gin (busqueda);
+
+-- Evaluacion con cinco criterios de 1 a 5; el puntaje se calcula solo.
+create table public.proveedor_evaluaciones (
+  id uuid primary key default gen_random_uuid(),
+  proveedor_id uuid not null references public.proveedores (id) on delete cascade,
+  fecha date not null default current_date,
+  periodo text,
+  calidad smallint not null,
+  plazo_entrega smallint not null,
+  precio smallint not null,
+  servicio_posventa smallint not null,
+  documentacion smallint not null,
+  puntaje numeric(5, 2) generated always as (
+    (calidad + plazo_entrega + precio + servicio_posventa + documentacion) * 4.0
+  ) stored,                                  -- escala resultante: 0 a 100
+  resultado estado_proveedor,
+  comentario text,
+  evaluado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+
+  constraint proveedor_evaluaciones_calidad check (calidad between 1 and 5),
+  constraint proveedor_evaluaciones_plazo check (plazo_entrega between 1 and 5),
+  constraint proveedor_evaluaciones_precio check (precio between 1 and 5),
+  constraint proveedor_evaluaciones_servicio check (servicio_posventa between 1 and 5),
+  constraint proveedor_evaluaciones_documentacion check (documentacion between 1 and 5)
+);
+
+create index proveedor_evaluaciones_proveedor_idx
+  on public.proveedor_evaluaciones (proveedor_id, fecha desc);
+
+-- ---------------------------------------------------------------------
+-- Activos e infraestructura
+-- ---------------------------------------------------------------------
+create table public.activos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo text not null,
+  nombre text not null,
+  categoria text,
+  descripcion text,
+  sede_id uuid references public.sedes (id) on delete set null,
+  ubicacion text,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  proveedor_id uuid references public.proveedores (id) on delete set null,
+  numero_serie text,
+  marca text,
+  modelo text,
+  estado estado_activo not null default 'operativo',
+  fecha_adquisicion date,
+  valor_gs bigint,                          -- guaranies, sin decimales
+  requiere_mantenimiento boolean not null default false,
+  frecuencia_mantenimiento_dias integer,
+  fecha_ultimo_mantenimiento date,
+  fecha_proximo_mantenimiento date,
+  es_demostracion boolean not null default false,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint activos_frecuencia_valida
+    check (frecuencia_mantenimiento_dias is null or frecuencia_mantenimiento_dias > 0)
+);
+
+create unique index activos_codigo_unico on public.activos (empresa_id, upper(codigo));
+create index activos_sede_idx on public.activos (sede_id);
+create index activos_proximo_mantenimiento_idx on public.activos (fecha_proximo_mantenimiento)
+  where requiere_mantenimiento;
+
+create table public.mantenimientos (
+  id uuid primary key default gen_random_uuid(),
+  activo_id uuid not null references public.activos (id) on delete cascade,
+  tipo tipo_mantenimiento not null default 'preventivo',
+  descripcion text,
+  fecha_programada date not null,
+  fecha_ejecucion date,
+  responsable_id uuid references public.usuarios (id) on delete set null,
+  proveedor_id uuid references public.proveedores (id) on delete set null,
+  estado estado_mantenimiento not null default 'programado',
+  costo_gs bigint not null default 0,
+  observacion text,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+
+create index mantenimientos_activo_idx on public.mantenimientos (activo_id, fecha_programada desc);
+create index mantenimientos_programados_idx on public.mantenimientos (fecha_programada)
+  where estado = 'programado';
+
+create trigger proveedores_actualizacion before update on public.proveedores
+  for each row execute function public.marcar_actualizacion();
+create trigger activos_actualizacion before update on public.activos
+  for each row execute function public.marcar_actualizacion();
+create trigger mantenimientos_actualizacion before update on public.mantenimientos
+  for each row execute function public.marcar_actualizacion();
+
+-- Al registrar una evaluacion se actualiza la calificacion del proveedor.
+create or replace function public.sincronizar_calificacion_proveedor()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_periodicidad integer;
+begin
+  select periodicidad_evaluacion_meses into v_periodicidad
+    from public.proveedores where id = new.proveedor_id;
+
+  update public.proveedores
+     set calificacion_actual = new.puntaje,
+         estado = coalesce(new.resultado, estado),
+         fecha_ultima_evaluacion = new.fecha,
+         fecha_proxima_evaluacion =
+           new.fecha + (coalesce(v_periodicidad, 12) || ' months')::interval
+   where id = new.proveedor_id;
+
+  return new;
+end;
+$$;
+
+create trigger proveedor_evaluaciones_sincronizacion
+  after insert on public.proveedor_evaluaciones
+  for each row execute function public.sincronizar_calificacion_proveedor();
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001100_transversales.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 011 · Transversales: adjuntos, notificaciones y bitacora
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Adjuntos. Los archivos viven en Supabase Storage; aqui queda el
+-- registro con su entidad de origen para el control de acceso.
+-- ---------------------------------------------------------------------
+create table public.adjuntos (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  entidad text not null,             -- 'documentos', 'no_conformidades', 'riesgos', ...
+  entidad_id uuid not null,
+  nombre_archivo text not null,
+  ruta text not null,                -- ruta dentro del bucket
+  bucket text not null default 'adjuntos-sgc',
+  tamano_bytes bigint not null default 0,
+  tipo_mime text,
+  descripcion text,
+  subido_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+
+  -- Limite acordado: 20 MB por archivo.
+  constraint adjuntos_tamano_maximo check (tamano_bytes <= 20971520)
+);
+
+create index adjuntos_entidad_idx on public.adjuntos (entidad, entidad_id);
+create unique index adjuntos_ruta_unica on public.adjuntos (bucket, ruta);
+
+-- ---------------------------------------------------------------------
+-- Centro de notificaciones dentro de la aplicacion. El envio por correo
+-- se marca aparte para no reenviar en cada corrida del job programado.
+-- ---------------------------------------------------------------------
+create table public.notificaciones (
+  id uuid primary key default gen_random_uuid(),
+  usuario_id uuid not null references public.usuarios (id) on delete cascade,
+  tipo tipo_notificacion not null default 'general',
+  titulo text not null,
+  mensaje text not null,
+  enlace text,
+  entidad text,
+  entidad_id uuid,
+  leida boolean not null default false,
+  leida_en timestamptz,
+  requiere_correo boolean not null default true,
+  correo_enviado boolean not null default false,
+  correo_enviado_en timestamptz,
+  -- Evita duplicar la misma alerta en corridas sucesivas del job.
+  clave_unicidad text,
+  creado_en timestamptz not null default now()
+);
+
+create index notificaciones_usuario_idx on public.notificaciones (usuario_id, leida, creado_en desc);
+create index notificaciones_pendientes_correo_idx on public.notificaciones (correo_enviado)
+  where requiere_correo and not correo_enviado;
+create unique index notificaciones_clave_unica on public.notificaciones (usuario_id, clave_unicidad)
+  where clave_unicidad is not null;
+
+-- ---------------------------------------------------------------------
+-- Bitacora de trazabilidad. Requisito de auditoria ISO 9001: toda
+-- creacion, edicion, aprobacion y cambio de estado queda registrada con
+-- usuario, fecha/hora y valores anterior y nuevo.
+--
+-- Se alimenta por disparador a nivel de base de datos, no desde la
+-- aplicacion: de ese modo ningun camino de escritura puede evadirla.
+-- ---------------------------------------------------------------------
+create table public.bitacora (
+  id bigint generated always as identity primary key,
+  tabla text not null,
+  registro_id uuid,
+  accion accion_bitacora not null,
+  usuario_id uuid,
+  usuario_correo text,
+  campos_modificados text[],
+  valores_anteriores jsonb,
+  valores_nuevos jsonb,
+  empresa_id uuid,
+  creado_en timestamptz not null default now()
+);
+
+create index bitacora_tabla_registro_idx on public.bitacora (tabla, registro_id, creado_en desc);
+create index bitacora_usuario_idx on public.bitacora (usuario_id, creado_en desc);
+create index bitacora_fecha_idx on public.bitacora (creado_en desc);
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001200_funciones_rls.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 012 · Funciones de apoyo para las politicas RLS
+-- =====================================================================
+-- Todas son SECURITY DEFINER para poder consultar "usuarios" sin quedar
+-- atrapadas en la propia politica de esa tabla (recursion infinita).
+
+create or replace function public.rol_actual()
+returns rol_usuario
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select rol from public.usuarios where id = auth.uid() and activo;
+$$;
+
+create or replace function public.empresa_actual()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select empresa_id from public.usuarios where id = auth.uid() and activo;
+$$;
+
+create or replace function public.es_admin_sgc()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.rol_actual() = 'administrador_sgc', false);
+$$;
+
+create or replace function public.es_auditor()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.rol_actual() = 'auditor', false);
+$$;
+
+create or replace function public.es_direccion()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.rol_actual() = 'direccion', false);
+$$;
+
+-- Puede escribir sobre el sistema: Calidad y los responsables de proceso.
+create or replace function public.puede_gestionar()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.rol_actual() in ('administrador_sgc', 'responsable_proceso'), false);
+$$;
+
+-- Verifica si el usuario actual es responsable del proceso indicado.
+create or replace function public.es_responsable_de_proceso(p_proceso_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.procesos
+     where id = p_proceso_id
+       and responsable_id = auth.uid()
+  );
+$$;
+
+-- Pertenencia a la misma empresa que el registro consultado.
+create or replace function public.misma_empresa(p_empresa_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p_empresa_id = public.empresa_actual();
+$$;
+
+-- ---------------------------------------------------------------------
+-- Alta automatica del perfil en el primer ingreso con Google.
+-- Valida el dominio del lado del servidor: aunque alguien evada la
+-- interfaz, la base rechaza cualquier correo fuera de camping44.com.py.
+-- ---------------------------------------------------------------------
+create or replace function public.crear_perfil_usuario()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_empresa_id uuid;
+  v_nombre text;
+begin
+  if new.email is null or lower(split_part(new.email, '@', 2)) <> 'camping44.com.py' then
+    raise exception 'Dominio de correo no autorizado: %', coalesce(new.email, '(sin correo)')
+      using errcode = '42501';
+  end if;
+
+  -- Empresa por defecto del sistema: Camping 44 S.A.
+  select id into v_empresa_id
+    from public.empresas
+   where activa
+   order by creado_en
+   limit 1;
+
+  if v_empresa_id is null then
+    raise exception 'No hay ninguna empresa registrada. Ejecute el seed inicial.';
+  end if;
+
+  v_nombre := coalesce(
+    nullif(new.raw_user_meta_data ->> 'full_name', ''),
+    nullif(new.raw_user_meta_data ->> 'name', ''),
+    split_part(new.email, '@', 1)
+  );
+
+  insert into public.usuarios (id, empresa_id, correo, nombre_completo, rol, url_avatar)
+  values (
+    new.id,
+    v_empresa_id,
+    lower(new.email),
+    v_nombre,
+    'colaborador',                      -- el Administrador SGC ajusta el rol
+    new.raw_user_meta_data ->> 'avatar_url'
+  )
+  on conflict (id) do update
+    set nombre_completo = excluded.nombre_completo,
+        url_avatar = coalesce(excluded.url_avatar, public.usuarios.url_avatar),
+        ultimo_ingreso = now();
+
+  return new;
+end;
+$$;
+
+create trigger al_crear_usuario_auth
+  after insert on auth.users
+  for each row execute function public.crear_perfil_usuario();
+
+-- Refuerzo adicional: la tabla de perfiles tampoco admite otro dominio.
+create or replace function public.validar_dominio_usuario()
+returns trigger
+language plpgsql
+as $$
+begin
+  if lower(split_part(new.correo, '@', 2)) <> 'camping44.com.py' then
+    raise exception 'Solo se admiten cuentas del dominio camping44.com.py'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger usuarios_validar_dominio
+  before insert or update of correo on public.usuarios
+  for each row execute function public.validar_dominio_usuario();
+
+-- ---------------------------------------------------------------------
+-- Funciones de visibilidad del modulo de documentos.
+--
+-- Las politicas de "documentos" y de sus tablas hijas se necesitan
+-- mutuamente. Si esa consulta cruzada se escribiera dentro de la propia
+-- politica, PostgreSQL detectaria una recursion infinita. Al encapsularla
+-- en funciones SECURITY DEFINER la evaluacion ocurre fuera de RLS y la
+-- regla de negocio queda en un unico lugar.
+-- ---------------------------------------------------------------------
+create or replace function public.es_revisor_de_documento(p_documento_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+      from public.documento_versiones v
+      join public.documento_revisores r on r.version_id = v.id
+     where v.documento_id = p_documento_id
+       and r.usuario_id = auth.uid()
+  );
+$$;
+
+create or replace function public.puede_ver_documento(p_documento_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+      from public.documentos d
+     where d.id = p_documento_id
+       and d.empresa_id = public.empresa_actual()
+       and (
+         d.estado = 'vigente'
+         or public.es_admin_sgc()
+         or public.es_auditor()
+         or public.es_direccion()
+         or d.responsable_id = auth.uid()
+         or d.elaborador_id = auth.uid()
+         or d.aprobador_id = auth.uid()
+         or d.creado_por = auth.uid()
+         or public.es_responsable_de_proceso(d.proceso_id)
+         or public.es_revisor_de_documento(d.id)
+       )
+  );
+$$;
+
+create or replace function public.puede_gestionar_documento(p_documento_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+      from public.documentos d
+     where d.id = p_documento_id
+       and d.empresa_id = public.empresa_actual()
+       and (
+         public.es_admin_sgc()
+         or d.responsable_id = auth.uid()
+         or d.elaborador_id = auth.uid()
+         or public.es_responsable_de_proceso(d.proceso_id)
+       )
+  );
+$$;
+
+create or replace function public.documento_de_version(p_version_id uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select documento_id from public.documento_versiones where id = p_version_id;
+$$;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001300_politicas_rls.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 013 · Politicas RLS por rol
+-- =====================================================================
+-- RLS activo en TODAS las tablas, sin excepcion.
+-- Criterio general:
+--   · Todo registro esta acotado a la empresa del usuario.
+--   · Administrador SGC   -> control total.
+--   · Responsable Proceso -> escribe sobre lo suyo, lee todo.
+--   · Colaborador         -> lee documentacion vigente, registra desviaciones.
+--   · Auditor             -> lectura amplia, escritura en auditorias.
+--   · Direccion           -> solo lectura.
+
+-- ---------------------------------------------------------------------
+-- Habilitacion de RLS
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_tabla text;
+begin
+  for v_tabla in
+    select tablename from pg_tables where schemaname = 'public'
+  loop
+    execute format('alter table public.%I enable row level security', v_tabla);
+  end loop;
+end;
+$$;
+
+-- La aplicacion solo opera con el rol "authenticated"; "anon" no lee nada.
+do $$
+declare
+  v_tabla text;
+begin
+  for v_tabla in
+    select tablename from pg_tables where schemaname = 'public'
+  loop
+    execute format('revoke all on public.%I from anon', v_tabla);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', v_tabla);
+  end loop;
+end;
+$$;
+
+revoke all on public.vista_indicadores_looker from anon;
+grant select on public.vista_indicadores_looker to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Tablas de configuracion general
+-- ---------------------------------------------------------------------
+create policy "empresas_lectura" on public.empresas
+  for select to authenticated
+  using (id = public.empresa_actual());
+
+create policy "empresas_administracion" on public.empresas
+  for all to authenticated
+  using (public.es_admin_sgc() and id = public.empresa_actual())
+  with check (public.es_admin_sgc() and id = public.empresa_actual());
+
+create policy "sedes_lectura" on public.sedes
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "sedes_administracion" on public.sedes
+  for all to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id))
+  with check (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+create policy "normas_lectura" on public.normas
+  for select to authenticated using (true);
+create policy "normas_administracion" on public.normas
+  for all to authenticated
+  using (public.es_admin_sgc()) with check (public.es_admin_sgc());
+
+create policy "procesos_lectura" on public.procesos
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "procesos_administracion" on public.procesos
+  for all to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id))
+  with check (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+create policy "puestos_lectura" on public.puestos
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "puestos_administracion" on public.puestos
+  for all to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id))
+  with check (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+-- ---------------------------------------------------------------------
+-- Usuarios
+-- ---------------------------------------------------------------------
+create policy "usuarios_lectura" on public.usuarios
+  for select to authenticated
+  using (public.misma_empresa(empresa_id) or id = auth.uid());
+
+create policy "usuarios_actualiza_propio" on public.usuarios
+  for update to authenticated
+  using (id = auth.uid())
+  with check (id = auth.uid());
+
+create policy "usuarios_administracion" on public.usuarios
+  for all to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id))
+  with check (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+-- Un usuario puede editar su perfil, pero no su propio rol ni su empresa:
+-- eso queda reservado al Administrador SGC.
+create or replace function public.proteger_campos_criticos_usuario()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Sin sesion de usuario (clave de servicio, migraciones, seed o el
+  -- trabajo programado) la operacion ya es de confianza. Este control
+  -- existe para impedir que una persona se eleve el rol editando su
+  -- propio perfil desde la aplicacion.
+  if auth.uid() is null or public.es_admin_sgc() then
+    return new;
+  end if;
+
+  if new.rol is distinct from old.rol
+     or new.empresa_id is distinct from old.empresa_id
+     or new.superior_id is distinct from old.superior_id
+     or new.activo is distinct from old.activo then
+    raise exception 'Solo el Administrador SGC puede modificar rol, empresa, superior o estado'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger usuarios_proteger_campos
+  before update on public.usuarios
+  for each row execute function public.proteger_campos_criticos_usuario();
+
+-- ---------------------------------------------------------------------
+-- Clientes
+-- ---------------------------------------------------------------------
+create policy "clientes_lectura" on public.clientes
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "clientes_gestion" on public.clientes
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+-- ---------------------------------------------------------------------
+-- Modulo 1 · Documentos
+-- ---------------------------------------------------------------------
+-- El colaborador solo ve documentacion vigente; quienes intervienen en el
+-- flujo ven tambien los borradores y las versiones en revision.
+-- La condicion vive en public.puede_ver_documento (migracion 012) para
+-- evitar la recursion entre las politicas de las tablas del modulo.
+create policy "documentos_lectura" on public.documentos
+  for select to authenticated
+  using (
+    public.misma_empresa(empresa_id)
+    and (
+      estado = 'vigente'
+      or public.es_admin_sgc()
+      or public.es_auditor()
+      or public.es_direccion()
+      or responsable_id = auth.uid()
+      or elaborador_id = auth.uid()
+      or aprobador_id = auth.uid()
+      or creado_por = auth.uid()
+      or public.es_responsable_de_proceso(proceso_id)
+      or public.es_revisor_de_documento(id)
+    )
+  );
+
+create policy "documentos_alta" on public.documentos
+  for insert to authenticated
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "documentos_edicion" on public.documentos
+  for update to authenticated
+  using (
+    public.misma_empresa(empresa_id)
+    and (public.es_admin_sgc()
+         or responsable_id = auth.uid()
+         or elaborador_id = auth.uid()
+         or public.es_responsable_de_proceso(proceso_id))
+  )
+  with check (public.misma_empresa(empresa_id));
+
+create policy "documentos_baja" on public.documentos
+  for delete to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+-- Las tablas hijas heredan la visibilidad del documento.
+create policy "documento_versiones_lectura" on public.documento_versiones
+  for select to authenticated
+  using (public.puede_ver_documento(documento_id));
+
+create policy "documento_versiones_gestion" on public.documento_versiones
+  for all to authenticated
+  using (public.puede_gestionar_documento(documento_id))
+  with check (public.puede_gestionar_documento(documento_id));
+
+create policy "documento_revisores_lectura" on public.documento_revisores
+  for select to authenticated
+  using (
+    usuario_id = auth.uid()
+    or public.puede_ver_documento(public.documento_de_version(version_id))
+  );
+
+-- El revisor responde su propia revision; Calidad administra la asignacion.
+create policy "documento_revisores_responde" on public.documento_revisores
+  for update to authenticated
+  using (usuario_id = auth.uid())
+  with check (usuario_id = auth.uid());
+
+create policy "documento_revisores_gestion" on public.documento_revisores
+  for all to authenticated
+  using (public.puede_gestionar_documento(public.documento_de_version(version_id)))
+  with check (public.puede_gestionar_documento(public.documento_de_version(version_id)));
+
+create policy "documento_difusion_lectura" on public.documento_difusion
+  for select to authenticated
+  using (public.puede_ver_documento(documento_id));
+
+create policy "documento_difusion_gestion" on public.documento_difusion
+  for all to authenticated
+  using (public.puede_gestionar_documento(documento_id))
+  with check (public.puede_gestionar_documento(documento_id));
+
+-- ---------------------------------------------------------------------
+-- Modulo 2 · No conformidades
+-- ---------------------------------------------------------------------
+-- Cualquier colaborador puede registrar una desviacion: es el mecanismo
+-- de deteccion del sistema y restringirlo lo dejaria sin uso real.
+create policy "no_conformidades_lectura" on public.no_conformidades
+  for select to authenticated using (public.misma_empresa(empresa_id));
+
+create policy "no_conformidades_alta" on public.no_conformidades
+  for insert to authenticated
+  with check (public.misma_empresa(empresa_id) and not public.es_direccion());
+
+create policy "no_conformidades_edicion" on public.no_conformidades
+  for update to authenticated
+  using (
+    public.misma_empresa(empresa_id)
+    and (public.es_admin_sgc()
+         or responsable_id = auth.uid()
+         or detectado_por = auth.uid()
+         or public.es_responsable_de_proceso(proceso_id))
+  )
+  with check (public.misma_empresa(empresa_id));
+
+create policy "no_conformidades_baja" on public.no_conformidades
+  for delete to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+create policy "nc_porques_lectura" on public.nc_porques
+  for select to authenticated
+  using (exists (select 1 from public.no_conformidades n where n.id = no_conformidad_id));
+create policy "nc_porques_gestion" on public.nc_porques
+  for all to authenticated
+  using (exists (
+    select 1 from public.no_conformidades n
+     where n.id = no_conformidad_id
+       and (public.es_admin_sgc() or n.responsable_id = auth.uid()
+            or n.detectado_por = auth.uid()
+            or public.es_responsable_de_proceso(n.proceso_id))))
+  with check (exists (
+    select 1 from public.no_conformidades n
+     where n.id = no_conformidad_id
+       and (public.es_admin_sgc() or n.responsable_id = auth.uid()
+            or n.detectado_por = auth.uid()
+            or public.es_responsable_de_proceso(n.proceso_id))));
+
+create policy "nc_ishikawa_lectura" on public.nc_ishikawa
+  for select to authenticated
+  using (exists (select 1 from public.no_conformidades n where n.id = no_conformidad_id));
+create policy "nc_ishikawa_gestion" on public.nc_ishikawa
+  for all to authenticated
+  using (exists (
+    select 1 from public.no_conformidades n
+     where n.id = no_conformidad_id
+       and (public.es_admin_sgc() or n.responsable_id = auth.uid()
+            or n.detectado_por = auth.uid()
+            or public.es_responsable_de_proceso(n.proceso_id))))
+  with check (exists (
+    select 1 from public.no_conformidades n
+     where n.id = no_conformidad_id
+       and (public.es_admin_sgc() or n.responsable_id = auth.uid()
+            or n.detectado_por = auth.uid()
+            or public.es_responsable_de_proceso(n.proceso_id))));
+
+create policy "nc_acciones_lectura" on public.nc_acciones
+  for select to authenticated
+  using (exists (select 1 from public.no_conformidades n where n.id = no_conformidad_id));
+
+-- El responsable de una accion puede actualizar su avance.
+create policy "nc_acciones_responsable" on public.nc_acciones
+  for update to authenticated
+  using (responsable_id = auth.uid())
+  with check (responsable_id = auth.uid());
+
+create policy "nc_acciones_gestion" on public.nc_acciones
+  for all to authenticated
+  using (exists (
+    select 1 from public.no_conformidades n
+     where n.id = no_conformidad_id
+       and (public.es_admin_sgc() or n.responsable_id = auth.uid()
+            or public.es_responsable_de_proceso(n.proceso_id))))
+  with check (exists (
+    select 1 from public.no_conformidades n
+     where n.id = no_conformidad_id
+       and (public.es_admin_sgc() or n.responsable_id = auth.uid()
+            or public.es_responsable_de_proceso(n.proceso_id))));
+
+-- ---------------------------------------------------------------------
+-- Modulo 3 · Riesgos
+-- ---------------------------------------------------------------------
+create policy "riesgos_lectura" on public.riesgos
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "riesgos_alta" on public.riesgos
+  for insert to authenticated
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+create policy "riesgos_edicion" on public.riesgos
+  for update to authenticated
+  using (
+    public.misma_empresa(empresa_id)
+    and (public.es_admin_sgc()
+         or responsable_id = auth.uid()
+         or public.es_responsable_de_proceso(proceso_id))
+  )
+  with check (public.misma_empresa(empresa_id));
+create policy "riesgos_baja" on public.riesgos
+  for delete to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+create policy "riesgo_acciones_lectura" on public.riesgo_acciones
+  for select to authenticated
+  using (exists (select 1 from public.riesgos r where r.id = riesgo_id));
+create policy "riesgo_acciones_gestion" on public.riesgo_acciones
+  for all to authenticated
+  using (public.puede_gestionar() or responsable_id = auth.uid())
+  with check (public.puede_gestionar() or responsable_id = auth.uid());
+
+create policy "riesgo_evaluaciones_lectura" on public.riesgo_evaluaciones
+  for select to authenticated
+  using (exists (select 1 from public.riesgos r where r.id = riesgo_id));
+create policy "riesgo_evaluaciones_gestion" on public.riesgo_evaluaciones
+  for all to authenticated
+  using (public.puede_gestionar()) with check (public.puede_gestionar());
+
+-- ---------------------------------------------------------------------
+-- Modulo 4 · Auditorias
+-- ---------------------------------------------------------------------
+create policy "programas_auditoria_lectura" on public.programas_auditoria
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "programas_auditoria_gestion" on public.programas_auditoria
+  for all to authenticated
+  using ((public.es_admin_sgc() or public.es_auditor()) and public.misma_empresa(empresa_id))
+  with check ((public.es_admin_sgc() or public.es_auditor()) and public.misma_empresa(empresa_id));
+
+create policy "auditorias_lectura" on public.auditorias
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "auditorias_gestion" on public.auditorias
+  for all to authenticated
+  using ((public.es_admin_sgc() or public.es_auditor()) and public.misma_empresa(empresa_id))
+  with check ((public.es_admin_sgc() or public.es_auditor()) and public.misma_empresa(empresa_id));
+
+create policy "auditoria_equipo_lectura" on public.auditoria_equipo
+  for select to authenticated
+  using (exists (select 1 from public.auditorias a where a.id = auditoria_id));
+create policy "auditoria_equipo_gestion" on public.auditoria_equipo
+  for all to authenticated
+  using (public.es_admin_sgc() or public.es_auditor())
+  with check (public.es_admin_sgc() or public.es_auditor());
+
+create policy "auditoria_hallazgos_lectura" on public.auditoria_hallazgos
+  for select to authenticated
+  using (exists (select 1 from public.auditorias a where a.id = auditoria_id));
+create policy "auditoria_hallazgos_gestion" on public.auditoria_hallazgos
+  for all to authenticated
+  using (public.es_admin_sgc() or public.es_auditor())
+  with check (public.es_admin_sgc() or public.es_auditor());
+
+-- ---------------------------------------------------------------------
+-- Modulo 5 · Indicadores y objetivos
+-- ---------------------------------------------------------------------
+create policy "indicadores_lectura" on public.indicadores
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "indicadores_gestion" on public.indicadores
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "indicador_mediciones_lectura" on public.indicador_mediciones
+  for select to authenticated
+  using (exists (select 1 from public.indicadores i where i.id = indicador_id));
+create policy "indicador_mediciones_gestion" on public.indicador_mediciones
+  for all to authenticated
+  using (exists (
+    select 1 from public.indicadores i
+     where i.id = indicador_id
+       and (public.es_admin_sgc() or i.responsable_id = auth.uid()
+            or public.es_responsable_de_proceso(i.proceso_id))))
+  with check (exists (
+    select 1 from public.indicadores i
+     where i.id = indicador_id
+       and (public.es_admin_sgc() or i.responsable_id = auth.uid()
+            or public.es_responsable_de_proceso(i.proceso_id))));
+
+create policy "objetivos_lectura" on public.objetivos
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "objetivos_gestion" on public.objetivos
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "objetivo_indicadores_lectura" on public.objetivo_indicadores
+  for select to authenticated
+  using (exists (select 1 from public.objetivos o where o.id = objetivo_id));
+create policy "objetivo_indicadores_gestion" on public.objetivo_indicadores
+  for all to authenticated
+  using (public.puede_gestionar()) with check (public.puede_gestionar());
+
+-- ---------------------------------------------------------------------
+-- Modulo 6 · Satisfaccion del cliente
+-- ---------------------------------------------------------------------
+create policy "encuestas_lectura" on public.encuestas
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "encuestas_gestion" on public.encuestas
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "encuesta_respuestas_lectura" on public.encuesta_respuestas
+  for select to authenticated
+  using (exists (select 1 from public.encuestas e where e.id = encuesta_id));
+create policy "encuesta_respuestas_gestion" on public.encuesta_respuestas
+  for all to authenticated
+  using (public.puede_gestionar()) with check (public.puede_gestionar());
+
+-- ---------------------------------------------------------------------
+-- Modulo 7 · Recursos humanos
+-- ---------------------------------------------------------------------
+create policy "competencias_lectura" on public.competencias
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "competencias_gestion" on public.competencias
+  for all to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id))
+  with check (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+create policy "puesto_competencias_lectura" on public.puesto_competencias
+  for select to authenticated
+  using (exists (select 1 from public.puestos p where p.id = puesto_id));
+create policy "puesto_competencias_gestion" on public.puesto_competencias
+  for all to authenticated
+  using (public.es_admin_sgc()) with check (public.es_admin_sgc());
+
+-- La evaluacion de competencias es informacion sensible: la ve la propia
+-- persona, su superior y Calidad.
+create policy "evaluaciones_competencia_lectura" on public.evaluaciones_competencia
+  for select to authenticated
+  using (
+    usuario_id = auth.uid()
+    or public.es_admin_sgc()
+    or exists (select 1 from public.usuarios u
+                where u.id = evaluaciones_competencia.usuario_id
+                  and u.superior_id = auth.uid())
+  );
+create policy "evaluaciones_competencia_gestion" on public.evaluaciones_competencia
+  for all to authenticated
+  using (public.es_admin_sgc()
+         or exists (select 1 from public.usuarios u
+                     where u.id = evaluaciones_competencia.usuario_id
+                       and u.superior_id = auth.uid()))
+  with check (public.es_admin_sgc()
+         or exists (select 1 from public.usuarios u
+                     where u.id = evaluaciones_competencia.usuario_id
+                       and u.superior_id = auth.uid()));
+
+create policy "capacitaciones_lectura" on public.capacitaciones
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "capacitaciones_gestion" on public.capacitaciones
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "capacitacion_participantes_lectura" on public.capacitacion_participantes
+  for select to authenticated
+  using (usuario_id = auth.uid() or public.puede_gestionar() or public.es_auditor()
+         or public.es_direccion());
+create policy "capacitacion_participantes_gestion" on public.capacitacion_participantes
+  for all to authenticated
+  using (public.puede_gestionar()) with check (public.puede_gestionar());
+
+-- ---------------------------------------------------------------------
+-- Modulos 8 y 9 · Proveedores, activos y mantenimientos
+-- ---------------------------------------------------------------------
+create policy "proveedores_lectura" on public.proveedores
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "proveedores_gestion" on public.proveedores
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "proveedor_evaluaciones_lectura" on public.proveedor_evaluaciones
+  for select to authenticated
+  using (exists (select 1 from public.proveedores p where p.id = proveedor_id));
+create policy "proveedor_evaluaciones_gestion" on public.proveedor_evaluaciones
+  for all to authenticated
+  using (public.puede_gestionar()) with check (public.puede_gestionar());
+
+create policy "activos_lectura" on public.activos
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "activos_gestion" on public.activos
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "mantenimientos_lectura" on public.mantenimientos
+  for select to authenticated
+  using (exists (select 1 from public.activos a where a.id = activo_id));
+create policy "mantenimientos_gestion" on public.mantenimientos
+  for all to authenticated
+  using (public.puede_gestionar() or responsable_id = auth.uid())
+  with check (public.puede_gestionar() or responsable_id = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- Adjuntos, notificaciones y bitacora
+-- ---------------------------------------------------------------------
+create policy "adjuntos_lectura" on public.adjuntos
+  for select to authenticated using (public.misma_empresa(empresa_id));
+create policy "adjuntos_alta" on public.adjuntos
+  for insert to authenticated
+  with check (public.misma_empresa(empresa_id) and subido_por = auth.uid()
+              and not public.es_direccion());
+create policy "adjuntos_baja" on public.adjuntos
+  for delete to authenticated
+  using (public.misma_empresa(empresa_id)
+         and (subido_por = auth.uid() or public.es_admin_sgc()));
+
+-- Cada persona ve y marca como leidas unicamente sus notificaciones.
+create policy "notificaciones_propias" on public.notificaciones
+  for select to authenticated using (usuario_id = auth.uid());
+create policy "notificaciones_marcar_leida" on public.notificaciones
+  for update to authenticated
+  using (usuario_id = auth.uid()) with check (usuario_id = auth.uid());
+create policy "notificaciones_borrar_propias" on public.notificaciones
+  for delete to authenticated using (usuario_id = auth.uid());
+-- El alta se hace mediante la funcion public.crear_notificacion (migracion 014),
+-- que valida que emisor y destinatario pertenezcan a la misma empresa.
+
+-- La bitacora es de solo lectura para Calidad, auditores y Direccion.
+-- Nadie puede insertar, editar ni borrar: solo la escribe el disparador.
+create policy "bitacora_lectura" on public.bitacora
+  for select to authenticated
+  using (public.es_admin_sgc() or public.es_auditor() or public.es_direccion());
+
+revoke insert, update, delete on public.bitacora from authenticated;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001400_bitacora_y_notificaciones.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 014 · Disparadores de bitacora y alta de notificaciones
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Registro de trazabilidad. Se aplica a nivel de base de datos para que
+-- ningun camino de escritura pueda evadirlo, sea desde la aplicacion,
+-- desde un script de migracion o desde el panel de Supabase.
+-- ---------------------------------------------------------------------
+create or replace function public.registrar_bitacora()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_anteriores jsonb;
+  v_nuevos jsonb;
+  v_campos text[];
+  v_registro_id uuid;
+  v_empresa_id uuid;
+  v_usuario_id uuid := auth.uid();
+  v_correo text;
+  v_accion accion_bitacora;
+begin
+  if tg_op = 'INSERT' then
+    v_accion := 'creacion';
+    v_nuevos := to_jsonb(new);
+    v_anteriores := null;
+  elsif tg_op = 'UPDATE' then
+    v_accion := 'edicion';
+    v_nuevos := to_jsonb(new);
+    v_anteriores := to_jsonb(old);
+  else
+    v_accion := 'eliminacion';
+    v_nuevos := null;
+    v_anteriores := to_jsonb(old);
+  end if;
+
+  -- Campos efectivamente modificados, para que la lectura de la bitacora
+  -- sea util y no una comparacion manual de dos objetos completos.
+  if tg_op = 'UPDATE' then
+    select array_agg(clave order by clave)
+      into v_campos
+      from (
+        select key as clave
+          from jsonb_each(v_nuevos)
+         where key not in ('actualizado_en', 'busqueda')
+           and v_anteriores -> key is distinct from v_nuevos -> key
+      ) cambios;
+
+    -- Si solo cambiaron marcas internas, no se registra ruido.
+    if v_campos is null or array_length(v_campos, 1) is null then
+      return coalesce(new, old);
+    end if;
+
+    -- Solo se conservan los campos que cambiaron.
+    v_anteriores := (
+      select coalesce(jsonb_object_agg(key, value), '{}'::jsonb)
+        from jsonb_each(v_anteriores) where key = any (v_campos));
+    v_nuevos := (
+      select coalesce(jsonb_object_agg(key, value), '{}'::jsonb)
+        from jsonb_each(v_nuevos) where key = any (v_campos));
+  else
+    -- El vector de busqueda es derivado, no aporta a la trazabilidad.
+    v_nuevos := v_nuevos - 'busqueda';
+    v_anteriores := v_anteriores - 'busqueda';
+  end if;
+
+  v_registro_id := nullif(coalesce(v_nuevos, v_anteriores) ->> 'id', '')::uuid;
+  if v_registro_id is null then
+    v_registro_id := nullif(to_jsonb(coalesce(new, old)) ->> 'id', '')::uuid;
+  end if;
+
+  v_empresa_id := nullif(to_jsonb(coalesce(new, old)) ->> 'empresa_id', '')::uuid;
+
+  select correo into v_correo from public.usuarios where id = v_usuario_id;
+
+  insert into public.bitacora (
+    tabla, registro_id, accion, usuario_id, usuario_correo,
+    campos_modificados, valores_anteriores, valores_nuevos, empresa_id
+  ) values (
+    tg_table_name, v_registro_id, v_accion, v_usuario_id, v_correo,
+    v_campos, v_anteriores, v_nuevos, v_empresa_id
+  );
+
+  return coalesce(new, old);
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Alta de los disparadores sobre las tablas con valor de auditoria.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_tabla text;
+  v_tablas text[] := array[
+    'documentos', 'documento_versiones', 'documento_revisores',
+    'no_conformidades', 'nc_acciones', 'nc_porques', 'nc_ishikawa',
+    'riesgos', 'riesgo_acciones', 'riesgo_evaluaciones',
+    'programas_auditoria', 'auditorias', 'auditoria_hallazgos',
+    'indicadores', 'indicador_mediciones', 'objetivos',
+    'encuestas',
+    'competencias', 'puesto_competencias', 'evaluaciones_competencia',
+    'capacitaciones', 'capacitacion_participantes',
+    'proveedores', 'proveedor_evaluaciones',
+    'activos', 'mantenimientos',
+    'procesos', 'puestos', 'sedes', 'usuarios', 'clientes', 'adjuntos'
+  ];
+begin
+  foreach v_tabla in array v_tablas loop
+    execute format(
+      'create trigger %I after insert or update or delete on public.%I
+         for each row execute function public.registrar_bitacora()',
+      'bitacora_' || v_tabla, v_tabla);
+  end loop;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Alta de notificaciones.
+--
+-- La tabla no admite INSERT directo por politica: se pasa por esta
+-- funcion, que valida que emisor y destinatario pertenezcan a la misma
+-- empresa y evita duplicar la misma alerta en corridas sucesivas del
+-- trabajo programado mediante "clave_unicidad".
+-- ---------------------------------------------------------------------
+create or replace function public.crear_notificacion(
+  p_usuario_id uuid,
+  p_tipo tipo_notificacion,
+  p_titulo text,
+  p_mensaje text,
+  p_enlace text default null,
+  p_entidad text default null,
+  p_entidad_id uuid default null,
+  p_clave_unicidad text default null,
+  p_requiere_correo boolean default true
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_empresa_destino uuid;
+begin
+  select empresa_id into v_empresa_destino
+    from public.usuarios where id = p_usuario_id and activo;
+
+  if v_empresa_destino is null then
+    return null;   -- destinatario inexistente o inactivo: no es un error
+  end if;
+
+  -- Cuando la llama una persona, ambas partes deben ser de la misma empresa.
+  if auth.uid() is not null and v_empresa_destino is distinct from public.empresa_actual() then
+    raise exception 'No se puede notificar a un usuario de otra empresa'
+      using errcode = '42501';
+  end if;
+
+  insert into public.notificaciones (
+    usuario_id, tipo, titulo, mensaje, enlace, entidad, entidad_id,
+    clave_unicidad, requiere_correo
+  ) values (
+    p_usuario_id, p_tipo, p_titulo, p_mensaje, p_enlace, p_entidad, p_entidad_id,
+    p_clave_unicidad, p_requiere_correo
+  )
+  on conflict (usuario_id, clave_unicidad) where clave_unicidad is not null
+  do nothing
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+grant execute on function public.crear_notificacion(
+  uuid, tipo_notificacion, text, text, text, text, uuid, text, boolean
+) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Notificacion a la lista de difusion de un documento.
+-- Resuelve tanto los destinatarios individuales como los procesos
+-- completos alcanzados, sin repetir personas.
+-- ---------------------------------------------------------------------
+create or replace function public.notificar_difusion_documento(p_documento_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_documento public.documentos%rowtype;
+  v_destinatario uuid;
+  v_total integer := 0;
+begin
+  select * into v_documento from public.documentos where id = p_documento_id;
+  if not found then
+    return 0;
+  end if;
+
+  for v_destinatario in
+    select distinct u.id
+      from public.documento_difusion d
+      join public.usuarios u
+        on (d.usuario_id = u.id or u.proceso_id = d.proceso_id)
+     where d.documento_id = p_documento_id
+       and u.activo
+       and u.id is not null
+  loop
+    perform public.crear_notificacion(
+      v_destinatario,
+      'documento_publicado',
+      'Documento actualizado: ' || v_documento.codigo,
+      'Se publico la version v' || lpad(v_documento.version_actual::text, 2, '0') ||
+        ' de "' || v_documento.titulo || '". Corresponde revisar el contenido vigente.',
+      '/documentos/' || p_documento_id,
+      'documentos',
+      p_documento_id,
+      'documento:' || p_documento_id || ':v' || v_documento.version_actual
+    );
+    v_total := v_total + 1;
+  end loop;
+
+  return v_total;
+end;
+$$;
+
+grant execute on function public.notificar_difusion_documento(uuid) to authenticated;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001500_busqueda_global.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 015 · Busqueda global
+-- =====================================================================
+-- Consulta unificada sobre documentos, no conformidades, riesgos y
+-- proveedores. La funcion es SECURITY INVOKER a proposito: cada persona
+-- solo encuentra aquello que sus politicas RLS le permiten leer.
+
+create or replace function public.buscar_global(p_texto text, p_limite integer default 30)
+returns table (
+  entidad text,
+  entidad_etiqueta text,
+  id uuid,
+  codigo text,
+  titulo text,
+  detalle text,
+  estado text,
+  enlace text,
+  relevancia real
+)
+language sql
+stable
+as $$
+  with consulta as (
+    select
+      websearch_to_tsquery('spanish', p_texto) as tsq,
+      '%' || lower(unaccent(coalesce(p_texto, ''))) || '%' as patron
+  )
+  select * from (
+    select
+      'documentos'::text,
+      'Documento'::text,
+      d.id,
+      d.codigo,
+      d.titulo,
+      coalesce(d.descripcion, ''),
+      d.estado::text,
+      '/documentos/' || d.id,
+      ts_rank(d.busqueda, c.tsq) + 0.1
+    from public.documentos d, consulta c
+    where d.busqueda @@ c.tsq or lower(unaccent(d.codigo || ' ' || d.titulo)) like c.patron
+
+    union all
+
+    select
+      'no_conformidades'::text,
+      'No conformidad'::text,
+      n.id,
+      n.codigo,
+      n.titulo,
+      coalesce(n.descripcion, ''),
+      n.estado::text,
+      '/no-conformidades/' || n.id,
+      ts_rank(n.busqueda, c.tsq)
+    from public.no_conformidades n, consulta c
+    where n.busqueda @@ c.tsq or lower(unaccent(n.codigo || ' ' || n.titulo)) like c.patron
+
+    union all
+
+    select
+      'riesgos'::text,
+      'Riesgo'::text,
+      r.id,
+      r.codigo,
+      r.titulo,
+      coalesce(r.descripcion, ''),
+      r.estado::text,
+      '/riesgos/' || r.id,
+      ts_rank(r.busqueda, c.tsq)
+    from public.riesgos r, consulta c
+    where r.busqueda @@ c.tsq or lower(unaccent(r.codigo || ' ' || r.titulo)) like c.patron
+
+    union all
+
+    select
+      'proveedores'::text,
+      'Proveedor'::text,
+      p.id,
+      p.codigo,
+      p.razon_social,
+      coalesce(p.rubro, ''),
+      p.estado::text,
+      '/proveedores/' || p.id,
+      ts_rank(p.busqueda, c.tsq)
+    from public.proveedores p, consulta c
+    where p.busqueda @@ c.tsq
+       or lower(unaccent(p.codigo || ' ' || p.razon_social || ' ' || coalesce(p.ruc, ''))) like c.patron
+  ) resultados (entidad, entidad_etiqueta, id, codigo, titulo, detalle, estado, enlace, relevancia)
+  order by relevancia desc, codigo
+  limit greatest(coalesce(p_limite, 30), 1);
+$$;
+
+grant execute on function public.buscar_global(text, integer) to authenticated;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001600_almacenamiento.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 016 · Supabase Storage: adjuntos con control de acceso
+-- =====================================================================
+-- Los archivos son privados. El acceso se otorga siempre mediante
+-- enlaces firmados de duracion corta generados desde el servidor.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'adjuntos-sgc',
+  'adjuntos-sgc',
+  false,
+  20971520,                        -- 20 MB por archivo
+  array[
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'text/plain',
+    'text/csv'
+  ]
+)
+on conflict (id) do nothing;
+
+-- Lectura: cualquier persona autenticada y activa del sistema. El detalle
+-- fino de que documento puede ver cada quien lo resuelve la tabla
+-- public.adjuntos, que es la que la aplicacion consulta primero.
+create policy "adjuntos_sgc_lectura" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'adjuntos-sgc' and public.empresa_actual() is not null);
+
+-- Carga: todos menos Direccion, que es un perfil de solo lectura.
+create policy "adjuntos_sgc_carga" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'adjuntos-sgc'
+    and public.empresa_actual() is not null
+    and not public.es_direccion()
+    and owner = auth.uid()
+  );
+
+create policy "adjuntos_sgc_actualizacion" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'adjuntos-sgc' and (owner = auth.uid() or public.es_admin_sgc()))
+  with check (bucket_id = 'adjuntos-sgc');
+
+create policy "adjuntos_sgc_baja" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'adjuntos-sgc' and (owner = auth.uid() or public.es_admin_sgc()));
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001700_importacion_sofidya.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 017 · Soporte para la importacion unica desde Sofidya
+-- =====================================================================
+-- Sofidya expone su informacion por comandos. La mayoria tiene una tabla
+-- equivalente en este esquema; dos casos no la tienen:
+--
+--   · get_personas: las personas no se pueden insertar en public.usuarios
+--     porque ese identificador proviene de auth.users, que se crea recien
+--     en el primer ingreso con Google. Se guardan aparte y se vinculan
+--     por correo cuando la persona ingresa.
+--   · get_inf_listados_predef: son listados propios de Sofidya sin
+--     equivalente directo. Se conservan en crudo para no perder nada.
+
+create table public.personas_sofidya (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  codigo_externo text not null,
+  nombre_completo text not null,
+  correo text,
+  documento text,
+  puesto_nombre text,
+  sede_nombre text,
+  area text,
+  activo boolean not null default true,
+  -- Se completa cuando la persona ingresa por primera vez al sistema.
+  usuario_id uuid references public.usuarios (id) on delete set null,
+  importado_en timestamptz not null default now()
+);
+
+create unique index personas_sofidya_codigo_unico
+  on public.personas_sofidya (empresa_id, codigo_externo);
+create index personas_sofidya_correo_idx on public.personas_sofidya (lower(correo));
+
+comment on table public.personas_sofidya is
+  'Nomina importada desde Sofidya, a la espera del primer ingreso de cada persona.';
+
+-- ---------------------------------------------------------------------
+-- Bitacora de cada corrida del script de importacion.
+-- ---------------------------------------------------------------------
+create table public.importaciones_sofidya (
+  id bigint generated always as identity primary key,
+  comando text not null,
+  registros_recibidos integer not null default 0,
+  registros_importados integer not null default 0,
+  tabla_destino text,
+  observacion text,
+  datos_crudos jsonb,
+  ejecutado_en timestamptz not null default now()
+);
+
+create index importaciones_sofidya_comando_idx
+  on public.importaciones_sofidya (comando, ejecutado_en desc);
+
+comment on table public.importaciones_sofidya is
+  'Registro de cada corrida del script scripts/migrar-sofidya.ts.';
+
+-- ---------------------------------------------------------------------
+-- Al crearse un usuario se lo vincula con su ficha importada, si existe.
+-- ---------------------------------------------------------------------
+create or replace function public.vincular_persona_sofidya()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.personas_sofidya
+     set usuario_id = new.id
+   where usuario_id is null
+     and lower(correo) = lower(new.correo);
+
+  return new;
+end;
+$$;
+
+create trigger usuarios_vincular_persona_sofidya
+  after insert on public.usuarios
+  for each row execute function public.vincular_persona_sofidya();
+
+-- ---------------------------------------------------------------------
+-- RLS: ambas tablas son de administracion del sistema.
+-- ---------------------------------------------------------------------
+alter table public.personas_sofidya enable row level security;
+alter table public.importaciones_sofidya enable row level security;
+
+revoke all on public.personas_sofidya from anon;
+revoke all on public.importaciones_sofidya from anon;
+grant select, insert, update, delete on public.personas_sofidya to authenticated;
+grant select on public.importaciones_sofidya to authenticated;
+
+create policy "personas_sofidya_lectura" on public.personas_sofidya
+  for select to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+create policy "personas_sofidya_gestion" on public.personas_sofidya
+  for all to authenticated
+  using (public.es_admin_sgc() and public.misma_empresa(empresa_id))
+  with check (public.es_admin_sgc() and public.misma_empresa(empresa_id));
+
+create policy "importaciones_sofidya_lectura" on public.importaciones_sofidya
+  for select to authenticated
+  using (public.es_admin_sgc() or public.es_auditor());
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001800_correlativo_auditorias.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 018 · Numeracion correlativa de auditorias y hallazgos
+-- =====================================================================
+-- Mismo criterio que ya usan no conformidades (NC-AAAA-NNN) y riesgos
+-- (R-AAAA-NNN): el correlativo lo resuelve la base de datos, para que dos
+-- personas que dan de alta a la vez no reciban el mismo codigo.
+
+create or replace function public.siguiente_codigo_auditoria(p_empresa_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_anio text := to_char(now() at time zone 'America/Asuncion', 'YYYY');
+  v_secuencia integer;
+begin
+  select coalesce(max(split_part(codigo, '-', 3)::integer), 0) + 1
+    into v_secuencia
+    from public.auditorias
+   where empresa_id = p_empresa_id
+     and codigo like 'AUD-' || v_anio || '-%'
+     and split_part(codigo, '-', 3) ~ '^[0-9]+$';
+
+  return 'AUD-' || v_anio || '-' || lpad(v_secuencia::text, 2, '0');
+end;
+$$;
+
+grant execute on function public.siguiente_codigo_auditoria(uuid) to authenticated;
+
+-- Hallazgos numerados dentro de cada auditoria: H-01, H-02, ...
+create or replace function public.siguiente_codigo_hallazgo(p_auditoria_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_secuencia integer;
+begin
+  select coalesce(max(substring(codigo from 3)::integer), 0) + 1
+    into v_secuencia
+    from public.auditoria_hallazgos
+   where auditoria_id = p_auditoria_id
+     and codigo ~ '^H-[0-9]+$';
+
+  return 'H-' || lpad(v_secuencia::text, 2, '0');
+end;
+$$;
+
+grant execute on function public.siguiente_codigo_hallazgo(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Un hallazgo genera su no conformidad en una sola operacion.
+--
+-- Se resuelve en la base y no en la aplicacion por dos motivos: el
+-- correlativo y el vinculo tienen que quedar consistentes aunque falle
+-- algo en el medio, y asi la regla vale tambien si la NC se genera desde
+-- un script o desde el panel de Supabase.
+-- ---------------------------------------------------------------------
+create or replace function public.generar_no_conformidad_desde_hallazgo(
+  p_hallazgo_id uuid,
+  p_responsable_id uuid default null,
+  p_fecha_limite date default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_hallazgo public.auditoria_hallazgos%rowtype;
+  v_auditoria public.auditorias%rowtype;
+  v_codigo text;
+  v_nc_id uuid;
+  v_severidad severidad_no_conformidad;
+  v_titulo text;
+begin
+  select * into v_hallazgo from public.auditoria_hallazgos where id = p_hallazgo_id;
+  if not found then
+    raise exception 'El hallazgo no existe';
+  end if;
+
+  if v_hallazgo.no_conformidad_id is not null then
+    raise exception 'El hallazgo ya generó la no conformidad %',
+      (select codigo from public.no_conformidades where id = v_hallazgo.no_conformidad_id);
+  end if;
+
+  if v_hallazgo.tipo not in ('no_conformidad_mayor', 'no_conformidad_menor', 'observacion') then
+    raise exception 'Solo los hallazgos de tipo no conformidad u observación generan una NC';
+  end if;
+
+  select * into v_auditoria from public.auditorias where id = v_hallazgo.auditoria_id;
+
+  -- La severidad de la NC se deriva del tipo de hallazgo.
+  v_severidad := case v_hallazgo.tipo
+    when 'no_conformidad_mayor' then 'mayor'::severidad_no_conformidad
+    when 'no_conformidad_menor' then 'menor'::severidad_no_conformidad
+    else 'menor'::severidad_no_conformidad
+  end;
+
+  v_codigo := public.siguiente_codigo_no_conformidad(v_auditoria.empresa_id);
+
+  -- El titulo se recorta: la descripcion completa del hallazgo va al
+  -- cuerpo de la no conformidad.
+  v_titulo := coalesce(v_hallazgo.codigo || ' · ', '') ||
+              left(v_hallazgo.descripcion, 120) ||
+              case when length(v_hallazgo.descripcion) > 120 then '…' else '' end;
+
+  insert into public.no_conformidades (
+    empresa_id, codigo, titulo, descripcion, origen, severidad, estado,
+    proceso_id, sede_id, norma_id, requisito_incumplido, detectado_por,
+    responsable_id, fecha_deteccion, fecha_limite_cierre, creado_por
+  ) values (
+    v_auditoria.empresa_id,
+    v_codigo,
+    v_titulo,
+    v_hallazgo.descripcion ||
+      case when v_hallazgo.evidencia is not null
+           then E'\n\nEvidencia objetiva: ' || v_hallazgo.evidencia else '' end ||
+      E'\n\nOrigen: auditoría ' || v_auditoria.codigo || '.',
+    'auditoria_interna',
+    v_severidad,
+    'abierta',
+    coalesce(v_hallazgo.proceso_id, v_auditoria.proceso_id),
+    v_auditoria.sede_id,
+    v_auditoria.norma_id,
+    v_hallazgo.requisito,
+    coalesce(v_hallazgo.registrado_por, v_auditoria.auditor_lider_id),
+    p_responsable_id,
+    coalesce(v_auditoria.fecha_fin, current_date),
+    coalesce(p_fecha_limite, current_date + 30),
+    auth.uid()
+  )
+  returning id into v_nc_id;
+
+  update public.auditoria_hallazgos
+     set no_conformidad_id = v_nc_id
+   where id = p_hallazgo_id;
+
+  return v_nc_id;
+end;
+$$;
+
+grant execute on function public.generar_no_conformidad_desde_hallazgo(uuid, uuid, date)
+  to authenticated;
+
+
+-- =====================================================================
+-- MIGRACION: 20260824001900_mantenimientos.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 019 · Ciclo de mantenimiento de activos
+-- =====================================================================
+-- Al ejecutar un mantenimiento preventivo hay que actualizar el activo y
+-- agendar el siguiente. Se resuelve con un disparador y no en la
+-- aplicacion para que la agenda quede consistente aunque el mantenimiento
+-- se cierre desde un script o desde el panel de Supabase.
+
+create or replace function public.sincronizar_activo_al_mantener()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_activo public.activos%rowtype;
+begin
+  -- Solo interesa el paso a ejecutado.
+  if new.estado <> 'ejecutado' or (tg_op = 'UPDATE' and old.estado = 'ejecutado') then
+    return new;
+  end if;
+
+  select * into v_activo from public.activos where id = new.activo_id;
+  if not found then
+    return new;
+  end if;
+
+  update public.activos
+     set fecha_ultimo_mantenimiento = coalesce(new.fecha_ejecucion, current_date),
+         fecha_proximo_mantenimiento =
+           case
+             when v_activo.requiere_mantenimiento
+              and v_activo.frecuencia_mantenimiento_dias is not null
+             then coalesce(new.fecha_ejecucion, current_date)
+                  + v_activo.frecuencia_mantenimiento_dias
+             else null
+           end,
+         -- Un activo que estaba en mantenimiento vuelve a estar operativo.
+         estado = case when v_activo.estado = 'en_mantenimiento'
+                       then 'operativo'::estado_activo
+                       else v_activo.estado end
+   where id = new.activo_id;
+
+  return new;
+end;
+$$;
+
+create trigger mantenimientos_sincronizar_activo
+  after insert or update of estado on public.mantenimientos
+  for each row execute function public.sincronizar_activo_al_mantener();
+
+-- ---------------------------------------------------------------------
+-- Los mantenimientos programados cuya fecha ya paso quedan vencidos.
+-- Lo llama el trabajo programado de alertas, antes de avisar.
+-- ---------------------------------------------------------------------
+create or replace function public.marcar_mantenimientos_vencidos()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_afectados integer;
+begin
+  update public.mantenimientos
+     set estado = 'vencido'
+   where estado = 'programado'
+     and fecha_programada < current_date;
+
+  get diagnostics v_afectados = row_count;
+  return v_afectados;
+end;
+$$;
+
+grant execute on function public.marcar_mantenimientos_vencidos() to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Agenda del proximo mantenimiento al dar de alta un activo que lo
+-- requiere y todavia no tiene fecha.
+-- ---------------------------------------------------------------------
+create or replace function public.agendar_primer_mantenimiento()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.requiere_mantenimiento
+     and new.frecuencia_mantenimiento_dias is not null
+     and new.fecha_proximo_mantenimiento is null then
+    new.fecha_proximo_mantenimiento :=
+      coalesce(new.fecha_ultimo_mantenimiento, current_date)
+      + new.frecuencia_mantenimiento_dias;
+  end if;
+
+  -- Si deja de requerir mantenimiento, la agenda se limpia.
+  if not new.requiere_mantenimiento then
+    new.fecha_proximo_mantenimiento := null;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger activos_agendar_mantenimiento
+  before insert or update of requiere_mantenimiento, frecuencia_mantenimiento_dias
+  on public.activos
+  for each row execute function public.agendar_primer_mantenimiento();
+
+
+-- =====================================================================
+-- MIGRACION: 20260825000100_reclamos_desde_satisfaccion.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 020 · Satisfaccion del cliente: del detractor al reclamo formal
+-- =====================================================================
+-- Medir el NPS sin actuar sobre los detractores no cierra ningun ciclo.
+-- Esta migracion agrega el vinculo entre una respuesta de encuesta y la
+-- no conformidad que origina, con la misma logica que ya usa el modulo
+-- de auditorias: la regla vive en la base y no en la aplicacion, para
+-- que valga tambien si la escritura viene de un script o del panel de
+-- Supabase.
+--
+-- Agrega ademas el correlativo de encuestas, que hasta ahora se cargaba
+-- a mano en el seed.
+
+alter table public.encuesta_respuestas
+  add column if not exists no_conformidad_id uuid
+    references public.no_conformidades (id) on delete set null;
+
+create index if not exists encuesta_respuestas_nc_idx
+  on public.encuesta_respuestas (no_conformidad_id)
+  where no_conformidad_id is not null;
+
+-- ---------------------------------------------------------------------
+-- Correlativo de encuestas: ENC-01, ENC-02, ...
+-- ---------------------------------------------------------------------
+create or replace function public.siguiente_codigo_encuesta(p_empresa_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select 'ENC-' || lpad((coalesce(max(
+           nullif(regexp_replace(codigo, '^ENC-', ''), '')::int
+         ), 0) + 1)::text, 2, '0')
+    from public.encuestas
+   where empresa_id = p_empresa_id
+     and codigo ~ '^ENC-[0-9]+$';
+$$;
+
+-- ---------------------------------------------------------------------
+-- Genera la no conformidad a partir de una respuesta de encuesta.
+--
+-- Solo se admite para detractores: un puntaje de 7 o mas es una opinion
+-- a tener en cuenta, no un incumplimiento. El comentario del cliente se
+-- copia literal al cuerpo de la no conformidad, porque es la evidencia
+-- objetiva del reclamo y reescribirlo la debilita.
+-- ---------------------------------------------------------------------
+create or replace function public.generar_no_conformidad_desde_respuesta(
+  p_respuesta_id uuid,
+  p_responsable_id uuid default null,
+  p_fecha_limite date default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_respuesta public.encuesta_respuestas%rowtype;
+  v_encuesta  public.encuestas%rowtype;
+  v_cliente   text;
+  v_codigo    text;
+  v_titulo    text;
+  v_nc_id     uuid;
+begin
+  select * into v_respuesta from public.encuesta_respuestas where id = p_respuesta_id;
+  if not found then
+    raise exception 'La respuesta indicada no existe';
+  end if;
+
+  if v_respuesta.no_conformidad_id is not null then
+    raise exception 'La respuesta ya generó la no conformidad %',
+      (select codigo from public.no_conformidades where id = v_respuesta.no_conformidad_id);
+  end if;
+
+  if v_respuesta.categoria_nps <> 'detractor' then
+    raise exception 'Solo las respuestas de clientes detractores (puntaje 0 a 6) generan una no conformidad';
+  end if;
+
+  if coalesce(btrim(v_respuesta.comentario), '') = '' then
+    raise exception 'La respuesta no tiene comentario: sin el motivo del cliente no hay reclamo que tratar';
+  end if;
+
+  select * into v_encuesta from public.encuestas where id = v_respuesta.encuesta_id;
+
+  select razon_social into v_cliente
+    from public.clientes where id = v_respuesta.cliente_id;
+
+  v_codigo := public.siguiente_codigo_no_conformidad(v_encuesta.empresa_id);
+
+  -- El origen y el cliente ya tienen su columna en el listado: el titulo
+  -- se reserva para lo unico que no se ve ahi, que es el motivo.
+  v_titulo := 'Reclamo de ' || coalesce(v_cliente, 'cliente anónimo') || ': ' ||
+              left(v_respuesta.comentario, 80) ||
+              case when length(v_respuesta.comentario) > 80 then '…' else '' end;
+
+  insert into public.no_conformidades (
+    empresa_id, codigo, titulo, descripcion, origen, severidad, estado,
+    sede_id, cliente_id, responsable_id, fecha_deteccion, fecha_limite_cierre,
+    creado_por
+  ) values (
+    v_encuesta.empresa_id,
+    v_codigo,
+    v_titulo,
+    'Comentario del cliente en la encuesta ' || v_encuesta.codigo ||
+      ' (' || v_encuesta.nombre || '), puntaje ' || v_respuesta.puntaje || ' de 10:' ||
+      E'\n\n«' || v_respuesta.comentario || '»' ||
+      case when v_cliente is not null then E'\n\nCliente: ' || v_cliente else '' end ||
+      case when v_respuesta.canal is not null then E'\nCanal de respuesta: ' || v_respuesta.canal else '' end,
+    'reclamo_cliente',
+    -- Un 0 a 3 es un cliente perdido; de 4 a 6, insatisfecho.
+    case when v_respuesta.puntaje <= 3 then 'mayor'::severidad_no_conformidad
+         else 'menor'::severidad_no_conformidad end,
+    'abierta',
+    v_respuesta.sede_id,
+    v_respuesta.cliente_id,
+    p_responsable_id,
+    v_respuesta.fecha,
+    coalesce(p_fecha_limite, current_date + 30),
+    auth.uid()
+  )
+  returning id into v_nc_id;
+
+  update public.encuesta_respuestas
+     set no_conformidad_id = v_nc_id
+   where id = p_respuesta_id;
+
+  return v_nc_id;
+end;
+$$;
+
+comment on function public.generar_no_conformidad_desde_respuesta is
+  'Convierte el comentario de un cliente detractor en una no conformidad de origen reclamo_cliente.';
+
+
+-- =====================================================================
+-- SEED · datos de demostracion
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- Datos de demostracion
+-- =====================================================================
+-- Todos los registros llevan es_demostracion = true y los usuarios usan
+-- el prefijo "demo." en su correo, de modo que se distingan a simple
+-- vista de los datos reales y se puedan eliminar de una sola pasada.
+--
+-- Para borrar toda la demostracion:
+--   delete from auth.users where email like 'demo.%@camping44.com.py';
+--   delete from public.documentos where es_demostracion;
+--   delete from public.no_conformidades where es_demostracion;
+--   delete from public.riesgos where es_demostracion;
+--   ... (ver README.md)
+
+-- ---------------------------------------------------------------------
+-- Empresas
+-- ---------------------------------------------------------------------
+insert into public.empresas (id, nombre, razon_social, ruc, activa) values
+  ('11111111-1111-4111-8111-111111111111', 'Camping 44', 'Camping 44 S.A.', '80012345-6', true),
+  ('22222222-2222-4222-8222-222222222222', 'Vitálica', 'Vitálica E.A.S.', '80098765-4', false)
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Sedes
+-- ---------------------------------------------------------------------
+insert into public.sedes (id, empresa_id, nombre, direccion, ciudad, telefono) values
+  ('a1000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'Casa Central', 'Av. Eusebio Ayala 2540', 'Asunción', '021 555 4400'),
+  ('a1000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'Sucursal Shopping', 'Shopping del Sol, local 118', 'Asunción', '021 555 4410'),
+  ('a1000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'Depósito Central', 'Ruta Transchaco km 14', 'Mariano Roque Alonso', '021 555 4420')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Normas de referencia
+-- ---------------------------------------------------------------------
+insert into public.normas (id, codigo, nombre, version, descripcion, vigente) values
+  ('b1000000-0000-4000-8000-000000000001', 'ISO 9001:2015',
+   'Sistemas de gestión de la calidad — Requisitos', '2015',
+   'Norma de referencia del sistema de gestión.', true),
+  ('b1000000-0000-4000-8000-000000000002', 'Ley 4036/2010',
+   'Ley de armas de fuego, municiones y explosivos', '2010',
+   'Marco legal aplicable a la comercialización de armas en Paraguay.', true),
+  ('b1000000-0000-4000-8000-000000000003', 'Res. DIMABEL 112/2019',
+   'Registro y control de existencias de material controlado', '2019',
+   'Obligaciones de registro ante la Dirección de Material Bélico.', true)
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Procesos (mapa de procesos de Camping 44)
+-- ---------------------------------------------------------------------
+insert into public.procesos (id, empresa_id, codigo, nombre, tipo, descripcion) values
+  ('c1000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'EST-01', 'Dirección y planificación estratégica', 'estrategico',
+   'Definición de objetivos, revisión por la dirección y asignación de recursos.'),
+  ('c1000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'EST-02', 'Gestión de la calidad', 'estrategico',
+   'Mantenimiento del sistema de gestión, auditorías internas y mejora continua.'),
+  ('c1000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'COM', 'Comercial y ventas', 'operativo',
+   'Atención en salón, asesoramiento técnico y cierre de ventas.'),
+  ('c1000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'CMP', 'Compras e importaciones', 'operativo',
+   'Selección de proveedores, importación y nacionalización de mercadería.'),
+  ('c1000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'DEP', 'Depósito y logística', 'operativo',
+   'Recepción, almacenamiento, control de existencias y despacho.'),
+  ('c1000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'REG', 'Cumplimiento regulatorio', 'operativo',
+   'Registro de material controlado y reportes ante DIMABEL.'),
+  ('c1000000-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111',
+   'COB', 'Cobranzas', 'apoyo',
+   'Gestión de cuentas por cobrar y recuperación de créditos.'),
+  ('c1000000-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111',
+   'TI', 'Tecnología de la información', 'apoyo',
+   'Infraestructura, sistemas y soporte a los usuarios.'),
+  ('c1000000-0000-4000-8000-000000000009', '11111111-1111-4111-8111-111111111111',
+   'RRHH', 'Recursos humanos', 'apoyo',
+   'Selección, capacitación y evaluación del personal.')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Puestos
+-- ---------------------------------------------------------------------
+insert into public.puestos (id, empresa_id, codigo, nombre, area, proceso_id, mision) values
+  ('d1000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'P-001', 'Gerente general', 'Dirección', 'c1000000-0000-4000-8000-000000000001',
+   'Conducir la operación y asegurar el cumplimiento de los objetivos.'),
+  ('d1000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'P-002', 'Responsable de calidad', 'Calidad', 'c1000000-0000-4000-8000-000000000002',
+   'Mantener y mejorar el sistema de gestión de la calidad.'),
+  ('d1000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'P-003', 'Jefe comercial', 'Comercial', 'c1000000-0000-4000-8000-000000000003',
+   'Alcanzar las metas de venta con el nivel de servicio comprometido.'),
+  ('d1000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'P-004', 'Vendedor de salón', 'Comercial', 'c1000000-0000-4000-8000-000000000003',
+   'Asesorar al cliente y concretar la venta cumpliendo la normativa vigente.'),
+  ('d1000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'P-005', 'Encargado de depósito', 'Logística', 'c1000000-0000-4000-8000-000000000005',
+   'Garantizar la exactitud del inventario y la trazabilidad del material.'),
+  ('d1000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'P-006', 'Analista de compras', 'Compras', 'c1000000-0000-4000-8000-000000000004',
+   'Asegurar el abastecimiento en tiempo, costo y calidad.'),
+  ('d1000000-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111',
+   'P-007', 'Analista de cobranzas', 'Administración', 'c1000000-0000-4000-8000-000000000007',
+   'Reducir la morosidad y sostener el flujo de cobranzas.'),
+  ('d1000000-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111',
+   'P-008', 'Responsable de TI', 'TI', 'c1000000-0000-4000-8000-000000000008',
+   'Sostener la infraestructura y los sistemas de la operación.')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Usuarios de demostracion
+-- ---------------------------------------------------------------------
+-- Se crean en auth.users; el disparador public.crear_perfil_usuario
+-- genera el perfil en public.usuarios con rol Colaborador, y luego se
+-- ajustan rol, jerarquia y proceso a cargo.
+--
+-- Los correos llevan el prefijo "demo." a proposito: asi nunca colisionan
+-- con las cuentas reales del espacio de trabajo de Google.
+insert into auth.users (
+  id, instance_id, aud, role, email, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+values
+  ('e1000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.direccion@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Rodrigo Fernández"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.calidad@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"María Benítez"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.comercial@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Lucía Ayala"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000004', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.deposito@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Marcos Duarte"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000005', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.compras@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Silvia Rojas"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000006', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.cobranzas@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Patricia Cabral"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000007', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.ti@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Andrés Villalba"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000008', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.auditor@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Gustavo Meza"}', now(), now()),
+  ('e1000000-0000-4000-8000-000000000009', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'demo.vendedor@camping44.com.py', now(),
+   '{"provider":"google","providers":["google"]}',
+   '{"full_name":"Nicolás Giménez"}', now(), now())
+on conflict (id) do nothing;
+
+-- Rol, jerarquia y proceso a cargo.
+update public.usuarios set
+  rol = 'direccion', puesto_id = 'd1000000-0000-4000-8000-000000000001',
+  proceso_id = 'c1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000001';
+
+update public.usuarios set
+  rol = 'administrador_sgc', puesto_id = 'd1000000-0000-4000-8000-000000000002',
+  proceso_id = 'c1000000-0000-4000-8000-000000000002',
+  superior_id = 'e1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000002';
+
+update public.usuarios set
+  rol = 'responsable_proceso', puesto_id = 'd1000000-0000-4000-8000-000000000003',
+  proceso_id = 'c1000000-0000-4000-8000-000000000003',
+  superior_id = 'e1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000003';
+
+update public.usuarios set
+  rol = 'responsable_proceso', puesto_id = 'd1000000-0000-4000-8000-000000000005',
+  proceso_id = 'c1000000-0000-4000-8000-000000000005',
+  superior_id = 'e1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000004';
+
+update public.usuarios set
+  rol = 'responsable_proceso', puesto_id = 'd1000000-0000-4000-8000-000000000006',
+  proceso_id = 'c1000000-0000-4000-8000-000000000004',
+  superior_id = 'e1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000005';
+
+update public.usuarios set
+  rol = 'responsable_proceso', puesto_id = 'd1000000-0000-4000-8000-000000000007',
+  proceso_id = 'c1000000-0000-4000-8000-000000000007',
+  superior_id = 'e1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000006';
+
+update public.usuarios set
+  rol = 'responsable_proceso', puesto_id = 'd1000000-0000-4000-8000-000000000008',
+  proceso_id = 'c1000000-0000-4000-8000-000000000008',
+  superior_id = 'e1000000-0000-4000-8000-000000000001'
+where id = 'e1000000-0000-4000-8000-000000000007';
+
+update public.usuarios set
+  rol = 'auditor', superior_id = 'e1000000-0000-4000-8000-000000000002'
+where id = 'e1000000-0000-4000-8000-000000000008';
+
+update public.usuarios set
+  rol = 'colaborador', puesto_id = 'd1000000-0000-4000-8000-000000000004',
+  proceso_id = 'c1000000-0000-4000-8000-000000000003',
+  superior_id = 'e1000000-0000-4000-8000-000000000003'
+where id = 'e1000000-0000-4000-8000-000000000009';
+
+-- Responsables de proceso.
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000001'
+  where id = 'c1000000-0000-4000-8000-000000000001';
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000002'
+  where id in ('c1000000-0000-4000-8000-000000000002', 'c1000000-0000-4000-8000-000000000006');
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000003'
+  where id = 'c1000000-0000-4000-8000-000000000003';
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000005'
+  where id = 'c1000000-0000-4000-8000-000000000004';
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000004'
+  where id = 'c1000000-0000-4000-8000-000000000005';
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000006'
+  where id = 'c1000000-0000-4000-8000-000000000007';
+update public.procesos set responsable_id = 'e1000000-0000-4000-8000-000000000007'
+  where id in ('c1000000-0000-4000-8000-000000000008', 'c1000000-0000-4000-8000-000000000009');
+
+-- A partir de aqui la bitacora atribuye los movimientos a Calidad, que es
+-- quien cargaria estos datos en la operacion real.
+select set_config('request.jwt.claim.sub', 'e1000000-0000-4000-8000-000000000002', false);
+
+-- ---------------------------------------------------------------------
+-- Clientes y proveedores
+-- ---------------------------------------------------------------------
+insert into public.clientes (id, empresa_id, codigo, razon_social, ruc, correo, ciudad, es_demostracion) values
+  ('f1000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'CLI-001', 'Estancia Santa Rosa S.A.', '80025874-1', 'compras@santarosa.demo.py', 'Concepción', true),
+  ('f1000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'CLI-002', 'Club de Caza y Pesca Asunción', '80031122-3', 'secretaria@clubcaza.demo.py', 'Asunción', true),
+  ('f1000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'CLI-003', 'Seguridad Integral Guaraní S.R.L.', '80044455-7', 'admin@sig.demo.py', 'Luque', true),
+  ('f1000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'CLI-004', 'Agroganadera del Chaco S.A.', '80055566-8', 'compras@agrochaco.demo.py', 'Filadelfia', true)
+on conflict (id) do nothing;
+
+insert into public.proveedores (
+  id, empresa_id, codigo, razon_social, nombre_comercial, ruc, rubro, critico,
+  correo, telefono, ciudad, pais, estado, periodicidad_evaluacion_meses, es_demostracion
+) values
+  ('f2000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'PRV-001', 'Importadora Andina de Equipamiento S.A.', 'Andina Outdoor', '80077788-9',
+   'Equipamiento outdoor', true, 'ventas@andina.demo.py', '+54 11 4000 0000',
+   'Buenos Aires', 'Argentina', 'aprobado', 12, true),
+  ('f2000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'PRV-002', 'Distribuidora de Municiones del Sur Ltda.', 'DMS', '80088899-0',
+   'Municiones y accesorios', true, 'contacto@dms.demo.py', '+55 41 3000 0000',
+   'Curitiba', 'Brasil', 'aprobado', 6, true),
+  ('f2000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'PRV-003', 'Transportes Ñemity S.R.L.', 'Ñemity Logística', '80099900-1',
+   'Transporte y logística', false, 'operaciones@nemity.demo.py', '021 555 7788',
+   'Asunción', 'Paraguay', 'condicional', 12, true),
+  ('f2000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'PRV-004', 'Insumos Gráficos Paraguay S.A.', 'Ingrapar', '80011122-4',
+   'Insumos de oficina', false, 'ventas@ingrapar.demo.py', '021 555 3322',
+   'Asunción', 'Paraguay', 'aprobado', 24, true),
+  ('f2000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'PRV-005', 'Servicios Informáticos Aguará S.R.L.', 'Aguará TI', '80022233-5',
+   'Servicios de TI', true, 'soporte@aguara.demo.py', '021 555 9911',
+   'Asunción', 'Paraguay', 'en_evaluacion', 12, true)
+on conflict (id) do nothing;
+
+-- Evaluaciones (el disparador actualiza calificacion y fechas del proveedor).
+insert into public.proveedor_evaluaciones (
+  proveedor_id, fecha, periodo, calidad, plazo_entrega, precio,
+  servicio_posventa, documentacion, resultado, comentario, evaluado_por
+) values
+  ('f2000000-0000-4000-8000-000000000001', current_date - 120, 'Semestre 1',
+   5, 4, 4, 5, 5, 'aprobado', 'Cumplimiento sostenido en calidad y documentación.',
+   'e1000000-0000-4000-8000-000000000005'),
+  ('f2000000-0000-4000-8000-000000000002', current_date - 60, 'Semestre 1',
+   5, 3, 4, 4, 5, 'aprobado', 'Demoras puntuales por trámites de importación.',
+   'e1000000-0000-4000-8000-000000000005'),
+  ('f2000000-0000-4000-8000-000000000003', current_date - 200, 'Anual',
+   3, 2, 4, 3, 3, 'condicional', 'Reiteradas demoras en la entrega al depósito.',
+   'e1000000-0000-4000-8000-000000000005'),
+  ('f2000000-0000-4000-8000-000000000004', current_date - 300, 'Anual',
+   4, 5, 5, 4, 4, 'aprobado', 'Sin observaciones en el período.',
+   'e1000000-0000-4000-8000-000000000005');
+
+-- ---------------------------------------------------------------------
+-- Documentos
+-- ---------------------------------------------------------------------
+insert into public.documentos (
+  id, empresa_id, codigo, titulo, descripcion, tipo, estado, proceso_id, norma_id,
+  responsable_id, elaborador_id, aprobador_id, version_actual, fecha_aprobacion,
+  fecha_vigencia, fecha_proxima_revision, periodicidad_revision_meses,
+  es_demostracion, creado_por
+) values
+  ('01000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'MP-SOP-01', 'Manual del Sistema de Gestión de Calidad',
+   'Describe el alcance del sistema, el mapa de procesos y la política de calidad de Camping 44.',
+   'manual', 'vigente', 'c1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000001',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   'e1000000-0000-4000-8000-000000000001', 1, current_date - 200, current_date - 200,
+   current_date + 165, 12, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('01000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'MP-SOP-02', 'Procedimiento de control de información documentada',
+   'Reglas de codificación, elaboración, revisión, aprobación y baja de documentos.',
+   'procedimiento', 'vigente', 'c1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000001',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   'e1000000-0000-4000-8000-000000000001', 2, current_date - 90, current_date - 90,
+   current_date + 275, 12, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('01000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'MP-SOP-03', 'Procedimiento de no conformidades y acciones correctivas',
+   'Tratamiento de desviaciones, análisis de causa raíz y verificación de eficacia.',
+   'procedimiento', 'vigente', 'c1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000001',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   'e1000000-0000-4000-8000-000000000001', 1, current_date - 150, current_date - 150,
+   current_date + 215, 12, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('01000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'MP-SOP-04', 'Procedimiento de recepción y almacenamiento de mercadería',
+   'Controles de recepción, verificación documental y ubicación en depósito.',
+   'procedimiento', 'vigente', 'c1000000-0000-4000-8000-000000000005', 'b1000000-0000-4000-8000-000000000001',
+   'e1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000004',
+   'e1000000-0000-4000-8000-000000000002', 1, current_date - 340, current_date - 340,
+   current_date + 12, 12, true, 'e1000000-0000-4000-8000-000000000004'),
+
+  ('01000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'MP-SOP-05', 'Procedimiento de registro y control de material ante DIMABEL',
+   'Registro de ingresos y egresos de material controlado y reportes obligatorios.',
+   'procedimiento', 'vigente', 'c1000000-0000-4000-8000-000000000006', 'b1000000-0000-4000-8000-000000000002',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   'e1000000-0000-4000-8000-000000000001', 1, current_date - 355, current_date - 355,
+   current_date - 5, 12, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('01000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'POL-01', 'Política de calidad',
+   'Compromiso de la dirección con la satisfacción del cliente y la mejora continua.',
+   'politica', 'vigente', 'c1000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000001',
+   'e1000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000002',
+   'e1000000-0000-4000-8000-000000000001', 0, current_date - 400, current_date - 400,
+   current_date + 330, 24, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('01000000-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111',
+   'F-DEP-01-01', 'Formulario de conteo cíclico de inventario',
+   'Planilla de registro del conteo cíclico semanal en depósito.',
+   'formulario', 'vigente', 'c1000000-0000-4000-8000-000000000005', null,
+   'e1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000004',
+   'e1000000-0000-4000-8000-000000000002', 0, current_date - 120, current_date - 120,
+   current_date + 245, 12, true, 'e1000000-0000-4000-8000-000000000004'),
+
+  ('01000000-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111',
+   'F-COM-01-01', 'Formulario de evaluación de satisfacción del cliente',
+   'Encuesta breve entregada al cliente luego de la compra.',
+   'formulario', 'en_revision', 'c1000000-0000-4000-8000-000000000003', null,
+   'e1000000-0000-4000-8000-000000000003', 'e1000000-0000-4000-8000-000000000003',
+   null, 0, null, null, null, 12, true, 'e1000000-0000-4000-8000-000000000003'),
+
+  ('01000000-0000-4000-8000-000000000009', '11111111-1111-4111-8111-111111111111',
+   'IT-01', 'Instructivo de arqueo diario de caja',
+   'Pasos del arqueo de caja al cierre de cada jornada.',
+   'instructivo', 'borrador', 'c1000000-0000-4000-8000-000000000007', null,
+   'e1000000-0000-4000-8000-000000000006', 'e1000000-0000-4000-8000-000000000006',
+   null, 0, null, null, null, 12, true, 'e1000000-0000-4000-8000-000000000006')
+on conflict (id) do nothing;
+
+-- Versiones de cada documento.
+insert into public.documento_versiones (
+  documento_id, version, estado, resumen_cambios, elaborado_por, aprobado_por, fecha_aprobacion
+) values
+  ('01000000-0000-4000-8000-000000000001', 0, 'obsoleto', 'Versión inicial del manual.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '500 days'),
+  ('01000000-0000-4000-8000-000000000001', 1, 'vigente',
+   'Se incorpora el proceso de cumplimiento regulatorio al mapa de procesos.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '200 days'),
+
+  ('01000000-0000-4000-8000-000000000002', 0, 'obsoleto', 'Versión inicial.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '480 days'),
+  ('01000000-0000-4000-8000-000000000002', 1, 'obsoleto', 'Se agrega la codificación de formularios.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '300 days'),
+  ('01000000-0000-4000-8000-000000000002', 2, 'vigente',
+   'Se define la lista de difusión obligatoria y el acuse de publicación.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '90 days'),
+
+  ('01000000-0000-4000-8000-000000000003', 0, 'obsoleto', 'Versión inicial.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '420 days'),
+  ('01000000-0000-4000-8000-000000000003', 1, 'vigente',
+   'Se incorpora el escalamiento al jefe inmediato a los diez días.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '150 days'),
+
+  ('01000000-0000-4000-8000-000000000004', 0, 'obsoleto', 'Versión inicial.',
+   'e1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000002', now() - interval '700 days'),
+  ('01000000-0000-4000-8000-000000000004', 1, 'vigente', 'Se agrega el control de temperatura del depósito.',
+   'e1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000002', now() - interval '340 days'),
+
+  ('01000000-0000-4000-8000-000000000005', 0, 'obsoleto', 'Versión inicial.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '720 days'),
+  ('01000000-0000-4000-8000-000000000005', 1, 'vigente',
+   'Actualización por la Resolución DIMABEL 112/2019.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '355 days'),
+
+  ('01000000-0000-4000-8000-000000000006', 0, 'vigente', 'Versión inicial de la política.',
+   'e1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', now() - interval '400 days'),
+
+  ('01000000-0000-4000-8000-000000000007', 0, 'vigente', 'Versión inicial del formulario.',
+   'e1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000002', now() - interval '120 days'),
+
+  ('01000000-0000-4000-8000-000000000008', 0, 'en_revision',
+   'Primera propuesta de encuesta posventa.', 'e1000000-0000-4000-8000-000000000003', null, null),
+
+  ('01000000-0000-4000-8000-000000000009', 0, 'borrador',
+   'Borrador inicial del instructivo de arqueo.', 'e1000000-0000-4000-8000-000000000006', null, null);
+
+-- Revisores pendientes de la version en revision.
+insert into public.documento_revisores (version_id, usuario_id, estado)
+select v.id, 'e1000000-0000-4000-8000-000000000002', 'pendiente'
+  from public.documento_versiones v
+ where v.documento_id = '01000000-0000-4000-8000-000000000008' and v.version = 0;
+
+insert into public.documento_revisores (version_id, usuario_id, estado)
+select v.id, 'e1000000-0000-4000-8000-000000000001', 'pendiente'
+  from public.documento_versiones v
+ where v.documento_id = '01000000-0000-4000-8000-000000000008' and v.version = 0;
+
+-- Listas de difusion.
+insert into public.documento_difusion (documento_id, proceso_id) values
+  ('01000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000003'),
+  ('01000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000005'),
+  ('01000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000005'),
+  ('01000000-0000-4000-8000-000000000005', 'c1000000-0000-4000-8000-000000000006'),
+  ('01000000-0000-4000-8000-000000000007', 'c1000000-0000-4000-8000-000000000005')
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------
+-- Riesgos y oportunidades
+-- ---------------------------------------------------------------------
+insert into public.riesgos (
+  id, empresa_id, codigo, titulo, descripcion, tipo, categoria, proceso_id,
+  responsable_id, estado, causas, consecuencias, controles_existentes, tratamiento,
+  probabilidad, impacto, fecha_identificacion, es_demostracion, creado_por
+) values
+  ('02000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'R-2026-001', 'Diferencias entre el stock físico y el registro ante DIMABEL',
+   'El material controlado podría no coincidir con lo declarado en el registro obligatorio.',
+   'riesgo', 'Regulatorio', 'c1000000-0000-4000-8000-000000000006',
+   'e1000000-0000-4000-8000-000000000002', 'en_tratamiento',
+   'Conteos cíclicos sin frecuencia definida y carga manual de movimientos.',
+   'Sanción administrativa, suspensión de la licencia comercial y daño reputacional.',
+   'Conteo mensual del material controlado y doble firma en cada egreso.',
+   'mitigar', 4, 5, current_date - 180, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'R-2026-002', 'Quiebre de stock en temporada alta de pesca',
+   'La demanda de equipamiento se concentra entre septiembre y diciembre.',
+   'riesgo', 'Operativo', 'c1000000-0000-4000-8000-000000000004',
+   'e1000000-0000-4000-8000-000000000005', 'en_tratamiento',
+   'Plazos de importación de hasta noventa días y previsión basada solo en el año anterior.',
+   'Pérdida de ventas y migración de clientes a la competencia.',
+   'Punto de reposición definido para los veinte artículos de mayor rotación.',
+   'mitigar', 4, 3, current_date - 150, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'R-2026-003', 'Morosidad creciente en ventas a crédito corporativo',
+   'Clientes institucionales con plazos de pago superiores a los acordados.',
+   'riesgo', 'Financiero', 'c1000000-0000-4000-8000-000000000007',
+   'e1000000-0000-4000-8000-000000000006', 'en_tratamiento',
+   'Aprobación de crédito sin análisis formal y seguimiento manual de vencimientos.',
+   'Deterioro del flujo de caja y necesidad de financiamiento externo.',
+   'Informe semanal de cuentas por cobrar y llamado a los treinta días.',
+   'mitigar', 3, 4, current_date - 100, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'R-2026-004', 'Pérdida de información por falta de respaldo verificado',
+   'Los respaldos se generan pero no se verifica su restauración.',
+   'riesgo', 'Tecnológico', 'c1000000-0000-4000-8000-000000000008',
+   'e1000000-0000-4000-8000-000000000007', 'identificado',
+   'No existe una prueba periódica de restauración documentada.',
+   'Interrupción de la operación e imposibilidad de reconstruir registros contables.',
+   'Respaldo automático diario en la nube.',
+   'mitigar', 2, 5, current_date - 60, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'R-2026-005', 'Venta sin verificación completa de la documentación del comprador',
+   'Riesgo de concretar una venta de material controlado sin la habilitación vigente.',
+   'riesgo', 'Regulatorio', 'c1000000-0000-4000-8000-000000000003',
+   'e1000000-0000-4000-8000-000000000003', 'en_tratamiento',
+   'Alta rotación de vendedores y verificación apoyada en la memoria del personal.',
+   'Responsabilidad penal y administrativa para la empresa y el vendedor.',
+   'Lista de verificación obligatoria antes de la facturación.',
+   'evitar', 2, 5, current_date - 220, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'R-2026-006', 'Deterioro de mercadería por humedad en el depósito',
+   'El sector de carpas y bolsas de dormir presenta humedad en época de lluvias.',
+   'riesgo', 'Operativo', 'c1000000-0000-4000-8000-000000000005',
+   'e1000000-0000-4000-8000-000000000004', 'controlado',
+   'Falta de aislamiento en el sector oeste del depósito.',
+   'Pérdida de mercadería y reclamos por calidad del producto.',
+   'Deshumidificadores instalados y control diario de temperatura.',
+   'mitigar', 2, 3, current_date - 300, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000007', '11111111-1111-4111-8111-111111111111',
+   'R-2026-007', 'Dependencia de un único proveedor de municiones',
+   'El 80 % del abastecimiento de municiones proviene de un solo proveedor.',
+   'riesgo', 'Cadena de suministro', 'c1000000-0000-4000-8000-000000000004',
+   'e1000000-0000-4000-8000-000000000005', 'identificado',
+   'Ausencia de proveedores alternativos homologados.',
+   'Interrupción del abastecimiento ante cualquier contingencia del proveedor.',
+   'Contrato anual con volumen comprometido.',
+   'mitigar', 3, 3, current_date - 45, true, 'e1000000-0000-4000-8000-000000000002'),
+
+  ('02000000-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111',
+   'R-2026-008', 'Apertura del canal de venta en línea para equipamiento outdoor',
+   'La demanda de equipamiento de campamento crece fuera del área metropolitana.',
+   'oportunidad', 'Comercial', 'c1000000-0000-4000-8000-000000000003',
+   'e1000000-0000-4000-8000-000000000003', 'identificado',
+   'Consultas recurrentes de clientes del interior por redes sociales.',
+   'Ampliación del alcance comercial sin abrir una sucursal física.',
+   'Catálogo digital publicado y despacho por encomienda.',
+   'explotar', 4, 4, current_date - 30, true, 'e1000000-0000-4000-8000-000000000002')
+on conflict (id) do nothing;
+
+-- Evaluacion residual de los riesgos ya tratados.
+update public.riesgos set probabilidad_residual = 2, impacto_residual = 5
+  where id = '02000000-0000-4000-8000-000000000001';
+update public.riesgos set probabilidad_residual = 1, impacto_residual = 3
+  where id = '02000000-0000-4000-8000-000000000006';
+
+-- Algunas fechas de reevaluacion ya vencidas, para que el tablero y el
+-- trabajo programado tengan casos reales que mostrar.
+update public.riesgos set fecha_proxima_revision = current_date - 3
+  where id = '02000000-0000-4000-8000-000000000005';
+update public.riesgos set fecha_proxima_revision = current_date + 5
+  where id = '02000000-0000-4000-8000-000000000003';
+
+insert into public.riesgo_evaluaciones (riesgo_id, fecha, probabilidad, impacto, comentario, evaluado_por) values
+  ('02000000-0000-4000-8000-000000000001', current_date - 180, 4, 5, 'Evaluación inicial.', 'e1000000-0000-4000-8000-000000000002'),
+  ('02000000-0000-4000-8000-000000000001', current_date - 30, 2, 5, 'Riesgo residual tras implantar el conteo mensual.', 'e1000000-0000-4000-8000-000000000002'),
+  ('02000000-0000-4000-8000-000000000002', current_date - 150, 4, 3, 'Evaluación inicial.', 'e1000000-0000-4000-8000-000000000005'),
+  ('02000000-0000-4000-8000-000000000003', current_date - 100, 3, 4, 'Evaluación inicial.', 'e1000000-0000-4000-8000-000000000006'),
+  ('02000000-0000-4000-8000-000000000005', current_date - 220, 3, 5, 'Evaluación inicial.', 'e1000000-0000-4000-8000-000000000003'),
+  ('02000000-0000-4000-8000-000000000005', current_date - 90, 2, 5, 'Baja de probabilidad por la lista de verificación obligatoria.', 'e1000000-0000-4000-8000-000000000003'),
+  ('02000000-0000-4000-8000-000000000006', current_date - 300, 3, 3, 'Evaluación inicial.', 'e1000000-0000-4000-8000-000000000004'),
+  ('02000000-0000-4000-8000-000000000006', current_date - 40, 1, 3, 'Riesgo residual tras instalar los deshumidificadores.', 'e1000000-0000-4000-8000-000000000004');
+
+insert into public.riesgo_acciones (riesgo_id, descripcion, tratamiento, responsable_id, fecha_limite, estado, fecha_ejecucion) values
+  ('02000000-0000-4000-8000-000000000001',
+   'Definir la frecuencia del conteo cíclico de material controlado en el procedimiento MP-SOP-04.',
+   'mitigar', 'e1000000-0000-4000-8000-000000000004', current_date - 20, 'ejecutada', current_date - 25),
+  ('02000000-0000-4000-8000-000000000001',
+   'Conciliar mensualmente el stock físico contra el registro presentado ante DIMABEL.',
+   'mitigar', 'e1000000-0000-4000-8000-000000000002', current_date + 25, 'en_curso', null),
+  ('02000000-0000-4000-8000-000000000002',
+   'Adelantar la orden de compra de temporada a julio de cada año.',
+   'mitigar', 'e1000000-0000-4000-8000-000000000005', current_date + 40, 'pendiente', null),
+  ('02000000-0000-4000-8000-000000000003',
+   'Implantar el análisis formal de crédito previo a la aprobación de ventas a plazo.',
+   'mitigar', 'e1000000-0000-4000-8000-000000000006', current_date + 15, 'en_curso', null),
+  ('02000000-0000-4000-8000-000000000004',
+   'Realizar una prueba de restauración trimestral y dejar constancia del resultado.',
+   'mitigar', 'e1000000-0000-4000-8000-000000000007', current_date + 30, 'pendiente', null),
+  ('02000000-0000-4000-8000-000000000007',
+   'Homologar un segundo proveedor de municiones antes del cierre del ejercicio.',
+   'mitigar', 'e1000000-0000-4000-8000-000000000005', current_date + 90, 'pendiente', null),
+  ('02000000-0000-4000-8000-000000000008',
+   'Definir el alcance y la logística de despacho del canal en línea.',
+   'explotar', 'e1000000-0000-4000-8000-000000000003', current_date + 60, 'en_curso', null);
+
+-- ---------------------------------------------------------------------
+-- No conformidades
+-- ---------------------------------------------------------------------
+insert into public.no_conformidades (
+  id, empresa_id, codigo, titulo, descripcion, origen, severidad, estado,
+  proceso_id, sede_id, norma_id, cliente_id, requisito_incumplido,
+  correccion_inmediata, conclusion_causa_raiz, detectado_por, responsable_id,
+  fecha_deteccion, fecha_limite_cierre, fecha_cierre, cerrado_por, eficacia,
+  observacion_eficacia, riesgo_id, es_demostracion, creado_por
+) values
+  ('03000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'NC-2026-001', 'Diferencia de 3 unidades en el conteo cíclico de material controlado',
+   'Durante el conteo cíclico del 12 del mes se detectó una diferencia de tres unidades entre el stock físico y el sistema, en el sector de material controlado del Depósito Central.',
+   'proceso_interno', 'critica', 'en_tratamiento',
+   'c1000000-0000-4000-8000-000000000005', 'a1000000-0000-4000-8000-000000000003',
+   'b1000000-0000-4000-8000-000000000002', null,
+   'Ley 4036/2010 · Art. 27 — Registro de existencias',
+   'Se bloqueó el egreso del sector y se recontó con doble verificación.',
+   'El procedimiento de recepción no define la frecuencia del conteo cíclico ni exige la doble firma en el ingreso de material controlado, por lo que las diferencias se detectan tarde.',
+   'e1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000002',
+   current_date - 22, current_date - 2, null, null, 'pendiente', null,
+   '02000000-0000-4000-8000-000000000001', true, 'e1000000-0000-4000-8000-000000000004'),
+
+  ('03000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'NC-2026-002', 'Entrega fuera de plazo del proveedor Transportes Ñemity',
+   'Tres despachos consecutivos del proveedor PRV-003 llegaron con más de cinco días de atraso respecto de lo comprometido.',
+   'proveedor', 'mayor', 'en_verificacion',
+   'c1000000-0000-4000-8000-000000000004', 'a1000000-0000-4000-8000-000000000003',
+   'b1000000-0000-4000-8000-000000000001', null,
+   'ISO 9001:2015 · 8.4.1 — Control de proveedores externos',
+   'Se recurrió a un transportista alternativo para el despacho urgente.',
+   'La evaluación del proveedor se realiza una vez al año y no contempla un umbral de atrasos que active la reevaluación anticipada.',
+   'e1000000-0000-4000-8000-000000000005', 'e1000000-0000-4000-8000-000000000005',
+   current_date - 45, current_date + 8, null, null, 'pendiente', null,
+   null, true, 'e1000000-0000-4000-8000-000000000005'),
+
+  ('03000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'NC-2026-003', 'Reclamo de cliente por asesoramiento incorrecto sobre calibre',
+   'El Club de Caza y Pesca reclamó que se le vendió munición de calibre distinto al solicitado, detectado por el cliente al retirar la mercadería.',
+   'reclamo_cliente', 'menor', 'cerrada',
+   'c1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000001',
+   'b1000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000002',
+   'ISO 9001:2015 · 8.2.1 — Comunicación con el cliente',
+   'Se realizó el cambio en el momento y se dejó constancia en la nota de crédito.',
+   'El vendedor no contaba con la capacitación técnica sobre calibres, porque la inducción no incluye ese contenido para el personal nuevo.',
+   'e1000000-0000-4000-8000-000000000003', 'e1000000-0000-4000-8000-000000000003',
+   current_date - 120, current_date - 90, current_date - 85,
+   'e1000000-0000-4000-8000-000000000002', 'eficaz',
+   'Se verificaron dos meses posteriores sin reclamos del mismo tipo.',
+   null, true, 'e1000000-0000-4000-8000-000000000003'),
+
+  ('03000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'NC-2026-004', 'Facturación sin verificación de la habilitación del comprador',
+   'En una venta del mes anterior se emitió la factura antes de completar la lista de verificación documental obligatoria.',
+   'auditoria_interna', 'critica', 'en_analisis',
+   'c1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000002',
+   'b1000000-0000-4000-8000-000000000002', null,
+   'Ley 4036/2010 · Art. 31 — Verificación del adquirente',
+   'Se retuvo la entrega hasta completar la verificación documental.',
+   null,
+   'e1000000-0000-4000-8000-000000000008', 'e1000000-0000-4000-8000-000000000003',
+   current_date - 12, current_date + 18, null, null, 'pendiente', null,
+   '02000000-0000-4000-8000-000000000005', true, 'e1000000-0000-4000-8000-000000000008'),
+
+  ('03000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'NC-2026-005', 'Documento MP-SOP-05 vencido en su fecha de revisión',
+   'El procedimiento de registro ante DIMABEL superó su fecha de próxima revisión sin que se confirmara la vigencia de su contenido.',
+   'auditoria_interna', 'menor', 'abierta',
+   'c1000000-0000-4000-8000-000000000002', null,
+   'b1000000-0000-4000-8000-000000000001', null,
+   'ISO 9001:2015 · 7.5.3 — Control de la información documentada',
+   null, null,
+   'e1000000-0000-4000-8000-000000000008', 'e1000000-0000-4000-8000-000000000002',
+   current_date - 5, current_date + 25, null, null, 'pendiente', null,
+   null, true, 'e1000000-0000-4000-8000-000000000008'),
+
+  ('03000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'NC-2026-006', 'Caja con faltante de Gs. 185.000 en el arqueo del cierre',
+   'El arqueo de caja de la Sucursal Shopping arrojó un faltante de Gs. 185.000 respecto del total facturado del día.',
+   'proceso_interno', 'menor', 'en_tratamiento',
+   'c1000000-0000-4000-8000-000000000007', 'a1000000-0000-4000-8000-000000000002',
+   null, null,
+   'ISO 9001:2015 · 8.5.1 — Control de la producción y provisión del servicio',
+   'Se reconstruyó el movimiento del día con los comprobantes y se ajustó el registro.',
+   'El arqueo se realiza sin un instructivo escrito, por lo que cada cajero aplica un criterio distinto para los vales internos.',
+   'e1000000-0000-4000-8000-000000000006', 'e1000000-0000-4000-8000-000000000006',
+   current_date - 30, current_date + 5, null, null, 'pendiente', null,
+   null, true, 'e1000000-0000-4000-8000-000000000006')
+on conflict (id) do nothing;
+
+-- Cinco porques de la NC-2026-001.
+insert into public.nc_porques (no_conformidad_id, orden, pregunta, respuesta) values
+  ('03000000-0000-4000-8000-000000000001', 1, '¿Por qué ocurrió la desviación?',
+   'Porque el stock físico no coincidía con el registrado en el sistema.'),
+  ('03000000-0000-4000-8000-000000000001', 2, '¿Por qué?',
+   'Porque hubo egresos de material que no se cargaron en el momento.'),
+  ('03000000-0000-4000-8000-000000000001', 3, '¿Por qué?',
+   'Porque el operario carga los movimientos al final del turno, de memoria.'),
+  ('03000000-0000-4000-8000-000000000001', 4, '¿Por qué?',
+   'Porque el procedimiento no exige la carga inmediata ni la doble firma en el egreso.'),
+  ('03000000-0000-4000-8000-000000000001', 5, '¿Por qué?',
+   'Porque el procedimiento MP-SOP-04 se redactó antes de que el depósito manejara material controlado y nunca se actualizó.');
+
+-- Ishikawa de la NC-2026-001.
+insert into public.nc_ishikawa (no_conformidad_id, categoria, causa, es_causa_raiz) values
+  ('03000000-0000-4000-8000-000000000001', 'metodo',
+   'El procedimiento no define la frecuencia del conteo cíclico.', true),
+  ('03000000-0000-4000-8000-000000000001', 'metodo',
+   'No se exige doble firma en el egreso de material controlado.', true),
+  ('03000000-0000-4000-8000-000000000001', 'mano_de_obra',
+   'La carga de movimientos se hace de memoria al cierre del turno.', false),
+  ('03000000-0000-4000-8000-000000000001', 'medicion',
+   'No hay indicador de exactitud de inventario que anticipe la diferencia.', false),
+  ('03000000-0000-4000-8000-000000000001', 'maquina',
+   'El lector de código de barras del sector falla de forma intermitente.', false),
+  ('03000000-0000-4000-8000-000000000001', 'medio_ambiente',
+   'El sector de material controlado tiene iluminación deficiente.', false);
+
+-- Ishikawa de la NC-2026-003.
+insert into public.nc_ishikawa (no_conformidad_id, categoria, causa, es_causa_raiz) values
+  ('03000000-0000-4000-8000-000000000003', 'mano_de_obra',
+   'El vendedor no recibió capacitación técnica sobre calibres.', true),
+  ('03000000-0000-4000-8000-000000000003', 'metodo',
+   'La inducción del personal nuevo no incluye contenido técnico de producto.', true);
+
+-- Planes de accion.
+insert into public.nc_acciones (
+  no_conformidad_id, tipo, descripcion, responsable_id, fecha_limite, estado,
+  fecha_ejecucion, evidencia, verificado_por, fecha_verificacion, nivel_escalamiento
+) values
+  ('03000000-0000-4000-8000-000000000001', 'correccion',
+   'Recontar la totalidad del sector de material controlado y ajustar el registro.',
+   'e1000000-0000-4000-8000-000000000004', current_date - 18, 'verificada',
+   current_date - 19, 'Acta de conteo del sector firmada por depósito y calidad.',
+   'e1000000-0000-4000-8000-000000000002', current_date - 15, 0),
+  ('03000000-0000-4000-8000-000000000001', 'accion_correctiva',
+   'Actualizar el procedimiento MP-SOP-04 incorporando la frecuencia de conteo y la doble firma en el egreso.',
+   'e1000000-0000-4000-8000-000000000004', current_date - 14, 'pendiente', null, null, null, null, 1),
+  ('03000000-0000-4000-8000-000000000001', 'accion_correctiva',
+   'Capacitar al personal de depósito en el procedimiento actualizado.',
+   'e1000000-0000-4000-8000-000000000004', current_date + 12, 'pendiente', null, null, null, null, 0),
+
+  ('03000000-0000-4000-8000-000000000002', 'accion_correctiva',
+   'Incorporar al procedimiento de compras un umbral de atrasos que active la reevaluación anticipada del proveedor.',
+   'e1000000-0000-4000-8000-000000000005', current_date - 5, 'ejecutada',
+   current_date - 6, 'Procedimiento actualizado y comunicado a compras.', null, null, 0),
+  ('03000000-0000-4000-8000-000000000002', 'accion_correctiva',
+   'Reevaluar a Transportes Ñemity fuera del calendario anual.',
+   'e1000000-0000-4000-8000-000000000005', current_date + 8, 'en_curso', null, null, null, null, 0),
+
+  ('03000000-0000-4000-8000-000000000003', 'accion_correctiva',
+   'Incorporar el módulo técnico de producto a la inducción del personal de salón.',
+   'e1000000-0000-4000-8000-000000000003', current_date - 100, 'verificada',
+   current_date - 105, 'Plan de inducción actualizado y dictado a tres vendedores.',
+   'e1000000-0000-4000-8000-000000000002', current_date - 88, 0),
+
+  ('03000000-0000-4000-8000-000000000004', 'correccion',
+   'Completar la verificación documental de la venta observada antes de la entrega.',
+   'e1000000-0000-4000-8000-000000000003', current_date - 10, 'ejecutada',
+   current_date - 11, 'Lista de verificación completa archivada con la factura.', null, null, 0),
+  ('03000000-0000-4000-8000-000000000004', 'accion_correctiva',
+   'Bloquear la emisión de la factura en el punto de venta hasta completar la lista de verificación.',
+   'e1000000-0000-4000-8000-000000000007', current_date + 18, 'en_curso', null, null, null, null, 0),
+
+  ('03000000-0000-4000-8000-000000000005', 'accion_correctiva',
+   'Revisar el contenido del MP-SOP-05 y publicar la versión que corresponda.',
+   'e1000000-0000-4000-8000-000000000002', current_date + 20, 'pendiente', null, null, null, null, 0),
+
+  ('03000000-0000-4000-8000-000000000006', 'accion_correctiva',
+   'Redactar y aprobar el instructivo de arqueo diario de caja (IT-01).',
+   'e1000000-0000-4000-8000-000000000006', current_date + 5, 'en_curso', null, null, null, null, 0);
+
+-- ---------------------------------------------------------------------
+-- Auditorias internas
+-- ---------------------------------------------------------------------
+insert into public.programas_auditoria (id, empresa_id, anio, nombre, objetivo, estado, aprobado_por, fecha_aprobacion, es_demostracion) values
+  ('04000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   extract(year from current_date)::int,
+   'Programa anual de auditorías internas',
+   'Verificar la conformidad del sistema de gestión con la norma ISO 9001:2015 y con la normativa aplicable al material controlado.',
+   'en_ejecucion', 'e1000000-0000-4000-8000-000000000001', current_date - 220, true)
+on conflict (id) do nothing;
+
+insert into public.auditorias (
+  id, empresa_id, programa_id, codigo, tipo, proceso_id, norma_id, sede_id,
+  auditor_lider_id, objetivo, alcance, criterios, fecha_planificada, fecha_inicio,
+  fecha_fin, estado, conclusiones, es_demostracion
+) values
+  ('05000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   '04000000-0000-4000-8000-000000000001', 'AUD-2026-01', 'interna',
+   'c1000000-0000-4000-8000-000000000005', 'b1000000-0000-4000-8000-000000000001',
+   'a1000000-0000-4000-8000-000000000003', 'e1000000-0000-4000-8000-000000000008',
+   'Verificar el control de existencias y la trazabilidad del material en depósito.',
+   'Recepción, almacenamiento y despacho del Depósito Central.',
+   'ISO 9001:2015 y MP-SOP-04.', current_date - 200, current_date - 200,
+   current_date - 198, 'cerrada',
+   'Se detectaron dos hallazgos, uno de ellos derivado a no conformidad.', true),
+
+  ('05000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   '04000000-0000-4000-8000-000000000001', 'AUD-2026-02', 'interna',
+   'c1000000-0000-4000-8000-000000000003', 'b1000000-0000-4000-8000-000000000002',
+   'a1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000008',
+   'Verificar el cumplimiento de la verificación documental previa a la venta.',
+   'Proceso comercial de la Sucursal Shopping.',
+   'Ley 4036/2010 y MP-SOP-05.', current_date - 15, current_date - 14,
+   current_date - 13, 'informe_pendiente', null, true),
+
+  ('05000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   '04000000-0000-4000-8000-000000000001', 'AUD-2026-03', 'interna',
+   'c1000000-0000-4000-8000-000000000007', 'b1000000-0000-4000-8000-000000000001',
+   'a1000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000008',
+   'Verificar la gestión de cuentas por cobrar y el arqueo de caja.',
+   'Proceso de cobranzas de Casa Central.',
+   'ISO 9001:2015.', current_date + 35, null, null, 'planificada', null, true),
+
+  ('05000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   '04000000-0000-4000-8000-000000000001', 'AUD-2026-04', 'interna',
+   'c1000000-0000-4000-8000-000000000008', 'b1000000-0000-4000-8000-000000000001',
+   'a1000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000008',
+   'Verificar la gestión de respaldos y la continuidad de los sistemas.',
+   'Infraestructura y sistemas de TI.',
+   'ISO 9001:2015 · 7.1.3.', current_date + 80, null, null, 'planificada', null, true)
+on conflict (id) do nothing;
+
+insert into public.auditoria_equipo (auditoria_id, usuario_id, rol_equipo) values
+  ('05000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000008', 'auditor líder'),
+  ('05000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000002', 'auditor'),
+  ('05000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000008', 'auditor líder')
+on conflict do nothing;
+
+insert into public.auditoria_hallazgos (
+  auditoria_id, codigo, tipo, requisito, descripcion, evidencia, proceso_id,
+  no_conformidad_id, registrado_por
+) values
+  ('05000000-0000-4000-8000-000000000001', 'H-01', 'no_conformidad_menor',
+   'ISO 9001:2015 · 7.5.3',
+   'El procedimiento MP-SOP-04 no define la frecuencia del conteo cíclico.',
+   'Lectura del procedimiento vigente y entrevista al encargado de depósito.',
+   'c1000000-0000-4000-8000-000000000005', '03000000-0000-4000-8000-000000000001',
+   'e1000000-0000-4000-8000-000000000008'),
+  ('05000000-0000-4000-8000-000000000001', 'H-02', 'observacion',
+   'ISO 9001:2015 · 7.1.3',
+   'La iluminación del sector de material controlado dificulta la lectura de las etiquetas.',
+   'Verificación en el lugar durante la auditoría.',
+   'c1000000-0000-4000-8000-000000000005', null, 'e1000000-0000-4000-8000-000000000008'),
+  ('05000000-0000-4000-8000-000000000002', 'H-03', 'no_conformidad_mayor',
+   'Ley 4036/2010 · Art. 31',
+   'Se emitió una factura de material controlado sin completar la verificación documental del comprador.',
+   'Muestreo de diez ventas del período; una sin lista de verificación.',
+   'c1000000-0000-4000-8000-000000000003', '03000000-0000-4000-8000-000000000004',
+   'e1000000-0000-4000-8000-000000000008'),
+  ('05000000-0000-4000-8000-000000000002', 'H-04', 'oportunidad_mejora',
+   'ISO 9001:2015 · 7.2',
+   'Conviene incorporar la verificación documental como paso bloqueante del punto de venta.',
+   'Sugerencia surgida de la entrevista con el jefe comercial.',
+   'c1000000-0000-4000-8000-000000000003', null, 'e1000000-0000-4000-8000-000000000008');
+
+-- ---------------------------------------------------------------------
+-- Indicadores y objetivos
+-- ---------------------------------------------------------------------
+insert into public.indicadores (
+  id, empresa_id, codigo, nombre, descripcion, proceso_id, responsable_id,
+  formula, unidad, frecuencia, sentido, meta, activo, es_demostracion
+) values
+  ('06000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'KPI-01', 'Exactitud de inventario',
+   'Coincidencia entre el stock físico y el registrado en el sistema.',
+   'c1000000-0000-4000-8000-000000000005', 'e1000000-0000-4000-8000-000000000004',
+   '(1 − diferencias / unidades contadas) × 100', '%', 'mensual', 'mayor_mejor', 98, true, true),
+  ('06000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'KPI-02', 'Reclamos de clientes',
+   'Cantidad de reclamos formales recibidos en el período.',
+   'c1000000-0000-4000-8000-000000000003', 'e1000000-0000-4000-8000-000000000003',
+   'Suma de reclamos registrados', 'reclamos', 'mensual', 'menor_mejor', 2, true, true),
+  ('06000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'KPI-03', 'Morosidad de la cartera',
+   'Proporción de la cartera con más de treinta días de atraso.',
+   'c1000000-0000-4000-8000-000000000007', 'e1000000-0000-4000-8000-000000000006',
+   'Cartera vencida / cartera total × 100', '%', 'mensual', 'menor_mejor', 8, true, true),
+  ('06000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'KPI-04', 'Cumplimiento del plan de auditorías',
+   'Auditorías cerradas sobre auditorías planificadas del año.',
+   'c1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   'Auditorías cerradas / planificadas × 100', '%', 'trimestral', 'mayor_mejor', 100, true, true),
+  ('06000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'KPI-05', 'Cierre de no conformidades en plazo',
+   'No conformidades cerradas dentro de la fecha límite comprometida.',
+   'c1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   'NC cerradas en plazo / NC cerradas × 100', '%', 'mensual', 'mayor_mejor', 90, true, true),
+  ('06000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'KPI-06', 'Entregas de proveedores en plazo',
+   'Despachos recibidos dentro del plazo comprometido.',
+   'c1000000-0000-4000-8000-000000000004', 'e1000000-0000-4000-8000-000000000005',
+   'Entregas en plazo / entregas totales × 100', '%', 'mensual', 'mayor_mejor', 95, true, true)
+on conflict (id) do nothing;
+
+-- Mediciones de los ultimos seis meses.
+insert into public.indicador_mediciones (indicador_id, periodo, valor_real, meta_periodo, cargado_por)
+select
+  i.id,
+  (date_trunc('month', current_date) - (mes || ' months')::interval)::date,
+  -- mes = 0 es el periodo mas reciente. Los valores mejoran hacia el
+  -- presente, de modo que el tablero muestre una mezcla realista de
+  -- indicadores en meta y fuera de meta, no un escenario uniforme.
+  case i.codigo
+    when 'KPI-01' then (98.6 - mes * 0.20)::numeric(14,2)   -- meta 98, mayor mejor
+    when 'KPI-02' then greatest(0, mes - 2)::numeric(14,2)  -- meta 2, menor mejor
+    when 'KPI-03' then (7.2 + mes * 0.45)::numeric(14,2)    -- meta 8, menor mejor
+    when 'KPI-04' then (100 - mes * 10)::numeric(14,2)      -- meta 100, trimestral
+    when 'KPI-05' then (93 - mes * 1.20)::numeric(14,2)     -- meta 90, mayor mejor
+    else (95.8 - mes * 0.40)::numeric(14,2)                 -- meta 95, mayor mejor
+  end,
+  i.meta,
+  'e1000000-0000-4000-8000-000000000002'
+from public.indicadores i
+cross join generate_series(0, 5) as mes
+where i.es_demostracion
+  and (i.frecuencia = 'mensual' or mes % 3 = 0)
+on conflict (indicador_id, periodo) do nothing;
+
+insert into public.objetivos (
+  id, empresa_id, codigo, nombre, descripcion, proceso_id, responsable_id,
+  anio, meta, avance_porcentaje, estado, es_demostracion
+) values
+  ('07000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'OBJ-01', 'Elevar la exactitud de inventario al 99 %',
+   'Reducir las diferencias de inventario mediante el conteo cíclico y la doble firma.',
+   'c1000000-0000-4000-8000-000000000005', 'e1000000-0000-4000-8000-000000000004',
+   extract(year from current_date)::int, '99 % de exactitud sostenida', 65, 'en_curso', true),
+  ('07000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'OBJ-02', 'Reducir la morosidad por debajo del 8 %',
+   'Implantar el análisis de crédito previo y el seguimiento semanal de la cartera.',
+   'c1000000-0000-4000-8000-000000000007', 'e1000000-0000-4000-8000-000000000006',
+   extract(year from current_date)::int, 'Morosidad menor al 8 %', 45, 'en_curso', true),
+  ('07000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'OBJ-03', 'Cerrar el 100 % del programa anual de auditorías',
+   'Ejecutar las cuatro auditorías internas planificadas para el ejercicio.',
+   'c1000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002',
+   extract(year from current_date)::int, '4 de 4 auditorías cerradas', 25, 'en_curso', true)
+on conflict (id) do nothing;
+
+insert into public.objetivo_indicadores (objetivo_id, indicador_id) values
+  ('07000000-0000-4000-8000-000000000001', '06000000-0000-4000-8000-000000000001'),
+  ('07000000-0000-4000-8000-000000000002', '06000000-0000-4000-8000-000000000003'),
+  ('07000000-0000-4000-8000-000000000003', '06000000-0000-4000-8000-000000000004')
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------
+-- Satisfaccion del cliente
+-- ---------------------------------------------------------------------
+-- Nota: el panel de NPS de Camping 44 sigue siendo la fuente real. Estos
+-- registros solo ilustran la estructura preparada para ingerirlos.
+insert into public.encuestas (
+  id, empresa_id, codigo, nombre, tipo, descripcion, fecha_inicio, fecha_fin,
+  activa, fuente_externa, es_demostracion
+) values
+  ('08000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'ENC-01', 'NPS posventa', 'nps',
+   'Encuesta breve enviada al cliente luego de la compra.',
+   current_date - 180, null, true, 'panel-nps-apps-script', true)
+on conflict (id) do nothing;
+
+insert into public.encuesta_respuestas (encuesta_id, cliente_id, fecha, puntaje, comentario, canal, sede_id, referencia_externa) values
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', current_date - 5, 10,
+   'Excelente asesoramiento técnico en el mostrador.', 'correo', 'a1000000-0000-4000-8000-000000000001', 'demo-001'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000002', current_date - 9, 6,
+   'Me entregaron un calibre distinto al pedido; se resolvió, pero perdí el viaje.', 'correo', 'a1000000-0000-4000-8000-000000000001', 'demo-002'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000003', current_date - 14, 9,
+   'Muy buena atención y stock disponible.', 'whatsapp', 'a1000000-0000-4000-8000-000000000002', 'demo-003'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000004', current_date - 20, 8,
+   'Buen producto, la entrega demoró más de lo previsto.', 'correo', 'a1000000-0000-4000-8000-000000000003', 'demo-004'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', current_date - 32, 9,
+   'Cumplieron con el plazo comprometido.', 'correo', 'a1000000-0000-4000-8000-000000000001', 'demo-005'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000003', current_date - 41, 4,
+   'Demora de dos semanas en la entrega de un pedido ya pagado.', 'telefono', 'a1000000-0000-4000-8000-000000000003', 'demo-006'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000002', current_date - 55, 10,
+   'El personal conoce el producto, se nota la capacitación.', 'correo', 'a1000000-0000-4000-8000-000000000002', 'demo-007'),
+  ('08000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000004', current_date - 70, 7,
+   'Todo correcto, sin observaciones.', 'correo', 'a1000000-0000-4000-8000-000000000001', 'demo-008')
+on conflict do nothing;
+
+-- Historia de doce meses para que la tendencia de NPS tenga de donde
+-- salir. La mayoria de quien responde un NPS no deja comentario: estas
+-- filas son solo el puntaje, y las de arriba, las que si comentaron.
+-- La mezcla mensual esta elegida para reflejar una mejora sostenida
+-- desde el arranque del sistema de gestion.
+insert into public.encuesta_respuestas (encuesta_id, cliente_id, fecha, puntaje, canal, sede_id, referencia_externa)
+select
+  '08000000-0000-4000-8000-000000000001',
+  case (n % 4)
+    when 0 then 'f1000000-0000-4000-8000-000000000001'
+    when 1 then 'f1000000-0000-4000-8000-000000000002'
+    when 2 then 'f1000000-0000-4000-8000-000000000003'
+    else 'f1000000-0000-4000-8000-000000000004'
+  end::uuid,
+  -- Repartidas dentro del mes, no todas el mismo dia. El "least" evita
+  -- que el mes en curso genere respuestas con fecha futura.
+  least(
+    (date_trunc('month', current_date) - (m.mes_atras || ' months')::interval)::date
+      + ((n * 3) % 26),
+    current_date
+  ),
+  case
+    when n <= m.promotores then 9 + (n % 2)              -- 9 o 10
+    when n <= m.promotores + m.pasivos then 7 + (n % 2)  -- 7 u 8
+    else 3 + (n % 4)                                     -- 3 a 6
+  end,
+  case (n % 3) when 0 then 'correo' when 1 then 'whatsapp' else 'telefono' end,
+  case (n % 3)
+    when 0 then 'a1000000-0000-4000-8000-000000000001'
+    when 1 then 'a1000000-0000-4000-8000-000000000002'
+    else 'a1000000-0000-4000-8000-000000000003'
+  end::uuid,
+  'demo-hist-' || m.mes_atras || '-' || n
+from (values
+  -- mes_atras, promotores, pasivos, detractores  (NPS resultante)
+  (11, 3, 2, 2),   -- +14
+  (10, 4, 2, 2),   -- +25
+  ( 9, 4, 3, 2),   -- +22
+  ( 8, 5, 2, 2),   -- +33
+  ( 7, 5, 3, 1),   -- +44
+  ( 6, 6, 2, 2),   -- +40
+  ( 5, 6, 3, 1),   -- +50
+  ( 4, 7, 2, 1),   -- +60
+  ( 3, 6, 3, 2),   -- +36
+  ( 2, 7, 3, 1),   -- +55
+  ( 1, 8, 2, 1),   -- +64
+  ( 0, 5, 2, 1)    -- mes en curso, todavia parcial
+) as m(mes_atras, promotores, pasivos, detractores),
+lateral generate_series(1, m.promotores + m.pasivos + m.detractores) as n
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------
+-- Recursos humanos
+-- ---------------------------------------------------------------------
+insert into public.competencias (id, empresa_id, codigo, nombre, descripcion, tipo) values
+  ('09000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'CMP-01', 'Conocimiento técnico de producto',
+   'Calibres, munición, compatibilidad y uso del equipamiento comercializado.', 'tecnica'),
+  ('09000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'CMP-02', 'Normativa de material controlado',
+   'Ley 4036/2010 y resoluciones de DIMABEL aplicables a la venta.', 'legal'),
+  ('09000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'CMP-03', 'Atención al cliente',
+   'Escucha, asesoramiento y manejo de reclamos.', 'conductual'),
+  ('09000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'CMP-04', 'Gestión de inventarios',
+   'Conteo cíclico, trazabilidad y control de existencias.', 'tecnica'),
+  ('09000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'CMP-05', 'Sistema de gestión de la calidad',
+   'Norma ISO 9001:2015 y procedimientos internos del SGC.', 'tecnica')
+on conflict (id) do nothing;
+
+insert into public.puesto_competencias (puesto_id, competencia_id, nivel_requerido, critica) values
+  ('d1000000-0000-4000-8000-000000000004', '09000000-0000-4000-8000-000000000001', 4, true),
+  ('d1000000-0000-4000-8000-000000000004', '09000000-0000-4000-8000-000000000002', 5, true),
+  ('d1000000-0000-4000-8000-000000000004', '09000000-0000-4000-8000-000000000003', 4, false),
+  ('d1000000-0000-4000-8000-000000000005', '09000000-0000-4000-8000-000000000004', 5, true),
+  ('d1000000-0000-4000-8000-000000000005', '09000000-0000-4000-8000-000000000002', 4, true),
+  ('d1000000-0000-4000-8000-000000000002', '09000000-0000-4000-8000-000000000005', 5, true),
+  ('d1000000-0000-4000-8000-000000000003', '09000000-0000-4000-8000-000000000001', 5, true)
+on conflict do nothing;
+
+insert into public.evaluaciones_competencia (usuario_id, competencia_id, nivel_actual, nivel_requerido, fecha, evaluado_por, observacion) values
+  ('e1000000-0000-4000-8000-000000000009', '09000000-0000-4000-8000-000000000001', 2, 4, current_date - 110,
+   'e1000000-0000-4000-8000-000000000003', 'Brecha detectada a raíz del reclamo NC-2026-003.'),
+  ('e1000000-0000-4000-8000-000000000009', '09000000-0000-4000-8000-000000000002', 4, 5, current_date - 110,
+   'e1000000-0000-4000-8000-000000000003', 'Conoce la normativa; falta profundizar en resoluciones recientes.'),
+  ('e1000000-0000-4000-8000-000000000009', '09000000-0000-4000-8000-000000000003', 4, 4, current_date - 110,
+   'e1000000-0000-4000-8000-000000000003', 'Sin brecha.'),
+  ('e1000000-0000-4000-8000-000000000004', '09000000-0000-4000-8000-000000000004', 4, 5, current_date - 60,
+   'e1000000-0000-4000-8000-000000000001', 'Brecha a cubrir con la capacitación de inventarios.');
+
+insert into public.capacitaciones (
+  id, empresa_id, codigo, nombre, descripcion, tipo, proveedor_nombre, instructor,
+  fecha_inicio, fecha_fin, horas, costo_gs, estado, competencia_id, es_demostracion
+) values
+  ('0a000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'CAP-01', 'Inducción técnica de producto para personal de salón',
+   'Calibres, munición y compatibilidad del equipamiento comercializado.',
+   'interna', null, 'Lucía Ayala', current_date - 100, current_date - 99, 8, 0,
+   'finalizada', '09000000-0000-4000-8000-000000000001', true),
+  ('0a000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'CAP-02', 'Actualización normativa Ley 4036/2010 y resoluciones DIMABEL',
+   'Obligaciones de registro, verificación del adquirente y reportes.',
+   'externa', 'Consultora Legal Guaraní', 'Abg. R. Espínola',
+   current_date - 45, current_date - 45, 6, 3711850, 'finalizada',
+   '09000000-0000-4000-8000-000000000002', true),
+  ('0a000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'CAP-03', 'Conteo cíclico y trazabilidad de inventario',
+   'Metodología de conteo, ajustes y control de material controlado.',
+   'interna', null, 'Marcos Duarte', current_date + 20, current_date + 20, 4, 0,
+   'planificada', '09000000-0000-4000-8000-000000000004', true),
+  ('0a000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'CAP-04', 'Formación de auditores internos ISO 9001:2015',
+   'Planificación, ejecución e informe de auditorías internas.',
+   'externa', 'Instituto de Calidad del Paraguay', 'Ing. M. Sanabria',
+   current_date + 55, current_date + 57, 16, 12500000, 'planificada',
+   '09000000-0000-4000-8000-000000000005', true)
+on conflict (id) do nothing;
+
+insert into public.capacitacion_participantes (capacitacion_id, usuario_id, asistio, calificacion, eficacia, fecha_evaluacion_eficacia, observacion) values
+  ('0a000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000009', true, 88, 'eficaz',
+   current_date - 70, 'Sin reclamos por asesoramiento desde la capacitación.'),
+  ('0a000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000003', true, 95, 'eficaz',
+   current_date - 70, 'Replicó el contenido al resto del equipo.'),
+  ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000003', true, 90, 'pendiente', null, null),
+  ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002', true, 92, 'pendiente', null, null),
+  ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000009', false, null, 'pendiente',
+   null, 'No asistió; se reprograma su participación en la próxima edición.'),
+  ('0a000000-0000-4000-8000-000000000003', 'e1000000-0000-4000-8000-000000000004', false, null, 'pendiente', null, null)
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------
+-- Infraestructura y activos
+-- ---------------------------------------------------------------------
+insert into public.activos (
+  id, empresa_id, codigo, nombre, categoria, descripcion, sede_id, ubicacion,
+  responsable_id, proveedor_id, numero_serie, marca, modelo, estado,
+  fecha_adquisicion, valor_gs, requiere_mantenimiento,
+  frecuencia_mantenimiento_dias, fecha_ultimo_mantenimiento,
+  fecha_proximo_mantenimiento, es_demostracion
+) values
+  ('0b000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'ACT-001', 'Servidor de aplicaciones', 'Equipamiento informático',
+   'Servidor local de respaldo y sistemas administrativos.',
+   'a1000000-0000-4000-8000-000000000001', 'Sala de servidores',
+   'e1000000-0000-4000-8000-000000000007', 'f2000000-0000-4000-8000-000000000005',
+   'SRV-2023-118', 'Dell', 'PowerEdge T350', 'operativo',
+   current_date - 800, 48500000, true, 180, current_date - 150, current_date + 30, true),
+
+  ('0b000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'ACT-002', 'Caja fuerte de material controlado', 'Seguridad',
+   'Resguardo del material controlado fuera del horario comercial.',
+   'a1000000-0000-4000-8000-000000000003', 'Sector A, depósito',
+   'e1000000-0000-4000-8000-000000000004', null,
+   'CF-9912', 'Bulldog', 'BD-450', 'operativo',
+   current_date - 1200, 22000000, true, 365, current_date - 340, current_date + 25, true),
+
+  ('0b000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'ACT-003', 'Autoelevador manual', 'Logística',
+   'Movimiento de pallets en el depósito central.',
+   'a1000000-0000-4000-8000-000000000003', 'Playa de recepción',
+   'e1000000-0000-4000-8000-000000000004', null,
+   'AE-2201', 'Toyota', 'HW-25', 'en_mantenimiento',
+   current_date - 500, 15750000, true, 90, current_date - 95, current_date - 5, true),
+
+  ('0b000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'ACT-004', 'Sistema de videovigilancia', 'Seguridad',
+   'Doce cámaras distribuidas entre Casa Central y depósito.',
+   'a1000000-0000-4000-8000-000000000001', 'Perimetral',
+   'e1000000-0000-4000-8000-000000000007', 'f2000000-0000-4000-8000-000000000005',
+   'CCTV-4412', 'Hikvision', 'DS-7616', 'operativo',
+   current_date - 600, 31200000, true, 120, current_date - 40, current_date + 80, true),
+
+  ('0b000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'ACT-005', 'Deshumidificador industrial', 'Acondicionamiento',
+   'Control de humedad del sector de carpas y bolsas de dormir.',
+   'a1000000-0000-4000-8000-000000000003', 'Sector oeste',
+   'e1000000-0000-4000-8000-000000000004', null,
+   'DH-7781', 'Trotec', 'TTK-175', 'operativo',
+   current_date - 280, 8900000, true, 60, current_date - 20, current_date + 40, true),
+
+  ('0b000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'ACT-006', 'Punto de venta Sucursal Shopping', 'Equipamiento informático',
+   'Terminal, impresora fiscal y lector de código de barras.',
+   'a1000000-0000-4000-8000-000000000002', 'Mostrador',
+   'e1000000-0000-4000-8000-000000000007', 'f2000000-0000-4000-8000-000000000005',
+   'PDV-3310', 'HP', 'RP5800', 'operativo',
+   current_date - 400, 12300000, false, null, null, null, true)
+on conflict (id) do nothing;
+
+insert into public.mantenimientos (
+  activo_id, tipo, descripcion, fecha_programada, fecha_ejecucion, responsable_id,
+  proveedor_id, estado, costo_gs, observacion
+) values
+  ('0b000000-0000-4000-8000-000000000001', 'preventivo',
+   'Limpieza interna, verificación de discos y prueba de restauración de respaldos.',
+   current_date + 30, null, 'e1000000-0000-4000-8000-000000000007',
+   'f2000000-0000-4000-8000-000000000005', 'programado', 1850000, null),
+  ('0b000000-0000-4000-8000-000000000002', 'verificacion',
+   'Verificación anual del mecanismo de cierre y cambio de combinación.',
+   current_date + 25, null, 'e1000000-0000-4000-8000-000000000004', null,
+   'programado', 950000, null),
+  ('0b000000-0000-4000-8000-000000000003', 'correctivo',
+   'Reparación del sistema hidráulico.', current_date - 5, null,
+   'e1000000-0000-4000-8000-000000000004', null, 'en_curso', 2400000,
+   'Equipo fuera de servicio hasta la reparación.'),
+  ('0b000000-0000-4000-8000-000000000005', 'preventivo',
+   'Limpieza de filtros y control de la descarga de condensado.',
+   current_date + 40, null, 'e1000000-0000-4000-8000-000000000004', null,
+   'programado', 350000, null),
+  ('0b000000-0000-4000-8000-000000000004', 'preventivo',
+   'Limpieza de lentes y verificación de grabación de las doce cámaras.',
+   current_date - 40, current_date - 40, 'e1000000-0000-4000-8000-000000000007',
+   'f2000000-0000-4000-8000-000000000005', 'ejecutado', 1200000,
+   'Sin observaciones.');
+
+-- ---------------------------------------------------------------------
+-- Cierre
+-- ---------------------------------------------------------------------
+select set_config('request.jwt.claim.sub', '', false);
+
+do $$
+declare
+  v_documentos integer;
+  v_nc integer;
+  v_riesgos integer;
+  v_bitacora integer;
+begin
+  select count(*) into v_documentos from public.documentos;
+  select count(*) into v_nc from public.no_conformidades;
+  select count(*) into v_riesgos from public.riesgos;
+  select count(*) into v_bitacora from public.bitacora;
+
+  raise notice 'Datos de demostración cargados: % documentos, % no conformidades, % riesgos, % movimientos de bitácora.',
+    v_documentos, v_nc, v_riesgos, v_bitacora;
+end;
+$$;

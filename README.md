@@ -55,6 +55,10 @@ cp .env.example .env.local
 Complete `.env.local` con los valores de su proyecto. El detalle de dónde
 sale cada valor está en `docs/despliegue.md`.
 
+> ¿Solo quiere verlo funcionando en internet, sin instalar nada?
+> `docs/demo-en-vercel.md` lo deja publicado en unos 40 minutos, pegando
+> `supabase/instalacion-completa.sql` en el panel de Supabase.
+
 Como mínimo, para levantar la aplicación se necesita:
 
 ```
@@ -214,8 +218,10 @@ supabase/
   seed.sql               Datos de demostración
 scripts/
   migrar-sofidya.ts      Importación única desde Sofidya
+  generar-instalacion.sh Rehace supabase/instalacion-completa.sql
 docs/
-  despliegue.md          Puesta en marcha en Supabase y Vercel
+  demo-en-vercel.md      Publicar la demostración en 40 minutos
+  despliegue.md          Puesta en marcha completa en Supabase y Vercel
 ```
 
 ## Seguridad

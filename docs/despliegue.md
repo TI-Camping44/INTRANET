@@ -71,10 +71,27 @@ Vaya a **Project Settings → API** y copie:
 
 ## 3. Aplicar el esquema de base de datos
 
-El esquema son diecisiete archivos SQL en `supabase/migrations/`, que
-deben aplicarse **en orden alfabético**.
+El esquema son veinte archivos SQL en `supabase/migrations/`, que deben
+aplicarse **en orden alfabético**.
 
-### Opción A · Con la CLI de Supabase (recomendada)
+### Opción A · Un solo archivo, pegado en el panel (la más rápida)
+
+`supabase/instalacion-completa.sql` reúne todas las migraciones en orden
+más el seed de demostración. No requiere instalar nada:
+
+1. Panel de Supabase → **SQL Editor → New query**.
+2. Pegue el archivo entero y ejecute (**Run**).
+3. Termina con el aviso `Datos de demostración cargados`.
+
+Es la vía indicada para montar la instancia de demostración. Si quiere
+una instancia **sin datos de ejemplo**, corte el archivo antes del bloque
+`SEED · datos de demostracion`.
+
+> El archivo se genera, no se edita: `bash scripts/generar-instalacion.sh`
+> lo rehace a partir de `supabase/migrations/` y `supabase/seed.sql`. Si
+> agrega una migración, vuelva a generarlo.
+
+### Opción B · Con la CLI de Supabase (para el día a día)
 
 ```bash
 npm install -g supabase
@@ -86,7 +103,7 @@ supabase db push
 La referencia del proyecto es la parte del medio de la URL del panel:
 `https://supabase.com/dashboard/project/<referencia-del-proyecto>`.
 
-### Opción B · Desde el panel
+### Opción C · Archivo por archivo desde el panel
 
 1. Abra **SQL Editor → New query**.
 2. Copie el contenido de cada archivo de `supabase/migrations/`, en orden,
@@ -112,6 +129,9 @@ El orden es este:
 20260824001500_busqueda_global.sql
 20260824001600_almacenamiento.sql
 20260824001700_importacion_sofidya.sql
+20260824001800_correlativo_auditorias.sql
+20260824001900_mantenimientos.sql
+20260825000100_reclamos_desde_satisfaccion.sql
 ```
 
 ### Cargar los datos de demostración
