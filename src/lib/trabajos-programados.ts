@@ -20,6 +20,20 @@ export function secretoDeTrabajosProgramados(): string | undefined {
   return process.env.CRON_SECRET ?? process.env.CRON_SECRETO;
 }
 
+/**
+ * De cual de las dos variables salio el secreto.
+ *
+ * Se informa en el error de autorizacion, y sirve para no adivinar:
+ * mientras `CRON_SECRET` no exista se usa la vieja, y si esa quedo
+ * guardada como Secret nadie puede leer su valor para probar. Devuelve
+ * el NOMBRE de la variable, nunca su contenido.
+ */
+export function nombreDelSecretoEnUso(): string | null {
+  if (process.env.CRON_SECRET) return "CRON_SECRET";
+  if (process.env.CRON_SECRETO) return "CRON_SECRETO";
+  return null;
+}
+
 /** Motivo por el que una peticion a un trabajo programado no procede. */
 export type RechazoDeTrabajo = "sin_secreto" | "secreto_incorrecto";
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { revisarSecreto } from "@/lib/trabajos-programados";
+import { nombreDelSecretoEnUso, revisarSecreto } from "@/lib/trabajos-programados";
 
 /**
  * Sondeo del API de Sofidya.
@@ -175,6 +175,9 @@ export async function GET(peticion: NextRequest) {
         detalle:
           "El valor de ?secreto= no coincide con el guardado en Vercel. " +
           "Cópielo de allí tal cual: no es un texto de ejemplo.",
+        // El nombre de la variable, no su valor: si acá dice CRON_SECRETO
+        // es que CRON_SECRET no existe y está usando la vieja.
+        comparadoContra: nombreDelSecretoEnUso(),
         recibioParametro: enlace !== null,
       },
       { status: 401 },
