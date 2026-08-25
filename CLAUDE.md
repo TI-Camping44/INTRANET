@@ -254,6 +254,10 @@ en la base de datos y en `src/lib/`.
 | Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
 | Evaluación de proveedores: 5 criterios de 1 a 5, nota 0-100; 80+ aprobado, 60-79 condicional | `puntaje` generado en SQL y `lib/proveedores.ts` |
 | Ejecutar un mantenimiento reagenda el siguiente según la frecuencia del activo | `sincronizar_activo_al_mantener()` |
+| Competencias: escala 1 a 5; la brecha es exigido menos alcanzado | `brecha` generada en SQL y `NIVELES_COMPETENCIA` |
+| El nivel exigido sale de la matriz del puesto de la persona, no se escribe a mano | `evaluarCompetencia()` |
+| Solo el jefe inmediato o Calidad evalúan a una persona | `evaluarCompetencia()` |
+| La eficacia de una capacitación se verifica por persona, no por curso | `verificarEficacia()` y `capacitacion_participantes.eficacia` |
 
 ### Decisiones tomadas por defecto
 
@@ -311,10 +315,10 @@ antes de subirlas. No alcanza con que el SQL «se vea bien».
 
 **Operativos:** Control de información documentada · No conformidades y
 acciones correctivas · Riesgos y oportunidades · Auditorías internas ·
-Indicadores y objetivos · Proveedores · Infraestructura y activos.
-
-**Con esquema completo y pantalla de consulta:** Satisfacción del cliente ·
+Indicadores y objetivos · Proveedores · Infraestructura y activos ·
 Recursos humanos.
+
+**Con esquema completo y pantalla de consulta:** Satisfacción del cliente.
 
 Las tablas de los nueve módulos ya existen, con sus políticas RLS y sus
 disparadores de bitácora. Completar un módulo es trabajo de pantallas y
@@ -322,6 +326,5 @@ acciones de servidor: **no hace falta volver a tocar el esquema**.
 
 ### Orden previsto
 
-1. Recursos humanos, con la matriz de competencias.
-2. Satisfacción del cliente, consumiendo el panel de NPS existente
+1. Satisfacción del cliente, consumiendo el panel de NPS existente
    (Apps Script y GitHub Pages), que **no se reemplaza**.

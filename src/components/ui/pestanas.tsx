@@ -13,8 +13,11 @@ const PestanasLista = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-start gap-1 overflow-x-auto rounded-md " +
-        "bg-atenuado p-1 text-atenuado-contraste",
+      // max-w-full es necesario: sin eso el inline-flex crece con las
+      // pestanas y arrastra a la pagina entera al desplazamiento
+      // horizontal en pantallas chicas.
+      "inline-flex h-9 max-w-full items-center justify-start gap-1 overflow-x-auto " +
+        "rounded-md bg-atenuado p-1 text-atenuado-contraste",
       className,
     )}
     {...props}

@@ -1032,8 +1032,8 @@ insert into public.capacitacion_participantes (capacitacion_id, usuario_id, asis
    current_date - 70, 'Replicó el contenido al resto del equipo.'),
   ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000003', true, 90, 'pendiente', null, null),
   ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002', true, 92, 'pendiente', null, null),
-  ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000009', false, null, 'no_eficaz',
-   current_date - 20, 'No asistió; se reprograma su participación.'),
+  ('0a000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000009', false, null, 'pendiente',
+   null, 'No asistió; se reprograma su participación en la próxima edición.'),
   ('0a000000-0000-4000-8000-000000000003', 'e1000000-0000-4000-8000-000000000004', false, null, 'pendiente', null, null)
 on conflict do nothing;
 

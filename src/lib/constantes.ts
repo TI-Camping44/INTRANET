@@ -9,6 +9,7 @@ import type {
   EstadoAccion,
   EstadoActivo,
   EstadoAuditoria,
+  EstadoCapacitacion,
   EstadoDocumento,
   EstadoNoConformidad,
   EstadoProveedor,
@@ -22,6 +23,8 @@ import type {
   SentidoIndicador,
   SeveridadNoConformidad,
   TipoAccion,
+  TipoCapacitacion,
+  TipoCompetencia,
   TipoDocumento,
   TipoHallazgo,
   TipoProceso,
@@ -150,6 +153,39 @@ export const ETIQUETAS_EFICACIA: Record<ResultadoEficacia, string> = {
   parcialmente_eficaz: "Parcialmente eficaz",
   no_eficaz: "No eficaz",
   pendiente: "Pendiente de verificar",
+};
+
+export const ETIQUETAS_TIPO_CAPACITACION: Record<TipoCapacitacion, string> = {
+  interna: "Interna",
+  externa: "Externa",
+  en_linea: "En línea",
+  induccion: "Inducción",
+};
+
+export const ETIQUETAS_ESTADO_CAPACITACION: Record<EstadoCapacitacion, string> = {
+  planificada: "Planificada",
+  en_curso: "En curso",
+  finalizada: "Finalizada",
+  cancelada: "Cancelada",
+};
+
+export const ETIQUETAS_TIPO_COMPETENCIA: Record<TipoCompetencia, string> = {
+  tecnica: "Técnica",
+  conductual: "Conductual",
+  legal: "Legal",
+};
+
+/**
+ * Escala de dominio de una competencia. La usa la matriz por puesto y la
+ * evaluacion de cada persona, para que ambas hablen de lo mismo.
+ */
+export const NIVELES_COMPETENCIA: Record<number, string> = {
+  0: "Sin dominio",
+  1: "Básico",
+  2: "En desarrollo",
+  3: "Competente",
+  4: "Avanzado",
+  5: "Referente",
 };
 
 /** Estados en los que una no conformidad se considera abierta. */

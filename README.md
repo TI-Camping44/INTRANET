@@ -15,7 +15,7 @@ navegable, y se completan en fases posteriores.
 | 4 · Auditorías internas | Operativo |
 | 5 · Indicadores y objetivos | Operativo |
 | 6 · Satisfacción del cliente | Esquema y consulta |
-| 7 · Recursos humanos | Esquema y consulta |
+| 7 · Recursos humanos | Operativo |
 | 8 · Proveedores | Operativo |
 | 9 · Infraestructura y activos | Operativo |
 

@@ -18,19 +18,36 @@ const ETIQUETAS_ACCION: Record<string, string> = {
 export async function HistorialBitacora({
   tablas,
   registroId,
+  registrosRelacionados = [],
+  etiquetas = {},
   limite = 20,
 }: {
   tablas: string[];
   registroId: string;
+  /**
+   * Identificadores de registros hijos cuyo movimiento tambien es parte
+   * de la historia del registro principal: por ejemplo los participantes
+   * de una capacitacion, cuya verificacion de eficacia es evidencia de
+   * auditoria y no debe quedar fuera del hilo.
+   */
+  registrosRelacionados?: string[];
+  /**
+   * Nombre legible de cada registro relacionado. Sin esto, una linea de
+   * un registro hijo dice "Edicion" sin decir de quien: en un hilo de
+   * auditoria eso no sirve.
+   */
+  etiquetas?: Record<string, string>;
   limite?: number;
 }) {
   const supabase = crearClienteServidor();
+
+  const identificadores = [registroId, ...registrosRelacionados];
 
   const { data, error } = await supabase
     .from("bitacora")
     .select("*")
     .in("tabla", tablas)
-    .eq("registro_id", registroId)
+    .in("registro_id", identificadores)
     .order("creado_en", { ascending: false })
     .limit(limite);
 
@@ -59,6 +76,9 @@ export async function HistorialBitacora({
           <div className="min-w-0 flex-1 pb-1">
             <p className="text-xs">
               <span className="font-medium">{ETIQUETAS_ACCION[registro.accion]}</span>
+              {registro.registro_id && etiquetas[registro.registro_id] ? (
+                <span className="font-medium"> · {etiquetas[registro.registro_id]}</span>
+              ) : null}
               {registro.usuario_correo ? (
                 <span className="text-atenuado-contraste"> · {registro.usuario_correo}</span>
               ) : (

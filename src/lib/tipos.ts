@@ -70,6 +70,12 @@ export type TipoProceso = "estrategico" | "operativo" | "apoyo";
 
 export type ResultadoEficacia = "eficaz" | "parcialmente_eficaz" | "no_eficaz" | "pendiente";
 
+export type TipoCapacitacion = "interna" | "externa" | "en_linea" | "induccion";
+
+export type EstadoCapacitacion = "planificada" | "en_curso" | "finalizada" | "cancelada";
+
+export type TipoCompetencia = "tecnica" | "conductual" | "legal";
+
 export type EstadoProveedor =
   | "en_evaluacion"
   | "aprobado"

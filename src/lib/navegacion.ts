@@ -86,9 +86,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Recursos humanos",
         ruta: "/recursos-humanos",
         icono: "Users",
-        fase: "en_construccion",
-        notaFase:
-          "Puestos, matriz de competencias y capacitaciones. Interfaz prevista para octubre de 2026.",
+        fase: "operativo",
       },
       {
         titulo: "Proveedores",
