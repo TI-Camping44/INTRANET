@@ -178,6 +178,15 @@ async function guardar(
   claveTexto: { columna: string; valor: string },
   datos: Record<string, unknown>,
   ensayo: boolean,
+  /**
+   * Campos que se escriben al crear la fila pero NO al actualizarla.
+   *
+   * Es para el codigo. Los nueve perfiles del R-02-01 ya tienen el suyo,
+   * y varios de esos puestos existen tambien en Sofidya con el mismo
+   * nombre: sin esta separacion, importar les pisaba el codigo real con
+   * uno derivado del identificador interno de Sofidya.
+   */
+  soloAlCrear: Record<string, unknown> = {},
 ): Promise<string | null> {
   let consulta = supabase.from(tabla).select("id");
   for (const [columna, valor] of Object.entries(filtros)) consulta = consulta.eq(columna, valor);
@@ -197,14 +206,23 @@ async function guardar(
   if (ensayo) return (existente?.id as string) ?? null;
 
   if (existente) {
-    const { error } = await supabase.from(tabla).update(datos).eq("id", existente.id);
-    if (error) throw new Error(`${tabla}: ${error.message}`);
+    // Un campo vacio en Sofidya no es una correccion: es que Sofidya no
+    // lo tiene. Escribir ese vacio encima borraria lo que ya cargamos
+    // desde el R-02-01 o desde la unidad compartida del SGC.
+    const aActualizar = Object.fromEntries(
+      Object.entries(datos).filter(([, valor]) => valor !== null && valor !== undefined),
+    );
+
+    if (Object.keys(aActualizar).length > 0) {
+      const { error } = await supabase.from(tabla).update(aActualizar).eq("id", existente.id);
+      if (error) throw new Error(`${tabla}: ${error.message}`);
+    }
     return existente.id as string;
   }
 
   const { data: creado, error } = await supabase
     .from(tabla)
-    .insert({ ...filtros, [claveTexto.columna]: claveTexto.valor, ...datos })
+    .insert({ ...filtros, [claveTexto.columna]: claveTexto.valor, ...soloAlCrear, ...datos })
     .select("id")
     .single();
 
@@ -341,7 +359,6 @@ export async function importarDesdeSofidya(
           { empresa_id: empresaId },
           { columna: "nombre", valor: nombre },
           {
-            codigo: `${PREFIJO}-P-${idSofidya}`,
             mision: texto(fila.descripcion),
             responsabilidades_generales: texto(fila.funciones),
             experiencia: texto(fila.requisitos),
@@ -349,6 +366,7 @@ export async function importarDesdeSofidya(
             activo: true,
           },
           ensayo,
+          { codigo: `${PREFIJO}-P-${idSofidya}` },
         );
         n += 1;
       }
@@ -379,7 +397,6 @@ export async function importarDesdeSofidya(
         if (!nombre || !idSofidya) continue;
 
         const comunes = {
-          codigo: `${PREFIJO}-${sigla}-${idSofidya}`,
           ruc: texto(fila.nif),
           correo: texto(fila.email),
           telefono: texto(fila.telefono),
@@ -399,6 +416,7 @@ export async function importarDesdeSofidya(
               }
             : { ...comunes, activo: true },
           ensayo,
+          { codigo: `${PREFIJO}-${sigla}-${idSofidya}` },
         );
         n += 1;
       }
