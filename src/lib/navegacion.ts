@@ -61,8 +61,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Auditorías internas",
         ruta: "/auditorias",
         icono: "ClipboardCheck",
-        fase: "en_construccion",
-        notaFase: "Programa anual, planes y hallazgos. Interfaz prevista para septiembre de 2026.",
+        fase: "operativo",
       },
       {
         titulo: "Indicadores y objetivos",

@@ -48,9 +48,34 @@ export async function crearNotificacion(
 }
 
 /**
+ * Tope de espera del envio de correo dentro de una peticion.
+ *
+ * El correo no puede demorar la respuesta que ve la persona. Si el SMTP
+ * no contesta a tiempo, la notificacion queda registrada con
+ * correo_enviado = false y el trabajo programado la reintenta.
+ */
+const ESPERA_MAXIMA_CORREO = 6000;
+
+async function conTope<T>(promesa: Promise<T>, respaldo: T): Promise<T> {
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+
+  const limite = new Promise<T>((resolver) => {
+    temporizador = setTimeout(() => resolver(respaldo), ESPERA_MAXIMA_CORREO);
+  });
+
+  try {
+    return await Promise.race([promesa, limite]);
+  } finally {
+    if (temporizador) clearTimeout(temporizador);
+  }
+}
+
+/**
  * Registra la notificacion y despacha el correo correspondiente.
- * El fallo del correo nunca interrumpe la operacion del usuario: la
- * notificacion dentro de la aplicacion ya quedo guardada.
+ *
+ * Ni el fallo ni la lentitud del correo interrumpen la operacion: la
+ * notificacion dentro de la aplicacion ya quedo guardada y el envio tiene
+ * un tope de espera.
  */
 export async function notificar(
   supabase: SupabaseClient,
@@ -61,13 +86,16 @@ export async function notificar(
   // Si no hay id, la alerta ya existía (clave de unicidad) y no se reenvía.
   if (!id || datos.enviarPorCorreo === false || !datos.correoDestino) return;
 
-  const enviado = await enviarCorreo({
-    para: datos.correoDestino,
-    asunto: datos.titulo,
-    titulo: datos.titulo,
-    cuerpo: datos.mensaje,
-    enlace: urlAbsoluta(datos.enlace),
-  });
+  const enviado = await conTope(
+    enviarCorreo({
+      para: datos.correoDestino,
+      asunto: datos.titulo,
+      titulo: datos.titulo,
+      cuerpo: datos.mensaje,
+      enlace: urlAbsoluta(datos.enlace),
+    }),
+    false,
+  );
 
   if (enviado) {
     await supabase

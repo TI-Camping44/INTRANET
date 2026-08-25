@@ -60,3 +60,8 @@ export function esAdministrador(usuario: Usuario | null): boolean {
 export function esSoloLectura(usuario: Usuario | null): boolean {
   return usuario?.rol === "direccion";
 }
+
+/** Gestiona el programa de auditorias: Calidad y los auditores internos. */
+export function puedeGestionarAuditorias(usuario: Usuario | null): boolean {
+  return usuario?.rol === "administrador_sgc" || usuario?.rol === "auditor";
+}

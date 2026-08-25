@@ -205,6 +205,17 @@ Se valida en la acción de servidor antes de escribir, y además con
 restricciones `CHECK` en la base de datos. La validación del navegador es
 comodidad, no control.
 
+### El correo nunca bloquea la interfaz
+
+El envío tiene un tope de espera de 6 segundos dentro de la petición
+(`ESPERA_MAXIMA_CORREO` en `lib/notificaciones.ts`) y el transporte usa
+tiempos de espera cortos. Si el SMTP no responde, la notificación queda
+con `correo_enviado = false` y el trabajo programado la reintenta.
+
+Se llegó a esto por un caso real: una acción de servidor tardó 45 segundos
+esperando a un SMTP inalcanzable. **Nada que dependa de un servicio externo
+debe demorar la respuesta que ve la persona.**
+
 ---
 
 ## 6. Reglas de negocio a respetar
@@ -222,6 +233,7 @@ en la base de datos y en `src/lib/`.
 | Versionado: v00 inicial, sube en cada aprobación | `sincronizar_documento_al_aprobar()` |
 | Código de documento: `MP-SOP-XX`, `F-XXX-XX-XX` | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
 | Adjuntos: 20 MB máximo | `CHECK` en `adjuntos`, bucket y `TAMANO_MAXIMO_ADJUNTO` |
+| Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
 
 ### Decisiones tomadas por defecto
 
@@ -278,11 +290,11 @@ antes de subirlas. No alcanza con que el SQL «se vea bien».
 ## 9. Estado del proyecto
 
 **Operativos:** Control de información documentada · No conformidades y
-acciones correctivas · Riesgos y oportunidades.
+acciones correctivas · Riesgos y oportunidades · Auditorías internas.
 
-**Con esquema completo y pantalla de consulta:** Auditorías internas ·
-Indicadores y objetivos · Satisfacción del cliente · Recursos humanos ·
-Proveedores · Infraestructura y activos.
+**Con esquema completo y pantalla de consulta:** Indicadores y objetivos ·
+Satisfacción del cliente · Recursos humanos · Proveedores ·
+Infraestructura y activos.
 
 Las tablas de los nueve módulos ya existen, con sus políticas RLS y sus
 disparadores de bitácora. Completar un módulo es trabajo de pantallas y
@@ -290,11 +302,9 @@ acciones de servidor: **no hace falta volver a tocar el esquema**.
 
 ### Orden previsto
 
-1. Auditorías internas, con generación automática de no conformidades
-   desde los hallazgos.
-2. Indicadores, con carga periódica y gráfico de tendencia.
-3. Proveedores, con el circuito completo de evaluación.
-4. Activos, con calendario de mantenimientos.
-5. Recursos humanos, con la matriz de competencias.
-6. Satisfacción del cliente, consumiendo el panel de NPS existente
+1. Indicadores, con carga periódica y gráfico de tendencia.
+2. Proveedores, con el circuito completo de evaluación.
+3. Activos, con calendario de mantenimientos.
+4. Recursos humanos, con la matriz de competencias.
+5. Satisfacción del cliente, consumiendo el panel de NPS existente
    (Apps Script y GitHub Pages), que **no se reemplaza**.

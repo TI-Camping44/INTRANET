@@ -31,6 +31,12 @@ function obtenerTransporte(): Transporter | null {
     port: puerto,
     secure: puerto === 465,
     auth: { user: usuario, pass: clave },
+    // Tiempos de espera cortos: si el SMTP no responde, se falla rapido y
+    // la persona no queda esperando. El reenvio lo resuelve el trabajo
+    // programado, que reintenta las notificaciones sin correo enviado.
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   });
 
   return transporte;

@@ -12,7 +12,7 @@ navegable, y se completan en fases posteriores.
 | 1 · Control de información documentada | Operativo |
 | 2 · No conformidades y acciones correctivas | Operativo |
 | 3 · Riesgos y oportunidades | Operativo |
-| 4 · Auditorías internas | Esquema y consulta |
+| 4 · Auditorías internas | Operativo |
 | 5 · Indicadores y objetivos | Esquema y consulta |
 | 6 · Satisfacción del cliente | Esquema y consulta |
 | 7 · Recursos humanos | Esquema y consulta |
@@ -194,7 +194,8 @@ src/
       documentos/        Módulo 1
       no-conformidades/  Módulo 2
       riesgos/           Módulo 3
-      auditorias/  indicadores/  satisfaccion/
+      auditorias/        Módulo 4
+      indicadores/  satisfaccion/
       recursos-humanos/  proveedores/  activos/
       buscar/  notificaciones/  bitacora/  perfil/
       administracion/    Usuarios y roles

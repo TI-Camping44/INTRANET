@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { notificar } from "@/lib/notificaciones";
+import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import {
   DIAS_AVISO_ACCION,
@@ -20,6 +21,7 @@ import {
  *   3. Documentos vigentes que se acercan a su fecha de revision.
  *   4. Riesgos que llegaron a su fecha de reevaluacion.
  *   5. Mantenimientos preventivos programados para la semana.
+ *   6. Reenvio de las notificaciones cuyo correo no salio en su momento.
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -36,6 +38,7 @@ interface Resumen {
   documentosPorRevisar: number;
   riesgosPorReevaluar: number;
   mantenimientosProximos: number;
+  correosReenviados: number;
 }
 
 export async function GET(peticion: NextRequest) {
@@ -57,6 +60,7 @@ export async function GET(peticion: NextRequest) {
     documentosPorRevisar: 0,
     riesgosPorReevaluar: 0,
     mantenimientosProximos: 0,
+    correosReenviados: 0,
   };
 
   // -------------------------------------------------------------------
@@ -243,6 +247,42 @@ export async function GET(peticion: NextRequest) {
       claveUnicidad: `mantenimiento:${mantenimiento.id}:${mantenimiento.fecha_programada}`,
     });
     resumen.mantenimientosProximos += 1;
+  }
+
+  // -------------------------------------------------------------------
+  // 6 · Reenvio de los correos pendientes
+  // -------------------------------------------------------------------
+  // Dentro de una peticion el envio tiene un tope de espera corto, para no
+  // demorar la respuesta que ve la persona. Lo que no salio en aquel
+  // momento se reintenta aca, donde nadie esta esperando.
+  const { data: pendientes } = await supabase
+    .from("notificaciones")
+    .select("id, titulo, mensaje, enlace, usuarios:usuario_id (correo)")
+    .eq("requiere_correo", true)
+    .eq("correo_enviado", false)
+    .gte("creado_en", new Date(Date.now() - 7 * 86_400_000).toISOString())
+    .order("creado_en", { ascending: true })
+    .limit(50);
+
+  for (const notificacion of (pendientes ?? []) as any[]) {
+    const destino = notificacion.usuarios?.correo;
+    if (!destino) continue;
+
+    const enviado = await enviarCorreo({
+      para: destino,
+      asunto: notificacion.titulo,
+      titulo: notificacion.titulo,
+      cuerpo: notificacion.mensaje,
+      enlace: urlAbsoluta(notificacion.enlace),
+    });
+
+    if (enviado) {
+      await supabase
+        .from("notificaciones")
+        .update({ correo_enviado: true, correo_enviado_en: new Date().toISOString() })
+        .eq("id", notificacion.id);
+      resumen.correosReenviados += 1;
+    }
   }
 
   return NextResponse.json({ ejecutado: hoy, resumen });
