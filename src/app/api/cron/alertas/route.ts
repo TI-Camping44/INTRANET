@@ -178,7 +178,7 @@ export async function GET(peticion: NextRequest) {
       usuarioId: documento.responsable.id,
       correoDestino: documento.responsable.correo,
       tipo: "documento_por_revisar",
-      titulo: `Documento por revisar · ${documento.codigo}`,
+      titulo: `Documento por revisar · ${documento.codigo ?? documento.titulo}`,
       mensaje:
         `"${documento.titulo}" tiene su revisión prevista para el ` +
         `${documento.fecha_proxima_revision}. Confirme la vigencia del contenido o publique una versión nueva.`,

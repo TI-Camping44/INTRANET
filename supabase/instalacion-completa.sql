@@ -3617,6 +3617,147 @@ alter type public.tipo_documento add value if not exists 'plan';
 
 
 -- =====================================================================
+-- MIGRACION: 20260825000500_documentos_sin_codigo.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- Documentos sin codigo controlado
+-- =====================================================================
+-- Al cargar la unidad compartida del SGC aparecio un caso que el esquema
+-- no contemplaba: no todos los documentos vigentes tienen codigo.
+--
+-- Los manuales de proceso, los formularios y los protocolos si lo tienen
+-- (MP-SOP-01, F-SOP-05-01, P-SOP-01-01). En cambio la Matriz FODA, la
+-- Matriz de Partes Interesadas, el Alcance del SGC, la Politica de
+-- Calidad, el Proposito, Mision y Vision, los Valores Institucionales,
+-- la Politica de Garantia y la Estructura Organizacional no lo llevan:
+-- el documento se identifica por su titulo, su version y su vigencia.
+-- Se verifico abriendo los archivos, no suponiendolo por el nombre.
+--
+-- Antes que inventarles un codigo -- que despues circularia como si
+-- fuera el oficial -- se permite que la columna quede vacia. Cuando
+-- Calidad los codifique, se completa y el formato vuelve a exigirse.
+--
+-- El alta desde la interfaz sigue pidiendo codigo: un documento nuevo
+-- nace codificado. La columna vacia es para lo que ya existe asi.
+
+alter table public.documentos
+  alter column codigo drop not null;
+
+-- El formato se sigue exigiendo cuando hay codigo. El indice unico ya
+-- trata los nulos como distintos entre si, de modo que varios
+-- documentos sin codigo conviven sin chocar.
+alter table public.documentos
+  drop constraint if exists documentos_codigo_formato;
+
+alter table public.documentos
+  add constraint documentos_codigo_formato
+  check (codigo is null or codigo ~ '^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$');
+
+
+-- =====================================================================
+-- MIGRACION: 20260825000600_busqueda_documentos_sin_codigo.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- Busqueda global: documentos sin codigo controlado
+-- =====================================================================
+-- La busqueda por subcadena concatenaba codigo y titulo. Con un codigo
+-- vacio la concatenacion entera es null, la comparacion tambien, y el
+-- documento solo aparecia si acertaba el tsquery: buscar "garant" no
+-- encontraba la Politica de Garantia, aunque buscar "garantia" si.
+--
+-- Se rehace la funcion con coalesce sobre el codigo. Es lo unico que
+-- cambia respecto de 20260824001500_busqueda_global.sql.
+
+create or replace function public.buscar_global(p_texto text, p_limite integer default 30)
+returns table (
+  entidad text,
+  entidad_etiqueta text,
+  id uuid,
+  codigo text,
+  titulo text,
+  detalle text,
+  estado text,
+  enlace text,
+  relevancia real
+)
+language sql
+stable
+as $$
+  with consulta as (
+    select
+      websearch_to_tsquery('spanish', p_texto) as tsq,
+      '%' || lower(unaccent(coalesce(p_texto, ''))) || '%' as patron
+  )
+  select * from (
+    select
+      'documentos'::text,
+      'Documento'::text,
+      d.id,
+      d.codigo,
+      d.titulo,
+      coalesce(d.descripcion, ''),
+      d.estado::text,
+      '/documentos/' || d.id,
+      ts_rank(d.busqueda, c.tsq) + 0.1
+    from public.documentos d, consulta c
+    where d.busqueda @@ c.tsq or lower(unaccent(coalesce(d.codigo, '') || ' ' || d.titulo)) like c.patron
+
+    union all
+
+    select
+      'no_conformidades'::text,
+      'No conformidad'::text,
+      n.id,
+      n.codigo,
+      n.titulo,
+      coalesce(n.descripcion, ''),
+      n.estado::text,
+      '/no-conformidades/' || n.id,
+      ts_rank(n.busqueda, c.tsq)
+    from public.no_conformidades n, consulta c
+    where n.busqueda @@ c.tsq or lower(unaccent(n.codigo || ' ' || n.titulo)) like c.patron
+
+    union all
+
+    select
+      'riesgos'::text,
+      'Riesgo'::text,
+      r.id,
+      r.codigo,
+      r.titulo,
+      coalesce(r.descripcion, ''),
+      r.estado::text,
+      '/riesgos/' || r.id,
+      ts_rank(r.busqueda, c.tsq)
+    from public.riesgos r, consulta c
+    where r.busqueda @@ c.tsq or lower(unaccent(r.codigo || ' ' || r.titulo)) like c.patron
+
+    union all
+
+    select
+      'proveedores'::text,
+      'Proveedor'::text,
+      p.id,
+      p.codigo,
+      p.razon_social,
+      coalesce(p.rubro, ''),
+      p.estado::text,
+      '/proveedores/' || p.id,
+      ts_rank(p.busqueda, c.tsq)
+    from public.proveedores p, consulta c
+    where p.busqueda @@ c.tsq
+       or lower(unaccent(p.codigo || ' ' || p.razon_social || ' ' || coalesce(p.ruc, ''))) like c.patron
+  ) resultados (entidad, entidad_etiqueta, id, codigo, titulo, detalle, estado, enlace, relevancia)
+  order by relevancia desc, codigo nulls last
+  limit greatest(coalesce(p_limite, 30), 1);
+$$;
+
+grant execute on function public.buscar_global(text, integer) to authenticated;
+
+
+-- =====================================================================
 -- SEED · datos de demostracion
 -- =====================================================================
 -- =====================================================================
@@ -4933,7 +5074,8 @@ declare
   v_empresa uuid;
   v_responsable uuid;
   v_norma uuid;
-  v_vigencia constant date := date '2026-06-08';
+  -- Los manuales llevan "Vigencia: 25/05/2026" en su propio encabezado.
+  v_vigencia constant date := date '2026-05-25';
   r record;
   v_proceso uuid;
 begin
@@ -5437,6 +5579,171 @@ end;
 $$;
 
 -- =====================================================================
+-- DATOS REALES: 40-documentos-del-sgc.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- DATOS REALES · Documentos de la unidad compartida del SGC
+-- =====================================================================
+-- El resto del juego documental vigente: contexto organizacional,
+-- politicas, estructura, formularios y el protocolo de orden y limpieza.
+-- Los manuales de proceso ya se cargaron en 10-mapa-de-procesos.sql.
+--
+-- Codigo, version y vigencia salen del encabezado de cada archivo, no
+-- del nombre del archivo ni de la fecha de modificacion en Drive: se
+-- abrieron para leerlos. Casi todo el juego se lanzo el 25/05/2026 en
+-- version 00; el protocolo de orden y limpieza es posterior
+-- (11/08/2026) y el contrato de compraventa ya va por la version 01.
+--
+-- Ocho documentos NO tienen codigo. No es un olvido de esta carga: el
+-- documento mismo no lo lleva, se identifica por titulo, version y
+-- vigencia. Se dejan sin codigo antes que inventarles uno. Cuando
+-- Calidad los codifique, se completa la columna.
+--
+-- La Matriz de Comunicaciones si lo tiene, aunque el nombre del archivo
+-- no lo diga: el manual MP-SOP-01 la cita como F-SOP-01-01.
+--
+-- Como con los manuales, se enlaza el archivo vigente en lugar de
+-- copiar su contenido.
+--
+-- Se aplica DESPUES de 10-mapa-de-procesos.sql. Es idempotente.
+
+do $$
+declare
+  v_empresa uuid;
+  v_responsable uuid;
+  v_norma uuid;
+  r record;
+  v_proceso uuid;
+begin
+  select id into v_empresa from public.empresas order by creado_en limit 1;
+  if v_empresa is null then
+    raise exception 'No hay ninguna empresa cargada. Aplique el seed primero.';
+  end if;
+
+  select id into v_responsable from public.usuarios
+   where empresa_id = v_empresa and rol = 'administrador_sgc' and activo
+   order by creado_en limit 1;
+  if v_responsable is null then
+    select id into v_responsable from public.usuarios
+     where empresa_id = v_empresa and activo order by creado_en limit 1;
+  end if;
+
+  select id into v_norma from public.normas limit 1;
+
+  for r in
+    select * from (values
+      -- codigo,      titulo,                                              tipo,           proceso,  version, vigencia,     id de Drive
+
+      -- 01 Contexto Organizacional (sin codigo)
+      (null,          'Matriz FODA',                                       'registro',     'EST-02', 0, '2026-05-25', '1QRkwdEIgUaPiTBqnsld6-OBfUIVw9iWL'),
+      (null,          'Matriz de Partes Interesadas',                      'registro',     'EST-02', 0, '2026-05-25', '11PyqNND_ToYrO3kpe49sWz1WHnOK5CaG'),
+      (null,          'Alcance del Sistema de Gestión de Calidad',         'manual',       'EST-02', 0, '2026-05-25', '1OVed4zXHF1WmgtKugcFr-T2FyYns6DTu'),
+      (null,          'Mapa de Procesos',                                  'manual',       'EST-02', 0, '2026-05-25', '1ANscWXVEBdPAYj1YC3d2pfptGN07Hc4D'),
+
+      -- 02 Politicas y Otros (sin codigo)
+      (null,          'Política de Calidad',                               'politica',     'EST-02', 0, '2026-05-25', '1Syb_5BDVc1ASGfazIU6Txj6nnXKrxfSZ'),
+      (null,          'Propósito, Misión y Visión',                        'politica',     'EST-02', 0, '2026-05-25', '1tJlSPwB9whDwbQTNQHxStAj7Dib2_5ZM'),
+      (null,          'Valores Institucionales',                           'politica',     'EST-02', 0, '2026-05-25', '1djuLhyp0FBGN8GoGxK36ovbDIWQUg8qQ'),
+      (null,          'Política de Garantía',                              'politica',     'MIS-05', 0, '2026-05-25', '1NUSS9-qPk27RgAs7NANdE2Tjd62Qck8N'),
+
+      -- 03 Estructura Organizacional (sin codigo)
+      (null,          'Estructura Organizacional',                         'registro',     'SOP-01', 0, '2026-05-25', '1_u6Cti8qRdMZkgVfvWcZ89-jXqbkTPrz'),
+
+      -- 05 Formularios y Otros
+      ('F-EST-02-01', 'Minuta de Reunión',                                 'formulario',   'EST-02', 0, '2026-05-25', '1lqtRdof6j7MWDw-Fx_oV1ZUHK8ZeTXvX'),
+      ('F-MIS-04-01', 'Carta de Responsabilidad',                          'formulario',   'MIS-04', 0, '2026-05-25', '1UD0zKZX8ct4B1NJk92w2oPWAsLDwkQZR'),
+      ('F-MIS-05-01', 'Orden de Trabajo',                                  'formulario',   'MIS-05', 0, '2026-05-25', '1Ghxkkoh1GsUxQadsLWygiLj0eKuwJtK5'),
+      ('F-MIS-06-01', 'Autorización y Deslinde de Responsabilidad',        'formulario',   'MIS-06', 0, '2026-05-25', '14iMxwKNOF66xVa8RuTNtVF8V-gz7Rorq'),
+      ('F-MIS-06-02', 'Reglamento del Stand de Tiro',                      'formulario',   'MIS-06', 0, '2026-05-25', '1Dd7HefGI72o5wNY82HgY2Wn2YrZr5dWs'),
+      ('F-MIS-07-01', 'Guía de Corrección',                                'formulario',   'MIS-07', 0, '2026-05-25', '1kKRf-Lsaaj0JnE9_f-AdjjQ9mlnaEqg-'),
+      ('F-SOP-01-01', 'Matriz de Comunicaciones',                          'registro',     'SOP-01', 0, '2026-05-25', '1Qj1g7hABvumJa6dnjIcX1mjJuZs9dz6r'),
+      ('F-SOP-02-01', 'Verificación de Activos Edilicios',                 'formulario',   'SOP-02', 0, '2026-05-25', '1hhJiRuYkY0wmJGOEM2WYYm36p1K6hK-i'),
+      ('F-SOP-02-02', 'Verificación de Activos Tecnológicos',              'formulario',   'SOP-02', 0, '2026-05-25', '1I3HyCAje0Ke_houGXiYVW4xbmGFENV5m'),
+      ('F-SOP-03-01', 'Solicitud de Cliente · B2C',                        'formulario',   'SOP-03', 0, '2026-05-25', '1F7ICUHsHPcKwRAoeOV214XgF5HSgXDCw'),
+      ('F-SOP-05-01', 'Informe de Inventario',                             'formulario',   'SOP-05', 0, '2026-05-25', '1glJwXow6Sv6z-YGT7pj7e0RFXltEZmfJ'),
+      ('F-SOP-06-01', 'Contrato de Compromiso de Compraventa de Material Controlado, Declaración Jurada y Anexos',
+                                                                           'formulario',   'SOP-06', 1, '2026-07-17', '1dfIR8mFzOamADtNvSlkyHR5xXuCS1S4R'),
+      ('F-SOP-07-01', 'Alta y Baja de Credenciales de Acceso',             'formulario',   'SOP-07', 0, '2026-05-25', '1ccgI3HP0mffF8uAByIPBT9hXWLUpidiU'),
+      ('F-SOP-07-02', 'Compromiso de Uso Responsable',                     'formulario',   'SOP-07', 0, '2026-05-25', '1jm9WrzIY09F_tecBxiQVxDhlxFjwNGOw'),
+      ('F-SOP-07-03', 'Retiro de Equipos Informáticos',                    'formulario',   'SOP-07', 0, '2026-05-25', '1KcVcvGCPCu_7u7tkHLeUDXaCDOt-Brin'),
+      ('F-SOP-08-01', 'Evaluación de Asociados de Negocio y Proveedores',  'formulario',   'SOP-08', 0, '2026-05-25', '1bnJv5w1CxBZv9gY1O42uu-Y1FAPIppcf'),
+      (null,          'Registro de Participación',                         'formulario',   'SOP-01', 0, '2026-05-25', '1vs3tk9oc1zVXKhXs3SpjGKchtlVUVa4S'),
+      (null,          'Solicitud de Cliente · B2B',                        'formulario',   'SOP-03', 0, '2026-05-25', '1Q4R9TWbdwrfJl3SiQLhWAlvGuz4l8mM5'),
+
+      -- 07 Protocolo Orden y Limpieza
+      ('P-SOP-01-01', 'Orden y Limpieza en Espacios de Trabajo',           'instructivo',  'SOP-01', 0, '2026-08-11', '18u2iMjfQPFEtTpl6QMZDf7toKfNqoaPK'),
+      (null,          'Preguntas Frecuentes · Protocolo de Orden y Limpieza',
+                                                                           'instructivo',  'SOP-01', 0, '2026-08-11', '1FQeLyX20UI26c_HeDk124zThaL90vHHF')
+    ) as t(codigo, titulo, tipo, proceso, version, vigencia, drive_id)
+  loop
+    select id into v_proceso from public.procesos
+     where empresa_id = v_empresa and lower(codigo) = lower(r.proceso);
+    if v_proceso is null then
+      raise exception 'Falta el proceso % del mapa real. Aplique antes 10-mapa-de-procesos.sql.', r.proceso;
+    end if;
+
+    if r.codigo is null then
+      -- Sin codigo no hay clave por la cual reconocerlo: se identifica
+      -- por titulo dentro de la empresa.
+      update public.documentos set
+        tipo = r.tipo::public.tipo_documento,
+        estado = 'vigente',
+        proceso_id = v_proceso,
+        norma_id = v_norma,
+        responsable_id = v_responsable,
+        elaborador_id = v_responsable,
+        version_actual = r.version,
+        fecha_aprobacion = r.vigencia::date,
+        fecha_vigencia = r.vigencia::date,
+        fecha_proxima_revision = r.vigencia::date + interval '12 months',
+        periodicidad_revision_meses = 12,
+        es_demostracion = false,
+        url_documento = 'https://drive.google.com/file/d/' || r.drive_id || '/view'
+       where empresa_id = v_empresa and codigo is null and titulo = r.titulo;
+
+      if not found then
+        insert into public.documentos (
+          empresa_id, codigo, titulo, tipo, estado, proceso_id, norma_id,
+          responsable_id, elaborador_id, version_actual,
+          fecha_aprobacion, fecha_vigencia, fecha_proxima_revision,
+          periodicidad_revision_meses, es_demostracion, url_documento
+        ) values (
+          v_empresa, null, r.titulo, r.tipo::public.tipo_documento, 'vigente',
+          v_proceso, v_norma, v_responsable, v_responsable, r.version,
+          r.vigencia::date, r.vigencia::date, r.vigencia::date + interval '12 months',
+          12, false, 'https://drive.google.com/file/d/' || r.drive_id || '/view'
+        );
+      end if;
+    else
+      insert into public.documentos (
+        empresa_id, codigo, titulo, tipo, estado, proceso_id, norma_id,
+        responsable_id, elaborador_id, version_actual,
+        fecha_aprobacion, fecha_vigencia, fecha_proxima_revision,
+        periodicidad_revision_meses, es_demostracion, url_documento
+      ) values (
+        v_empresa, r.codigo, r.titulo, r.tipo::public.tipo_documento, 'vigente',
+        v_proceso, v_norma, v_responsable, v_responsable, r.version,
+        r.vigencia::date, r.vigencia::date, r.vigencia::date + interval '12 months',
+        12, false, 'https://drive.google.com/file/d/' || r.drive_id || '/view'
+      )
+      on conflict (empresa_id, upper(codigo)) do update set
+        titulo = excluded.titulo,
+        tipo = excluded.tipo,
+        estado = excluded.estado,
+        proceso_id = excluded.proceso_id,
+        version_actual = excluded.version_actual,
+        fecha_aprobacion = excluded.fecha_aprobacion,
+        fecha_vigencia = excluded.fecha_vigencia,
+        fecha_proxima_revision = excluded.fecha_proxima_revision,
+        es_demostracion = false,
+        url_documento = excluded.url_documento;
+    end if;
+  end loop;
+end;
+$$;
+
+-- =====================================================================
 -- DATOS REALES: 90-retirar-procesos-de-demostracion.sql
 -- =====================================================================
 -- =====================================================================
@@ -5645,3 +5952,25 @@ delete from public.procesos p
  where lower(p.codigo) in ('com', 'cmp', 'dep', 'reg', 'cob', 'rrhh', 'ti')
    and exists (select 1 from public.procesos q
                 where q.empresa_id = p.empresa_id and lower(q.codigo) = 'mis-03');
+
+-- ---------------------------------------------------------------------
+-- 4 · Un documento de demostracion que ya sobra
+-- ---------------------------------------------------------------------
+-- El seed invento una "Politica de calidad" con codigo POL-01. La real
+-- esta cargada desde la unidad compartida y no lleva codigo. Tener dos
+-- politicas de calidad en la misma lista, una marcada como demostracion,
+-- es justo lo que confunde a quien entra a mirar. Se borra la inventada.
+--
+-- El resto de los documentos de demostracion se quedan: son formularios
+-- e instructivos sin equivalente real, y la insignia "Demostracion" los
+-- distingue.
+
+delete from public.documentos d
+ where upper(d.codigo) = 'POL-01'
+   and d.es_demostracion
+   and exists (
+     select 1 from public.documentos r
+      where r.empresa_id = d.empresa_id
+        and r.codigo is null
+        and r.titulo = 'Política de Calidad'
+        and not r.es_demostracion);

@@ -25,7 +25,8 @@ declare
   v_empresa uuid;
   v_responsable uuid;
   v_norma uuid;
-  v_vigencia constant date := date '2026-06-08';
+  -- Los manuales llevan "Vigencia: 25/05/2026" en su propio encabezado.
+  v_vigencia constant date := date '2026-05-25';
   r record;
   v_proceso uuid;
 begin

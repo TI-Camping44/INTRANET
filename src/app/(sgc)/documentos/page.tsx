@@ -66,7 +66,9 @@ export default async function PaginaDocumentos({
       "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, es_demostracion, " +
         "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
     )
-    .order("codigo");
+    // Los documentos sin codigo controlado (contexto, politicas) van al
+    // final: la lista se lee por codigo.
+    .order("codigo", { nullsFirst: false });
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
@@ -177,7 +179,7 @@ export default async function PaginaDocumentos({
                   <TablaFila key={documento.id}>
                     <TablaCelda className="font-medium tabular">
                       <Link href={`/documentos/${documento.id}`} className="hover:text-primario">
-                        {documento.codigo}
+                        {documento.codigo ?? <span className="text-atenuado-contraste">—</span>}
                       </Link>
                     </TablaCelda>
                     <TablaCelda>

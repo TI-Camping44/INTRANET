@@ -204,3 +204,25 @@ delete from public.procesos p
  where lower(p.codigo) in ('com', 'cmp', 'dep', 'reg', 'cob', 'rrhh', 'ti')
    and exists (select 1 from public.procesos q
                 where q.empresa_id = p.empresa_id and lower(q.codigo) = 'mis-03');
+
+-- ---------------------------------------------------------------------
+-- 4 · Un documento de demostracion que ya sobra
+-- ---------------------------------------------------------------------
+-- El seed invento una "Politica de calidad" con codigo POL-01. La real
+-- esta cargada desde la unidad compartida y no lleva codigo. Tener dos
+-- politicas de calidad en la misma lista, una marcada como demostracion,
+-- es justo lo que confunde a quien entra a mirar. Se borra la inventada.
+--
+-- El resto de los documentos de demostracion se quedan: son formularios
+-- e instructivos sin equivalente real, y la insignia "Demostracion" los
+-- distingue.
+
+delete from public.documentos d
+ where upper(d.codigo) = 'POL-01'
+   and d.es_demostracion
+   and exists (
+     select 1 from public.documentos r
+      where r.empresa_id = d.empresa_id
+        and r.codigo is null
+        and r.titulo = 'Política de Calidad'
+        and not r.es_demostracion);
