@@ -70,6 +70,16 @@ export type TipoProceso = "estrategico" | "operativo" | "apoyo";
 
 export type TipoEncuesta = "nps" | "csat" | "ces" | "personalizada";
 
+export type TipoPublicacion =
+  | "anuncio"
+  | "novedad_producto"
+  | "logro"
+  | "reconocimiento"
+  | "bienvenida"
+  | "evento";
+
+export type EstadoPublicacion = "borrador" | "publicada" | "archivada";
+
 export type ResultadoEficacia = "eficaz" | "parcialmente_eficaz" | "no_eficaz" | "pendiente";
 
 export type TipoCapacitacion = "interna" | "externa" | "en_linea" | "induccion";

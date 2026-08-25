@@ -1008,6 +1008,93 @@ lateral generate_series(1, m.promotores + m.pasivos + m.detractores) as n
 on conflict do nothing;
 
 -- ---------------------------------------------------------------------
+-- Intranet: fechas de legajo, para cumpleanos y aniversarios
+-- ---------------------------------------------------------------------
+-- Se reparten a lo largo del ano a proposito: si todos cumplieran el
+-- mismo mes, la pantalla de inicio se veria bien hoy y vacia en octubre.
+update public.usuarios set fecha_nacimiento = date '1978-03-14', fecha_ingreso = date '2015-02-02'
+ where id = 'e1000000-0000-4000-8000-000000000001';
+update public.usuarios set fecha_nacimiento = date '1986-08-27', fecha_ingreso = date '2019-04-15'
+ where id = 'e1000000-0000-4000-8000-000000000002';
+update public.usuarios set fecha_nacimiento = date '1983-11-05', fecha_ingreso = date '2017-08-21'
+ where id = 'e1000000-0000-4000-8000-000000000003';
+update public.usuarios set fecha_nacimiento = date '1990-08-30', fecha_ingreso = date '2021-06-01'
+ where id = 'e1000000-0000-4000-8000-000000000004';
+update public.usuarios set fecha_nacimiento = date '1988-01-19', fecha_ingreso = date '2020-09-14'
+ where id = 'e1000000-0000-4000-8000-000000000005';
+update public.usuarios set fecha_nacimiento = date '1992-05-23', fecha_ingreso = date '2022-03-07'
+ where id = 'e1000000-0000-4000-8000-000000000006';
+update public.usuarios set fecha_nacimiento = date '1995-09-08', fecha_ingreso = date '2023-01-16'
+ where id = 'e1000000-0000-4000-8000-000000000007';
+update public.usuarios set fecha_nacimiento = date '1981-06-11', fecha_ingreso = date '2018-11-05'
+ where id = 'e1000000-0000-4000-8000-000000000008';
+update public.usuarios set fecha_nacimiento = date '1997-08-12', fecha_ingreso = date '2026-07-27'
+ where id = 'e1000000-0000-4000-8000-000000000009';
+
+-- ---------------------------------------------------------------------
+-- Intranet: publicaciones del muro
+-- ---------------------------------------------------------------------
+insert into public.publicaciones (
+  id, empresa_id, tipo, titulo, cuerpo, resumen, estado, fijada,
+  fecha_publicacion, fecha_vencimiento, usuario_referido_id, proceso_id,
+  es_demostracion, creado_por
+) values
+  ('0c000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'anuncio',
+   'Entra en vigencia el nuevo procedimiento de venta de material controlado',
+   E'Desde el lunes rige la versión 03 del procedimiento MP-SOP-01. Los cambios principales son dos:\n\n1. La verificación del adquirente se registra antes de emitir la factura, no después.\n2. Toda venta de material controlado queda con el número de registro en el comprobante.\n\nEl procedimiento completo está en Documentación. Ante cualquier duda, consulten con Calidad antes de aplicar criterio propio.',
+   'Rige la versión 03 del MP-SOP-01. La verificación del adquirente pasa a hacerse antes de facturar.',
+   'publicada', true, now() - interval '2 days', current_date + 30,
+   null, 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000002'),
+
+  ('0c000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'logro',
+   'Adjudicada la licitación de equipamiento para la Gobernación',
+   E'Se adjudicó a Camping 44 la provisión de equipamiento de campamento y seguridad para la Gobernación, por un plazo de doce meses.\n\nEs la licitación más grande que ganamos hasta hoy, y se ganó con el pliego técnico armado por Comercial junto con Compras. La entrega arranca el mes que viene.',
+   'La licitación más grande que ganamos hasta hoy. Entrega a doce meses, arranca el mes que viene.',
+   'publicada', false, now() - interval '6 days', null,
+   null, 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000001'),
+
+  ('0c000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'bienvenida',
+   'Le damos la bienvenida a Nicolás Giménez',
+   E'Nicolás se suma como Vendedor de salón en Casa Central. Viene del rubro outdoor y conoce bien la línea de campamento.\n\nDurante su primera semana va a estar rotando por depósito y por caja para ver la operación completa. Si lo cruzan, preséntense.',
+   'Se suma como Vendedor de salón en Casa Central.',
+   'publicada', false, now() - interval '9 days', null,
+   'e1000000-0000-4000-8000-000000000009', 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000002'),
+
+  ('0c000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'reconocimiento',
+   'Depósito: el área más ordenada del mes',
+   E'El reconocimiento de área más ordenada del mes es para Depósito.\n\nEl conteo cíclico se cerró sin diferencias por segundo mes consecutivo, y la señalización de pasillos quedó completa. Marcos y su equipo se lo ganaron.',
+   'Segundo mes consecutivo cerrando el conteo cíclico sin diferencias.',
+   'publicada', false, now() - interval '13 days', null,
+   'e1000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000005', true,
+   'e1000000-0000-4000-8000-000000000001'),
+
+  ('0c000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'novedad_producto',
+   'Llega la línea de carpas de montaña temporada 2027',
+   E'Entra a depósito la línea de carpas de montaña de la temporada 2027: tres modelos, de dos a cuatro plazas, con columna de agua de 3000 mm.\n\nLas fichas técnicas y el comparativo contra la línea anterior están en Documentación. Comercial: mírenlo antes de que empiece a preguntar el cliente.',
+   'Tres modelos, de dos a cuatro plazas. Las fichas técnicas ya están cargadas.',
+   'publicada', false, now() - interval '4 days', null,
+   null, 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000003'),
+
+  ('0c000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'evento',
+   'Cierre contable de agosto: viernes 28',
+   E'El cierre contable de agosto es el viernes 28 a las 18:00.\n\nToda rendición de gastos, nota de crédito o ajuste de inventario que quede fuera de ese horario pasa a septiembre. No hay excepciones, y avisar el lunes siguiente no sirve de nada.',
+   'Viernes 28 a las 18:00. Lo que quede afuera pasa a septiembre.',
+   'publicada', false, now() - interval '1 day', current_date + 5,
+   null, 'c1000000-0000-4000-8000-000000000007', true,
+   'e1000000-0000-4000-8000-000000000005')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
 -- Recursos humanos
 -- ---------------------------------------------------------------------
 insert into public.competencias (id, empresa_id, codigo, nombre, descripcion, tipo) values

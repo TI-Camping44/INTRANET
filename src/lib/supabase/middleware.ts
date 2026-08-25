@@ -74,7 +74,7 @@ export async function actualizarSesion(peticion: NextRequest) {
   // Con sesion valida, la pantalla de ingreso pierde sentido.
   if (ruta === "/ingresar") {
     const destino = peticion.nextUrl.clone();
-    destino.pathname = "/panel";
+    destino.pathname = "/inicio";
     destino.search = "";
     return NextResponse.redirect(destino);
   }

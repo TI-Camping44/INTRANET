@@ -3326,6 +3326,206 @@ comment on function public.generar_no_conformidad_desde_respuesta is
 
 
 -- =====================================================================
+-- MIGRACION: 20260825000200_intranet_publicaciones.sql
+-- =====================================================================
+-- =====================================================================
+-- Intranet SGC - Camping 44 S.A.
+-- 021 · Publicaciones internas, directorio y organigrama
+-- =====================================================================
+-- Hasta aca el sistema era un SGC: nueve modulos de calidad. Direccion
+-- pidio que la intranet abra con los anuncios internos y que la gente
+-- pueda encontrarse entre si. Esta migracion agrega esa capa.
+--
+-- Una sola tabla cubre seis pedidos distintos —anuncios, novedades de
+-- producto, logros, reconocimientos, bienvenidas y cumpleanos— porque
+-- todos son lo mismo: algo que alguien publica, con fecha, para que el
+-- resto lo lea. Separarlos en seis tablas seria repetir seis veces la
+-- misma estructura y seis veces las mismas politicas.
+--
+-- Los cumpleanos y aniversarios no se publican a mano: salen de dos
+-- fechas del legajo, que se agregan aca.
+
+-- ---------------------------------------------------------------------
+-- Fechas del legajo, para cumpleanos y aniversarios de ingreso
+-- ---------------------------------------------------------------------
+alter table public.usuarios
+  add column if not exists fecha_nacimiento date,
+  add column if not exists fecha_ingreso date;
+
+comment on column public.usuarios.fecha_nacimiento is
+  'Solo dia y mes se muestran en la intranet; el ano queda reservado.';
+
+-- ---------------------------------------------------------------------
+-- Tipos de publicacion
+-- ---------------------------------------------------------------------
+create type public.tipo_publicacion as enum (
+  'anuncio',          -- comunicado interno
+  'novedad_producto', -- lanzamientos, para que comercial se entere antes
+  'logro',            -- licitaciones ganadas, records, certificaciones
+  'reconocimiento',   -- a una persona o a un area
+  'bienvenida',       -- nuevos ingresos
+  'evento'            -- ferias, feriados, fechas de cierre
+);
+
+create type public.estado_publicacion as enum ('borrador', 'publicada', 'archivada');
+
+create table public.publicaciones (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas (id) on delete cascade,
+  tipo tipo_publicacion not null default 'anuncio',
+  titulo text not null,
+  cuerpo text not null,
+  -- Resumen corto para la tarjeta del inicio. Si no se carga, se recorta
+  -- el cuerpo al vuelo.
+  resumen text,
+  estado estado_publicacion not null default 'borrador',
+  -- Fijada arriba de todo. Se usa con cuentagotas: si todo esta fijado,
+  -- nada esta fijado.
+  fijada boolean not null default false,
+  fecha_publicacion timestamptz,
+  -- Pasada esta fecha deja de aparecer en el inicio, sin borrarse.
+  fecha_vencimiento date,
+  -- Persona o area a la que refiere: el reconocimiento y la bienvenida
+  -- son sobre alguien.
+  usuario_referido_id uuid references public.usuarios (id) on delete set null,
+  proceso_id uuid references public.procesos (id) on delete set null,
+  url_imagen text,
+  es_demostracion boolean not null default false,
+  creado_por uuid references public.usuarios (id) on delete set null,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now(),
+
+  constraint publicaciones_titulo_minimo check (char_length(btrim(titulo)) >= 5),
+  constraint publicaciones_cuerpo_minimo check (char_length(btrim(cuerpo)) >= 10),
+  -- Una publicacion publicada necesita fecha: es lo que ordena el muro.
+  constraint publicaciones_publicada_con_fecha
+    check (estado <> 'publicada' or fecha_publicacion is not null)
+);
+
+create index publicaciones_muro_idx
+  on public.publicaciones (empresa_id, estado, fecha_publicacion desc);
+create index publicaciones_tipo_idx on public.publicaciones (empresa_id, tipo);
+
+create trigger publicaciones_actualizacion before update on public.publicaciones
+  for each row execute function public.marcar_actualizacion();
+
+-- ---------------------------------------------------------------------
+-- Al publicar se sella la fecha, y al volver a borrador se suelta.
+-- Se hace en la base y no en la aplicacion para que valga tambien si la
+-- escritura viene del panel de Supabase o de un script.
+-- ---------------------------------------------------------------------
+create or replace function public.sellar_fecha_publicacion()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.estado = 'publicada' and new.fecha_publicacion is null then
+    new.fecha_publicacion := now();
+  end if;
+
+  if new.estado = 'borrador' then
+    new.fecha_publicacion := null;
+    new.fijada := false;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger publicaciones_sellar_fecha
+  before insert or update on public.publicaciones
+  for each row execute function public.sellar_fecha_publicacion();
+
+-- ---------------------------------------------------------------------
+-- RLS
+-- ---------------------------------------------------------------------
+alter table public.publicaciones enable row level security;
+
+-- Todos leen lo publicado de su empresa. El borrador solo lo ve quien lo
+-- escribe y quien gestiona: un comunicado a medio redactar no debe
+-- aparecer en el inicio de cuarenta y nueve personas.
+create policy "publicaciones_lectura" on public.publicaciones
+  for select to authenticated
+  using (
+    public.misma_empresa(empresa_id)
+    and (
+      estado = 'publicada'
+      or creado_por = auth.uid()
+      or public.puede_gestionar()
+      or public.es_direccion()
+    )
+  );
+
+create policy "publicaciones_gestion" on public.publicaciones
+  for all to authenticated
+  using (public.puede_gestionar() and public.misma_empresa(empresa_id))
+  with check (public.puede_gestionar() and public.misma_empresa(empresa_id));
+
+-- Los permisos de tabla van aparte de las politicas: sin el grant,
+-- PostgreSQL corta antes de llegar a evaluarlas y la pantalla queda
+-- vacia sin decir por que.
+grant select, insert, update, delete on public.publicaciones to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Trazabilidad: quien publico que y cuando es informacion sensible en
+-- una comunicacion interna.
+-- ---------------------------------------------------------------------
+create trigger bitacora_publicaciones
+  after insert or update or delete on public.publicaciones
+  for each row execute function public.registrar_bitacora();
+
+-- ---------------------------------------------------------------------
+-- Cumpleanos y aniversarios del mes.
+--
+-- No son publicaciones: se calculan del legajo. La vista devuelve el dia
+-- del mes para poder ordenarlos, y los anos cumplidos en la empresa.
+--
+-- security_invoker deja que se apliquen las politicas de "usuarios": la
+-- vista no puede mostrar mas de lo que la persona ya podria consultar.
+-- ---------------------------------------------------------------------
+create or replace view public.vista_efemerides
+with (security_invoker = on)
+as
+select
+  u.id,
+  u.nombre_completo,
+  u.url_avatar,
+  u.empresa_id,
+  p.nombre           as puesto,
+  'cumpleanos'::text as motivo,
+  extract(month from u.fecha_nacimiento)::int as mes,
+  extract(day   from u.fecha_nacimiento)::int as dia,
+  null::int          as anos
+from public.usuarios u
+left join public.puestos p on p.id = u.puesto_id
+where u.activo and u.fecha_nacimiento is not null
+
+union all
+
+select
+  u.id,
+  u.nombre_completo,
+  u.url_avatar,
+  u.empresa_id,
+  p.nombre         as puesto,
+  'aniversario'::text,
+  extract(month from u.fecha_ingreso)::int,
+  extract(day   from u.fecha_ingreso)::int,
+  -- Aniversario cero no se festeja: quien entro este ano no aparece.
+  nullif(extract(year from current_date) - extract(year from u.fecha_ingreso), 0)::int
+from public.usuarios u
+left join public.puestos p on p.id = u.puesto_id
+where u.activo
+  and u.fecha_ingreso is not null
+  and extract(year from current_date) > extract(year from u.fecha_ingreso);
+
+grant select on public.vista_efemerides to authenticated;
+
+comment on view public.vista_efemerides is
+  'Cumpleanos y aniversarios de ingreso del personal activo, para el inicio de la intranet.';
+
+
+-- =====================================================================
 -- SEED · datos de demostracion
 -- =====================================================================
 -- =====================================================================
@@ -4336,6 +4536,93 @@ from (values
 ) as m(mes_atras, promotores, pasivos, detractores),
 lateral generate_series(1, m.promotores + m.pasivos + m.detractores) as n
 on conflict do nothing;
+
+-- ---------------------------------------------------------------------
+-- Intranet: fechas de legajo, para cumpleanos y aniversarios
+-- ---------------------------------------------------------------------
+-- Se reparten a lo largo del ano a proposito: si todos cumplieran el
+-- mismo mes, la pantalla de inicio se veria bien hoy y vacia en octubre.
+update public.usuarios set fecha_nacimiento = date '1978-03-14', fecha_ingreso = date '2015-02-02'
+ where id = 'e1000000-0000-4000-8000-000000000001';
+update public.usuarios set fecha_nacimiento = date '1986-08-27', fecha_ingreso = date '2019-04-15'
+ where id = 'e1000000-0000-4000-8000-000000000002';
+update public.usuarios set fecha_nacimiento = date '1983-11-05', fecha_ingreso = date '2017-08-21'
+ where id = 'e1000000-0000-4000-8000-000000000003';
+update public.usuarios set fecha_nacimiento = date '1990-08-30', fecha_ingreso = date '2021-06-01'
+ where id = 'e1000000-0000-4000-8000-000000000004';
+update public.usuarios set fecha_nacimiento = date '1988-01-19', fecha_ingreso = date '2020-09-14'
+ where id = 'e1000000-0000-4000-8000-000000000005';
+update public.usuarios set fecha_nacimiento = date '1992-05-23', fecha_ingreso = date '2022-03-07'
+ where id = 'e1000000-0000-4000-8000-000000000006';
+update public.usuarios set fecha_nacimiento = date '1995-09-08', fecha_ingreso = date '2023-01-16'
+ where id = 'e1000000-0000-4000-8000-000000000007';
+update public.usuarios set fecha_nacimiento = date '1981-06-11', fecha_ingreso = date '2018-11-05'
+ where id = 'e1000000-0000-4000-8000-000000000008';
+update public.usuarios set fecha_nacimiento = date '1997-08-12', fecha_ingreso = date '2026-07-27'
+ where id = 'e1000000-0000-4000-8000-000000000009';
+
+-- ---------------------------------------------------------------------
+-- Intranet: publicaciones del muro
+-- ---------------------------------------------------------------------
+insert into public.publicaciones (
+  id, empresa_id, tipo, titulo, cuerpo, resumen, estado, fijada,
+  fecha_publicacion, fecha_vencimiento, usuario_referido_id, proceso_id,
+  es_demostracion, creado_por
+) values
+  ('0c000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+   'anuncio',
+   'Entra en vigencia el nuevo procedimiento de venta de material controlado',
+   E'Desde el lunes rige la versión 03 del procedimiento MP-SOP-01. Los cambios principales son dos:\n\n1. La verificación del adquirente se registra antes de emitir la factura, no después.\n2. Toda venta de material controlado queda con el número de registro en el comprobante.\n\nEl procedimiento completo está en Documentación. Ante cualquier duda, consulten con Calidad antes de aplicar criterio propio.',
+   'Rige la versión 03 del MP-SOP-01. La verificación del adquirente pasa a hacerse antes de facturar.',
+   'publicada', true, now() - interval '2 days', current_date + 30,
+   null, 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000002'),
+
+  ('0c000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
+   'logro',
+   'Adjudicada la licitación de equipamiento para la Gobernación',
+   E'Se adjudicó a Camping 44 la provisión de equipamiento de campamento y seguridad para la Gobernación, por un plazo de doce meses.\n\nEs la licitación más grande que ganamos hasta hoy, y se ganó con el pliego técnico armado por Comercial junto con Compras. La entrega arranca el mes que viene.',
+   'La licitación más grande que ganamos hasta hoy. Entrega a doce meses, arranca el mes que viene.',
+   'publicada', false, now() - interval '6 days', null,
+   null, 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000001'),
+
+  ('0c000000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111',
+   'bienvenida',
+   'Le damos la bienvenida a Nicolás Giménez',
+   E'Nicolás se suma como Vendedor de salón en Casa Central. Viene del rubro outdoor y conoce bien la línea de campamento.\n\nDurante su primera semana va a estar rotando por depósito y por caja para ver la operación completa. Si lo cruzan, preséntense.',
+   'Se suma como Vendedor de salón en Casa Central.',
+   'publicada', false, now() - interval '9 days', null,
+   'e1000000-0000-4000-8000-000000000009', 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000002'),
+
+  ('0c000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
+   'reconocimiento',
+   'Depósito: el área más ordenada del mes',
+   E'El reconocimiento de área más ordenada del mes es para Depósito.\n\nEl conteo cíclico se cerró sin diferencias por segundo mes consecutivo, y la señalización de pasillos quedó completa. Marcos y su equipo se lo ganaron.',
+   'Segundo mes consecutivo cerrando el conteo cíclico sin diferencias.',
+   'publicada', false, now() - interval '13 days', null,
+   'e1000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000005', true,
+   'e1000000-0000-4000-8000-000000000001'),
+
+  ('0c000000-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111',
+   'novedad_producto',
+   'Llega la línea de carpas de montaña temporada 2027',
+   E'Entra a depósito la línea de carpas de montaña de la temporada 2027: tres modelos, de dos a cuatro plazas, con columna de agua de 3000 mm.\n\nLas fichas técnicas y el comparativo contra la línea anterior están en Documentación. Comercial: mírenlo antes de que empiece a preguntar el cliente.',
+   'Tres modelos, de dos a cuatro plazas. Las fichas técnicas ya están cargadas.',
+   'publicada', false, now() - interval '4 days', null,
+   null, 'c1000000-0000-4000-8000-000000000003', true,
+   'e1000000-0000-4000-8000-000000000003'),
+
+  ('0c000000-0000-4000-8000-000000000006', '11111111-1111-4111-8111-111111111111',
+   'evento',
+   'Cierre contable de agosto: viernes 28',
+   E'El cierre contable de agosto es el viernes 28 a las 18:00.\n\nToda rendición de gastos, nota de crédito o ajuste de inventario que quede fuera de ese horario pasa a septiembre. No hay excepciones, y avisar el lunes siguiente no sirve de nada.',
+   'Viernes 28 a las 18:00. Lo que quede afuera pasa a septiembre.',
+   'publicada', false, now() - interval '1 day', current_date + 5,
+   null, 'c1000000-0000-4000-8000-000000000007', true,
+   'e1000000-0000-4000-8000-000000000005')
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------
 -- Recursos humanos

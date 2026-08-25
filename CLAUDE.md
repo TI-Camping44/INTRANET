@@ -118,6 +118,12 @@ Cada archivo abre con un encabezado que explica qué agrega y por qué.
 **RLS activo en todas las tablas, sin excepción.** Una tabla nueva sin
 políticas es un error, no un pendiente.
 
+**Y con su `grant`.** Las políticas no alcanzan: sin
+`grant select, insert, update, delete … to authenticated`, PostgreSQL
+corta antes de evaluarlas y la pantalla queda vacía sin decir por qué.
+Las tablas del SGC lo reciben por el bucle de `..._politicas_rls.sql`;
+una tabla o vista nueva fuera de esa lista lo necesita explícito.
+
 Las funciones de apoyo están en `..._funciones_rls.sql`:
 
 ```
@@ -269,6 +275,7 @@ en la base de datos y en `src/lib/`.
 | NPS = % promotores (9-10) menos % detractores (0-6); los pasivos cuentan en el denominador | `resumirNps()` y `categoria_nps` generada en SQL |
 | Solo un detractor con comentario genera no conformidad, de origen `reclamo_cliente` | `generar_no_conformidad_desde_respuesta()` |
 | Un mes con menos de 5 respuestas no se grafica: el índice deja de significar algo | `RESPUESTAS_MINIMAS_NPS` |
+| Solo puede haber una publicación fijada a la vez | `fijarPublicacion()` |
 | Plazo por defecto para cerrar una NC recién abierta: 30 días | `DIAS_LIMITE_CIERRE_NC` y las funciones que generan NC |
 
 ### Decisiones tomadas por defecto
@@ -325,11 +332,21 @@ antes de subirlas. No alcanza con que el SQL «se vea bien».
 
 ## 9. Estado del proyecto
 
-**Los nueve módulos están operativos:** Control de información
-documentada · No conformidades y acciones correctivas · Riesgos y
-oportunidades · Auditorías internas · Indicadores y objetivos ·
+El sistema tiene dos capas.
+
+**Intranet** (la portada, pedida por Dirección): publicaciones internas
+—anuncios, novedades de producto, logros, reconocimientos, bienvenidas y
+eventos, todos la misma tabla con distinto `tipo`—, cumpleaños y
+aniversarios calculados del legajo, y directorio con organigrama.
+
+**Calidad · SGC**, con sus nueve módulos operativos: Control de
+información documentada · No conformidades y acciones correctivas ·
+Riesgos y oportunidades · Auditorías internas · Indicadores y objetivos ·
 Satisfacción del cliente · Recursos humanos · Proveedores ·
 Infraestructura y activos.
+
+> La raíz lleva a `/inicio`, no al panel de calidad: el SGC es una
+> sección de la intranet, no la portada.
 
 ### Lo que falta para poner el sistema en producción
 

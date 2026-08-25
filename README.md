@@ -19,6 +19,9 @@ navegable, y se completan en fases posteriores.
 | 8 · Proveedores | Operativo |
 | 9 · Infraestructura y activos | Operativo |
 
+Además de los nueve módulos del SGC, la intranet tiene su propia capa:
+publicaciones internas en la portada, directorio y organigrama.
+
 ## Tecnología
 
 - **Next.js 14** con App Router y TypeScript

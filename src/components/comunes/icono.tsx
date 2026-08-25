@@ -2,8 +2,10 @@
 
 import {
   ClipboardCheck,
+  Contact,
   FileText,
   History,
+  Home,
   LayoutDashboard,
   Search,
   ShieldAlert,
@@ -23,6 +25,8 @@ import {
  * la libreria de iconos.
  */
 const ICONOS: Record<string, LucideIcon> = {
+  Home,
+  Contact,
   LayoutDashboard,
   Search,
   FileText,

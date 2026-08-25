@@ -14,7 +14,7 @@ import { DOMINIO_AUTORIZADO } from "@/lib/constantes";
 export async function GET(peticion: NextRequest) {
   const { searchParams, origin } = peticion.nextUrl;
   const codigo = searchParams.get("code");
-  const continuar = searchParams.get("continuar") ?? "/panel";
+  const continuar = searchParams.get("continuar") ?? "/inicio";
 
   if (!codigo) {
     return NextResponse.redirect(`${origin}/ingresar?error=sin_codigo`);

@@ -25,15 +25,17 @@ export interface GrupoNavegacion {
 
 export const NAVEGACION: GrupoNavegacion[] = [
   {
-    titulo: "General",
+    titulo: "Intranet",
     entradas: [
-      { titulo: "Panel", ruta: "/panel", icono: "LayoutDashboard", fase: "operativo" },
+      { titulo: "Inicio", ruta: "/inicio", icono: "Home", fase: "operativo" },
+      { titulo: "Directorio", ruta: "/directorio", icono: "Contact", fase: "operativo" },
       { titulo: "Buscar", ruta: "/buscar", icono: "Search", fase: "operativo" },
     ],
   },
   {
-    titulo: "Módulos core",
+    titulo: "Calidad · SGC",
     entradas: [
+      { titulo: "Panel de calidad", ruta: "/panel", icono: "LayoutDashboard", fase: "operativo" },
       {
         titulo: "Documentación",
         ruta: "/documentos",
@@ -52,11 +54,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "ShieldAlert",
         fase: "operativo",
       },
-    ],
-  },
-  {
-    titulo: "Evaluación y mejora",
-    entradas: [
       {
         titulo: "Auditorías internas",
         ruta: "/auditorias",
@@ -75,11 +72,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "Smile",
         fase: "operativo",
       },
-    ],
-  },
-  {
-    titulo: "Apoyo",
-    entradas: [
       {
         titulo: "Recursos humanos",
         ruta: "/recursos-humanos",
