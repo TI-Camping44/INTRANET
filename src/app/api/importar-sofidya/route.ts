@@ -30,6 +30,11 @@ import { nombreDelSecretoEnUso, revisarSecreto } from "@/lib/trabajos-programado
  *   /api/importar-sofidya?secreto=<CRON_SECRET>
  *   /api/importar-sofidya?secreto=<...>&comandos=get_risks,get_audits
  *
+ *   Y para los comandos que responden 2010 «falta de parametro»:
+ *
+ *   /api/importar-sofidya?secreto=<...>&comando=get_procedures
+ *   /api/importar-sofidya?secreto=<...>&comando=get_assets&valor=1
+ *
  * De cada comando informa el estado, la cantidad de registros y los
  * nombres de los campos, nunca su contenido. La clave sale de la
  * variable de entorno y no aparece en la respuesta.
@@ -152,6 +157,79 @@ async function sondear(
   }
 }
 
+/**
+ * Nombres candidatos para el parametro que piden los comandos que
+ * contestan 2010. Salen de como Sofidya nombra las cosas en el resto del
+ * API: `get_users` trae `id_puesto` e `id_sedes`, asi que el prefijo
+ * `id_` es la forma mas probable.
+ */
+const PARAMETROS_CANDIDATOS = [
+  "id_organizations",
+  "id_organization",
+  "organization",
+  "id_org",
+  "id",
+  "id_organizaciones",
+  "id_sedes",
+  "id_offices",
+  "id_processes",
+  "id_norms",
+  "type",
+  "tipo",
+] as const;
+
+/** Prueba un comando con un parametro y describe que contesto. */
+async function sondearConParametro(
+  urlBase: string,
+  clave: string,
+  comando: string,
+  parametro: string,
+  valor: string,
+): Promise<Sondeo & { parametro: string }> {
+  const vacio = {
+    comando,
+    parametro,
+    modulo: "con parametro",
+    existe: false,
+    codigo: null,
+    estado: null,
+    registros: null,
+    campos: null,
+    mensaje: null,
+  } as Sondeo & { parametro: string };
+
+  try {
+    const url = new URL(urlBase);
+    url.searchParams.set("command", comando);
+    url.searchParams.set("SecretKey", clave);
+    url.searchParams.set(parametro, valor);
+
+    const respuesta = await fetch(url, { method: "GET", signal: AbortSignal.timeout(10_000) });
+    const datos = JSON.parse(await respuesta.text()) as {
+      status?: string;
+      code?: string | number;
+      data?: unknown;
+      message?: string;
+    };
+    const codigo = datos.code === undefined || datos.code === null ? null : String(datos.code);
+    const filas = Array.isArray(datos.data) ? (datos.data as Record<string, unknown>[]) : null;
+
+    return {
+      ...vacio,
+      // Cualquier respuesta que no sea «falta de parametro» ni «comando
+      // desconocido» significa que el nombre fue aceptado.
+      existe: codigo !== "2010" && codigo !== "2000",
+      codigo,
+      estado: datos.status ?? null,
+      registros: filas ? filas.length : null,
+      campos: filas && filas.length > 0 ? Object.keys(filas[0]) : null,
+      mensaje: datos.message ?? null,
+    };
+  } catch (error) {
+    return { ...vacio, mensaje: `No se pudo conectar: ${(error as Error).message}` };
+  }
+}
+
 export async function GET(peticion: NextRequest) {
   const enlace = peticion.nextUrl.searchParams.get("secreto");
   const rechazo = revisarSecreto(peticion.headers.get("authorization"), enlace);
@@ -199,6 +277,37 @@ export async function GET(peticion: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  // Modo «buscar el parámetro»: un solo comando, muchos nombres.
+  const comandoUnico = peticion.nextUrl.searchParams.get("comando");
+
+  if (comandoUnico) {
+    const valor = peticion.nextUrl.searchParams.get("valor") ?? "1";
+    const nombres = peticion.nextUrl.searchParams
+      .get("parametros")
+      ?.split(",")
+      .map((n) => n.trim())
+      .filter(Boolean) ?? [...PARAMETROS_CANDIDATOS];
+
+    const intentos: (Sondeo & { parametro: string })[] = [];
+    for (let i = 0; i < nombres.length; i += 5) {
+      intentos.push(
+        ...(await Promise.all(
+          nombres.slice(i, i + 5).map((n) => sondearConParametro(url, clave, comandoUnico, n, valor)),
+        )),
+      );
+    }
+
+    return NextResponse.json({
+      consultado: new URL(url).host,
+      comando: comandoUnico,
+      valorProbado: valor,
+      aceptados: intentos.filter((i) => i.existe).map((i) => `${i.parametro} (${i.registros ?? 0})`),
+      siguenPidiendoParametro: intentos.filter((i) => i.codigo === "2010").map((i) => i.parametro),
+      rechazados: intentos.filter((i) => i.codigo === "2000").map((i) => i.parametro),
+      detalle: intentos,
+    });
   }
 
   // Permite sondear una lista propia, para cuando ya sepamos por dónde ir.
