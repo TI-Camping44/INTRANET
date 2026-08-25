@@ -400,6 +400,8 @@ export async function importarDesdeSofidya(
           ruc: texto(fila.nif),
           correo: texto(fila.email),
           telefono: texto(fila.telefono),
+          // Si Sofidya lo tiene, es real: deja de ser de demostracion.
+          es_demostracion: false,
         };
 
         await guardar(
@@ -452,6 +454,7 @@ export async function importarDesdeSofidya(
               ubicacion: texto(fila.ubicacion),
               sede_id: sedes.get(idSede) ?? null,
               estado: "operativo",
+              es_demostracion: false,
             },
             ensayo,
           );
