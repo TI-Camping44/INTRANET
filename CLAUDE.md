@@ -264,6 +264,7 @@ en la base de datos y en `src/lib/`.
 | Aviso de revisión de documentos: 30 días antes | `DIAS_AVISO_REVISION_DOCUMENTO` |
 | Versionado: v00 inicial, sube en cada aprobación | `sincronizar_documento_al_aprobar()` |
 | Código de documento: `MP-SOP-XX`, `F-XXX-XX-XX` | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
+| Perfil de puesto: formulario `R-02-01`, con revisión | Columnas de `puestos` y `datos-reales/perfiles-de-puesto.sql` |
 | Adjuntos: 20 MB máximo | `CHECK` en `adjuntos`, bucket y `TAMANO_MAXIMO_ADJUNTO` |
 | Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
 | Evaluación de proveedores: 5 criterios de 1 a 5, nota 0-100; 80+ aprobado, 60-79 condicional | `puntaje` generado en SQL y `lib/proveedores.ts` |
@@ -289,6 +290,11 @@ Quedaron así por falta de definición explícita. Son reversibles:
   Colaborador; el Administrador SGC ajusta rol y jefe inmediato.
 - **Adjuntos**: 20 MB, PDF, Office e imágenes.
 - **Logotipo**: tipográfico en SVG, a la espera del oficial en vectores.
+
+> **Los códigos de documento del proyecto están sin confirmar.** `MP-SOP-XX`
+> y `F-XXX-XX-XX` los definí yo a falta de dato. El Drive muestra que la
+> codificación real usa otra forma (`R-02-01` para el perfil de puesto),
+> así que la de Calidad es la que debe quedar.
 
 ---
 

@@ -390,8 +390,22 @@ export default async function PaginaRecursosHumanos() {
                 <TablaCuerpo>
                   {listaPuestos.map((puesto) => (
                     <TablaFila key={puesto.id}>
-                      <TablaCelda className="font-medium tabular">{puesto.codigo}</TablaCelda>
-                      <TablaCelda className="text-xs font-medium">{puesto.nombre}</TablaCelda>
+                      <TablaCelda className="font-medium tabular">
+                        <Link
+                          href={`/recursos-humanos/puestos/${puesto.id}`}
+                          className="hover:text-primario hover:underline"
+                        >
+                          {puesto.codigo}
+                        </Link>
+                      </TablaCelda>
+                      <TablaCelda className="text-xs font-medium">
+                        <Link
+                          href={`/recursos-humanos/puestos/${puesto.id}`}
+                          className="hover:text-primario hover:underline"
+                        >
+                          {puesto.nombre}
+                        </Link>
+                      </TablaCelda>
                       <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                         {puesto.area ?? "—"}
                       </TablaCelda>

@@ -59,6 +59,17 @@ ENC
   echo "-- SEED · datos de demostracion"
   echo "-- ====================================================================="
   cat "$RAIZ/supabase/seed.sql"
+
+  # Los datos reales van al final: necesitan que exista la empresa, que la
+  # crea el seed.
+  for f in "$RAIZ"/supabase/datos-reales/*.sql; do
+    [ -e "$f" ] || continue
+    echo ""
+    echo "-- ====================================================================="
+    echo "-- DATOS REALES: $(basename "$f")"
+    echo "-- ====================================================================="
+    cat "$f"
+  done
 } > "$SALIDA"
 
 echo "Generado: supabase/instalacion-completa.sql ($(wc -l < "$SALIDA") lineas)"
