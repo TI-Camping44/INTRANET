@@ -67,7 +67,8 @@ export async function generateMetadata({
     .eq("id", params.id)
     .maybeSingle();
 
-  return { title: data ? `${data.codigo} · ${data.titulo}` : "Documento" };
+  if (!data) return { title: "Documento" };
+  return { title: data.codigo ? `${data.codigo} · ${data.titulo}` : data.titulo };
 }
 
 export default async function PaginaDocumento({ params }: { params: { id: string } }) {
@@ -179,9 +180,11 @@ export default async function PaginaDocumento({ params }: { params: { id: string
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Insignia variante="primaria" className="tabular text-xs">
-          {documento.codigo}
-        </Insignia>
+        {documento.codigo ? (
+          <Insignia variante="primaria" className="tabular text-xs">
+            {documento.codigo}
+          </Insignia>
+        ) : null}
         <InsigniaEstadoDocumento estado={documento.estado} />
         <Insignia variante="contorno">
           {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo as keyof typeof ETIQUETAS_TIPO_DOCUMENTO]}

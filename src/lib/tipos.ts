@@ -172,7 +172,13 @@ export interface Proceso {
 export interface Documento {
   id: string;
   empresa_id: string;
-  codigo: string;
+  /**
+   * Los manuales, formularios y protocolos llevan codigo controlado. Los
+   * documentos de contexto y las politicas no: se identifican por titulo,
+   * version y vigencia. Un documento nuevo dado de alta desde la intranet
+   * siempre nace con codigo.
+   */
+  codigo: string | null;
   titulo: string;
   descripcion: string | null;
   tipo: TipoDocumento;

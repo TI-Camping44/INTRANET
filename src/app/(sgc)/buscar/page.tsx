@@ -83,7 +83,9 @@ export default async function PaginaBusqueda({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium">
-                        <span className="tabular text-atenuado-contraste">{fila.codigo}</span>{" "}
+                        {fila.codigo ? (
+                          <span className="tabular text-atenuado-contraste">{fila.codigo} </span>
+                        ) : null}
                         {fila.titulo}
                       </p>
                       {fila.detalle ? (

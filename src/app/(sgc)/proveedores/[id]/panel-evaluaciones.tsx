@@ -35,10 +35,9 @@ interface Evaluacion {
   fecha: string;
   periodo: string | null;
   calidad: number;
-  plazo_entrega: number;
-  precio: number;
-  servicio_posventa: number;
-  documentacion: number;
+  logistica: number;
+  legal: number;
+  servicio: number;
   puntaje: number;
   resultado: EstadoProveedor | null;
   comentario: string | null;
@@ -54,7 +53,8 @@ const ESCALA = [
 ];
 
 /**
- * Evaluacion periodica del proveedor sobre cinco criterios de 1 a 5.
+ * Evaluacion periodica del proveedor sobre los cuatro criterios del
+ * formulario F-SOP-08-01, cada uno de 1 a 5.
  * El puntaje resultante va de 0 a 100 y lo calcula la base de datos.
  */
 export function PanelEvaluaciones({

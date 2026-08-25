@@ -236,7 +236,9 @@ export default async function PaginaPanel() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium">
-                          <span className="text-atenuado-contraste">{documento.codigo}</span>{" "}
+                          {documento.codigo ? (
+                            <span className="text-atenuado-contraste">{documento.codigo} </span>
+                          ) : null}
                           {recortar(documento.titulo, 70)}
                         </p>
                         <p className="mt-1 text-[11px] text-atenuado-contraste">

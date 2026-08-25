@@ -263,11 +263,11 @@ en la base de datos y en `src/lib/`.
 | Escalamiento de acciones: 10 días al jefe, 20 al nivel siguiente | `lib/constantes.ts` y `api/cron/alertas` |
 | Aviso de revisión de documentos: 30 días antes | `DIAS_AVISO_REVISION_DOCUMENTO` |
 | Versionado: v00 inicial, sube en cada aprobación | `sincronizar_documento_al_aprobar()` |
-| Código de documento: `MP-SOP-XX`, `F-XXX-XX-XX` | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
-| Perfil de puesto: formulario `R-02-01`, con revisión | Columnas de `puestos` y `datos-reales/perfiles-de-puesto.sql` |
+| Código de documento: `MP-SOP-01`, `F-SOP-08-01`, `P-SOP-01-01`. Los de contexto y las políticas no llevan: la columna admite vacío | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
+| Perfil de puesto: formulario `R-02-01`, con revisión | Columnas de `puestos` y `datos-reales/20-perfiles-de-puesto.sql` |
 | Adjuntos: 20 MB máximo | `CHECK` en `adjuntos`, bucket y `TAMANO_MAXIMO_ADJUNTO` |
 | Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
-| Evaluación de proveedores: 5 criterios de 1 a 5, nota 0-100; 80+ aprobado, 60-79 condicional | `puntaje` generado en SQL y `lib/proveedores.ts` |
+| Evaluación de proveedores: los 4 criterios del F-SOP-08-01 —calidad, logística, legal, servicio— de 1 a 5, nota 0-100; 80+ aprobado, 60-79 condicional | `puntaje` generado en SQL y `lib/proveedores.ts` |
 | Ejecutar un mantenimiento reagenda el siguiente según la frecuencia del activo | `sincronizar_activo_al_mantener()` |
 | Competencias: escala 1 a 5; la brecha es exigido menos alcanzado | `brecha` generada en SQL y `NIVELES_COMPETENCIA` |
 | El nivel exigido sale de la matriz del puesto de la persona, no se escribe a mano | `evaluarCompetencia()` |

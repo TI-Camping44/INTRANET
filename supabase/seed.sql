@@ -276,21 +276,24 @@ insert into public.proveedores (
 on conflict (id) do nothing;
 
 -- Evaluaciones (el disparador actualiza calificacion y fechas del proveedor).
+-- Los cuatro criterios son los del formulario F-SOP-08-01: calidad,
+-- logistica, legal y servicio. Cada uno de 1 a 5; el puntaje sale
+-- generado, de 0 a 100.
 insert into public.proveedor_evaluaciones (
-  proveedor_id, fecha, periodo, calidad, plazo_entrega, precio,
-  servicio_posventa, documentacion, resultado, comentario, evaluado_por
+  proveedor_id, fecha, periodo, calidad, logistica, legal, servicio,
+  resultado, comentario, evaluado_por
 ) values
   ('f2000000-0000-4000-8000-000000000001', current_date - 120, 'Semestre 1',
-   5, 4, 4, 5, 5, 'aprobado', 'Cumplimiento sostenido en calidad y documentación.',
+   5, 4, 5, 5, 'aprobado', 'Cumplimiento sostenido en calidad y documentación.',
    'e1000000-0000-4000-8000-000000000005'),
   ('f2000000-0000-4000-8000-000000000002', current_date - 60, 'Semestre 1',
-   5, 3, 4, 4, 5, 'aprobado', 'Demoras puntuales por trámites de importación.',
+   5, 3, 5, 4, 'aprobado', 'Demoras puntuales por trámites de importación.',
    'e1000000-0000-4000-8000-000000000005'),
   ('f2000000-0000-4000-8000-000000000003', current_date - 200, 'Anual',
-   3, 2, 4, 3, 3, 'condicional', 'Reiteradas demoras en la entrega al depósito.',
+   3, 2, 4, 3, 'condicional', 'Reiteradas demoras en la entrega al depósito.',
    'e1000000-0000-4000-8000-000000000005'),
   ('f2000000-0000-4000-8000-000000000004', current_date - 300, 'Anual',
-   4, 5, 5, 4, 4, 'aprobado', 'Sin observaciones en el período.',
+   4, 5, 4, 4, 'aprobado', 'Sin observaciones en el período.',
    'e1000000-0000-4000-8000-000000000005');
 
 -- ---------------------------------------------------------------------

@@ -44,6 +44,7 @@ export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> 
       contacto: String(datos.get("contacto") ?? "").trim() || null,
       periodicidad_evaluacion_meses: periodicidad,
       estado: "en_evaluacion",
+      impacto_en_calidad: String(datos.get("impacto_en_calidad") ?? "").trim() || null,
       observaciones: String(datos.get("observaciones") ?? "").trim() || null,
     })
     .select("id, codigo")
@@ -84,6 +85,7 @@ export async function actualizarProveedor(
       ciudad: String(datos.get("ciudad") ?? "").trim() || null,
       contacto: String(datos.get("contacto") ?? "").trim() || null,
       periodicidad_evaluacion_meses: Number(datos.get("periodicidad_evaluacion_meses") ?? 12),
+      impacto_en_calidad: String(datos.get("impacto_en_calidad") ?? "").trim() || null,
       observaciones: String(datos.get("observaciones") ?? "").trim() || null,
     })
     .eq("id", id);
