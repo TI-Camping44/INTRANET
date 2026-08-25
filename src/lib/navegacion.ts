@@ -67,9 +67,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Indicadores y objetivos",
         ruta: "/indicadores",
         icono: "TrendingUp",
-        fase: "en_construccion",
-        notaFase:
-          "Carga periódica, meta contra real y tendencia. Interfaz prevista para septiembre de 2026.",
+        fase: "operativo",
       },
       {
         titulo: "Satisfacción del cliente",

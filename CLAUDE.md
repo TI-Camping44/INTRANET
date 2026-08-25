@@ -205,6 +205,20 @@ Se valida en la acción de servidor antes de escribir, y además con
 restricciones `CHECK` en la base de datos. La validación del navegador es
 comodidad, no control.
 
+### Gráficos
+
+Se dibujan en SVG a mano, sin librería. Reglas que se respetan en todos:
+
+- **Un solo eje.** Nunca dos escalas en el mismo gráfico.
+- La **meta es un umbral, no una serie**: va en gris neutro y trazo
+  discontinuo, y el color queda reservado para el dato.
+- Trazo de 2 px, puntos de 8 px con anillo del color de la superficie.
+- Se rotula **solo el último punto**; el resto lo cubren el eje y el
+  detalle al señalar.
+- Los colores salen de las variables del tema, así el gráfico funciona
+  igual en modo claro y oscuro.
+- Toda serie dibujada tiene su **tabla de datos** al lado.
+
 ### El correo nunca bloquea la interfaz
 
 El envío tiene un tope de espera de 6 segundos dentro de la petición
@@ -290,11 +304,11 @@ antes de subirlas. No alcanza con que el SQL «se vea bien».
 ## 9. Estado del proyecto
 
 **Operativos:** Control de información documentada · No conformidades y
-acciones correctivas · Riesgos y oportunidades · Auditorías internas.
+acciones correctivas · Riesgos y oportunidades · Auditorías internas ·
+Indicadores y objetivos.
 
-**Con esquema completo y pantalla de consulta:** Indicadores y objetivos ·
-Satisfacción del cliente · Recursos humanos · Proveedores ·
-Infraestructura y activos.
+**Con esquema completo y pantalla de consulta:** Satisfacción del cliente ·
+Recursos humanos · Proveedores · Infraestructura y activos.
 
 Las tablas de los nueve módulos ya existen, con sus políticas RLS y sus
 disparadores de bitácora. Completar un módulo es trabajo de pantallas y
@@ -302,9 +316,8 @@ acciones de servidor: **no hace falta volver a tocar el esquema**.
 
 ### Orden previsto
 
-1. Indicadores, con carga periódica y gráfico de tendencia.
-2. Proveedores, con el circuito completo de evaluación.
-3. Activos, con calendario de mantenimientos.
-4. Recursos humanos, con la matriz de competencias.
-5. Satisfacción del cliente, consumiendo el panel de NPS existente
+1. Proveedores, con el circuito completo de evaluación.
+2. Activos, con calendario de mantenimientos.
+3. Recursos humanos, con la matriz de competencias.
+4. Satisfacción del cliente, consumiendo el panel de NPS existente
    (Apps Script y GitHub Pages), que **no se reemplaza**.
