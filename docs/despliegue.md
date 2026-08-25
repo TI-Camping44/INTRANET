@@ -270,10 +270,10 @@ necesitan 49 usuarios.
    SMTP_USUARIO
    SMTP_CLAVE
    SMTP_REMITENTE
-   CRON_SECRETO
+   CRON_SECRET
    ```
 
-   Para `CRON_SECRETO` genere una cadena larga y aleatoria:
+   Para `CRON_SECRET` genere una cadena larga y aleatoria:
 
    ```bash
    openssl rand -base64 32
@@ -317,7 +317,7 @@ Cada corrida revisa cinco frentes:
 ### Probarlo a mano
 
 ```bash
-curl -H "Authorization: Bearer <CRON_SECRETO>" \
+curl -H "Authorization: Bearer <CRON_SECRET>" \
      https://intranet.camping44.com.py/api/cron/alertas
 ```
 

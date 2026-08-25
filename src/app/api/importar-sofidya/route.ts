@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revisarSecreto } from "@/lib/trabajos-programados";
 
 /**
  * Sondeo del API de Sofidya.
@@ -26,7 +27,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * NO ESCRIBE NADA. Ni en Sofidya, ni en la base. Solo pregunta.
  *
  * Uso:
- *   /api/importar-sofidya?secreto=<CRON_SECRETO>
+ *   /api/importar-sofidya?secreto=<CRON_SECRET>
  *   /api/importar-sofidya?secreto=<...>&comandos=get_risks,get_audits
  *
  * De cada comando informa el estado, la cantidad de registros y los
@@ -152,17 +153,13 @@ async function sondear(
 }
 
 export async function GET(peticion: NextRequest) {
-  const secreto = process.env.CRON_SECRETO;
-  const cabecera = peticion.headers.get("authorization");
   const enlace = peticion.nextUrl.searchParams.get("secreto");
+  const rechazo = revisarSecreto(peticion.headers.get("authorization"), enlace);
 
-  // Sin la variable no hay con que comparar. Se distingue de una clave
-  // equivocada a proposito: «no autorizado» a secas manda a buscar el
-  // error donde no esta.
-  if (!secreto) {
+  if (rechazo === "sin_secreto") {
     return NextResponse.json(
       {
-        error: "CRON_SECRETO no está configurada",
+        error: "CRON_SECRET no está configurada",
         detalle:
           "Cárguela en Vercel (Settings → Environment Variables) y vuelva a " +
           "desplegar. Es la que protege esta ruta: sin ella no se puede entrar.",
@@ -171,13 +168,13 @@ export async function GET(peticion: NextRequest) {
     );
   }
 
-  if (cabecera !== `Bearer ${secreto}` && enlace !== secreto) {
+  if (rechazo) {
     return NextResponse.json(
       {
         error: "No autorizado",
         detalle:
-          "El valor de ?secreto= no coincide con CRON_SECRETO. Cópielo desde " +
-          "Vercel, tal cual: no es un texto de ejemplo sino el valor guardado.",
+          "El valor de ?secreto= no coincide con el guardado en Vercel. " +
+          "Cópielo de allí tal cual: no es un texto de ejemplo.",
         recibioParametro: enlace !== null,
       },
       { status: 401 },

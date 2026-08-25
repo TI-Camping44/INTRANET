@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { notificar } from "@/lib/notificaciones";
 import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
@@ -42,11 +43,23 @@ interface Resumen {
 }
 
 export async function GET(peticion: NextRequest) {
-  const secreto = process.env.CRON_SECRETO;
-  const cabecera = peticion.headers.get("authorization");
+  // Vercel Cron envía el secreto en la cabecera Authorization, tomado de
+  // la variable CRON_SECRET. Ver src/lib/trabajos-programados.ts.
+  const rechazo = revisarSecreto(peticion.headers.get("authorization"));
 
-  // Vercel Cron envía el secreto en la cabecera Authorization.
-  if (!secreto || cabecera !== `Bearer ${secreto}`) {
+  if (rechazo === "sin_secreto") {
+    return NextResponse.json(
+      {
+        error: "CRON_SECRET no está configurada",
+        detalle:
+          "Sin esa variable Vercel no firma el trabajo programado y las " +
+          "alertas no se envían. Cárguela y vuelva a desplegar.",
+      },
+      { status: 503 },
+    );
+  }
+
+  if (rechazo) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 

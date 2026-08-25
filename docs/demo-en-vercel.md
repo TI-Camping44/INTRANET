@@ -123,7 +123,7 @@ Y en **Authentication → URL Configuration**:
    NEXT_PUBLIC_SUPABASE_ANON_KEY   <clave anon>
    SUPABASE_SERVICE_ROLE_KEY       <clave service_role>
    NEXT_PUBLIC_SITIO_URL           https://<su-proyecto>.vercel.app
-   CRON_SECRETO                    <cadena larga y aleatoria>
+   CRON_SECRET                     <cadena larga y aleatoria>
    ```
 
    Las de correo (`SMTP_*`) se pueden dejar vacías para la demostración:
