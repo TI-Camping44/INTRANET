@@ -29,6 +29,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
     entradas: [
       { titulo: "Inicio", ruta: "/inicio", icono: "Home", fase: "operativo" },
       { titulo: "Directorio", ruta: "/directorio", icono: "Contact", fase: "operativo" },
+      { titulo: "Aplicaciones", ruta: "/aplicaciones", icono: "LayoutGrid", fase: "operativo" },
       { titulo: "Buscar", ruta: "/buscar", icono: "Search", fase: "operativo" },
     ],
   },

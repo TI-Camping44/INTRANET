@@ -7,6 +7,7 @@ import {
   History,
   Home,
   LayoutDashboard,
+  LayoutGrid,
   Search,
   ShieldAlert,
   Smile,
@@ -27,6 +28,7 @@ import {
 const ICONOS: Record<string, LucideIcon> = {
   Home,
   Contact,
+  LayoutGrid,
   LayoutDashboard,
   Search,
   FileText,
