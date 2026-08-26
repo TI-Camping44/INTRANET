@@ -65,10 +65,14 @@ export default async function PaginaPanel() {
         .limit(6),
     ]);
 
-  const avanceAuditorias =
-    resumen.auditoriasTotales > 0
-      ? Math.round((resumen.auditoriasCerradas / resumen.auditoriasTotales) * 100)
-      : 0;
+  // Sin programa cargado no hay avance que medir. Se distingue de un
+  // avance del 0 %, que si es una senal: un «0 %» en ambar delante de
+  // Direccion se lee como incumplimiento, y lo que pasa es que todavia
+  // no se planifico ninguna auditoria.
+  const hayProgramaDeAuditorias = resumen.auditoriasTotales > 0;
+  const avanceAuditorias = hayProgramaDeAuditorias
+    ? Math.round((resumen.auditoriasCerradas / resumen.auditoriasTotales) * 100)
+    : 0;
 
   const nombreCorto = usuario.nombre_completo.split(" ")[0];
 
@@ -115,9 +119,19 @@ export default async function PaginaPanel() {
         />
         <TarjetaIndicador
           titulo="Avance de auditorías"
-          valor={`${avanceAuditorias}%`}
-          contexto={`${resumen.auditoriasCerradas} de ${resumen.auditoriasTotales} cerradas`}
-          tono={avanceAuditorias >= 60 ? "exito" : "advertencia"}
+          valor={hayProgramaDeAuditorias ? `${avanceAuditorias}%` : "—"}
+          contexto={
+            hayProgramaDeAuditorias
+              ? `${resumen.auditoriasCerradas} de ${resumen.auditoriasTotales} cerradas`
+              : "Sin programa cargado para el año"
+          }
+          tono={
+            !hayProgramaDeAuditorias
+              ? "neutro"
+              : avanceAuditorias >= 60
+                ? "exito"
+                : "advertencia"
+          }
           enlace="/auditorias"
           icono={<ClipboardCheck className="size-4" />}
         />
@@ -298,11 +312,14 @@ export default async function PaginaPanel() {
           <div>
             <p className="text-xs font-semibold">Programa anual de auditorías internas</p>
             <p className="mt-0.5 text-[11px] text-atenuado-contraste">
-              {resumen.auditoriasCerradas} de {resumen.auditoriasTotales} auditorías cerradas en{" "}
-              {hoy.slice(0, 4)}
+              {hayProgramaDeAuditorias
+                ? `${resumen.auditoriasCerradas} de ${resumen.auditoriasTotales} auditorías cerradas en ${hoy.slice(0, 4)}`
+                : `Todavía no se planificaron auditorías para ${hoy.slice(0, 4)}`}
             </p>
           </div>
-          <span className="text-2xl font-semibold tabular">{avanceAuditorias}%</span>
+          <span className="text-2xl font-semibold tabular">
+            {hayProgramaDeAuditorias ? `${avanceAuditorias}%` : "—"}
+          </span>
         </div>
         <Progreso value={avanceAuditorias} className="mt-3" />
       </Tarjeta>
