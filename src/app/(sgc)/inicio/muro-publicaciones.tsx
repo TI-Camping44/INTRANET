@@ -12,6 +12,7 @@ import {
   ImagePlus,
   Megaphone,
   MoreVertical,
+  Paperclip,
   Pencil,
   Send,
   Trash2,
@@ -34,6 +35,7 @@ import {
   DialogoTitulo,
 } from "@/components/ui/dialogo";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { VisorImagen } from "@/components/comunes/visor-imagen";
 import {
   Menu,
   MenuContenido,
@@ -52,7 +54,12 @@ import {
   fijarPublicacion,
 } from "@/app/(sgc)/inicio/acciones";
 import { formatearFechaHora, hoyEnAsuncion } from "@/lib/formato";
-import { ACEPTA_IMAGEN, motivoDeRechazoImagen, TAMANO_MAXIMO_IMAGEN } from "@/lib/imagenes";
+import { describirTamano } from "@/lib/adjuntos";
+import {
+  ACEPTA_ADJUNTO_PUBLICACION,
+  motivoDeRechazoAdjunto,
+  TAMANO_MAXIMO_IMAGEN,
+} from "@/lib/imagenes";
 import {
   ETIQUETAS_TIPO_PUBLICACION,
   resumirPublicacion,
@@ -80,6 +87,8 @@ export interface Publicacion {
   imagen: string | null;
   /** Documento que originó el anuncio, cuando lo hay. */
   documento: { id: string; codigo: string | null; titulo: string } | null;
+  /** Archivos anexados, con su enlace firmado ya resuelto. */
+  anexos: { id: string; nombre: string; tamano: number; enlace: string | null }[];
 }
 
 const ICONOS: Record<TipoPublicacion, React.ComponentType<{ className?: string }>> = {
@@ -274,27 +283,27 @@ export function MuroPublicaciones({
                         El marco es `inline-block` para que se ajuste a la
                         imagen: con `block` una captura vertical quedaba en
                         el medio de una caja del ancho de la tarjeta, rodeada
-                        de vacio. Al hacer clic se abre en grande. */}
+                        de vacio. Al tocarla se abre en vista previa. */}
                     {publicacion.imagen ? (
-                      <a
-                        href={publicacion.imagen}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-block max-w-full cursor-zoom-in overflow-hidden
-                                   rounded-md border border-borde"
-                        title="Abrir la imagen en grande"
-                      >
-                        {/* Sin next/image: la direccion es un enlace firmado
-                            que cambia en cada carga, asi que el optimizador
-                            no tendria nada estable que cachear. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={publicacion.imagen}
-                          alt=""
-                          className="block max-h-[22rem] w-auto max-w-full object-contain"
-                          loading="lazy"
-                        />
-                      </a>
+                      <VisorImagen src={publicacion.imagen} titulo={publicacion.titulo}>
+                        <button
+                          type="button"
+                          className="mt-2 inline-block max-w-full cursor-zoom-in overflow-hidden
+                                     rounded-md border border-borde"
+                          title="Ver la imagen en grande"
+                        >
+                          {/* Sin next/image: la direccion es un enlace firmado
+                              que cambia en cada carga, asi que el optimizador
+                              no tendria nada estable que cachear. */}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={publicacion.imagen}
+                            alt=""
+                            className="block max-h-[22rem] w-auto max-w-full object-contain"
+                            loading="lazy"
+                          />
+                        </button>
+                      </VisorImagen>
                     ) : null}
 
                     <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-atenuado-contraste">
@@ -311,6 +320,29 @@ export function MuroPublicaciones({
                       >
                         {desplegada ? "Ver menos" : "Leer todo"}
                       </button>
+                    ) : null}
+
+                    {publicacion.anexos.length > 0 ? (
+                      <ul className="mt-2 space-y-1">
+                        {publicacion.anexos.map((anexo) => (
+                          <li key={anexo.id}>
+                            <a
+                              href={anexo.enlace ?? "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex max-w-full items-center gap-1.5 rounded-md
+                                         border border-borde px-2 py-1 text-[11px]
+                                         transition-colors hover:bg-acento/40"
+                            >
+                              <Paperclip className="size-3 shrink-0 text-atenuado-contraste" />
+                              <span className="truncate font-medium">{anexo.nombre}</span>
+                              <span className="shrink-0 text-atenuado-contraste">
+                                {describirTamano(anexo.tamano)}
+                              </span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
                     ) : null}
 
                     {/* En su propia fila: si no, queda pegado al «Leer
@@ -513,9 +545,13 @@ export function MuroPublicaciones({
               </GrupoCampo>
 
               <GrupoCampo
-                etiqueta="Imagen"
+                etiqueta="Imagen o archivo"
                 htmlFor="imagen"
-                ayuda={`Opcional. PNG, JPG o WebP, hasta ${TAMANO_MAXIMO_IMAGEN / (1024 * 1024)} MB. Se ve en la tarjeta del muro.`}
+                ayuda={
+                  `Opcional. Una imagen —PNG, JPG o WebP, hasta ` +
+                  `${TAMANO_MAXIMO_IMAGEN / (1024 * 1024)} MB— se ve en la tarjeta. ` +
+                  "Un documento —PDF, Word, Excel o PowerPoint— se lista para descargar."
+                }
               >
                 <div className="flex items-center gap-2">
                   <Boton
@@ -524,7 +560,7 @@ export function MuroPublicaciones({
                     tamano="pequeno"
                     onClick={() => entradaImagen.current?.click()}
                   >
-                    <ImagePlus /> Elegir imagen
+                    <ImagePlus /> Elegir archivo
                   </Boton>
                   <span className="min-w-0 truncate text-[11px] text-atenuado-contraste">
                     {nombreImagen ??
@@ -547,7 +583,7 @@ export function MuroPublicaciones({
                   id="imagen"
                   name="imagen"
                   type="file"
-                  accept={ACEPTA_IMAGEN}
+                  accept={ACEPTA_ADJUNTO_PUBLICACION}
                   className="sr-only"
                   onChange={(evento) => {
                     const elegida = evento.target.files?.[0];
@@ -556,7 +592,7 @@ export function MuroPublicaciones({
                     // El control de verdad esta en la accion de servidor.
                     // Este evita que alguien espere una subida de 20 MB
                     // para que despues se la rechacen.
-                    const motivo = motivoDeRechazoImagen(elegida.name, elegida.size);
+                    const motivo = motivoDeRechazoAdjunto(elegida.name, elegida.size);
                     if (motivo) {
                       toast.error(motivo);
                       evento.target.value = "";

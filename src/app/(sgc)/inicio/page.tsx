@@ -99,12 +99,61 @@ export default async function PaginaInicio() {
     }
   }
 
+  // Los documentos anexados a una publicacion —el formulario en PDF de un
+  // aviso de Capital Humano, la ficha tecnica de una novedad— viven en
+  // `adjuntos` y tambien se entregan firmados.
+  interface AnexoDePublicacion {
+    id: string;
+    entidad_id: string;
+    nombre_archivo: string;
+    tamano_bytes: number;
+    ruta: string;
+  }
+
+  // Con el muro vacio no se consulta: un `in` con lista vacia no tiene
+  // respuesta util y ademas es un viaje a la base para nada.
+  let listaAnexos: AnexoDePublicacion[] = [];
+  if (visibles.length > 0) {
+    const { data: anexos } = await supabase
+      .from("adjuntos")
+      .select("id, entidad_id, nombre_archivo, tamano_bytes, ruta")
+      .eq("entidad", "publicaciones")
+      .in(
+        "entidad_id",
+        visibles.map((publicacion) => publicacion.id),
+      );
+
+    listaAnexos = (anexos as AnexoDePublicacion[] | null) ?? [];
+  }
+
+  const firmadosAnexos = new Map<string, string>();
+  if (listaAnexos.length > 0) {
+    const { data: enlaces } = await supabase.storage
+      .from(BUCKET_IMAGENES)
+      .createSignedUrls(
+        listaAnexos.map((anexo) => anexo.ruta),
+        DURACION_ENLACE_IMAGEN,
+      );
+
+    for (const enlace of enlaces ?? []) {
+      if (enlace.path && enlace.signedUrl) firmadosAnexos.set(enlace.path, enlace.signedUrl);
+    }
+  }
+
   const listaPublicaciones: Publicacion[] = visibles.map((publicacion) => ({
     ...publicacion,
     // Una direccion externa se usa tal cual; una ruta del bucket, firmada.
     imagen: esRutaDelBucket(publicacion.url_imagen)
       ? (firmadas.get(publicacion.url_imagen!) ?? null)
       : publicacion.url_imagen,
+    anexos: listaAnexos
+      .filter((anexo) => anexo.entidad_id === publicacion.id)
+      .map((anexo) => ({
+        id: anexo.id,
+        nombre: anexo.nombre_archivo,
+        tamano: anexo.tamano_bytes,
+        enlace: firmadosAnexos.get(anexo.ruta) ?? null,
+      })),
   }));
 
   // Del mes en curso, y de hoy en adelante: un cumpleanos de hace dos

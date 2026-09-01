@@ -5,8 +5,10 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import {
   BUCKET_IMAGENES,
+  esImagen,
   esRutaDelBucket,
-  motivoDeRechazoImagen,
+  motivoDeRechazoAdjunto,
+  rutaDeAdjuntoPublicacion,
   rutaDeImagen,
 } from "@/lib/imagenes";
 import type { EstadoPublicacion, ResultadoAccion } from "@/lib/tipos";
@@ -70,10 +72,16 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
 }
 
 /**
- * Sube la imagen de una publicacion y la deja apuntada en `url_imagen`.
+ * Sube el adjunto de una publicacion: una imagen o un documento.
  *
- * No devuelve error sino un aviso: si la imagen falla, la publicacion ya
- * existe y perderla por una foto seria peor. Se avisa y se sigue.
+ * Se separan por destino y no por capricho. La imagen es contenido: se
+ * dibuja en la tarjeta, y por eso vive en `url_imagen`. El documento es
+ * un anexo: se lista con su nombre y se abre al tocarlo, y por eso va a
+ * `adjuntos`, la tabla que ya existe para eso y que guarda el nombre
+ * original, el tamano y quien lo subio.
+ *
+ * No devuelve error sino un aviso: si el archivo falla, la publicacion ya
+ * existe y perderla por un adjunto seria peor. Se avisa y se sigue.
  */
 async function adjuntarImagen(
   publicacionId: string,
@@ -81,26 +89,39 @@ async function adjuntarImagen(
 ): Promise<string | null> {
   if (!(archivo instanceof File) || archivo.size === 0) return null;
 
-  const motivo = motivoDeRechazoImagen(archivo.name, archivo.size);
-  if (motivo) return `La imagen no se cargó: ${motivo}`;
+  const usuario = await requerirUsuario();
+  const motivo = motivoDeRechazoAdjunto(archivo.name, archivo.size);
+  if (motivo) return `El archivo no se cargó: ${motivo}`;
 
   const supabase = crearClienteServidor();
-  const ruta = rutaDeImagen(publicacionId, archivo.name);
+  const imagen = esImagen(archivo.name);
+  const ruta = imagen
+    ? rutaDeImagen(publicacionId, archivo.name)
+    : rutaDeAdjuntoPublicacion(publicacionId, archivo.name);
 
   const { error: errorCarga } = await supabase.storage
     .from(BUCKET_IMAGENES)
     .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
 
-  if (errorCarga) return `La imagen no se cargó: ${errorCarga.message}`;
+  if (errorCarga) return `El archivo no se cargó: ${errorCarga.message}`;
 
-  const { error } = await supabase
-    .from("publicaciones")
-    .update({ url_imagen: ruta })
-    .eq("id", publicacionId);
+  const { error } = imagen
+    ? await supabase.from("publicaciones").update({ url_imagen: ruta }).eq("id", publicacionId)
+    : await supabase.from("adjuntos").insert({
+        empresa_id: usuario.empresa_id,
+        entidad: "publicaciones",
+        entidad_id: publicacionId,
+        nombre_archivo: archivo.name,
+        ruta,
+        bucket: BUCKET_IMAGENES,
+        tamano_bytes: archivo.size,
+        tipo_mime: archivo.type || null,
+        subido_por: usuario.id,
+      });
 
   if (error) {
     await supabase.storage.from(BUCKET_IMAGENES).remove([ruta]);
-    return "La imagen no se pudo asociar a la publicación.";
+    return "El archivo no se pudo asociar a la publicación.";
   }
 
   return null;
@@ -262,10 +283,23 @@ export async function eliminarPublicacion(id: string): Promise<ResultadoAccion> 
     .eq("id", id)
     .maybeSingle();
 
+  // Los adjuntos no tienen clave foranea a publicaciones —la tabla es
+  // generica, sirve para cualquier entidad—, asi que no se borran solos.
+  const { data: adjuntos } = await supabase
+    .from("adjuntos")
+    .select("id, ruta")
+    .eq("entidad", "publicaciones")
+    .eq("entidad_id", id);
+
   const { error } = await supabase.from("publicaciones").delete().eq("id", id);
   if (error) return { exito: false, error: `No se pudo eliminar: ${error.message}` };
 
   if (publicacion?.url_imagen) await borrarImagenDelBucket(publicacion.url_imagen);
+
+  for (const adjunto of adjuntos ?? []) {
+    await supabase.from("adjuntos").delete().eq("id", adjunto.id);
+    await supabase.storage.from(BUCKET_IMAGENES).remove([adjunto.ruta]);
+  }
 
   revalidatePath("/inicio");
   return { exito: true, mensaje: "Publicación eliminada." };

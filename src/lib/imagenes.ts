@@ -12,7 +12,12 @@
  * que se generan en el servidor en cada carga de la página.
  */
 
-import { BUCKET_DOCUMENTOS, describirTamano, extensionDe } from "@/lib/adjuntos";
+import {
+  BUCKET_DOCUMENTOS,
+  describirTamano,
+  extensionDe,
+  TAMANO_MAXIMO_ADJUNTO,
+} from "@/lib/adjuntos";
 
 export { BUCKET_DOCUMENTOS as BUCKET_IMAGENES };
 
@@ -82,3 +87,76 @@ export function esRutaDelBucket(urlImagen: string | null): boolean {
  * enlace que da acceso a un archivo privado.
  */
 export const DURACION_ENLACE_IMAGEN = 60 * 60;
+
+// ---------------------------------------------------------------------
+// Archivos adjuntos a una publicacion
+// ---------------------------------------------------------------------
+// Una publicacion no siempre lleva una foto. Un aviso de Capital Humano
+// suele venir con el formulario en PDF, y una novedad de producto con la
+// ficha tecnica. Antes habia que subirlo a otro lado y pegar el enlace en
+// el texto, que es como se pierden los archivos.
+//
+// Se distinguen por la extension y se muestran distinto: la imagen se
+// dibuja y se abre en vista previa; el documento aparece como una linea
+// con su nombre y se abre al tocarlo.
+
+export const EXTENSIONES_DOCUMENTO_PUBLICACION = [
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+];
+
+/** Lo que ofrece el selector: una imagen o un documento. */
+export const ACEPTA_ADJUNTO_PUBLICACION = [
+  ...EXTENSIONES_IMAGEN,
+  ...EXTENSIONES_DOCUMENTO_PUBLICACION,
+].join(",");
+
+/** Si el archivo se dibuja como imagen o se lista como documento. */
+export function esImagen(nombreArchivo: string): boolean {
+  return EXTENSIONES_IMAGEN.includes(extensionDe(nombreArchivo));
+}
+
+/**
+ * Controla el adjunto de una publicacion, sea imagen o documento.
+ *
+ * Los topes son distintos y no por capricho: la imagen se carga sola en
+ * cada visita al muro, el documento solo cuando alguien lo pide.
+ */
+export function motivoDeRechazoAdjunto(
+  nombreArchivo: string,
+  tamanoBytes: number,
+): string | null {
+  if (esImagen(nombreArchivo)) return motivoDeRechazoImagen(nombreArchivo, tamanoBytes);
+
+  if (tamanoBytes === 0) return "El archivo está vacío.";
+
+  const extension = extensionDe(nombreArchivo);
+  if (!EXTENSIONES_DOCUMENTO_PUBLICACION.includes(extension)) {
+    return (
+      `Un archivo ${extension || "sin extensión"} no se puede adjuntar. ` +
+      "Use una imagen (PNG, JPG, WebP) o un documento (PDF, Word, Excel o PowerPoint)."
+    );
+  }
+
+  if (tamanoBytes > TAMANO_MAXIMO_ADJUNTO) {
+    return (
+      `El archivo pesa ${describirTamano(tamanoBytes)} y el máximo es ` +
+      `${describirTamano(TAMANO_MAXIMO_ADJUNTO)}.`
+    );
+  }
+
+  return null;
+}
+
+/** Ruta del documento adjunto dentro del bucket. */
+export function rutaDeAdjuntoPublicacion(
+  publicacionId: string,
+  nombreArchivo: string,
+): string {
+  return `publicaciones/${publicacionId}/adjuntos/${Date.now()}${extensionDe(nombreArchivo)}`;
+}
