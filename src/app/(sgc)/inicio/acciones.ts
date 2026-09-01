@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { BUCKET_IMAGENES, motivoDeRechazoImagen, rutaDeImagen } from "@/lib/imagenes";
+import {
+  BUCKET_IMAGENES,
+  esRutaDelBucket,
+  motivoDeRechazoImagen,
+  rutaDeImagen,
+} from "@/lib/imagenes";
 import type { EstadoPublicacion, ResultadoAccion } from "@/lib/tipos";
 
 export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion> {
@@ -112,7 +117,12 @@ export async function cambiarEstadoPublicacion(
 
   const supabase = crearClienteServidor();
 
-  const { error } = await supabase.from("publicaciones").update({ estado }).eq("id", id);
+  const { error } = await supabase
+    .from("publicaciones")
+    // Archivar suelta la fijacion: dejar arriba de todo algo archivado es
+    // exactamente lo contrario de archivarlo.
+    .update(estado === "archivada" ? { estado, fijada: false } : { estado })
+    .eq("id", id);
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
   revalidatePath("/inicio");
@@ -161,4 +171,109 @@ export async function fijarPublicacion(id: string): Promise<ResultadoAccion> {
     exito: true,
     mensaje: fijar ? "Queda fijada arriba de todo." : "Ya no está fijada.",
   };
+}
+
+/**
+ * Edicion de una publicacion ya creada.
+ *
+ * Faltaba, y se notaba: una vez publicado, un anuncio con un error de
+ * dedo o una fecha equivocada no habia forma de corregirlo. La unica
+ * salida era archivarlo y escribir otro, que deja el error a la vista de
+ * todos en el historial.
+ *
+ * La imagen tiene tres caminos posibles: no tocarla, reemplazarla o
+ * sacarla. Son tres y no dos porque "no mandar imagen" y "querer que no
+ * haya imagen" son cosas distintas.
+ */
+export async function editarPublicacion(
+  id: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite editar publicaciones." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const titulo = String(datos.get("titulo") ?? "").trim();
+  const cuerpo = String(datos.get("cuerpo") ?? "").trim();
+
+  if (titulo.length < 5) {
+    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
+  }
+  if (cuerpo.length < 10) {
+    return { exito: false, error: "El cuerpo debe tener al menos 10 caracteres." };
+  }
+
+  const { data: actual } = await supabase
+    .from("publicaciones")
+    .select("url_imagen")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!actual) return { exito: false, error: "La publicación no existe." };
+
+  const cambios: Record<string, unknown> = {
+    tipo: String(datos.get("tipo") ?? "anuncio"),
+    titulo,
+    cuerpo,
+    resumen: String(datos.get("resumen") ?? "").trim() || null,
+    fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
+    usuario_referido_id: String(datos.get("usuario_referido_id") ?? "") || null,
+    proceso_id: String(datos.get("proceso_id") ?? "") || null,
+  };
+
+  if (datos.get("quitar_imagen") === "si") {
+    cambios.url_imagen = null;
+  }
+
+  const { error } = await supabase.from("publicaciones").update(cambios).eq("id", id);
+  if (error) return { exito: false, error: `No se pudo guardar: ${error.message}` };
+
+  // El archivo viejo se borra despues de que la fila dejo de apuntarlo:
+  // asi no queda una publicacion mostrando una imagen que ya no existe.
+  if (datos.get("quitar_imagen") === "si" && actual.url_imagen) {
+    await borrarImagenDelBucket(actual.url_imagen);
+  }
+
+  const aviso = await adjuntarImagen(id, datos.get("imagen"));
+  if (!aviso && actual.url_imagen && datos.get("imagen") instanceof File) {
+    const nueva = datos.get("imagen") as File;
+    if (nueva.size > 0) await borrarImagenDelBucket(actual.url_imagen);
+  }
+
+  revalidatePath("/inicio");
+  return { exito: true, mensaje: `Publicación actualizada.${aviso ? ` ${aviso}` : ""}` };
+}
+
+/** Elimina la publicacion y su imagen. */
+export async function eliminarPublicacion(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite eliminar publicaciones." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: publicacion } = await supabase
+    .from("publicaciones")
+    .select("url_imagen")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await supabase.from("publicaciones").delete().eq("id", id);
+  if (error) return { exito: false, error: `No se pudo eliminar: ${error.message}` };
+
+  if (publicacion?.url_imagen) await borrarImagenDelBucket(publicacion.url_imagen);
+
+  revalidatePath("/inicio");
+  return { exito: true, mensaje: "Publicación eliminada." };
+}
+
+/** Saca del bucket una imagen, si es una ruta nuestra y no una direccion externa. */
+async function borrarImagenDelBucket(urlImagen: string): Promise<void> {
+  if (!esRutaDelBucket(urlImagen)) return;
+  const supabase = crearClienteServidor();
+  await supabase.storage.from(BUCKET_IMAGENES).remove([urlImagen]);
 }
