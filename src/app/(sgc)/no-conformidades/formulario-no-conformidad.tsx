@@ -7,8 +7,14 @@ import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { crearNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
-import { ETIQUETAS_ORIGEN_NC, ETIQUETAS_SEVERIDAD_NC } from "@/lib/constantes";
-import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import {
+  AREAS_ORGANIZACIONALES,
+  DIAS_LIMITE_CIERRE_NC,
+  ETIQUETAS_ORIGEN_NC,
+  ETIQUETAS_SEVERIDAD_NC,
+  ORIGENES_NC_VIGENTES,
+} from "@/lib/constantes";
+import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 
 interface Opcion {
   id: string;
@@ -18,27 +24,34 @@ interface Opcion {
   razon_social?: string;
 }
 
+/**
+ * Alta de una desviacion.
+ *
+ * El formulario quedo con los campos que Calidad efectivamente completa.
+ * Los que se sacaron —requisito incumplido, norma de referencia, cliente
+ * afectado y sede— se sacaron por la misma razon: nadie los iba a llenar
+ * bien, y un campo que se completa mal es peor que uno que no esta.
+ */
 export function FormularioNoConformidad({
   procesos,
-  sedes,
-  normas,
+  empresas,
   usuarios,
-  clientes,
 }: {
   procesos: Opcion[];
-  sedes: Opcion[];
-  normas: Opcion[];
+  empresas: Opcion[];
   usuarios: Opcion[];
-  clientes: Opcion[];
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
 
   const hoy = hoyEnAsuncion();
-  // Plazo de cierre por defecto: 30 días, coherente con el escalamiento
-  // a los 10 días de las acciones sin resolver.
-  const limitePorDefecto = sumarDias(hoy, 30);
+
+  // El plazo de cierre no se elige: son diez dias corridos desde la
+  // deteccion. Se muestra para que quien registra sepa a que se
+  // compromete, pero lo fija la base de datos.
+  const [deteccion, definirDeteccion] = React.useState(hoy);
+  const limite = sumarDias(deteccion, DIAS_LIMITE_CIERRE_NC);
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -84,7 +97,17 @@ export function FormularioNoConformidad({
 
           <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido>
             <Seleccion id="origen" name="origen" defaultValue="proceso_interno">
-              {Object.entries(ETIQUETAS_ORIGEN_NC).map(([valor, etiqueta]) => (
+              {ORIGENES_NC_VIGENTES.map((valor) => (
+                <option key={valor} value={valor}>
+                  {ETIQUETAS_ORIGEN_NC[valor]}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="Severidad" htmlFor="severidad" requerido>
+            <Seleccion id="severidad" name="severidad" defaultValue="menor">
+              {Object.entries(ETIQUETAS_SEVERIDAD_NC).map(([valor, etiqueta]) => (
                 <option key={valor} value={valor}>
                   {etiqueta}
                 </option>
@@ -93,15 +116,33 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo
-            etiqueta="Severidad"
-            htmlFor="severidad"
+            etiqueta="Área"
+            htmlFor="area"
             requerido
-            ayuda="Mayor y crítica exigen análisis de causa raíz."
+            ayuda="El departamento al que corresponde la desviación."
           >
-            <Seleccion id="severidad" name="severidad" defaultValue="menor">
-              {Object.entries(ETIQUETAS_SEVERIDAD_NC).map(([valor, etiqueta]) => (
+            <Seleccion id="area" name="area" defaultValue="" required>
+              <option value="" disabled>
+                Elija el área
+              </option>
+              {Object.entries(AREAS_ORGANIZACIONALES).map(([valor, etiqueta]) => (
                 <option key={valor} value={valor}>
                   {etiqueta}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="Empresa" htmlFor="empresa_afectada_id" requerido>
+            <Seleccion
+              id="empresa_afectada_id"
+              name="empresa_afectada_id"
+              defaultValue={empresas[0]?.id ?? ""}
+              required
+            >
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.razon_social ?? empresa.nombre}
                 </option>
               ))}
             </Seleccion>
@@ -118,53 +159,8 @@ export function FormularioNoConformidad({
             </Seleccion>
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Sede" htmlFor="sede_id">
-            <Seleccion id="sede_id" name="sede_id">
-              <option value="">Sin sede específica</option>
-              {sedes.map((sede) => (
-                <option key={sede.id} value={sede.id}>
-                  {sede.nombre}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
           <GrupoCampo
-            etiqueta="Requisito incumplido"
-            htmlFor="requisito_incumplido"
-            ayuda="Cláusula de la norma o del procedimiento interno."
-          >
-            <Entrada
-              id="requisito_incumplido"
-              name="requisito_incumplido"
-              placeholder="ISO 9001:2015 · 8.5.1"
-            />
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Norma de referencia" htmlFor="norma_id">
-            <Seleccion id="norma_id" name="norma_id">
-              <option value="">Sin norma asociada</option>
-              {normas.map((norma) => (
-                <option key={norma.id} value={norma.id}>
-                  {norma.codigo}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Cliente afectado" htmlFor="cliente_id">
-            <Seleccion id="cliente_id" name="cliente_id">
-              <option value="">No aplica</option>
-              {clientes.map((cliente) => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.razon_social}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Responsable del tratamiento"
+            etiqueta="Responsable de la acción correctiva"
             htmlFor="responsable_id"
             ayuda="Recibe la notificación de asignación."
           >
@@ -192,24 +188,23 @@ export function FormularioNoConformidad({
               id="fecha_deteccion"
               name="fecha_deteccion"
               type="date"
-              defaultValue={hoy}
+              value={deteccion}
               max={hoy}
               required
+              onChange={(evento) => definirDeteccion(evento.target.value || hoy)}
             />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Fecha límite de cierre"
-            htmlFor="fecha_limite_cierre"
-            ayuda="A los 10 días sin resolver, la acción escala al jefe inmediato."
+            ayuda={`Son ${DIAS_LIMITE_CIERRE_NC} días corridos desde la detección y los calcula el sistema. A los ${DIAS_LIMITE_CIERRE_NC} días sin resolver, la acción escala al líder inmediato.`}
           >
-            <Entrada
-              id="fecha_limite_cierre"
-              name="fecha_limite_cierre"
-              type="date"
-              defaultValue={limitePorDefecto}
-              min={hoy}
-            />
+            <p
+              className="flex h-9 items-center rounded-md border border-borde bg-acento/40 px-3
+                         text-xs font-medium tabular text-atenuado-contraste"
+            >
+              {formatearFecha(limite)}
+            </p>
           </GrupoCampo>
         </div>
 
@@ -219,8 +214,8 @@ export function FormularioNoConformidad({
           <Boton type="button" variante="contorno" onClick={() => router.back()}>
             Cancelar
           </Boton>
-          <Boton type="submit" disabled={enviando}>
-            {enviando ? "Registrando…" : "Registrar no conformidad"}
+          <Boton type="submit" cargando={enviando}>
+            Registrar no conformidad
           </Boton>
         </div>
       </Tarjeta>

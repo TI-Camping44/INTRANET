@@ -39,7 +39,7 @@ export default async function PaginaUsuarios() {
     <>
       <EncabezadoPagina
         titulo="Usuarios y roles"
-        descripcion={`El perfil se crea solo en el primer ingreso con Google. Aquí se asigna el rol, el jefe inmediato y el proceso a cargo.`}
+        descripcion={`El perfil se crea solo en el primer ingreso con Google. Aquí se asigna el rol, el líder inmediato y el proceso a cargo.`}
       />
 
       <Aviso className="mb-4">
@@ -71,7 +71,7 @@ export default async function PaginaUsuarios() {
             <TablaFila>
               <TablaEncabezado className="w-[16rem]">Persona</TablaEncabezado>
               <TablaEncabezado colSpan={6}>
-                Rol · Jefe inmediato · Proceso · Puesto · Estado
+                Rol · Líder inmediato · Proceso · Puesto · Estado
               </TablaEncabezado>
             </TablaFila>
           </TablaCabecera>

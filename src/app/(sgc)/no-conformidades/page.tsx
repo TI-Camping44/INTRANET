@@ -22,14 +22,18 @@ import {
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
+  AREAS_ORGANIZACIONALES,
   ESTADOS_NC_ABIERTOS,
+  ESTADOS_NC_VIGENTES,
   ETIQUETAS_ESTADO_NC,
   ETIQUETAS_ORIGEN_NC,
   ETIQUETAS_SEVERIDAD_NC,
+  ORIGENES_NC_VIGENTES,
 } from "@/lib/constantes";
 import { describirVencimiento, diasHasta, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type {
+  AreaOrganizacional,
   EstadoNoConformidad,
   OrigenNoConformidad,
   SeveridadNoConformidad,
@@ -45,6 +49,7 @@ interface FilaNoConformidad {
   origen: OrigenNoConformidad;
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
+  area: AreaOrganizacional | null;
   fecha_deteccion: string;
   fecha_limite_cierre: string | null;
   es_demostracion: boolean;
@@ -60,6 +65,7 @@ export default async function PaginaNoConformidades({
     estado?: string;
     severidad?: string;
     origen?: string;
+    area?: string;
     proceso?: string;
   };
 }) {
@@ -75,10 +81,14 @@ export default async function PaginaNoConformidades({
   let consulta = supabase
     .from("no_conformidades")
     .select(
-      "id, codigo, titulo, origen, severidad, estado, fecha_deteccion, fecha_limite_cierre, " +
-        "es_demostracion, procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
+      "id, codigo, titulo, origen, severidad, estado, area, fecha_deteccion, " +
+        "fecha_limite_cierre, es_demostracion, procesos:proceso_id (nombre), " +
+        "responsable:responsable_id (nombre_completo)",
     )
-    .order("fecha_deteccion", { ascending: false });
+    // Por correlativo ascendente: NC-2026-001, 002, 003. Ordenar por fecha
+    // dejaba el listado desordenado a la vista, porque el correlativo y la
+    // fecha de deteccion no siempre van juntos.
+    .order("codigo", { ascending: true });
 
   if (searchParams.estado === "abiertas") {
     consulta = consulta.in("estado", ESTADOS_NC_ABIERTOS);
@@ -87,6 +97,7 @@ export default async function PaginaNoConformidades({
   }
   if (searchParams.severidad) consulta = consulta.eq("severidad", searchParams.severidad);
   if (searchParams.origen) consulta = consulta.eq("origen", searchParams.origen);
+  if (searchParams.area) consulta = consulta.eq("area", searchParams.area);
   if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
   if (searchParams.q) {
     const texto = `%${searchParams.q}%`;
@@ -127,11 +138,19 @@ export default async function PaginaNoConformidades({
             etiqueta: "Estado",
             opciones: [
               { valor: "abiertas", etiqueta: "Todas las abiertas" },
-              ...Object.entries(ETIQUETAS_ESTADO_NC).map(([valor, etiqueta]) => ({
+              ...ESTADOS_NC_VIGENTES.map((valor) => ({
                 valor,
-                etiqueta,
+                etiqueta: ETIQUETAS_ESTADO_NC[valor],
               })),
             ],
+          },
+          {
+            nombre: "area",
+            etiqueta: "Área",
+            opciones: Object.entries(AREAS_ORGANIZACIONALES).map(([valor, etiqueta]) => ({
+              valor,
+              etiqueta,
+            })),
           },
           {
             nombre: "severidad",
@@ -144,9 +163,9 @@ export default async function PaginaNoConformidades({
           {
             nombre: "origen",
             etiqueta: "Origen",
-            opciones: Object.entries(ETIQUETAS_ORIGEN_NC).map(([valor, etiqueta]) => ({
+            opciones: ORIGENES_NC_VIGENTES.map((valor) => ({
               valor,
-              etiqueta,
+              etiqueta: ETIQUETAS_ORIGEN_NC[valor],
             })),
           },
           {
@@ -173,11 +192,13 @@ export default async function PaginaNoConformidades({
               <TablaFila>
                 <TablaEncabezado className="w-[8rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Título</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
+                <TablaEncabezado className="hidden lg:table-cell">Área</TablaEncabezado>
                 <TablaEncabezado className="hidden xl:table-cell">Origen</TablaEncabezado>
                 <TablaEncabezado className="w-[6rem]">Severidad</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">Responsable</TablaEncabezado>
+                <TablaEncabezado className="hidden md:table-cell">
+                  Responsable de la AC
+                </TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">Límite</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
@@ -207,7 +228,7 @@ export default async function PaginaNoConformidades({
                       </Link>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {nc.procesos?.nombre ?? "—"}
+                      {nc.area ? AREAS_ORGANIZACIONALES[nc.area] : "—"}
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
                       {ETIQUETAS_ORIGEN_NC[nc.origen]}

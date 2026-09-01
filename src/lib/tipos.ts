@@ -34,7 +34,28 @@ export type OrigenNoConformidad =
   | "requisito_legal"
   | "otro";
 
-export type SeveridadNoConformidad = "menor" | "mayor" | "critica";
+export type SeveridadNoConformidad = "menor" | "mayor" | "observacion";
+
+/**
+ * Areas de la organizacion. Es la dimension por la que Calidad quiere
+ * poder filtrar las no conformidades: cuales son las de cada
+ * departamento. La lista tambien vive en el CHECK de la tabla; si
+ * cambia, cambia en los dos lados.
+ */
+export type AreaOrganizacional =
+  | "administracion"
+  | "tesoreria_caja"
+  | "creditos_cobranzas"
+  | "contabilidad"
+  | "recepcion"
+  | "consumidor_final"
+  | "mayorista"
+  | "marketing"
+  | "logistica_operaciones"
+  | "informatica"
+  | "capital_humano"
+  | "gestion_calidad"
+  | "directorio";
 
 export type EstadoNoConformidad =
   | "abierta"
@@ -47,14 +68,6 @@ export type EstadoNoConformidad =
 export type TipoAccion = "correccion" | "accion_correctiva" | "accion_preventiva" | "mejora";
 
 export type EstadoAccion = "pendiente" | "en_curso" | "ejecutada" | "verificada" | "cancelada";
-
-export type CategoriaIshikawa =
-  | "metodo"
-  | "maquina"
-  | "mano_de_obra"
-  | "material"
-  | "medicion"
-  | "medio_ambiente";
 
 export type TipoRiesgo = "riesgo" | "oportunidad";
 
@@ -225,6 +238,8 @@ export interface NoConformidad {
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
   proceso_id: string | null;
+  empresa_afectada_id: string | null;
+  area: AreaOrganizacional | null;
   sede_id: string | null;
   norma_id: string | null;
   cliente_id: string | null;
@@ -265,14 +280,6 @@ export interface NcPorque {
   orden: number;
   pregunta: string;
   respuesta: string;
-}
-
-export interface NcIshikawa {
-  id: string;
-  no_conformidad_id: string;
-  categoria: CategoriaIshikawa;
-  causa: string;
-  es_causa_raiz: boolean;
 }
 
 export interface Riesgo {

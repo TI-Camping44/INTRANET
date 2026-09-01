@@ -14,18 +14,18 @@ export default async function PaginaNuevaNoConformidad() {
 
   const supabase = crearClienteServidor();
 
-  const [{ data: procesos }, { data: sedes }, { data: normas }, { data: usuarios }, { data: clientes }] =
-    await Promise.all([
-      supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
-      supabase.from("sedes").select("id, nombre").eq("activa", true).order("nombre"),
-      supabase.from("normas").select("id, codigo").eq("vigente", true).order("codigo"),
-      supabase
-        .from("usuarios")
-        .select("id, nombre_completo")
-        .eq("activo", true)
-        .order("nombre_completo"),
-      supabase.from("clientes").select("id, razon_social").eq("activo", true).order("razon_social"),
-    ]);
+  // Las dos empresas del grupo se ofrecen aunque una este inactiva:
+  // Calidad lleva el sistema de las dos y una desviacion de Vitalica se
+  // registra igual.
+  const [{ data: procesos }, { data: empresas }, { data: usuarios }] = await Promise.all([
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+    supabase.from("empresas").select("id, nombre, razon_social").order("nombre"),
+    supabase
+      .from("usuarios")
+      .select("id, nombre_completo")
+      .eq("activo", true)
+      .order("nombre_completo"),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -35,10 +35,8 @@ export default async function PaginaNuevaNoConformidad() {
       />
       <FormularioNoConformidad
         procesos={procesos ?? []}
-        sedes={sedes ?? []}
-        normas={normas ?? []}
+        empresas={empresas ?? []}
         usuarios={usuarios ?? []}
-        clientes={clientes ?? []}
       />
     </div>
   );

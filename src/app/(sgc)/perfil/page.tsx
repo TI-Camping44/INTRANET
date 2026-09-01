@@ -40,7 +40,7 @@ export default async function PaginaPerfil() {
     <div className="mx-auto max-w-2xl">
       <EncabezadoPagina
         titulo="Mi perfil"
-        descripcion="El rol, el jefe inmediato y el proceso a cargo los define el Administrador SGC."
+        descripcion="El rol, el líder inmediato y el proceso a cargo los define el Administrador SGC."
       />
 
       <div className="space-y-4">
@@ -72,7 +72,7 @@ export default async function PaginaPerfil() {
               <Dato etiqueta="Puesto" valor={puesto?.nombre ?? "Sin puesto asignado"} />
               <Dato etiqueta="Proceso a cargo" valor={proceso?.nombre ?? "Sin proceso asignado"} />
               <Dato
-                etiqueta="Jefe inmediato"
+                etiqueta="Líder inmediato"
                 valor={superior?.nombre_completo ?? "Sin jefe asignado"}
               />
               <Dato

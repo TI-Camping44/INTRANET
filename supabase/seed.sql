@@ -595,7 +595,7 @@ insert into public.no_conformidades (
   ('03000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
    'NC-2026-001', 'Diferencia de 3 unidades en el conteo cíclico de material controlado',
    'Durante el conteo cíclico del 12 del mes se detectó una diferencia de tres unidades entre el stock físico y el sistema, en el sector de material controlado del Depósito Central.',
-   'proceso_interno', 'critica', 'en_tratamiento',
+   'proceso_interno', 'mayor', 'en_tratamiento',
    'c1000000-0000-4000-8000-000000000005', 'a1000000-0000-4000-8000-000000000003',
    'b1000000-0000-4000-8000-000000000002', null,
    'Ley 4036/2010 · Art. 27 — Registro de existencias',
@@ -608,7 +608,7 @@ insert into public.no_conformidades (
   ('03000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
    'NC-2026-002', 'Entrega fuera de plazo del proveedor Transportes Ñemity',
    'Tres despachos consecutivos del proveedor PRV-003 llegaron con más de cinco días de atraso respecto de lo comprometido.',
-   'proveedor', 'mayor', 'en_verificacion',
+   'proveedor', 'mayor', 'en_tratamiento',
    'c1000000-0000-4000-8000-000000000004', 'a1000000-0000-4000-8000-000000000003',
    'b1000000-0000-4000-8000-000000000001', null,
    'ISO 9001:2015 · 8.4.1 — Control de proveedores externos',
@@ -636,7 +636,7 @@ insert into public.no_conformidades (
   ('03000000-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111',
    'NC-2026-004', 'Facturación sin verificación de la habilitación del comprador',
    'En una venta del mes anterior se emitió la factura antes de completar la lista de verificación documental obligatoria.',
-   'auditoria_interna', 'critica', 'en_analisis',
+   'auditoria_interna', 'mayor', 'abierta',
    'c1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000002',
    'b1000000-0000-4000-8000-000000000002', null,
    'Ley 4036/2010 · Art. 31 — Verificación del adquirente',
@@ -684,28 +684,6 @@ insert into public.nc_porques (no_conformidad_id, orden, pregunta, respuesta) va
    'Porque el procedimiento no exige la carga inmediata ni la doble firma en el egreso.'),
   ('03000000-0000-4000-8000-000000000001', 5, '¿Por qué?',
    'Porque el procedimiento MP-SOP-04 se redactó antes de que el depósito manejara material controlado y nunca se actualizó.');
-
--- Ishikawa de la NC-2026-001.
-insert into public.nc_ishikawa (no_conformidad_id, categoria, causa, es_causa_raiz) values
-  ('03000000-0000-4000-8000-000000000001', 'metodo',
-   'El procedimiento no define la frecuencia del conteo cíclico.', true),
-  ('03000000-0000-4000-8000-000000000001', 'metodo',
-   'No se exige doble firma en el egreso de material controlado.', true),
-  ('03000000-0000-4000-8000-000000000001', 'mano_de_obra',
-   'La carga de movimientos se hace de memoria al cierre del turno.', false),
-  ('03000000-0000-4000-8000-000000000001', 'medicion',
-   'No hay indicador de exactitud de inventario que anticipe la diferencia.', false),
-  ('03000000-0000-4000-8000-000000000001', 'maquina',
-   'El lector de código de barras del sector falla de forma intermitente.', false),
-  ('03000000-0000-4000-8000-000000000001', 'medio_ambiente',
-   'El sector de material controlado tiene iluminación deficiente.', false);
-
--- Ishikawa de la NC-2026-003.
-insert into public.nc_ishikawa (no_conformidad_id, categoria, causa, es_causa_raiz) values
-  ('03000000-0000-4000-8000-000000000003', 'mano_de_obra',
-   'El vendedor no recibió capacitación técnica sobre calibres.', true),
-  ('03000000-0000-4000-8000-000000000003', 'metodo',
-   'La inducción del personal nuevo no incluye contenido técnico de producto.', true);
 
 -- Planes de accion.
 insert into public.nc_acciones (

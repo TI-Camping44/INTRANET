@@ -17,7 +17,7 @@ import {
  * Se ejecuta una vez por dia desde Vercel Cron (ver vercel.json) y
  * atiende cinco frentes:
  *   1. Acciones correctivas proximas a vencer.
- *   2. Acciones vencidas, con escalamiento al jefe inmediato a los
+ *   2. Acciones vencidas, con escalamiento al lider inmediato a los
  *      diez dias y al nivel siguiente a los veinte.
  *   3. Documentos vigentes que se acercan a su fecha de revision.
  *   4. Riesgos que llegaron a su fecha de reevaluacion.

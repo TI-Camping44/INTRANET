@@ -78,7 +78,7 @@ export function FilaUsuario({
           <Seleccion
             name="superior_id"
             defaultValue={usuario.superior_id ?? ""}
-            aria-label={`Jefe inmediato de ${usuario.nombre_completo}`}
+            aria-label={`Líder inmediato de ${usuario.nombre_completo}`}
             className="h-8 w-auto min-w-[11rem] text-xs"
           >
             <option value="">Sin jefe asignado</option>

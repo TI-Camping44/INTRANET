@@ -169,7 +169,7 @@ export async function evaluarCompetencia(datos: FormData): Promise<ResultadoAcci
   if (!esAdministrador(usuario) && persona.superior_id !== usuario.id) {
     return {
       exito: false,
-      error: "Solo el jefe inmediato de esa persona o Calidad pueden evaluarla.",
+      error: "Solo el líder inmediato de esa persona o Calidad pueden evaluarla.",
     };
   }
 

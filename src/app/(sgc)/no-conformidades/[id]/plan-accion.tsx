@@ -46,7 +46,7 @@ interface Persona {
 
 /**
  * Plan de accion de la no conformidad. Cada accion tiene responsable y
- * fecha limite; el trabajo programado escala al jefe inmediato a los
+ * fecha limite; el trabajo programado escala al lider inmediato a los
  * diez dias de vencimiento sin resolucion.
  */
 export function PlanAccion({
@@ -252,7 +252,7 @@ export function PlanAccion({
               <DialogoTitulo>Nueva acción del plan</DialogoTitulo>
               <DialogoDescripcion>
                 Si no se resuelve dentro de los {DIAS_ESCALAMIENTO_NC} días posteriores al
-                vencimiento, el sistema notifica al jefe inmediato del responsable.
+                vencimiento, el sistema notifica al líder inmediato del responsable.
               </DialogoDescripcion>
             </DialogoCabecera>
 

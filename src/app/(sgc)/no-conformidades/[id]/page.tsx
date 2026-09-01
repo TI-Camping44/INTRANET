@@ -12,7 +12,6 @@ import {
 import { AnalisisCausaRaiz } from "@/app/(sgc)/no-conformidades/[id]/analisis-causa-raiz";
 import { ControlEstado } from "@/app/(sgc)/no-conformidades/[id]/control-estado";
 import { PlanAccion } from "@/app/(sgc)/no-conformidades/[id]/plan-accion";
-import { VinculoRiesgo } from "@/app/(sgc)/no-conformidades/[id]/vinculo-riesgo";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import {
@@ -23,11 +22,15 @@ import {
 } from "@/components/ui/tarjeta";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_EFICACIA, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
+import {
+  AREAS_ORGANIZACIONALES,
+  ETIQUETAS_EFICACIA,
+  ETIQUETAS_ORIGEN_NC,
+} from "@/lib/constantes";
 import { describirVencimiento, formatearFecha } from "@/lib/formato";
 import type {
+  AreaOrganizacional,
   EstadoNoConformidad,
-  NcIshikawa,
   NcPorque,
   OrigenNoConformidad,
   ResultadoEficacia,
@@ -44,6 +47,7 @@ interface NoConformidadDetalle {
   origen: OrigenNoConformidad;
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
+  area: AreaOrganizacional | null;
   requisito_incumplido: string | null;
   correccion_inmediata: string | null;
   conclusion_causa_raiz: string | null;
@@ -52,17 +56,15 @@ interface NoConformidadDetalle {
   fecha_cierre: string | null;
   eficacia: ResultadoEficacia;
   observacion_eficacia: string | null;
-  riesgo_id: string | null;
   es_demostracion: boolean;
+  detectado_por: string | null;
   responsable_id: string | null;
   proceso_id: string | null;
   procesos: { id: string; nombre: string } | null;
-  sedes: { nombre: string } | null;
-  normas: { codigo: string } | null;
+  empresa_afectada: { razon_social: string } | null;
   clientes: { razon_social: string } | null;
   responsable: { nombre_completo: string } | null;
   detector: { nombre_completo: string } | null;
-  riesgo: { id: string; codigo: string; titulo: string; nivel: number } | null;
 }
 
 export async function generateMetadata({
@@ -87,10 +89,10 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   const { data: consulta } = await supabase
     .from("no_conformidades")
     .select(
-      "*, procesos:proceso_id (id, nombre), sedes:sede_id (nombre), normas:norma_id (codigo), " +
+      "*, procesos:proceso_id (id, nombre), " +
+        "empresa_afectada:empresa_afectada_id (razon_social), " +
         "clientes:cliente_id (razon_social), responsable:responsable_id (nombre_completo), " +
-        "detector:detectado_por (nombre_completo), " +
-        "riesgo:riesgo_id (id, codigo, titulo, nivel)",
+        "detector:detectado_por (nombre_completo)",
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -98,35 +100,30 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   const noConformidad = consulta as unknown as NoConformidadDetalle | null;
   if (!noConformidad) notFound();
 
-  const [{ data: porques }, { data: causas }, { data: acciones }, { data: personas }, { data: riesgos }] =
-    await Promise.all([
-      supabase.from("nc_porques").select("*").eq("no_conformidad_id", params.id).order("orden"),
-      supabase
-        .from("nc_ishikawa")
-        .select("*")
-        .eq("no_conformidad_id", params.id)
-        .order("creado_en"),
-      supabase
-        .from("nc_acciones")
-        .select("*, responsable:responsable_id (nombre_completo)")
-        .eq("no_conformidad_id", params.id)
-        .order("fecha_limite"),
-      supabase
-        .from("usuarios")
-        .select("id, nombre_completo")
-        .eq("activo", true)
-        .order("nombre_completo"),
-      supabase
-        .from("riesgos")
-        .select("id, codigo, titulo, nivel")
-        .not("estado", "eq", "cerrado")
-        .order("codigo"),
-    ]);
+  const [{ data: porques }, { data: acciones }, { data: personas }] = await Promise.all([
+    supabase.from("nc_porques").select("*").eq("no_conformidad_id", params.id).order("orden"),
+    supabase
+      .from("nc_acciones")
+      .select("*, responsable:responsable_id (nombre_completo)")
+      .eq("no_conformidad_id", params.id)
+      .order("fecha_limite"),
+    supabase
+      .from("usuarios")
+      .select("id, nombre_completo")
+      .eq("activo", true)
+      .order("nombre_completo"),
+  ]);
 
-  // Puede tratar la desviación quien la detectó, su responsable, el
-  // responsable del proceso afectado o Calidad.
+  // Puede tratar la desviación quien la levantó, el responsable de la
+  // acción correctiva, el responsable del proceso afectado y Calidad.
+  //
+  // Quien la levantó estaba de más en esta lista y no debía: registraba
+  // la desviación y después no podía completar el análisis. RLS ya lo
+  // permitía; era la interfaz la que dejaba los campos apagados.
+  const esCalidad = usuario.rol === "administrador_sgc";
   const gestiona =
-    usuario.rol === "administrador_sgc" ||
+    esCalidad ||
+    noConformidad.detectado_por === usuario.id ||
     noConformidad.responsable_id === usuario.id ||
     (puedeGestionar(usuario) && noConformidad.proceso_id === usuario.proceso_id);
 
@@ -191,7 +188,6 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
               <AnalisisCausaRaiz
                 noConformidadId={noConformidad.id}
                 porques={(porques as NcPorque[] | null) ?? []}
-                causas={(causas as NcIshikawa[] | null) ?? []}
                 conclusion={noConformidad.conclusion_causa_raiz}
                 puedeEditar={gestiona}
               />
@@ -233,16 +229,28 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
+                <Dato
+                  etiqueta="Área"
+                  valor={
+                    noConformidad.area ? AREAS_ORGANIZACIONALES[noConformidad.area] : "—"
+                  }
+                />
+                <Dato
+                  etiqueta="Empresa"
+                  valor={noConformidad.empresa_afectada?.razon_social ?? "—"}
+                />
                 <Dato etiqueta="Proceso" valor={noConformidad.procesos?.nombre ?? "—"} />
-                <Dato etiqueta="Sede" valor={noConformidad.sedes?.nombre ?? "—"} />
-                <Dato etiqueta="Norma" valor={noConformidad.normas?.codigo ?? "—"} />
-                <Dato etiqueta="Cliente" valor={noConformidad.clientes?.razon_social ?? "—"} />
+                {/* El cliente solo aparece cuando lo hay: las no conformidades
+                    que nacen de un reclamo lo traen, las demás no. */}
+                {noConformidad.clientes ? (
+                  <Dato etiqueta="Cliente" valor={noConformidad.clientes.razon_social} />
+                ) : null}
                 <Dato
                   etiqueta="Detectada por"
                   valor={noConformidad.detector?.nombre_completo ?? "—"}
                 />
                 <Dato
-                  etiqueta="Responsable"
+                  etiqueta="Responsable de la AC"
                   valor={noConformidad.responsable?.nombre_completo ?? "Sin asignar"}
                 />
                 <Dato etiqueta="Detección" valor={formatearFecha(noConformidad.fecha_deteccion)} />
@@ -260,24 +268,6 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
             </TarjetaContenido>
           </Tarjeta>
 
-          <Tarjeta>
-            <TarjetaCabecera>
-              <TarjetaTitulo>Riesgo asociado</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              <VinculoRiesgo
-                noConformidadId={noConformidad.id}
-                riesgoVinculado={noConformidad.riesgo}
-                riesgosExistentes={
-                  (riesgos as { id: string; codigo: string; titulo: string; nivel: number }[] | null) ??
-                  []
-                }
-                causaRaiz={noConformidad.conclusion_causa_raiz}
-                puedeEditar={gestiona}
-              />
-            </TarjetaContenido>
-          </Tarjeta>
-
           {gestiona ? (
             <Tarjeta>
               <TarjetaCabecera>
@@ -289,7 +279,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
                   estado={noConformidad.estado}
                   eficacia={noConformidad.eficacia}
                   observacionEficacia={noConformidad.observacion_eficacia}
-                  puedeGestionar={gestiona}
+                  esCalidad={esCalidad}
                 />
               </TarjetaContenido>
             </Tarjeta>

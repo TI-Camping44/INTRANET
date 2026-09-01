@@ -53,7 +53,7 @@ export function Organigrama({ personas }: { personas: Persona[] }) {
     return (
       <EstadoVacio
         titulo="Sin personas cargadas"
-        descripcion="El organigrama se arma solo con el jefe inmediato de cada legajo."
+        descripcion="El organigrama se arma solo con el líder inmediato de cada legajo."
       />
     );
   }
@@ -67,7 +67,7 @@ export function Organigrama({ personas }: { personas: Persona[] }) {
       </ul>
 
       <p className="pt-3 text-[11px] leading-relaxed text-atenuado-contraste">
-        La jerarquía sale del jefe inmediato cargado en cada legajo. Si alguien está en el lugar
+        La jerarquía sale del líder inmediato cargado en cada legajo. Si alguien está en el lugar
         equivocado, se corrige desde Usuarios y roles y el organigrama se acomoda solo.
       </p>
     </div>

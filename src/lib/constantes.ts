@@ -5,7 +5,7 @@
  */
 
 import type {
-  CategoriaIshikawa,
+  AreaOrganizacional,
   EstadoAccion,
   EstadoActivo,
   EstadoAuditoria,
@@ -108,30 +108,92 @@ export const PREFIJO_CODIGO_DOCUMENTO: Record<TipoDocumento, string> = {
 // ---------------------------------------------------------------------
 // No conformidades
 // ---------------------------------------------------------------------
+/**
+ * Origen del hallazgo, con la redaccion del formulario de Calidad.
+ *
+ * Los valores del enumerado quedaron con el nombre que tenian: la
+ * etiqueta cambio, el significado no. "proveedor" es la evaluacion de
+ * asociados de negocio y "auditoria_externa" es la de certificacion,
+ * que es la unica auditoria externa que recibe la empresa.
+ */
 export const ETIQUETAS_ORIGEN_NC: Record<OrigenNoConformidad, string> = {
-  auditoria_interna: "Auditoría interna",
-  auditoria_externa: "Auditoría externa",
+  auditoria_interna: "Hallazgo de auditoría interna",
+  auditoria_externa: "Hallazgo de auditoría de certificación",
   reclamo_cliente: "Reclamo de cliente",
-  proceso_interno: "Proceso interno",
-  proveedor: "Proveedor",
+  proceso_interno: "Incumplimiento de procesos",
+  proveedor: "Evaluación de asociados de negocio",
+  requisito_legal: "Incumplimiento de requisitos legales",
   inspeccion: "Inspección",
-  requisito_legal: "Requisito legal",
   otro: "Otro",
 };
+
+/**
+ * Los seis origenes que Calidad ofrece hoy. "inspeccion" y "otro" siguen
+ * en el enumerado porque de un tipo de PostgreSQL no se saca un valor,
+ * pero no se ofrecen ni en el alta ni en los filtros.
+ */
+export const ORIGENES_NC_VIGENTES: OrigenNoConformidad[] = [
+  "auditoria_interna",
+  "auditoria_externa",
+  "reclamo_cliente",
+  "proceso_interno",
+  "proveedor",
+  "requisito_legal",
+];
 
 export const ETIQUETAS_SEVERIDAD_NC: Record<SeveridadNoConformidad, string> = {
   menor: "Menor",
   mayor: "Mayor",
-  critica: "Crítica",
+  observacion: "Observación/Recomendación",
 };
 
 export const ETIQUETAS_ESTADO_NC: Record<EstadoNoConformidad, string> = {
   abierta: "Abierta",
-  en_analisis: "En análisis",
   en_tratamiento: "En tratamiento",
-  en_verificacion: "En verificación",
   cerrada: "Cerrada",
+  en_analisis: "En análisis",
+  en_verificacion: "En verificación",
   anulada: "Anulada",
+};
+
+/**
+ * El ciclo de una no conformidad, en los tres pasos que lleva Calidad:
+ * se abre cuando se levanta, pasa a tratamiento cuando se completa la
+ * accion correctiva y se cierra cuando Calidad verifica que fue eficaz.
+ *
+ * Los tres estados intermedios del diseno original quedan en el
+ * enumerado por la misma razon que los origenes retirados, y la
+ * migracion 20260901000100 ya llevo los registros existentes a estos
+ * tres.
+ */
+export const ESTADOS_NC_VIGENTES: EstadoNoConformidad[] = [
+  "abierta",
+  "en_tratamiento",
+  "cerrada",
+];
+
+/**
+ * Areas de la organizacion. Es la dimension que Calidad mas pide para
+ * las no conformidades y la que Sofidya no permite: saber cuales son las
+ * de cada departamento.
+ *
+ * La misma lista esta en el CHECK de no_conformidades.area. Si cambia,
+ * cambia en los dos lados.
+ */
+export const AREAS_ORGANIZACIONALES: Record<AreaOrganizacional, string> = {
+  administracion: "Administración",
+  tesoreria_caja: "Tesorería/Caja",
+  creditos_cobranzas: "Créditos y Cobranzas",
+  contabilidad: "Contabilidad",
+  recepcion: "Recepción",
+  consumidor_final: "Consumidor Final",
+  mayorista: "Mayorista",
+  marketing: "Marketing",
+  logistica_operaciones: "Logística y Operaciones",
+  informatica: "Informática",
+  capital_humano: "Capital Humano",
+  gestion_calidad: "Gestión de Calidad",
+  directorio: "Directorio",
 };
 
 export const ETIQUETAS_TIPO_ACCION: Record<TipoAccion, string> = {
@@ -147,15 +209,6 @@ export const ETIQUETAS_ESTADO_ACCION: Record<EstadoAccion, string> = {
   ejecutada: "Ejecutada",
   verificada: "Verificada",
   cancelada: "Cancelada",
-};
-
-export const ETIQUETAS_ISHIKAWA: Record<CategoriaIshikawa, string> = {
-  metodo: "Método",
-  maquina: "Máquina",
-  mano_de_obra: "Mano de obra",
-  material: "Material",
-  medicion: "Medición",
-  medio_ambiente: "Medio ambiente",
 };
 
 export const ETIQUETAS_EFICACIA: Record<ResultadoEficacia, string> = {
@@ -207,14 +260,14 @@ export const ESTADOS_NC_ABIERTOS: EstadoNoConformidad[] = [
 ];
 
 /**
- * Plazo por defecto para cerrar una no conformidad recien abierta. El
- * mismo valor esta en generar_no_conformidad_desde_hallazgo() y
- * generar_no_conformidad_desde_respuesta(): si cambia, cambia en los dos
- * lados.
+ * Plazo para cerrar una no conformidad: diez dias corridos desde la
+ * deteccion, siempre. No se escribe a mano; lo fija el disparador
+ * fijar_limite_cierre_nc() para que valga por cualquier via de
+ * escritura. Si cambia, cambia en los dos lados.
  */
-export const DIAS_LIMITE_CIERRE_NC = 30;
+export const DIAS_LIMITE_CIERRE_NC = 10;
 
-/** Dias sin resolver a partir de los cuales se escala al jefe inmediato. */
+/** Dias sin resolver a partir de los cuales se escala al lider inmediato. */
 export const DIAS_ESCALAMIENTO_NC = 10;
 
 /** Segundo nivel de escalamiento. */

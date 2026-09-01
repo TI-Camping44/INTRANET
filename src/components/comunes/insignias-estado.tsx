@@ -41,10 +41,12 @@ export function InsigniaEstadoDocumento({ estado }: { estado: EstadoDocumento })
 
 const VARIANTE_ESTADO_NC: Record<EstadoNoConformidad, Variante> = {
   abierta: "peligro",
-  en_analisis: "atencion",
   en_tratamiento: "advertencia",
-  en_verificacion: "primaria",
   cerrada: "exito",
+  // Estados retirados del ciclo. Quedan por si algun registro viejo los
+  // conserva: la insignia tiene que saber pintarlos igual.
+  en_analisis: "atencion",
+  en_verificacion: "primaria",
   anulada: "contorno",
 };
 
@@ -57,7 +59,7 @@ export function InsigniaEstadoNC({ estado }: { estado: EstadoNoConformidad }) {
 const VARIANTE_SEVERIDAD: Record<SeveridadNoConformidad, Variante> = {
   menor: "neutra",
   mayor: "atencion",
-  critica: "peligro",
+  observacion: "contorno",
 };
 
 export function InsigniaSeveridad({ severidad }: { severidad: SeveridadNoConformidad }) {
