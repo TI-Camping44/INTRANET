@@ -268,17 +268,33 @@ export function MuroPublicaciones({
                       {publicacion.titulo}
                     </h3>
 
+                    {/* `object-contain` y no `cover`: la mitad de lo que se
+                        publica son capturas de texto —una circular, una
+                        pauta— y recortarlas corta la frase al medio.
+                        El marco es `inline-block` para que se ajuste a la
+                        imagen: con `block` una captura vertical quedaba en
+                        el medio de una caja del ancho de la tarjeta, rodeada
+                        de vacio. Al hacer clic se abre en grande. */}
                     {publicacion.imagen ? (
-                      // Sin next/image: la direccion es un enlace firmado
-                      // que cambia en cada carga, asi que el optimizador no
-                      // tendria nada estable que cachear.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={publicacion.imagen}
-                        alt=""
-                        className="mt-2 max-h-72 w-full rounded-md border border-borde object-cover"
-                        loading="lazy"
-                      />
+                      <a
+                        href={publicacion.imagen}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-block max-w-full cursor-zoom-in overflow-hidden
+                                   rounded-md border border-borde"
+                        title="Abrir la imagen en grande"
+                      >
+                        {/* Sin next/image: la direccion es un enlace firmado
+                            que cambia en cada carga, asi que el optimizador
+                            no tendria nada estable que cachear. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={publicacion.imagen}
+                          alt=""
+                          className="block max-h-[22rem] w-auto max-w-full object-contain"
+                          loading="lazy"
+                        />
+                      </a>
                     ) : null}
 
                     <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-atenuado-contraste">
