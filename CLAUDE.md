@@ -260,7 +260,7 @@ en la base de datos y en `src/lib/`.
 | Matriz de riesgos 5×5, nivel = P × I | `etiqueta_nivel_riesgo()` en SQL y `lib/riesgos.ts` |
 | Semáforo: 1-4 bajo, 5-9 medio, 10-14 alto, 15-25 crítico | Los mismos dos lugares |
 | Reevaluación: crítico 30 días, alto 90, medio 180, bajo anual | `dias_reevaluacion_riesgo()` y `lib/riesgos.ts` |
-| Escalamiento de acciones: 10 días al jefe, 20 al nivel siguiente | `lib/constantes.ts` y `api/cron/alertas` |
+| Escalamiento de acciones: 10 días al líder inmediato, 20 al nivel siguiente | `lib/constantes.ts` y `api/cron/alertas` |
 | Aviso de revisión de documentos: 30 días antes | `DIAS_AVISO_REVISION_DOCUMENTO` |
 | Versionado: v00 inicial, sube en cada aprobación | `sincronizar_documento_al_aprobar()` |
 | Código de documento: `MP-SOP-01`, `F-SOP-08-01`, `P-SOP-01-01`. Los de contexto y las políticas no llevan: la columna admite vacío | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
@@ -271,13 +271,20 @@ en la base de datos y en `src/lib/`.
 | Ejecutar un mantenimiento reagenda el siguiente según la frecuencia del activo | `sincronizar_activo_al_mantener()` |
 | Competencias: escala 1 a 5; la brecha es exigido menos alcanzado | `brecha` generada en SQL y `NIVELES_COMPETENCIA` |
 | El nivel exigido sale de la matriz del puesto de la persona, no se escribe a mano | `evaluarCompetencia()` |
-| Solo el jefe inmediato o Calidad evalúan a una persona | `evaluarCompetencia()` |
+| Solo el líder inmediato o Calidad evalúan a una persona | `evaluarCompetencia()` |
 | La eficacia de una capacitación se verifica por persona, no por curso | `verificarEficacia()` y `capacitacion_participantes.eficacia` |
 | NPS = % promotores (9-10) menos % detractores (0-6); los pasivos cuentan en el denominador | `resumirNps()` y `categoria_nps` generada en SQL |
 | Solo un detractor con comentario genera no conformidad, de origen `reclamo_cliente` | `generar_no_conformidad_desde_respuesta()` |
 | Un mes con menos de 5 respuestas no se grafica: el índice deja de significar algo | `RESPUESTAS_MINIMAS_NPS` |
 | Solo puede haber una publicación fijada a la vez | `fijarPublicacion()` |
-| Plazo por defecto para cerrar una NC recién abierta: 30 días | `DIAS_LIMITE_CIERRE_NC` y las funciones que generan NC |
+| Plazo para cerrar una NC: **10 días corridos desde la detección, siempre**. No se escribe a mano | Disparador `completar_no_conformidad()` y `DIAS_LIMITE_CIERRE_NC` |
+| Origen de la NC: los seis del formulario de Calidad. Los valores del enumerado conservan su nombre viejo; lo que cambió es la etiqueta | `ETIQUETAS_ORIGEN_NC` y `ORIGENES_NC_VIGENTES` |
+| Severidad de la NC: Menor, Mayor, Observación/Recomendación. «Crítica» no existe en Camping 44 | `ETIQUETAS_SEVERIDAD_NC` y el enumerado `severidad_no_conformidad` |
+| Ciclo de la NC en tres estados: abierta, en tratamiento, cerrada | `ESTADOS_NC_VIGENTES` |
+| Cerrar una NC es atribución de Calidad, y solo con la eficacia verificada | Disparador `controlar_cierre_nc()` y `cambiarEstadoNoConformidad()` |
+| La NC dice a qué **área** de las trece corresponde, y a qué **empresa** del grupo | `AREAS_ORGANIZACIONALES` y el `CHECK` de `no_conformidades.area` |
+| Causa raíz: los cinco porqués, los cinco obligatorios. Sin Ishikawa | `guardarPorques()` y `analisis-causa-raiz.tsx` |
+| Archivo del documento: PDF para manual, procedimiento, instructivo, política y plan; formato editable para formulario y registro | `FORMATO_POR_TIPO` en `lib/adjuntos.ts` |
 
 ### Decisiones tomadas por defecto
 
@@ -287,9 +294,15 @@ Quedaron así por falta de definición explícita. Son reversibles:
   exige confirmación.
 - **Flujo documental**: un elaborador, uno o más revisores, un aprobador.
 - **Alta de usuarios**: el perfil se crea en el primer ingreso con rol
-  Colaborador; el Administrador SGC ajusta rol y jefe inmediato.
+  Colaborador; el Administrador SGC ajusta rol y líder inmediato.
 - **Adjuntos**: 20 MB, PDF, Office e imágenes.
 - **Logotipo**: tipográfico en SVG, a la espera del oficial en vectores.
+- **Las solicitudes por área NO se absorben**: los seis formularios de
+  Apps Script —TI, Logística, Marketing, Administración, Calidad y compra
+  interna— se enlazan desde Aplicaciones y siguen viviendo en Workspace.
+  Se evaluó traerlos adentro y se decidió que no: funcionan, están en uso
+  y reemplazarlos era mucho trabajo para no cambiar nada que la gente
+  note. La razón está escrita en `lib/aplicaciones.ts`.
 
 > **Los códigos de documento del proyecto están sin confirmar.** `MP-SOP-XX`
 > y `F-XXX-XX-XX` los definí yo a falta de dato. El Drive muestra que la
@@ -351,19 +364,37 @@ Riesgos y oportunidades · Auditorías internas · Indicadores y objetivos ·
 Satisfacción del cliente · Recursos humanos · Proveedores ·
 Infraestructura y activos.
 
+Y **Aplicaciones**, que reúne los catálogos, tableros y formularios de
+pedido que la empresa ya tenía publicados y que hasta ahora había que
+conocer de memoria. No los reemplaza: los enlaza. La lista está en
+`lib/aplicaciones.ts`.
+
 > La raíz lleva a `/inicio`, no al panel de calidad: el SGC es una
 > sección de la intranet, no la portada.
 
-### Lo que falta para poner el sistema en producción
+### Ya está en producción
 
-No es trabajo de pantallas, es de puesta en marcha:
+- Credenciales cargadas y despliegue andando en Vercel, proyecto
+  **intranet-sgc-camping44**. El framework va declarado en `vercel.json`
+  y no en los ajustes del panel: sin eso Vercel compila y después busca
+  una carpeta `public/` que este proyecto no tiene, y el despliegue
+  termina en error.
+- Datos reales cargados y seed retirado: 19 procesos, 58 documentos,
+  84 activos, 30 objetivos del PE 2026, 17 puestos.
+- Módulo de no conformidades rehecho según la revisión de Calidad del
+  1 de septiembre.
 
-1. **Credenciales**: proyecto de Supabase, cliente de OAuth de Google,
-   contraseña de aplicación del SMTP de Workspace, proyecto en Vercel.
+### Lo que falta para terminar la puesta en marcha
+
+1. **Que la gente ingrese.** El perfil se crea en el primer ingreso con
+   Google, así que hasta que entren no se les puede asignar nada.
 2. **Ingesta del panel de NPS** (Apps Script y GitHub Pages), que **no se
    reemplaza**: escribe en `encuesta_respuestas` usando `fuente_externa`
    y `referencia_externa`, que es lo que evita duplicar respuestas.
-3. **Datos reales en lugar del seed**: mapa de procesos, procedimientos
-   vigentes, histórico de no conformidades y matriz de riesgos.
-4. **Importación desde Sofidya** con `scripts/migrar-sofidya.ts` y la
-   `SecretKey` en variable de entorno.
+3. **Definiciones de Calidad**: los códigos de puesto (`P-101` en
+   adelante los definió el proyecto, no Calidad), los doce documentos
+   cargados sin código, y si «Gestión Regulatoria» entra al mapa de
+   procesos —tiene catorce objetivos y ningún proceso que los sostenga.
+4. **Riesgos y oportunidades**, que se rehace con Calidad.
+5. **Selector de Drive**: el código está; falta la configuración en
+   Google Cloud. Ver `docs/selector-drive.md`.
