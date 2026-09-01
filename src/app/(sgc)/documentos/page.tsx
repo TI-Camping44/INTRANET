@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FileText, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
+import { PestanasListado } from "@/components/comunes/pestanas-listado";
 import {
   InsigniaDemostracion,
   InsigniaEstadoDocumento,
@@ -20,11 +21,7 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import {
-  DIAS_AVISO_REVISION_DOCUMENTO,
-  ETIQUETAS_ESTADO_DOCUMENTO,
-  ETIQUETAS_TIPO_DOCUMENTO,
-} from "@/lib/constantes";
+import { DIAS_AVISO_REVISION_DOCUMENTO, ETIQUETAS_TIPO_DOCUMENTO } from "@/lib/constantes";
 import { describirVencimiento, formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { diasHasta } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
@@ -35,42 +32,58 @@ export const dynamic = "force-dynamic";
 
 interface FilaDocumento {
   id: string;
-  codigo: string;
+  codigo: string | null;
   titulo: string;
   tipo: TipoDocumento;
   estado: EstadoDocumento;
   version_actual: number;
   fecha_proxima_revision: string | null;
   es_demostracion: boolean;
-  procesos: { nombre: string } | null;
-  responsable: { nombre_completo: string } | null;
 }
+
+/**
+ * Las tres listas del control documental.
+ *
+ * No son un filtro sobre una sola lista: son tres conjuntos distintos.
+ * Lo vigente es lo que la gente tiene que leer y aplicar; lo obsoleto se
+ * conserva porque la norma lo exige, no porque se consulte. Mezclarlos
+ * en una sola tabla es lo que hace que alguien trabaje con la version
+ * equivocada.
+ */
+const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> = {
+  vigentes: { etiqueta: "Vigentes", estados: ["vigente"] },
+  "en-proceso": { etiqueta: "En elaboración", estados: ["borrador", "en_revision"] },
+  obsoletos: { etiqueta: "Obsoletos", estados: ["obsoleto"] },
+};
 
 export default async function PaginaDocumentos({
   searchParams,
 }: {
-  searchParams: { q?: string; estado?: string; tipo?: string; proceso?: string; filtro?: string };
+  searchParams: { q?: string; vista?: string; tipo?: string; proceso?: string; filtro?: string };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const { data: procesos } = await supabase
-    .from("procesos")
-    .select("id, nombre")
-    .eq("activo", true)
-    .order("nombre");
+  const vista = searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "vigentes";
+  const { estados } = VISTAS[vista];
+
+  const [{ data: procesos }, { data: todos }] = await Promise.all([
+    supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+    // Para rotular cada pestaña con su cantidad hace falta el estado de
+    // todos los documentos, no solo el de los de la vista actual.
+    supabase.from("documentos").select("estado"),
+  ]);
 
   let consulta = supabase
     .from("documentos")
     .select(
-      "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, es_demostracion, " +
-        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
+      "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, es_demostracion",
     )
+    .in("estado", estados)
     // Los documentos sin codigo controlado (contexto, politicas) van al
     // final: la lista se lee por codigo.
     .order("codigo", { nullsFirst: false });
 
-  if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
   if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
   if (searchParams.q) {
@@ -78,13 +91,21 @@ export default async function PaginaDocumentos({
     consulta = consulta.or(`codigo.ilike.${texto},titulo.ilike.${texto}`);
   }
   if (searchParams.filtro === "por-revisar") {
-    consulta = consulta
-      .eq("estado", "vigente")
-      .lte("fecha_proxima_revision", sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO));
+    consulta = consulta.lte(
+      "fecha_proxima_revision",
+      sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO),
+    );
   }
 
   const { data, error } = await consulta;
   const documentos = (data as FilaDocumento[] | null) ?? [];
+
+  const estadosCargados = (todos as { estado: EstadoDocumento }[] | null) ?? [];
+  const vistas = Object.entries(VISTAS).map(([valor, { etiqueta, estados: suyos }]) => ({
+    valor,
+    etiqueta,
+    cantidad: estadosCargados.filter((documento) => suyos.includes(documento.estado)).length,
+  }));
 
   return (
     <>
@@ -102,16 +123,16 @@ export default async function PaginaDocumentos({
         }
       />
 
+      <PestanasListado
+        nombre="vista"
+        ruta="/documentos"
+        actual={vista}
+        vistas={vistas}
+        parametros={searchParams}
+      />
+
       <FiltrosListado
         campos={[
-          {
-            nombre: "estado",
-            etiqueta: "Estado",
-            opciones: Object.entries(ETIQUETAS_ESTADO_DOCUMENTO).map(([valor, etiqueta]) => ({
-              valor,
-              etiqueta,
-            })),
-          },
           {
             nombre: "tipo",
             etiqueta: "Tipo",
@@ -140,10 +161,18 @@ export default async function PaginaDocumentos({
       ) : documentos.length === 0 ? (
         <EstadoVacio
           icono={<FileText className="size-6" />}
-          titulo="No hay documentos que coincidan"
-          descripcion="Ajuste los filtros o cree el primer documento del sistema."
+          titulo={
+            vista === "obsoletos"
+              ? "No hay documentos obsoletos"
+              : "No hay documentos que coincidan"
+          }
+          descripcion={
+            vista === "obsoletos"
+              ? "Cuando un documento se reemplaza por una versión nueva, la anterior queda acá."
+              : "Ajuste los filtros o cree el primer documento del sistema."
+          }
           accion={
-            puedeGestionar(usuario) ? (
+            puedeGestionar(usuario) && vista !== "obsoletos" ? (
               <Boton comoHijo tamano="pequeno">
                 <Link href="/documentos/nuevo">
                   <Plus /> Nuevo documento
@@ -160,10 +189,12 @@ export default async function PaginaDocumentos({
                 <TablaEncabezado className="w-[9rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Título</TablaEncabezado>
                 <TablaEncabezado className="hidden md:table-cell">Tipo</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Responsable</TablaEncabezado>
                 <TablaEncabezado className="w-[5rem]">Versión</TablaEncabezado>
-                <TablaEncabezado className="w-[7rem]">Estado</TablaEncabezado>
+                {/* En «Vigentes» la columna de estado diría lo mismo en
+                    todas las filas: la pestaña ya lo dice. */}
+                {vista === "vigentes" ? null : (
+                  <TablaEncabezado className="w-[7rem]">Estado</TablaEncabezado>
+                )}
                 <TablaEncabezado className="hidden xl:table-cell">Próxima revisión</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
@@ -194,18 +225,14 @@ export default async function PaginaDocumentos({
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                       {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo]}
                     </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {documento.procesos?.nombre ?? "—"}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {documento.responsable?.nombre_completo ?? "—"}
-                    </TablaCelda>
                     <TablaCelda className="tabular text-xs">
                       v{String(documento.version_actual).padStart(2, "0")}
                     </TablaCelda>
-                    <TablaCelda>
-                      <InsigniaEstadoDocumento estado={documento.estado} />
-                    </TablaCelda>
+                    {vista === "vigentes" ? null : (
+                      <TablaCelda>
+                        <InsigniaEstadoDocumento estado={documento.estado} />
+                      </TablaCelda>
+                    )}
                     <TablaCelda className="hidden text-xs xl:table-cell">
                       {documento.fecha_proxima_revision ? (
                         <span className={porVencer ? "text-semaforo-alto" : "text-atenuado-contraste"}>
@@ -229,7 +256,14 @@ export default async function PaginaDocumentos({
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {documentos.length} documento{documentos.length === 1 ? "" : "s"} en el listado.
+        {documentos.length}{" "}
+        {vista === "obsoletos"
+          ? `documento${documentos.length === 1 ? "" : "s"} obsoleto${documentos.length === 1 ? "" : "s"}`
+          : `documento${documentos.length === 1 ? "" : "s"} en el listado`}
+        .{" "}
+        {vista === "vigentes"
+          ? "Es lo que está en vigencia hoy; las versiones reemplazadas están en «Obsoletos»."
+          : null}
       </p>
     </>
   );

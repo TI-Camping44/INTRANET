@@ -9,6 +9,7 @@ import {
   InsigniaEstadoDocumento,
 } from "@/components/comunes/insignias-estado";
 import { AccionesDocumento } from "@/app/(sgc)/documentos/[id]/acciones-documento";
+import { PanelArchivos, type ArchivoAdjunto } from "@/app/(sgc)/documentos/[id]/panel-archivos";
 import { PanelDifusion } from "@/app/(sgc)/documentos/[id]/panel-difusion";
 import { PanelRevision } from "@/app/(sgc)/documentos/[id]/panel-revision";
 import { Boton } from "@/components/ui/boton";
@@ -94,6 +95,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     { data: difusion },
     { data: personas },
     { data: procesos },
+    { data: archivos },
   ] = await Promise.all([
     supabase
       .from("documento_versiones")
@@ -107,6 +109,12 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     supabase.from("documento_difusion").select("usuario_id, proceso_id").eq("documento_id", params.id),
     supabase.from("usuarios").select("id, nombre_completo").eq("activo", true).order("nombre_completo"),
     supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase
+      .from("adjuntos")
+      .select("id, nombre_archivo, tamano_bytes, creado_en, subido:subido_por (nombre_completo)")
+      .eq("entidad", "documentos")
+      .eq("entidad_id", params.id)
+      .order("creado_en", { ascending: false }),
   ]);
 
   const listaVersiones = versiones ?? [];
@@ -286,6 +294,20 @@ export default async function PaginaDocumento({ params }: { params: { id: string
               </TarjetaContenido>
             </Tarjeta>
           ) : null}
+
+          <Tarjeta>
+            <TarjetaCabecera>
+              <TarjetaTitulo>Archivos</TarjetaTitulo>
+            </TarjetaCabecera>
+            <TarjetaContenido>
+              <PanelArchivos
+                documentoId={documento.id}
+                tipo={documento.tipo}
+                archivos={(archivos as unknown as ArchivoAdjunto[] | null) ?? []}
+                puedeGestionar={gestiona}
+              />
+            </TarjetaContenido>
+          </Tarjeta>
 
           <Tarjeta>
             <TarjetaCabecera>

@@ -5,6 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { notificar, notificarAVarios } from "@/lib/notificaciones";
 import { PREFIJO_CODIGO_DOCUMENTO } from "@/lib/constantes";
+import { BUCKET_DOCUMENTOS, motivoDeRechazo, rutaDeArchivo } from "@/lib/adjuntos";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
@@ -505,4 +506,131 @@ export async function confirmarRevisionSinCambios(
 
   revalidatePath(`/documentos/${documentoId}`);
   return { exito: true, mensaje: "Revisión registrada sin cambios de contenido." };
+}
+
+// ---------------------------------------------------------------------
+// Archivos del documento
+// ---------------------------------------------------------------------
+// La intranet pasa a guardar el archivo, no solo a enlazarlo. Es lo que
+// pidio Calidad para dejar de depender del Drive: si el archivo vive
+// aca, la version que la gente abre es la que el sistema dice que rige.
+//
+// El bucket es privado. Nada se entrega por URL directa: cada descarga
+// pide un enlace firmado que dura minutos.
+
+/** Sube el archivo del documento y lo deja registrado en `adjuntos`. */
+export async function subirArchivoDocumento(
+  documentoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite subir archivos al sistema documental." };
+  }
+
+  const archivo = datos.get("archivo");
+  if (!(archivo instanceof File)) {
+    return { exito: false, error: "Elija un archivo para subir." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, tipo, codigo, titulo")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  if (!documento) return { exito: false, error: "El documento no existe." };
+
+  // La regla de formato por tipo se controla aca, no en el navegador: el
+  // "accept" del selector es comodidad, no control.
+  const motivo = motivoDeRechazo(documento.tipo as TipoDocumento, archivo.name, archivo.size);
+  if (motivo) return { exito: false, error: motivo };
+
+  const ruta = rutaDeArchivo(documentoId, archivo.name);
+
+  const { error: errorCarga } = await supabase.storage
+    .from(BUCKET_DOCUMENTOS)
+    .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+
+  if (errorCarga) {
+    return { exito: false, error: `No se pudo subir el archivo: ${errorCarga.message}` };
+  }
+
+  const { error } = await supabase.from("adjuntos").insert({
+    empresa_id: usuario.empresa_id,
+    entidad: "documentos",
+    entidad_id: documentoId,
+    nombre_archivo: archivo.name,
+    ruta,
+    bucket: BUCKET_DOCUMENTOS,
+    tamano_bytes: archivo.size,
+    tipo_mime: archivo.type || null,
+    subido_por: usuario.id,
+  });
+
+  if (error) {
+    // El archivo ya esta arriba: si no se pudo registrar, se retira para
+    // no dejar un huerfano en el bucket que nadie sabe de quien es.
+    await supabase.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
+    return { exito: false, error: `No se pudo registrar el archivo: ${error.message}` };
+  }
+
+  revalidatePath(`/documentos/${documentoId}`);
+  return { exito: true, mensaje: `${archivo.name} quedó adjunto al documento.` };
+}
+
+/**
+ * Devuelve un enlace firmado para abrir el archivo.
+ *
+ * Dura cinco minutos: alcanza para abrirlo y no para dejarlo pegado en un
+ * chat y que lo abra cualquiera dentro de un mes.
+ */
+export async function enlaceDeArchivo(adjuntoId: string): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data: adjunto } = await supabase
+    .from("adjuntos")
+    .select("bucket, ruta, nombre_archivo")
+    .eq("id", adjuntoId)
+    .maybeSingle();
+
+  if (!adjunto) return { exito: false, error: "El archivo no existe o no tiene acceso." };
+
+  const { data, error } = await supabase.storage
+    .from(adjunto.bucket)
+    .createSignedUrl(adjunto.ruta, 300, { download: adjunto.nombre_archivo });
+
+  if (error || !data) {
+    return { exito: false, error: `No se pudo generar el enlace: ${error?.message ?? ""}` };
+  }
+
+  return { exito: true, mensaje: data.signedUrl };
+}
+
+/** Quita un archivo del documento: primero el registro, despues el objeto. */
+export async function eliminarArchivoDocumento(
+  adjuntoId: string,
+  documentoId: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data: adjunto } = await supabase
+    .from("adjuntos")
+    .select("bucket, ruta")
+    .eq("id", adjuntoId)
+    .maybeSingle();
+
+  if (!adjunto) return { exito: false, error: "El archivo no existe o no tiene acceso." };
+
+  const { error } = await supabase.from("adjuntos").delete().eq("id", adjuntoId);
+  if (error) return { exito: false, error: `No se pudo eliminar el archivo: ${error.message}` };
+
+  await supabase.storage.from(adjunto.bucket).remove([adjunto.ruta]);
+
+  revalidatePath(`/documentos/${documentoId}`);
+  return { exito: true, mensaje: "Archivo eliminado." };
 }
