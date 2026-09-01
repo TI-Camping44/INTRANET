@@ -27,7 +27,7 @@ export default async function PaginaAplicaciones() {
     <>
       <EncabezadoPagina
         titulo="Aplicaciones"
-        descripcion="Los catálogos, tableros e informes de Camping 44, en un solo lugar."
+        descripcion="Los formularios, catálogos, tableros e informes de Camping 44, en un solo lugar."
       />
 
       <div className="space-y-8">
