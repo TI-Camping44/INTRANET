@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Download, Paperclip, Trash2, Upload } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { SelectorDrive } from "@/components/comunes/selector-drive";
 import {
   eliminarArchivoDocumento,
   enlaceDeArchivo,
@@ -155,16 +156,22 @@ export function PanelArchivos({
               if (archivo) subir(archivo);
             }}
           />
-          <Boton
-            variante="contorno"
-            tamano="pequeno"
-            cargando={subiendo}
-            onClick={() => entrada.current?.click()}
-          >
-            <Upload /> Subir archivo
-          </Boton>
+          <div className="flex flex-wrap gap-2">
+            {/* Los dos orígenes terminan en la misma función: el archivo
+                pasa por las mismas validaciones venga de donde venga. */}
+            <SelectorDrive tipoDocumento={tipo} onElegir={subir} deshabilitado={subiendo} />
+            <Boton
+              variante="contorno"
+              tamano="pequeno"
+              cargando={subiendo}
+              onClick={() => entrada.current?.click()}
+            >
+              <Upload /> Desde la computadora
+            </Boton>
+          </div>
           <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
-            {FORMATO_POR_TIPO[tipo].explicacion} Hasta 20 MB por archivo.
+            {FORMATO_POR_TIPO[tipo].explicacion} Hasta 20 MB por archivo. Los documentos y
+            planillas de Google se convierten al elegirlos.
           </p>
         </div>
       ) : null}
