@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Archive,
   Award,
   CalendarDays,
+  FileText,
+  ImagePlus,
   Megaphone,
   PackagePlus,
   Pin,
@@ -36,6 +39,7 @@ import {
   fijarPublicacion,
 } from "@/app/(sgc)/inicio/acciones";
 import { formatearFechaHora, hoyEnAsuncion } from "@/lib/formato";
+import { ACEPTA_IMAGEN, motivoDeRechazoImagen, TAMANO_MAXIMO_IMAGEN } from "@/lib/imagenes";
 import {
   ETIQUETAS_TIPO_PUBLICACION,
   resumirPublicacion,
@@ -57,6 +61,10 @@ export interface Publicacion {
   autor: { nombre_completo: string; url_avatar: string | null } | null;
   referido: { nombre_completo: string; url_avatar: string | null } | null;
   procesos: { nombre: string } | null;
+  /** Enlace firmado de la imagen, ya resuelto en el servidor. */
+  imagen: string | null;
+  /** Documento que originó el anuncio, cuando lo hay. */
+  documento: { id: string; codigo: string | null; titulo: string } | null;
 }
 
 const ICONOS: Record<TipoPublicacion, React.ComponentType<{ className?: string }>> = {
@@ -98,6 +106,8 @@ export function MuroPublicaciones({
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
   const [abierto, definirAbierto] = React.useState(false);
+  const entradaImagen = React.useRef<HTMLInputElement>(null);
+  const [nombreImagen, definirNombreImagen] = React.useState<string | null>(null);
   const [filtro, definirFiltro] = React.useState<Filtro>("todas");
   const [abierta, definirAbierta] = React.useState<string | null>(null);
 
@@ -219,6 +229,19 @@ export function MuroPublicaciones({
                       {publicacion.titulo}
                     </h3>
 
+                    {publicacion.imagen ? (
+                      // Sin next/image: la direccion es un enlace firmado
+                      // que cambia en cada carga, asi que el optimizador no
+                      // tendria nada estable que cachear.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={publicacion.imagen}
+                        alt=""
+                        className="mt-2 max-h-72 w-full rounded-md border border-borde object-cover"
+                        loading="lazy"
+                      />
+                    ) : null}
+
                     <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-atenuado-contraste">
                       {desplegada
                         ? publicacion.cuerpo
@@ -233,6 +256,24 @@ export function MuroPublicaciones({
                       >
                         {desplegada ? "Ver menos" : "Leer todo"}
                       </button>
+                    ) : null}
+
+                    {/* En su propia fila: si no, queda pegado al «Leer
+                        todo», que es un boton inline. */}
+                    {publicacion.documento ? (
+                      <div className="mt-2">
+                        <Link
+                          href={`/documentos/${publicacion.documento.id}`}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-medium
+                                     text-primario hover:underline"
+                        >
+                          <FileText className="size-3.5" />
+                          Ver{" "}
+                          {publicacion.documento.codigo
+                            ? publicacion.documento.codigo
+                            : publicacion.documento.titulo}
+                        </Link>
+                      </div>
                     ) : null}
 
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -345,6 +386,50 @@ export function MuroPublicaciones({
 
               <GrupoCampo etiqueta="Cuerpo" htmlFor="cuerpo" requerido>
                 <AreaTexto id="cuerpo" name="cuerpo" rows={6} required minLength={10} />
+              </GrupoCampo>
+
+              <GrupoCampo
+                etiqueta="Imagen"
+                htmlFor="imagen"
+                ayuda={`Opcional. PNG, JPG o WebP, hasta ${TAMANO_MAXIMO_IMAGEN / (1024 * 1024)} MB. Se ve en la tarjeta del muro.`}
+              >
+                <div className="flex items-center gap-2">
+                  <Boton
+                    type="button"
+                    variante="contorno"
+                    tamano="pequeno"
+                    onClick={() => entradaImagen.current?.click()}
+                  >
+                    <ImagePlus /> Elegir imagen
+                  </Boton>
+                  <span className="min-w-0 truncate text-[11px] text-atenuado-contraste">
+                    {nombreImagen ?? "Ninguna elegida"}
+                  </span>
+                </div>
+                <input
+                  ref={entradaImagen}
+                  id="imagen"
+                  name="imagen"
+                  type="file"
+                  accept={ACEPTA_IMAGEN}
+                  className="sr-only"
+                  onChange={(evento) => {
+                    const elegida = evento.target.files?.[0];
+                    if (!elegida) return definirNombreImagen(null);
+
+                    // El control de verdad esta en la accion de servidor.
+                    // Este evita que alguien espere una subida de 20 MB
+                    // para que despues se la rechacen.
+                    const motivo = motivoDeRechazoImagen(elegida.name, elegida.size);
+                    if (motivo) {
+                      toast.error(motivo);
+                      evento.target.value = "";
+                      definirNombreImagen(null);
+                      return;
+                    }
+                    definirNombreImagen(elegida.name);
+                  }}
+                />
               </GrupoCampo>
 
               <div className="grid gap-3 sm:grid-cols-2">

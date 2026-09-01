@@ -9,6 +9,7 @@ import {
   InsigniaEstadoDocumento,
 } from "@/components/comunes/insignias-estado";
 import { AccionesDocumento } from "@/app/(sgc)/documentos/[id]/acciones-documento";
+import { PanelAnuncio, type AnuncioPrevio } from "@/app/(sgc)/documentos/[id]/panel-anuncio";
 import { PanelArchivos, type ArchivoAdjunto } from "@/app/(sgc)/documentos/[id]/panel-archivos";
 import { PanelDifusion } from "@/app/(sgc)/documentos/[id]/panel-difusion";
 import { PanelRevision } from "@/app/(sgc)/documentos/[id]/panel-revision";
@@ -27,6 +28,7 @@ import {
   ETIQUETAS_TIPO_DOCUMENTO,
 } from "@/lib/constantes";
 import { describirVencimiento, formatearFecha, formatearFechaHora } from "@/lib/formato";
+import type { TipoDocumento } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +98,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     { data: personas },
     { data: procesos },
     { data: archivos },
+    { data: anuncios },
   ] = await Promise.all([
     supabase
       .from("documento_versiones")
@@ -115,6 +118,11 @@ export default async function PaginaDocumento({ params }: { params: { id: string
       .eq("entidad", "documentos")
       .eq("entidad_id", params.id)
       .order("creado_en", { ascending: false }),
+    supabase
+      .from("publicaciones")
+      .select("id, titulo, fecha_publicacion")
+      .eq("documento_id", params.id)
+      .order("fecha_publicacion", { ascending: false, nullsFirst: false }),
   ]);
 
   const listaVersiones = versiones ?? [];
@@ -294,6 +302,27 @@ export default async function PaginaDocumento({ params }: { params: { id: string
               </TarjetaContenido>
             </Tarjeta>
           ) : null}
+
+          <Tarjeta>
+            <TarjetaCabecera>
+              <TarjetaTitulo>Anuncio en Inicio</TarjetaTitulo>
+            </TarjetaCabecera>
+            <TarjetaContenido>
+              <PanelAnuncio
+                documentoId={documento.id}
+                documento={{
+                  codigo: documento.codigo,
+                  titulo: documento.titulo,
+                  tipo: documento.tipo as TipoDocumento,
+                  estado: documento.estado,
+                  version_actual: documento.version_actual,
+                  fecha_aprobacion: documento.fecha_aprobacion,
+                }}
+                anunciosPrevios={(anuncios as AnuncioPrevio[] | null) ?? []}
+                puedeGestionar={gestiona}
+              />
+            </TarjetaContenido>
+          </Tarjeta>
 
           <Tarjeta>
             <TarjetaCabecera>

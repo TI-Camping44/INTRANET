@@ -13,6 +13,7 @@ import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
 import { PUBLICACIONES_EN_INICIO, estaVigente } from "@/lib/publicaciones";
+import { BUCKET_IMAGENES, DURACION_ENLACE_IMAGEN, esRutaDelBucket } from "@/lib/imagenes";
 import { iniciales } from "@/lib/utilidades";
 import { MuroPublicaciones, type Publicacion } from "./muro-publicaciones";
 
@@ -45,9 +46,11 @@ export default async function PaginaInicio() {
         .from("publicaciones")
         .select(
           "id, tipo, titulo, cuerpo, resumen, estado, fijada, fecha_publicacion," +
-            " fecha_vencimiento, autor:creado_por (nombre_completo, url_avatar)," +
+            " fecha_vencimiento, url_imagen," +
+            " autor:creado_por (nombre_completo, url_avatar)," +
             " referido:usuario_referido_id (nombre_completo, url_avatar)," +
-            " procesos:proceso_id (nombre)",
+            " procesos:proceso_id (nombre)," +
+            " documento:documento_id (id, codigo, titulo)",
         )
         .order("fijada", { ascending: false })
         .order("fecha_publicacion", { ascending: false, nullsFirst: false })
@@ -68,13 +71,41 @@ export default async function PaginaInicio() {
 
   // El muro muestra lo publicado y vigente. El borrador propio y lo
   // archivado se ven, pero mas abajo: RLS ya filtro lo que no corresponde.
-  const listaPublicaciones = ((publicaciones ?? []) as unknown as Publicacion[])
+  const visibles = ((publicaciones ?? []) as unknown as (Publicacion & {
+    url_imagen: string | null;
+  })[])
     .filter(
       (publicacion) =>
         publicacion.estado !== "publicada" ||
         estaVigente(publicacion.fecha_vencimiento, hoy),
     )
     .slice(0, PUBLICACIONES_EN_INICIO);
+
+  // Las imagenes viven en un bucket privado: nada se sirve por direccion
+  // directa. Se firman aca, en el servidor, y solo las de las
+  // publicaciones que efectivamente se van a dibujar.
+  const rutas = visibles
+    .map((publicacion) => publicacion.url_imagen)
+    .filter((ruta): ruta is string => esRutaDelBucket(ruta));
+
+  const firmadas = new Map<string, string>();
+  if (rutas.length > 0) {
+    const { data: enlaces } = await supabase.storage
+      .from(BUCKET_IMAGENES)
+      .createSignedUrls(rutas, DURACION_ENLACE_IMAGEN);
+
+    for (const enlace of enlaces ?? []) {
+      if (enlace.path && enlace.signedUrl) firmadas.set(enlace.path, enlace.signedUrl);
+    }
+  }
+
+  const listaPublicaciones: Publicacion[] = visibles.map((publicacion) => ({
+    ...publicacion,
+    // Una direccion externa se usa tal cual; una ruta del bucket, firmada.
+    imagen: esRutaDelBucket(publicacion.url_imagen)
+      ? (firmadas.get(publicacion.url_imagen!) ?? null)
+      : publicacion.url_imagen,
+  }));
 
   // Del mes en curso, y de hoy en adelante: un cumpleanos de hace dos
   // semanas ya no sirve para saludar.

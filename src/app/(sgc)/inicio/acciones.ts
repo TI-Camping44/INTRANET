@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { BUCKET_IMAGENES, motivoDeRechazoImagen, rutaDeImagen } from "@/lib/imagenes";
 import type { EstadoPublicacion, ResultadoAccion } from "@/lib/tipos";
 
 export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion> {
@@ -48,12 +49,56 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
     return { exito: false, error: `No se pudo crear la publicación: ${error.message}` };
   }
 
+  // La imagen se sube despues de tener la fila: asi la ruta lleva el id de
+  // la publicacion y no queda ningun archivo suelto en el bucket si el
+  // insert hubiera fallado.
+  const avisoDeImagen = await adjuntarImagen(publicacion.id, datos.get("imagen"));
+
   revalidatePath("/inicio");
   return {
     exito: true,
     id: publicacion.id,
-    mensaje: publicar ? "Publicación visible para todos." : "Guardada como borrador.",
+    mensaje:
+      (publicar ? "Publicación visible para todos." : "Guardada como borrador.") +
+      (avisoDeImagen ? ` ${avisoDeImagen}` : ""),
   };
+}
+
+/**
+ * Sube la imagen de una publicacion y la deja apuntada en `url_imagen`.
+ *
+ * No devuelve error sino un aviso: si la imagen falla, la publicacion ya
+ * existe y perderla por una foto seria peor. Se avisa y se sigue.
+ */
+async function adjuntarImagen(
+  publicacionId: string,
+  archivo: FormDataEntryValue | null,
+): Promise<string | null> {
+  if (!(archivo instanceof File) || archivo.size === 0) return null;
+
+  const motivo = motivoDeRechazoImagen(archivo.name, archivo.size);
+  if (motivo) return `La imagen no se cargó: ${motivo}`;
+
+  const supabase = crearClienteServidor();
+  const ruta = rutaDeImagen(publicacionId, archivo.name);
+
+  const { error: errorCarga } = await supabase.storage
+    .from(BUCKET_IMAGENES)
+    .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+
+  if (errorCarga) return `La imagen no se cargó: ${errorCarga.message}`;
+
+  const { error } = await supabase
+    .from("publicaciones")
+    .update({ url_imagen: ruta })
+    .eq("id", publicacionId);
+
+  if (error) {
+    await supabase.storage.from(BUCKET_IMAGENES).remove([ruta]);
+    return "La imagen no se pudo asociar a la publicación.";
+  }
+
+  return null;
 }
 
 export async function cambiarEstadoPublicacion(

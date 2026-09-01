@@ -634,3 +634,86 @@ export async function eliminarArchivoDocumento(
   revalidatePath(`/documentos/${documentoId}`);
   return { exito: true, mensaje: "Archivo eliminado." };
 }
+
+// ---------------------------------------------------------------------
+// Anunciar el documento en el inicio
+// ---------------------------------------------------------------------
+// Poner un procedimiento en vigencia no sirve de nada si la gente no se
+// entera. La difusion notifica a una lista; el muro del inicio es lo que
+// se mira todos los dias sin que nadie lo pida. Son complementarios.
+//
+// El texto se propone, no se impone: llega redactado a la pantalla y
+// quien anuncia lo edita antes de publicar.
+
+/** Publica el documento como anuncio en el muro del inicio. */
+export async function anunciarDocumento(
+  documentoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite publicar en la intranet." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, codigo, titulo, estado, proceso_id")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  if (!documento) return { exito: false, error: "El documento no existe." };
+
+  if (documento.estado !== "vigente") {
+    return {
+      exito: false,
+      error:
+        "Solo se anuncia un documento vigente. Anunciar un borrador es pedirle a la " +
+        "gente que aplique algo que todavía puede cambiar.",
+    };
+  }
+
+  const titulo = String(datos.get("titulo") ?? "").trim();
+  const cuerpo = String(datos.get("cuerpo") ?? "").trim();
+
+  if (titulo.length < 5) {
+    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
+  }
+  if (cuerpo.length < 10) {
+    return { exito: false, error: "El texto del anuncio debe tener al menos 10 caracteres." };
+  }
+
+  const { data: publicacion, error } = await supabase
+    .from("publicaciones")
+    .insert({
+      empresa_id: usuario.empresa_id,
+      tipo: "anuncio",
+      titulo,
+      cuerpo,
+      estado: "publicada",
+      fecha_publicacion: new Date().toISOString(),
+      fijada: datos.get("fijada") === "si",
+      fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
+      // El anuncio hereda el proceso del documento: asi queda claro de qué
+      // área es sin que nadie lo vuelva a elegir.
+      proceso_id: documento.proceso_id,
+      documento_id: documento.id,
+      creado_por: usuario.id,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return { exito: false, error: `No se pudo publicar el anuncio: ${error.message}` };
+  }
+
+  revalidatePath("/inicio");
+  revalidatePath(`/documentos/${documentoId}`);
+
+  return {
+    exito: true,
+    id: publicacion.id,
+    mensaje: `${documento.codigo ?? documento.titulo} anunciado en el inicio.`,
+  };
+}

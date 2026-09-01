@@ -64,3 +64,41 @@ export function resumirPublicacion(cuerpo: string, resumen: string | null): stri
 export function estaVigente(fechaVencimiento: string | null, hoy: string): boolean {
   return fechaVencimiento === null || fechaVencimiento >= hoy;
 }
+
+/**
+ * Borrador del anuncio de un documento.
+ *
+ * Es un punto de partida, no un texto definitivo: quien anuncia lo edita
+ * antes de publicar. Se redacta aca y no en el componente porque lo
+ * necesitan el servidor —para el valor por defecto— y el cliente —para
+ * volver a proponerlo si la persona borra todo.
+ *
+ * El criterio del titulo: la v00 es un documento que nace, y de la v01 en
+ * adelante es uno que cambio. No es lo mismo para quien lo lee, y decirlo
+ * distinto ahorra que abra la ficha para averiguarlo.
+ */
+export function redactarAnuncioDeDocumento(documento: {
+  codigo: string | null;
+  titulo: string;
+  tipo: string;
+  version_actual: number;
+  fecha_aprobacion: string | null;
+}): { titulo: string; cuerpo: string } {
+  const identificacion = documento.codigo ? `${documento.codigo} · ` : "";
+  const esNuevo = documento.version_actual <= 0;
+  const version = `v${String(documento.version_actual).padStart(2, "0")}`;
+
+  const titulo = esNuevo
+    ? `Nuevo documento vigente: ${documento.titulo}`
+    : `Actualización: ${documento.titulo}`;
+
+  const cuerpo = esNuevo
+    ? `Se puso en vigencia ${identificacion}${documento.titulo} (${version}).\n\n` +
+      "Está disponible en Documentación, dentro de Calidad · SGC. " +
+      "Corresponde leerlo y aplicarlo desde hoy."
+    : `Se aprobó una versión nueva de ${identificacion}${documento.titulo} (${version}).\n\n` +
+      "La versión anterior queda obsoleta. La vigente está en Documentación, " +
+      "dentro de Calidad · SGC.";
+
+  return { titulo, cuerpo };
+}
