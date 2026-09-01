@@ -13,9 +13,19 @@
  *
  * De dónde salen las direcciones: las de GitHub Pages se comprobaron
  * contra el repositorio —cada una tiene su `index.html`— y el título de
- * la tarjeta es el de la propia página. Las tres de solicitudes las pasó
+ * la tarjeta es el de la propia página. Las de solicitudes las pasó
  * Facundo: son aplicaciones de Apps Script y un formulario de Google, que
  * viven fuera de GitHub y no se pueden comprobar desde el repositorio.
+ *
+ * Las solicitudes se enlazan y no se absorben. Se evaluó traerlas adentro
+ * —las seis comparten motor y el modelo se traducía bien a la base— y se
+ * decidió que no: funcionan, están en uso y reemplazarlas era mucho
+ * trabajo para no cambiar nada que la gente note.
+ *
+ * El grupo de Tecnología quedó vacío: los tres tableros de TI que vivían
+ * en GitHub Pages dejaron de usarse. La etiqueta se conserva porque
+ * `agruparAplicaciones` saltea los grupos sin aplicaciones, así que
+ * volver a poner una es agregar una línea y nada más.
  */
 
 /** A quién le sirve, para que la lista se pueda agrupar y filtrar. */
@@ -160,24 +170,6 @@ export const APLICACIONES: Aplicacion[] = [
     descripcion: "Seguimiento de las gestiones ante DIGEMABEL.",
     url: `${BASE}/GESTIONREGULATORIA/`,
     publico: "operaciones",
-  },
-  {
-    nombre: "Tablero de tickets de TI",
-    descripcion: "Los pedidos de soporte informático ya cargados y su estado.",
-    url: `${BASE}/Dashboard-tickets-it/`,
-    publico: "tecnologia",
-  },
-  {
-    nombre: "Gestión y soporte de TI",
-    descripcion: "El informe de la operación de tecnología.",
-    url: `${BASE}/INFORME/`,
-    publico: "tecnologia",
-  },
-  {
-    nombre: "Reporte de gestión de TI",
-    descripcion: "La planificación y el avance del área de tecnología.",
-    url: `${BASE}/Planificacion/`,
-    publico: "tecnologia",
   },
 ];
 
