@@ -793,7 +793,10 @@ update public.proveedores p set
 --   4. La fecha limite de cierre deja de escribirse a mano: son diez
 --      dias corridos desde la deteccion, siempre. Lo fija un disparador
 --      y no la aplicacion, para que valga por cualquier via de
---      escritura, igual que la bitacora.
+--      escritura, igual que la bitacora. El mismo disparador completa la
+--      empresa cuando no viene: las no conformidades que genera el
+--      sistema solo —desde un hallazgo de auditoria o desde un reclamo—
+--      no pasan por el formulario y quedarian sin ella.
 --
 --   5. Cerrar una no conformidad queda reservado a Calidad, y solo
 --      despues de verificar la eficacia. Tambien por disparador: es un
@@ -893,31 +896,42 @@ update public.no_conformidades set estado = 'abierta'        where estado = 'en_
 update public.no_conformidades set estado = 'en_tratamiento' where estado = 'en_verificacion';
 
 -- ---------------------------------------------------------------------
--- 5 · La fecha limite de cierre la calcula la base
+-- 5 · Lo que la base completa sola
 -- ---------------------------------------------------------------------
--- Diez dias corridos desde la deteccion, sin excepcion. Se resuelve por
--- disparador y no en la accion de servidor para que valga tambien para
--- las no conformidades que genera el sistema solo: las que nacen de un
--- hallazgo de auditoria y las que nacen de un reclamo de cliente.
-create or replace function public.fijar_limite_cierre_nc()
+-- El plazo de cierre son diez dias corridos desde la deteccion, sin
+-- excepcion. Se resuelve por disparador y no en la accion de servidor
+-- para que valga tambien para las no conformidades que genera el sistema
+-- solo: las que nacen de un hallazgo de auditoria y las que nacen de un
+-- reclamo de cliente. Esas mismas tampoco pasan por el formulario, asi
+-- que la empresa se completa aca con la que registra.
+create or replace function public.completar_no_conformidad()
 returns trigger
 language plpgsql
 as $$
 begin
   new.fecha_limite_cierre := new.fecha_deteccion + 10;
+
+  if new.empresa_afectada_id is null then
+    new.empresa_afectada_id := new.empresa_id;
+  end if;
+
   return new;
 end;
 $$;
 
-comment on function public.fijar_limite_cierre_nc is
-  'Plazo de cierre de una no conformidad: diez dias corridos desde la deteccion. '
-  'El mismo numero esta en DIAS_LIMITE_CIERRE_NC (src/lib/constantes.ts).';
+comment on function public.completar_no_conformidad is
+  'Plazo de cierre: diez dias corridos desde la deteccion, y empresa afectada por '
+  'defecto la que registra. El plazo esta tambien en DIAS_LIMITE_CIERRE_NC '
+  '(src/lib/constantes.ts): si cambia, cambia en los dos lados.';
 
 drop trigger if exists no_conformidades_limite_cierre on public.no_conformidades;
-create trigger no_conformidades_limite_cierre
-  before insert or update of fecha_deteccion, fecha_limite_cierre
+drop trigger if exists no_conformidades_completar on public.no_conformidades;
+create trigger no_conformidades_completar
+  before insert or update of fecha_deteccion, fecha_limite_cierre, empresa_afectada_id
   on public.no_conformidades
-  for each row execute function public.fijar_limite_cierre_nc();
+  for each row execute function public.completar_no_conformidad();
+
+drop function if exists public.fijar_limite_cierre_nc();
 
 -- Lo ya cargado se recalcula con la misma regla.
 update public.no_conformidades

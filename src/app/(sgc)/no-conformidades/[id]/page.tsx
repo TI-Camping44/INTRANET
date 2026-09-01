@@ -48,7 +48,7 @@ interface NoConformidadDetalle {
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
   area: AreaOrganizacional | null;
-  requisito_incumplido: string | null;
+  empresa_afectada_id: string | null;
   correccion_inmediata: string | null;
   conclusion_causa_raiz: string | null;
   fecha_deteccion: string;
@@ -100,7 +100,12 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   const noConformidad = consulta as unknown as NoConformidadDetalle | null;
   if (!noConformidad) notFound();
 
-  const [{ data: porques }, { data: acciones }, { data: personas }] = await Promise.all([
+  const [
+    { data: porques },
+    { data: acciones },
+    { data: personas },
+    { data: empresas },
+  ] = await Promise.all([
     supabase.from("nc_porques").select("*").eq("no_conformidad_id", params.id).order("orden"),
     supabase
       .from("nc_acciones")
@@ -112,6 +117,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    supabase.from("empresas").select("id, razon_social").order("nombre"),
   ]);
 
   // Puede tratar la desviación quien la levantó, el responsable de la
@@ -157,15 +163,6 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
               <p className="whitespace-pre-line text-xs leading-relaxed">
                 {noConformidad.descripcion}
               </p>
-
-              {noConformidad.requisito_incumplido ? (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
-                    Requisito incumplido
-                  </p>
-                  <p className="mt-0.5 text-xs">{noConformidad.requisito_incumplido}</p>
-                </div>
-              ) : null}
 
               {noConformidad.correccion_inmediata ? (
                 <div>
@@ -279,6 +276,9 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
                   estado={noConformidad.estado}
                   eficacia={noConformidad.eficacia}
                   observacionEficacia={noConformidad.observacion_eficacia}
+                  area={noConformidad.area}
+                  empresaAfectadaId={noConformidad.empresa_afectada_id}
+                  empresas={(empresas as { id: string; razon_social: string }[] | null) ?? []}
                   esCalidad={esCalidad}
                 />
               </TarjetaContenido>

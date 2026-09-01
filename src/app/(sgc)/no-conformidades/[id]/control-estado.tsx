@@ -8,10 +8,15 @@ import { Boton } from "@/components/ui/boton";
 import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import {
   cambiarEstadoNoConformidad,
+  clasificarNoConformidad,
   registrarEficacia,
 } from "@/app/(sgc)/no-conformidades/acciones";
-import { ETIQUETAS_EFICACIA, ETIQUETAS_ESTADO_NC } from "@/lib/constantes";
-import type { EstadoNoConformidad, ResultadoEficacia } from "@/lib/tipos";
+import {
+  AREAS_ORGANIZACIONALES,
+  ETIQUETAS_EFICACIA,
+  ETIQUETAS_ESTADO_NC,
+} from "@/lib/constantes";
+import type { AreaOrganizacional, EstadoNoConformidad, ResultadoEficacia } from "@/lib/tipos";
 
 /** Los dos estados que mueve quien trata la desviacion. El tercero, cerrada, lo firma Calidad. */
 const ESTADOS_EN_TRATAMIENTO: EstadoNoConformidad[] = ["abierta", "en_tratamiento"];
@@ -29,18 +34,31 @@ export function ControlEstado({
   estado,
   eficacia,
   observacionEficacia,
+  area,
+  empresaAfectadaId,
+  empresas,
   esCalidad,
 }: {
   noConformidadId: string;
   estado: EstadoNoConformidad;
   eficacia: ResultadoEficacia;
   observacionEficacia: string | null;
+  area: AreaOrganizacional | null;
+  empresaAfectadaId: string | null;
+  empresas: { id: string; razon_social: string }[];
   esCalidad: boolean;
 }) {
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
   const [eficaciaElegida, definirEficaciaElegida] = React.useState<ResultadoEficacia>(eficacia);
   const [observacion, definirObservacion] = React.useState(observacionEficacia ?? "");
+  const [areaElegida, definirAreaElegida] = React.useState<string>(area ?? "");
+  const [empresaElegida, definirEmpresaElegida] = React.useState<string>(
+    empresaAfectadaId ?? empresas[0]?.id ?? "",
+  );
+
+  const sinCambiosDeClasificacion =
+    areaElegida === (area ?? "") && empresaElegida === (empresaAfectadaId ?? "");
 
   const cerrada = estado === "cerrada";
   const eficaciaVerificada = eficacia !== "pendiente";
@@ -52,6 +70,19 @@ export function ControlEstado({
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Estado actualizado.");
+      router.refresh();
+    } else {
+      toast.error(resultado.error);
+    }
+  }
+
+  async function guardarClasificacion() {
+    definirProcesando(true);
+    const resultado = await clasificarNoConformidad(noConformidadId, areaElegida, empresaElegida);
+    definirProcesando(false);
+
+    if (resultado.exito) {
+      toast.success(resultado.mensaje ?? "Clasificación actualizada.");
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -73,6 +104,56 @@ export function ControlEstado({
 
   return (
     <div className="space-y-4">
+      {/* Las no conformidades que genera el sistema —desde un hallazgo de
+          auditoría o desde un reclamo de cliente— no pasan por el
+          formulario y llegan sin área. Acá se les pone. */}
+      <div className="border-b border-borde pb-4">
+        <GrupoCampo etiqueta="Área" htmlFor="area-nc" requerido>
+          <Seleccion
+            id="area-nc"
+            value={areaElegida}
+            disabled={procesando}
+            onChange={(evento) => definirAreaElegida(evento.target.value)}
+          >
+            <option value="" disabled>
+              Sin clasificar
+            </option>
+            {Object.entries(AREAS_ORGANIZACIONALES).map(([valor, etiqueta]) => (
+              <option key={valor} value={valor}>
+                {etiqueta}
+              </option>
+            ))}
+          </Seleccion>
+        </GrupoCampo>
+
+        <GrupoCampo etiqueta="Empresa" htmlFor="empresa-nc" className="mt-3">
+          <Seleccion
+            id="empresa-nc"
+            value={empresaElegida}
+            disabled={procesando}
+            onChange={(evento) => definirEmpresaElegida(evento.target.value)}
+          >
+            {empresas.map((empresa) => (
+              <option key={empresa.id} value={empresa.id}>
+                {empresa.razon_social}
+              </option>
+            ))}
+          </Seleccion>
+        </GrupoCampo>
+
+        <div className="mt-3 flex justify-end">
+          <Boton
+            tamano="pequeno"
+            variante="contorno"
+            onClick={guardarClasificacion}
+            cargando={procesando}
+            disabled={!areaElegida || sinCambiosDeClasificacion}
+          >
+            <Save /> Guardar clasificación
+          </Boton>
+        </div>
+      </div>
+
       <GrupoCampo
         etiqueta="Estado del tratamiento"
         htmlFor="estado-nc"

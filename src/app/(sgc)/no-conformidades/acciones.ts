@@ -144,6 +144,37 @@ export async function actualizarNoConformidad(
 }
 
 /**
+ * Completa el area y la empresa de una no conformidad ya registrada.
+ *
+ * Hace falta porque no todas nacen del formulario: las que genera el
+ * sistema desde un hallazgo de auditoria o desde un reclamo de cliente
+ * llegan sin area, y sin esto Calidad no tenia como ponersela.
+ */
+export async function clasificarNoConformidad(
+  id: string,
+  area: string,
+  empresaAfectadaId: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  if (!(area in AREAS_ORGANIZACIONALES)) {
+    return { exito: false, error: "Elija el área a la que corresponde la desviación." };
+  }
+
+  const { error } = await supabase
+    .from("no_conformidades")
+    .update({ area, empresa_afectada_id: empresaAfectadaId || null })
+    .eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo guardar: ${error.message}` };
+
+  revalidatePath(`/no-conformidades/${id}`);
+  revalidatePath("/no-conformidades");
+  return { exito: true, mensaje: "Clasificación actualizada." };
+}
+
+/**
  * Cambio de estado dentro del ciclo de tratamiento.
  *
  * El cierre esta reservado a Calidad y solo despues de verificar la
