@@ -92,6 +92,14 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
+    nombre: "Solicitud a Calidad",
+    descripcion: "Para los pedidos que resuelve Gestión de Calidad.",
+    url:
+      "https://script.google.com/a/macros/camping44.com.py/s/" +
+      "AKfycbxzX4_hbpdVGkQy5--kOWm_CrAsh67GOpcVQqccbb5T64iGWRT9VG8dz-jiK0yHlT2C/exec",
+    publico: "solicitudes",
+  },
+  {
     nombre: "Solicitud de compra interna",
     descripcion: "Para pedir la compra de insumos o equipamiento del área.",
     url:
@@ -115,6 +123,14 @@ export const APLICACIONES: Aplicacion[] = [
     nombre: "Tablero comercial",
     descripcion: "Ventas del año contra el anterior, por línea y por vendedor.",
     url: `${BASE}/INFORMEVENTASC44/`,
+    publico: "comercial",
+  },
+  {
+    nombre: "Objetivos mensuales · Comercial",
+    descripcion: "Para cargar las metas del mes que después mide el tablero comercial.",
+    url:
+      "https://script.google.com/a/macros/camping44.com.py/s/" +
+      "AKfycbyUoNwIWp_-99WlUZZpEwNrGdoosOa-VN45VnbglcfQUtDLJsDNoYJiQGFyr2a10f_jsw/exec",
     publico: "comercial",
   },
   {
