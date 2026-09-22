@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { notificar } from "@/lib/notificaciones";
+import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { EstadoAccion, EstadoRiesgo, ResultadoAccion } from "@/lib/tipos";
 
@@ -208,6 +208,7 @@ export async function crearAccionRiesgo(
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "general",

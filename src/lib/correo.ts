@@ -53,6 +53,23 @@ interface OpcionesCorreo {
   cuerpo: string;
   enlace?: string | null;
   textoEnlace?: string;
+  /**
+   * Quien origino el aviso: quien asigno la accion, quien mando el
+   * documento a revision, quien registro la no conformidad.
+   *
+   * El correo sale igual desde la casilla del sistema —es la unica con
+   * la que el SMTP puede autenticarse— pero se muestra con el nombre de
+   * esa persona y la respuesta le vuelve a ella. En la bandeja se lee
+   * «Facundo Colman · Intranet SGC», y si el destinatario contesta, le
+   * contesta a Facundo y no a una casilla que nadie mira.
+   *
+   * Poner el correo de la persona en el campo `from` de verdad seria
+   * suplantarla: el servidor de Google lo rechaza, y si lo aceptara el
+   * mensaje caeria en spam por SPF y DKIM. Para que el remitente real
+   * sea la persona hace falta delegacion a nivel del dominio en Google
+   * Workspace, que es una configuracion aparte.
+   */
+  deParteDe?: { nombre: string; correo?: string | null } | null;
 }
 
 /** Plantilla sobria, con la marca de Camping 44 y legible en modo oscuro. */
@@ -111,12 +128,20 @@ export async function enviarCorreo(opciones: OpcionesCorreo): Promise<boolean> {
     return false;
   }
 
-  const remitente =
-    process.env.SMTP_REMITENTE ?? `${NOMBRE_SISTEMA} <${process.env.SMTP_USUARIO}>`;
+  const casilla = process.env.SMTP_USUARIO;
+  const remitentePorDefecto =
+    process.env.SMTP_REMITENTE ?? `${NOMBRE_SISTEMA} <${casilla}>`;
+
+  // Con `deParteDe`, el nombre que se ve en la bandeja es el de quien
+  // origino el aviso; la casilla sigue siendo la del sistema.
+  const remitente = opciones.deParteDe
+    ? `${opciones.deParteDe.nombre} · ${NOMBRE_SISTEMA} <${casilla}>`
+    : remitentePorDefecto;
 
   try {
     await transporteActual.sendMail({
       from: remitente,
+      replyTo: opciones.deParteDe?.correo ?? undefined,
       to: Array.isArray(opciones.para) ? opciones.para.join(", ") : opciones.para,
       subject: opciones.asunto,
       text: `${opciones.titulo}\n\n${opciones.cuerpo}${

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { notificar } from "@/lib/notificaciones";
+import { departe, notificar } from "@/lib/notificaciones";
 import type { FrecuenciaMedicion, ResultadoAccion, SentidoIndicador } from "@/lib/tipos";
 
 const FORMATO_CODIGO = /^[A-Z]{2,6}-[0-9]{2,3}$/;
@@ -182,6 +182,7 @@ export async function cargarMedicion(
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "indicador_fuera_de_meta",

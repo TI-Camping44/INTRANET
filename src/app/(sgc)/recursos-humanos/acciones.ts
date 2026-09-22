@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esAdministrador, puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { notificar } from "@/lib/notificaciones";
+import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, ResultadoEficacia } from "@/lib/tipos";
 
@@ -344,6 +344,7 @@ export async function inscribirParticipantes(
 
     for (const persona of personas ?? []) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: persona.id,
         correoDestino: persona.correo,
         tipo: "general",

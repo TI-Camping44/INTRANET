@@ -8,7 +8,7 @@ import {
   rutaDeEvidencia,
 } from "@/lib/adjuntos";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
-import { notificar, notificarAVarios } from "@/lib/notificaciones";
+import { departe, notificar, notificarAVarios } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { DIAS_LIMITE_CIERRE_NC } from "@/lib/constantes";
 import type { EstadoAuditoria, ResultadoAccion, TipoHallazgo } from "@/lib/tipos";
@@ -159,6 +159,7 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
     if (lider) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: lider.id,
         correoDestino: lider.correo,
         tipo: "auditoria_programada",
@@ -325,6 +326,7 @@ export async function definirEquipo(
       .in("id", nuevos);
 
     await notificarAVarios(supabase, (personas ?? []) as { id: string; correo: string }[], {
+      deParteDe: departe(usuario),
       tipo: "auditoria_programada",
       titulo: `Integra el equipo de la auditoría ${auditoria.codigo}`,
       mensaje: `Fecha planificada: ${auditoria.fecha_planificada ?? "a definir"}.`,
@@ -516,6 +518,7 @@ export async function generarNoConformidad(
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "no_conformidad_asignada",

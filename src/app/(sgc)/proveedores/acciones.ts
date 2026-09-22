@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { notificar } from "@/lib/notificaciones";
+import { departe, notificar } from "@/lib/notificaciones";
 import { CRITERIOS_EVALUACION, FACTOR_PUNTAJE, resultadoSugerido } from "@/lib/proveedores";
 import type { EstadoProveedor, ResultadoAccion } from "@/lib/tipos";
 
@@ -160,6 +160,7 @@ export async function registrarEvaluacion(
 
     for (const administrador of administradores ?? []) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: administrador.id,
         correoDestino: administrador.correo,
         tipo: "general",

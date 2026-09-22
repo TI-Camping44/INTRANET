@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
-import { notificar } from "@/lib/notificaciones";
+import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
   AREAS_ORGANIZACIONALES,
@@ -117,6 +117,7 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "no_conformidad_asignada",
@@ -365,6 +366,7 @@ export async function crearAccion(
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "no_conformidad_asignada",
@@ -507,6 +509,7 @@ export async function responderNoConformidad(
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "no_conformidad_asignada",

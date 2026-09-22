@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { notificar, notificarAVarios } from "@/lib/notificaciones";
+import { departe, notificar, notificarAVarios } from "@/lib/notificaciones";
 import { PREFIJO_CODIGO_DOCUMENTO } from "@/lib/constantes";
 import { BUCKET_DOCUMENTOS, motivoDeRechazo, rutaDeArchivo } from "@/lib/adjuntos";
 import { hoyEnAsuncion } from "@/lib/formato";
@@ -280,6 +280,7 @@ export async function enviarARevision(
     .in("id", revisores);
 
   await notificarAVarios(supabase, (personas ?? []) as { id: string; correo: string }[], {
+    deParteDe: departe(usuario),
     tipo: "revision_solicitada",
     titulo: `Revisión solicitada: ${documento?.codigo ?? ""}`,
     mensaje:
@@ -354,6 +355,7 @@ export async function responderRevision(
 
       if (elaborador) {
         await notificar(supabase, {
+          deParteDe: departe(usuario),
           usuarioId: elaborador.id,
           correoDestino: elaborador.correo,
           tipo: "documento_por_revisar",

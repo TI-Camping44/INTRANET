@@ -21,6 +21,23 @@ interface DatosNotificacion {
   /** Identificador logico para no repetir la misma alerta. */
   claveUnicidad?: string | null;
   enviarPorCorreo?: boolean;
+  /**
+   * Quien origino el aviso. El correo sale con su nombre en la bandeja y
+   * la respuesta le vuelve a esa persona. Se omite en los avisos del
+   * trabajo programado, que no los origina nadie.
+   */
+  deParteDe?: { nombre: string; correo?: string | null } | null;
+}
+
+/**
+ * De parte de quien sale el aviso.
+ *
+ * Se le pasa el usuario que esta haciendo la operacion. El correo sale
+ * igual desde la casilla del sistema, pero en la bandeja se lee su
+ * nombre y la respuesta le vuelve a esa persona.
+ */
+export function departe(usuario: { nombre_completo: string; correo: string }) {
+  return { nombre: usuario.nombre_completo, correo: usuario.correo };
 }
 
 export async function crearNotificacion(
@@ -93,6 +110,7 @@ export async function notificar(
       titulo: datos.titulo,
       cuerpo: datos.mensaje,
       enlace: urlAbsoluta(datos.enlace),
+      deParteDe: datos.deParteDe,
     }),
     false,
   );

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
-import { notificar } from "@/lib/notificaciones";
+import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { DIAS_LIMITE_CIERRE_NC } from "@/lib/constantes";
 import type { ResultadoAccion } from "@/lib/tipos";
@@ -173,6 +173,7 @@ export async function generarNoConformidadDesdeRespuesta(
 
     if (responsable) {
       await notificar(supabase, {
+        deParteDe: departe(usuario),
         usuarioId: responsable.id,
         correoDestino: responsable.correo,
         tipo: "no_conformidad_asignada",
