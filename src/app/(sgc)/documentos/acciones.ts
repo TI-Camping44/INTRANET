@@ -808,3 +808,53 @@ export async function eliminarDocumento(documentoId: string): Promise<ResultadoA
     mensaje: `${documento.codigo ?? ""} ${documento.titulo} se eliminó junto con sus archivos.`,
   };
 }
+
+
+/**
+ * Elimina varios documentos de una vez.
+ *
+ * Es el mismo criterio que el borrado individual —sirve para lo que no
+ * deberia haberse cargado, no para retirar lo que estuvo en uso— pero
+ * hace falta igual: limpiar doce pruebas de a una son doce
+ * confirmaciones y doce recargas de pantalla.
+ *
+ * Se borra uno por uno y no con un `in`, a proposito: cada documento
+ * tiene sus archivos en el bucket y hay que sacarlos antes de que
+ * desaparezca la fila con las rutas. Si uno falla, los demas igual se
+ * borran y el mensaje dice cuales quedaron.
+ */
+export async function eliminarDocumentos(ids: string[]): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  if (usuario.rol !== "administrador_sgc") {
+    return { exito: false, error: "Solo el Administrador SGC puede eliminar documentos." };
+  }
+  if (ids.length === 0) {
+    return { exito: false, error: "No seleccionó ningún documento." };
+  }
+
+  let eliminados = 0;
+  const fallidos: string[] = [];
+
+  for (const id of ids) {
+    const resultado = await eliminarDocumento(id);
+    if (resultado.exito) eliminados += 1;
+    else fallidos.push(resultado.error);
+  }
+
+  revalidatePath("/documentos");
+
+  if (fallidos.length > 0) {
+    return {
+      exito: false,
+      error:
+        `Se eliminaron ${eliminados} de ${ids.length}. ` +
+        `No se pudieron eliminar: ${fallidos.join("; ")}`,
+    };
+  }
+
+  return {
+    exito: true,
+    mensaje: `Se eliminaron ${eliminados} documento${eliminados === 1 ? "" : "s"} con sus archivos.`,
+  };
+}

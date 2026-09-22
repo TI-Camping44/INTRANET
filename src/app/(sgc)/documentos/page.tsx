@@ -20,6 +20,11 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import {
+  BarraSeleccion,
+  CasillaDocumento,
+  ProveedorSeleccion,
+} from "@/app/(sgc)/documentos/seleccion-documentos";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   DIAS_AVISO_REVISION_DOCUMENTO,
@@ -66,6 +71,8 @@ export default async function PaginaDocumentos({
   searchParams: { q?: string; vista?: string; tipo?: string; proceso?: string; filtro?: string };
 }) {
   const usuario = await requerirUsuario();
+  // Eliminar es atribucion del Administrador SGC, igual que en RLS.
+  const puedeEliminar = usuario.rol === "administrador_sgc";
   const supabase = crearClienteServidor();
 
   const vista = searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "vigentes";
@@ -207,10 +214,13 @@ export default async function PaginaDocumentos({
           }
         />
       ) : (
-        <Tarjeta>
+        <ProveedorSeleccion>
+          {puedeEliminar ? <BarraSeleccion /> : null}
+          <Tarjeta>
           <Tabla>
             <TablaCabecera>
               <TablaFila>
+                {puedeEliminar ? <TablaEncabezado className="w-8" /> : null}
                 <TablaEncabezado className="w-[9rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Título</TablaEncabezado>
                 <TablaEncabezado className="hidden md:table-cell">Tipo</TablaEncabezado>
@@ -245,6 +255,11 @@ export default async function PaginaDocumentos({
 
                 return (
                   <TablaFila key={documento.id}>
+                    {puedeEliminar ? (
+                      <TablaCelda>
+                        <CasillaDocumento id={documento.id} titulo={documento.titulo} />
+                      </TablaCelda>
+                    ) : null}
                     <TablaCelda className="font-medium tabular">
                       <Link
                         href={destino}
@@ -309,7 +324,8 @@ export default async function PaginaDocumentos({
               })}
             </TablaCuerpo>
           </Tabla>
-        </Tarjeta>
+          </Tarjeta>
+        </ProveedorSeleccion>
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
@@ -322,7 +338,7 @@ export default async function PaginaDocumentos({
           ? "Es lo que está en vigencia hoy; las versiones reemplazadas están en «Obsoletos»."
           : null}{" "}
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
-        versiones.
+        versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
       </p>
     </>
   );
