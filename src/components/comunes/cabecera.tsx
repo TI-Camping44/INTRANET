@@ -34,8 +34,8 @@ export function Cabecera({
 
   return (
     <header
-      className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-borde
-                 bg-fondo/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-fondo/80 sm:px-4"
+      className="flex h-14 items-center gap-2 border-b border-borde bg-fondo/95 px-3
+                 backdrop-blur supports-[backdrop-filter]:bg-fondo/80 sm:px-4"
     >
       {/* Menú lateral en pantallas chicas: se usa desde el piso de venta. */}
       <Dialogo open={menuAbierto} onOpenChange={definirMenuAbierto}>
@@ -53,12 +53,12 @@ export function Cabecera({
         </DialogoContenido>
       </Dialogo>
 
-      <Link href="/panel" className="lg:hidden">
+      <Link href="/inicio" className="shrink-0">
         <LogotipoCompleto className="[&_span:last-child]:hidden sm:[&_span:last-child]:block" />
       </Link>
 
-      <div className="ml-auto flex flex-1 items-center justify-end gap-1.5 lg:ml-0 lg:justify-between">
-        <div className="hidden flex-1 lg:block">
+      <div className="ml-auto flex flex-1 items-center justify-end gap-1.5 lg:justify-between">
+        <div className="hidden max-w-xl flex-1 lg:block lg:pl-6">
           <BuscadorGlobal />
         </div>
         <div className="flex items-center gap-1">
