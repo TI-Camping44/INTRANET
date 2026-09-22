@@ -95,14 +95,24 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   const auditorLiderId = String(datos.get("auditor_lider_id") ?? "") || usuario.id;
 
+  // Una auditoria puede abarcar varios procesos. Llegan como varias
+  // casillas con el mismo nombre.
+  const procesos = datos
+    .getAll("procesos")
+    .map((valor) => String(valor))
+    .filter((valor) => valor.length > 0);
+
   const { data: auditoria, error } = await supabase
     .from("auditorias")
     .insert({
       empresa_id: usuario.empresa_id,
       programa_id: String(datos.get("programa_id") ?? "") || null,
       codigo,
-      tipo: String(datos.get("tipo") ?? "interna"),
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      tipo: String(datos.get("tipo") ?? "por_proceso"),
+      // El primero de los elegidos queda tambien en `proceso_id`, que es
+      // lo que leen todavia el listado y la ficha. La lista completa va a
+      // `auditoria_procesos`.
+      proceso_id: procesos[0] ?? null,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: auditorLiderId,
@@ -110,6 +120,9 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
       alcance: String(datos.get("alcance") ?? "").trim() || null,
       criterios: String(datos.get("criterios") ?? "").trim() || null,
       fecha_planificada: fechaPlanificada,
+      // El aviso a toda la empresa. Nulo si no se pidio; el trabajo
+      // programado lo manda ese dia y marca `aviso_enviado`.
+      fecha_aviso: String(datos.get("fecha_aviso") ?? "") || null,
       estado: "planificada",
     })
     .select("id, codigo")
@@ -117,7 +130,15 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   if (error) return { exito: false, error: `No se pudo crear la auditoría: ${error.message}` };
 
-  // El auditor líder forma parte del equipo desde el inicio.
+  // Los procesos que abarca. Si falla, la auditoria igual quedo creada:
+  // se corrige desde la ficha y no se pierde el alta.
+  if (procesos.length > 0) {
+    await supabase
+      .from("auditoria_procesos")
+      .insert(procesos.map((procesoId) => ({ auditoria_id: auditoria.id, proceso_id: procesoId })));
+  }
+
+  // El auditor forma parte del equipo desde el inicio.
   await supabase.from("auditoria_equipo").insert({
     auditoria_id: auditoria.id,
     usuario_id: auditorLiderId,
@@ -137,7 +158,7 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
         correoDestino: lider.correo,
         tipo: "auditoria_programada",
         titulo: `Auditoría asignada: ${auditoria.codigo}`,
-        mensaje: `Queda a su cargo como auditor líder. Fecha planificada: ${fechaPlanificada}.`,
+        mensaje: `Queda a su cargo como auditor. Fecha planificada: ${fechaPlanificada}.`,
         enlace: `/auditorias/${auditoria.id}`,
         entidad: "auditorias",
         entidadId: auditoria.id,

@@ -17,18 +17,11 @@ import {
 } from "@/components/ui/tarjeta";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_TIPO_HALLAZGO } from "@/lib/constantes";
+import { ETIQUETAS_TIPO_AUDITORIA, ETIQUETAS_TIPO_HALLAZGO } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
 import type { EstadoAuditoria, TipoHallazgo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
-
-const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
-  interna: "Interna",
-  externa: "Externa",
-  proveedor: "A proveedor",
-  seguimiento: "De seguimiento",
-};
 
 interface AuditoriaDetalle {
   id: string;

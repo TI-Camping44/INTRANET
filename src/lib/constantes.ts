@@ -280,6 +280,34 @@ export const NIVELES_COMPETENCIA: Record<number, string> = {
  * analisis de la ficha y el formulario con el que se responde la accion
  * correctiva.
  */
+/**
+ * Lista de distribucion interna de la empresa.
+ *
+ * Se usa para los avisos que van a todo el personal y no a una persona
+ * —hoy, el aviso de auditoria—. Es una direccion de la empresa, no una
+ * credencial: vive aca y no en una variable de entorno porque si cambia
+ * tiene que cambiar a la vista, en una revision, y no en el panel de
+ * Vercel donde nadie la encuentra.
+ */
+export const CORREO_TODOS = "todos@camping44.com.py";
+
+/**
+ * Los cuatro tipos de auditoria que usa Calidad, en su orden.
+ *
+ * 'proveedor' y 'seguimiento' siguen en el enumerado de la base porque de
+ * un tipo de PostgreSQL no se saca un valor, pero no se ofrecen.
+ */
+export const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
+  por_proceso: "Por proceso",
+  interna: "Interna",
+  externa: "Externa",
+  terceros: "A terceros",
+  proveedor: "A proveedor",
+  seguimiento: "De seguimiento",
+};
+
+export const TIPOS_AUDITORIA_VIGENTES = ["por_proceso", "interna", "externa", "terceros"];
+
 export const PREGUNTAS_CINCO_PORQUES = [
   "¿Por qué ocurrió la desviación?",
   "¿Por qué?",
