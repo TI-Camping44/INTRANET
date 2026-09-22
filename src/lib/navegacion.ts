@@ -148,12 +148,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
-        titulo: "Satisfacción del cliente",
-        ruta: "/satisfaccion",
-        icono: "Smile",
-        fase: "operativo",
-      },
-      {
         titulo: "Recursos humanos",
         ruta: "/recursos-humanos",
         icono: "Users",
