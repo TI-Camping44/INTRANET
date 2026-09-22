@@ -52,6 +52,11 @@ grant select, insert, update, delete on public.auditoria_procesos to authenticat
 -- Se lee lo que se puede leer de su auditoria, y se escribe lo que se
 -- puede escribir de ella: la condicion se delega en la propia fila de
 -- `auditorias`, que ya tiene sus politicas.
+-- Se sueltan antes de crearlas: `create policy` no admite
+-- `if not exists` y la migracion tiene que poder volver a correrse.
+drop policy if exists auditoria_procesos_lectura on public.auditoria_procesos;
+drop policy if exists auditoria_procesos_gestion on public.auditoria_procesos;
+
 create policy auditoria_procesos_lectura on public.auditoria_procesos
   for select to authenticated
   using (

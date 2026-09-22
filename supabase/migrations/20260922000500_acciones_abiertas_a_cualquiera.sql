@@ -20,7 +20,13 @@
 -- alta no abre un agujero de trazabilidad.
 -- ---------------------------------------------------------------------
 
+-- Se sueltan tambien las politicas nuevas antes de crearlas, para que
+-- la migracion se pueda volver a correr sin fallar. `create policy` no
+-- admite `if not exists`.
 drop policy if exists nc_acciones_gestion on public.nc_acciones;
+drop policy if exists nc_acciones_alta on public.nc_acciones;
+drop policy if exists nc_acciones_edicion on public.nc_acciones;
+drop policy if exists nc_acciones_baja on public.nc_acciones;
 
 create policy nc_acciones_alta on public.nc_acciones
   for insert to authenticated

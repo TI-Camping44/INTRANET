@@ -19,3 +19,4 @@ next-env.d.ts
 # Ruta temporal de ingreso: la crea el entorno local de captura de
 # pantallas. Nunca va al repositorio.
 src/app/auth/entrar-demo/
+migraciones-para-subir/
