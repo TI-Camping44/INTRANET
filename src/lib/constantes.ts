@@ -270,6 +270,24 @@ export const NIVELES_COMPETENCIA: Record<number, string> = {
 };
 
 /** Estados en los que una no conformidad se considera abierta. */
+/**
+ * Las cinco preguntas del analisis de causa raiz, con la redaccion de
+ * Calidad. La primera nombra la desviacion y la ultima dice
+ * explicitamente que ahi termina la cadena: quien completa el formulario
+ * tiene que saber que ese renglon es la causa raiz y no un sintoma mas.
+ *
+ * Viven aca y no en el componente porque las usan dos pantallas: el
+ * analisis de la ficha y el formulario con el que se responde la accion
+ * correctiva.
+ */
+export const PREGUNTAS_CINCO_PORQUES = [
+  "¿Por qué ocurrió la desviación?",
+  "¿Por qué?",
+  "¿Por qué?",
+  "¿Por qué?",
+  "¿Por qué? (Causa raíz)",
+];
+
 export const ESTADOS_NC_ABIERTOS: EstadoNoConformidad[] = [
   "abierta",
   "en_analisis",

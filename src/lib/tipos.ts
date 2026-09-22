@@ -267,6 +267,7 @@ export interface NcAccion {
   no_conformidad_id: string;
   tipo: TipoAccion;
   descripcion: string;
+  descargo: string | null;
   responsable_id: string | null;
   fecha_limite: string;
   estado: EstadoAccion;

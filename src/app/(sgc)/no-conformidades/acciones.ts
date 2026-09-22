@@ -5,7 +5,11 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
-import { AREAS_ORGANIZACIONALES, ORIGENES_NC_VIGENTES } from "@/lib/constantes";
+import {
+  AREAS_ORGANIZACIONALES,
+  ORIGENES_NC_VIGENTES,
+  PREGUNTAS_CINCO_PORQUES,
+} from "@/lib/constantes";
 import type {
   AreaOrganizacional,
   EstadoAccion,
@@ -378,6 +382,150 @@ export async function crearAccion(
   // sigue apareciendo como «sin plan de accion» hasta la proxima visita.
   revalidatePath("/acciones");
   return { exito: true, mensaje: "Acción agregada al plan." };
+}
+
+/**
+ * Responder una no conformidad: descargo, cinco porques y accion.
+ *
+ * Es el camino que pidio Calidad. Quien recibe la desviacion contesta en
+ * un solo paso —explica que paso, encadena los cinco porques hasta la
+ * causa raiz y propone la accion— y con eso la no conformidad se cierra.
+ *
+ * La accion QUEDA ABIERTA a proposito. Lo que hay que controlar de ahi en
+ * adelante no es la desviacion, que ya tiene analisis y plan, sino que
+ * ese plan se ejecute y despues resulte eficaz.
+ *
+ * El orden importa: primero el analisis y la accion, y el cierre al
+ * final. El disparador `controlar_cierre_nc()` exige que las dos cosas
+ * esten para dejar cerrar, asi que cerrar antes fallaria. Si el cierre
+ * falla igual, lo cargado queda: es preferible una no conformidad
+ * respondida y abierta que perder el descargo y el analisis.
+ */
+export async function responderNoConformidad(
+  noConformidadId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const descargo = String(datos.get("descargo") ?? "").trim();
+  const descripcion = String(datos.get("descripcion") ?? "").trim();
+  const fechaLimite = String(datos.get("fecha_limite") ?? "");
+  const responsableId = String(datos.get("responsable_id") ?? "") || null;
+  const porques = datos.getAll("porque").map((valor) => String(valor).trim());
+
+  if (descargo.length < 10) {
+    return {
+      exito: false,
+      error: "Escriba el descargo: qué pasó y por qué, con al menos 10 caracteres.",
+    };
+  }
+  if (descripcion.length < 10) {
+    return { exito: false, error: "Describa la acción con al menos 10 caracteres." };
+  }
+  if (!fechaLimite) {
+    return { exito: false, error: "La acción necesita una fecha límite." };
+  }
+  if (porques.length < 5 || porques.some((porque) => porque.length === 0)) {
+    return {
+      exito: false,
+      error:
+        "Complete los cinco porqués. El quinto es la causa raíz: si la cadena se corta antes, " +
+        "la acción ataca un síntoma.",
+    };
+  }
+
+  // 1 · El analisis. Se reemplaza el que hubiera: la cadena es una sola.
+  await supabase.from("nc_porques").delete().eq("no_conformidad_id", noConformidadId);
+
+  const { error: errorPorques } = await supabase.from("nc_porques").insert(
+    porques.map((respuesta, indice) => ({
+      no_conformidad_id: noConformidadId,
+      orden: indice + 1,
+      pregunta: PREGUNTAS_CINCO_PORQUES[indice] ?? `¿Por qué? (${indice + 1})`,
+      respuesta,
+    })),
+  );
+
+  if (errorPorques) {
+    return { exito: false, error: `No se pudo guardar el análisis: ${errorPorques.message}` };
+  }
+
+  // 2 · La accion, con el descargo. Queda pendiente: es lo que se sigue.
+  const { error: errorAccion } = await supabase.from("nc_acciones").insert({
+    no_conformidad_id: noConformidadId,
+    tipo: String(datos.get("tipo") ?? "accion_correctiva"),
+    descripcion,
+    descargo,
+    responsable_id: responsableId,
+    fecha_limite: fechaLimite,
+    estado: "pendiente",
+  });
+
+  if (errorAccion) {
+    return { exito: false, error: `No se pudo cargar la acción: ${errorAccion.message}` };
+  }
+
+  // 3 · La causa raiz queda como conclusion del analisis, que es donde la
+  // busca quien lee la ficha. Este update si pasa por RLS, y esta bien
+  // que asi sea: lo escribe quien puede editar la desviacion.
+  await supabase
+    .from("no_conformidades")
+    .update({ conclusion_causa_raiz: porques[porques.length - 1] })
+    .eq("id", noConformidadId);
+
+  // 4 · El cierre, por la funcion de la base y no por un update directo.
+  // `no_conformidades_edicion` solo deja editar a Calidad, al
+  // responsable, a quien la detecto y al responsable del proceso: si
+  // responde otra persona, el update no falla, simplemente no alcanza
+  // ninguna fila y la desviacion se queda abierta sin que nadie se
+  // entere. La funcion cierra con su propio control —descargo y cinco
+  // porques— y devuelve error cuando no corresponde.
+  const { error: errorCierre } = await supabase.rpc("cerrar_no_conformidad_por_respuesta", {
+    p_no_conformidad_id: noConformidadId,
+  });
+
+  revalidatePath(`/no-conformidades/${noConformidadId}`);
+  revalidatePath("/no-conformidades");
+  revalidatePath("/acciones");
+
+  if (errorCierre) {
+    return {
+      exito: true,
+      id: noConformidadId,
+      mensaje:
+        "Se guardaron el descargo, el análisis y la acción, pero la no conformidad no se " +
+        `pudo cerrar: ${errorCierre.message} Avise a Calidad.`,
+    };
+  }
+
+  if (responsableId && responsableId !== usuario.id) {
+    const [{ data: responsable }, { data: noConformidad }] = await Promise.all([
+      supabase.from("usuarios").select("id, correo").eq("id", responsableId).maybeSingle(),
+      supabase.from("no_conformidades").select("codigo").eq("id", noConformidadId).maybeSingle(),
+    ]);
+
+    if (responsable) {
+      await notificar(supabase, {
+        usuarioId: responsable.id,
+        correoDestino: responsable.correo,
+        tipo: "no_conformidad_asignada",
+        titulo: `Acción asignada · ${noConformidad?.codigo ?? ""}`,
+        mensaje: `Tiene a su cargo: "${descripcion}". Fecha límite: ${fechaLimite}.`,
+        enlace: `/no-conformidades/${noConformidadId}`,
+        entidad: "no_conformidades",
+        entidadId: noConformidadId,
+      });
+    }
+  }
+
+  return {
+    exito: true,
+    id: noConformidadId,
+    mensaje:
+      "No conformidad respondida y cerrada. La acción correctiva queda abierta: es la que " +
+      "se controla hasta verificar su eficacia.",
+  };
 }
 
 /** Avance de una accion por parte de su responsable o de Calidad. */
