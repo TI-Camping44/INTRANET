@@ -13,10 +13,13 @@ export type RolUsuario =
 
 export type TipoDocumento =
   | "manual"
-  | "procedimiento"
   | "instructivo"
+  | "protocolo"
   | "formulario"
   | "politica"
+  // Retirados del alta, conservados porque hay documentos cargados con
+  // ellos y porque de un enumerado de PostgreSQL no se saca un valor.
+  | "procedimiento"
   | "registro"
   | "plan"
   | "externo";
@@ -245,6 +248,7 @@ export interface NoConformidad {
   cliente_id: string | null;
   requisito_incumplido: string | null;
   correccion_inmediata: string | null;
+  propuestas_mejora: string[];
   conclusion_causa_raiz: string | null;
   detectado_por: string | null;
   responsable_id: string | null;

@@ -55,12 +55,22 @@ export function PlanAccion({
   personas,
   usuarioActual,
   puedeGestionar,
+  puedeAgregar,
 }: {
   noConformidadId: string;
   acciones: AccionConResponsable[];
   personas: Persona[];
   usuarioActual: string;
   puedeGestionar: boolean;
+  /**
+   * Cargar una accion la puede hacer cualquiera que pueda escribir,
+   * aunque la no conformidad no sea suya: si alguien ve como
+   * resolverla, tiene que poder proponerlo. Editarla, verificarla y
+   * cerrarla sigue siendo de Calidad, del responsable de la
+   * desviacion o del responsable de la propia accion. Es lo mismo
+   * que dice RLS (nc_acciones_alta frente a nc_acciones_edicion).
+   */
+  puedeAgregar: boolean;
 }) {
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
@@ -237,7 +247,7 @@ export function PlanAccion({
         </ul>
       )}
 
-      {puedeGestionar ? (
+      {puedeAgregar ? (
         <div className="flex justify-end">
           <Boton tamano="pequeno" variante="contorno" onClick={() => definirAbierto(true)}>
             <Plus /> Agregar acción

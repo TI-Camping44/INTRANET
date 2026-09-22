@@ -70,12 +70,15 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
 
   const codigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
   const titulo = String(datos.get("titulo") ?? "").trim();
-  const tipo = String(datos.get("tipo") ?? "procedimiento") as TipoDocumento;
-  const descripcion = String(datos.get("descripcion") ?? "").trim() || null;
-  const procesoId = String(datos.get("proceso_id") ?? "") || null;
-  const normaId = String(datos.get("norma_id") ?? "") || null;
-  const responsableId = String(datos.get("responsable_id") ?? "") || usuario.id;
-  const periodicidad = Number(datos.get("periodicidad_revision_meses") ?? 12);
+  const tipo = String(datos.get("tipo") ?? "manual") as TipoDocumento;
+  // El alta pide lo minimo: tipo, codigo, titulo y el archivo. Calidad
+  // pidio sacar del formulario la descripcion, el proceso asociado, la
+  // norma, el responsable y la periodicidad. Los tres ultimos tienen
+  // valor por defecto —quien carga es el responsable, doce meses de
+  // revision— y se corrigen despues en la ficha; los dos primeros quedan
+  // vacios. Cargar un documento tiene que costar treinta segundos.
+  const responsableId = usuario.id;
+  const periodicidad = 12;
 
   if (!codigo || !FORMATO_CODIGO.test(codigo)) {
     return {
@@ -98,9 +101,6 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
       codigo,
       titulo,
       tipo,
-      descripcion,
-      proceso_id: procesoId,
-      norma_id: normaId,
       responsable_id: responsableId,
       elaborador_id: usuario.id,
       creado_por: usuario.id,
@@ -129,6 +129,25 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
 
   if (errorVersion) {
     return { exito: false, error: `El documento se creó, pero falló la versión inicial: ${errorVersion.message}` };
+  }
+
+  // El archivo viaja en el mismo envio del alta. Antes habia que crear el
+  // documento, entrar a la ficha y recien ahi subirlo, y quedaban
+  // documentos con codigo y sin contenido: la mitad de los cargados no
+  // tenia archivo. Si la subida falla, el documento igual quedo creado y
+  // el mensaje lo dice, porque perder el alta seria peor.
+  const archivo = datos.get("archivo");
+  if (archivo instanceof File && archivo.size > 0) {
+    const resultado = await subirArchivoDocumento(documento.id, datos);
+    if (!resultado.exito) {
+      return {
+        exito: true,
+        id: documento.id,
+        mensaje:
+          `El documento ${codigo} se creó, pero el archivo no se pudo subir: ` +
+          `${resultado.error} Puede cargarlo desde la ficha.`,
+      };
+    }
   }
 
   revalidatePath("/documentos");

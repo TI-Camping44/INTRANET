@@ -19,9 +19,17 @@ import { Tarjeta, TarjetaCabecera, TarjetaTitulo } from "@/components/ui/tarjeta
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Progreso } from "@/components/ui/progreso";
 import { obtenerResumenPanel } from "@/app/(sgc)/panel/datos";
+import { obtenerReportes } from "@/app/(sgc)/panel/reportes";
+import { TablaReporte } from "@/app/(sgc)/panel/tabla-reporte";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { describirVencimiento, formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import {
+  describirVencimiento,
+  formatearFecha,
+  hoyEnAsuncion,
+  saludoSegunHora,
+  sumarDias,
+} from "@/lib/formato";
 import { DIAS_AVISO_REVISION_DOCUMENTO, ESTADOS_NC_ABIERTOS } from "@/lib/constantes";
 import { recortar } from "@/lib/utilidades";
 
@@ -33,9 +41,10 @@ export default async function PaginaPanel() {
   const supabase = crearClienteServidor();
   const hoy = hoyEnAsuncion();
 
-  const [resumen, ncRecientes, riesgosCriticos, documentosPorRevisar, misAcciones] =
+  const [resumen, reportes, ncRecientes, riesgosCriticos, documentosPorRevisar, misAcciones] =
     await Promise.all([
       obtenerResumenPanel(usuario),
+      obtenerReportes(),
       supabase
         .from("no_conformidades")
         .select("id, codigo, titulo, estado, severidad, fecha_limite_cierre")
@@ -79,7 +88,7 @@ export default async function PaginaPanel() {
   return (
     <>
       <EncabezadoPagina
-        titulo={`Buen día, ${nombreCorto}`}
+        titulo={`${saludoSegunHora()}, ${nombreCorto}`}
         descripcion={`Estado del Sistema de Gestión de Calidad al ${formatearFecha(hoy)}.`}
       />
 
@@ -323,6 +332,28 @@ export default async function PaginaPanel() {
         </div>
         <Progreso value={avanceAuditorias} className="mt-3" />
       </Tarjeta>
+
+      {/* Reporteria: el recuento de todo el sistema, para la revision por
+          la direccion. Va en el panel y no en una pantalla aparte porque
+          es la misma pregunta —como esta el SGC— contestada con el total
+          en vez de con lo urgente. */}
+      <div className="mt-8">
+        <div className="mb-3 flex items-end justify-between gap-3 border-b border-borde pb-2">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight">Reportería</h2>
+            <p className="mt-0.5 text-xs text-atenuado-contraste">
+              El recuento completo del sistema al {formatearFecha(hoy)}. Cada fila lleva al
+              listado que la contiene.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+          {reportes.map((reporte) => (
+            <TablaReporte key={reporte.titulo} reporte={reporte} />
+          ))}
+        </div>
+      </div>
     </>
   );
 }

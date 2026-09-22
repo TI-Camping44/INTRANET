@@ -62,15 +62,32 @@ export const ROLES_GESTION: RolUsuario[] = ["administrador_sgc", "responsable_pr
 // Documentos
 // ---------------------------------------------------------------------
 export const ETIQUETAS_TIPO_DOCUMENTO: Record<TipoDocumento, string> = {
-  manual: "Manual",
-  procedimiento: "Procedimiento",
+  manual: "Manual de proceso",
   instructivo: "Instructivo",
+  protocolo: "Protocolo",
   formulario: "Formulario",
   politica: "Política",
+  procedimiento: "Procedimiento",
   registro: "Registro",
   plan: "Plan",
   externo: "Documento externo",
 };
+
+/**
+ * Los cinco tipos que usa Camping 44, en el orden que definio Calidad.
+ *
+ * Los otros cuatro siguen en `ETIQUETAS_TIPO_DOCUMENTO` porque hay
+ * documentos cargados con ellos y hay que poder mostrarlos, pero no se
+ * ofrecen ni en el alta ni en los filtros. Es el mismo criterio que con
+ * los origenes de no conformidad retirados.
+ */
+export const TIPOS_DOCUMENTO_VIGENTES: TipoDocumento[] = [
+  "manual",
+  "instructivo",
+  "protocolo",
+  "formulario",
+  "politica",
+];
 
 export const ETIQUETAS_ESTADO_DOCUMENTO: Record<EstadoDocumento, string> = {
   borrador: "Borrador",
@@ -96,10 +113,11 @@ export const ETIQUETAS_ESTADO_REVISION: Record<EstadoRevision, string> = {
  */
 export const PREFIJO_CODIGO_DOCUMENTO: Record<TipoDocumento, string> = {
   manual: "MP",
-  procedimiento: "PROC",
   instructivo: "IT",
+  protocolo: "PT",
   formulario: "F",
   politica: "POL",
+  procedimiento: "PROC",
   registro: "REG",
   plan: "PLAN",
   externo: "EXT",
@@ -260,12 +278,14 @@ export const ESTADOS_NC_ABIERTOS: EstadoNoConformidad[] = [
 ];
 
 /**
- * Plazo para cerrar una no conformidad: diez dias corridos desde la
- * deteccion, siempre. No se escribe a mano; lo fija el disparador
- * fijar_limite_cierre_nc() para que valga por cualquier via de
- * escritura. Si cambia, cambia en los dos lados.
+ * Plazo para cerrar una no conformidad: cinco dias corridos desde la
+ * deteccion, siempre. Lo bajo Calidad de diez a cinco.
+ *
+ * No se escribe a mano: lo fija el disparador completar_no_conformidad()
+ * para que valga por cualquier via de escritura. Si cambia, cambia en los
+ * dos lados.
  */
-export const DIAS_LIMITE_CIERRE_NC = 10;
+export const DIAS_LIMITE_CIERRE_NC = 5;
 
 /** Dias sin resolver a partir de los cuales se escala al lider inmediato. */
 export const DIAS_ESCALAMIENTO_NC = 10;

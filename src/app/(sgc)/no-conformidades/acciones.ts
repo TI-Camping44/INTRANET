@@ -56,7 +56,18 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
     return { exito: false, error: "No se pudo generar el código de la no conformidad." };
   }
 
+  // El responsable no es opcional en el alta: es quien recibe la no
+  // conformidad, analiza la causa y propone la accion correctiva. Una
+  // desviacion sin responsable es una desviacion que no le llega a nadie.
   const responsableId = String(datos.get("responsable_id") ?? "") || null;
+  if (!responsableId) {
+    return {
+      exito: false,
+      error:
+        "Elija al responsable de la acción correctiva. Es quien recibe la no conformidad y " +
+        "tiene que analizarla y responder.",
+    };
+  }
 
   const { data: noConformidad, error } = await supabase
     .from("no_conformidades")
@@ -72,6 +83,13 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
       empresa_afectada_id: String(datos.get("empresa_afectada_id") ?? "") || usuario.empresa_id,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       correccion_inmediata: String(datos.get("correccion_inmediata") ?? "").trim() || null,
+      // Las propuestas llegan como varios campos con el mismo nombre. Se
+      // descartan las vacias: el formulario abre con un cuadro en blanco
+      // y quien no tenga ninguna idea simplemente no lo completa.
+      propuestas_mejora: datos
+        .getAll("propuestas_mejora")
+        .map((propuesta) => String(propuesta).trim())
+        .filter((propuesta) => propuesta.length > 0),
       detectado_por: usuario.id,
       responsable_id: responsableId,
       fecha_deteccion: String(datos.get("fecha_deteccion") ?? hoyEnAsuncion()),
@@ -356,6 +374,9 @@ export async function crearAccion(
   }
 
   revalidatePath(`/no-conformidades/${noConformidadId}`);
+  // Tambien el listado transversal: si no, la accion recien cargada
+  // sigue apareciendo como «sin plan de accion» hasta la proxima visita.
+  revalidatePath("/acciones");
   return { exito: true, mensaje: "Acción agregada al plan." };
 }
 

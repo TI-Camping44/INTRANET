@@ -15,11 +15,16 @@ export default async function PaginaNuevaNoConformidad() {
   const supabase = crearClienteServidor();
 
   // Las dos empresas del grupo se ofrecen aunque una este inactiva:
-  // Calidad lleva el sistema de las dos y una desviacion de Vitalica se
-  // registra igual.
+  // Calidad lleva el sistema de las dos y una desviacion de Vitalica
+  // E.A.S. se registra igual.
+  //
+  // Va por `empresas_del_grupo()` y no por un select a `empresas`: la
+  // politica RLS de esa tabla solo deja ver la empresa propia, asi que el
+  // selector mostraba Camping 44 y nada mas. La funcion devuelve id y
+  // razon social, sin RUC ni el resto de la ficha.
   const [{ data: procesos }, { data: empresas }, { data: usuarios }] = await Promise.all([
     supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
-    supabase.from("empresas").select("id, nombre, razon_social").order("nombre"),
+    supabase.rpc("empresas_del_grupo"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")

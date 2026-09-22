@@ -64,9 +64,10 @@ const LIBRE: FormatoAdmitido = {
 /** Que formato admite cada tipo de documento. */
 export const FORMATO_POR_TIPO: Record<TipoDocumento, FormatoAdmitido> = {
   manual: PDF,
-  procedimiento: PDF,
   instructivo: PDF,
+  protocolo: PDF,
   politica: PDF,
+  procedimiento: PDF,
   plan: PDF,
   formulario: EDITABLE,
   registro: EDITABLE,
