@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Mail, Phone, Users } from "lucide-react";
+import Link from "next/link";
+import { FileText, Mail, Phone, Users } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
@@ -12,6 +13,14 @@ import {
   PestanasLista,
 } from "@/components/ui/pestanas";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import {
+  Tabla,
+  TablaCabecera,
+  TablaCelda,
+  TablaCuerpo,
+  TablaEncabezado,
+  TablaFila,
+} from "@/components/ui/tabla";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { iniciales } from "@/lib/utilidades";
@@ -28,16 +37,47 @@ export default async function PaginaDirectorio({
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const { data } = await supabase
-    .from("usuarios")
-    .select(
-      "id, nombre_completo, correo, telefono, url_avatar, superior_id," +
-        " puestos:puesto_id (nombre, area), procesos:proceso_id (nombre)",
-    )
-    .eq("activo", true)
-    .order("nombre_completo");
+  // El directorio pasa a ser también la puerta de Recursos Humanos: de
+  // cada persona se llega a su perfil de puesto —el R-02-01— y los
+  // perfiles completos tienen su propia pestaña. Es donde la gente los
+  // busca: se entra por el nombre de la persona, no por el código del
+  // puesto.
+  const [{ data }, { data: puestosCargados }] = await Promise.all([
+    supabase
+      .from("usuarios")
+      .select(
+        "id, nombre_completo, correo, telefono, url_avatar, superior_id, puesto_id," +
+          " puestos:puesto_id (nombre, area), procesos:proceso_id (nombre)",
+      )
+      .eq("activo", true)
+      .order("nombre_completo"),
+    supabase
+      .from("puestos")
+      .select("id, codigo, nombre, area, codigo_formulario, revision, procesos:proceso_id (nombre)")
+      .eq("activo", true)
+      .order("codigo"),
+  ]);
 
   const personas = (data ?? []) as unknown as Persona[];
+
+  const puestos = (puestosCargados ?? []) as unknown as {
+    id: string;
+    codigo: string;
+    nombre: string;
+    area: string | null;
+    codigo_formulario: string;
+    revision: number;
+    procesos: { nombre: string } | null;
+  }[];
+
+  // Cuántas personas ocupan cada puesto. Un puesto sin nadie es un dato:
+  // o está vacante o el legajo no se cargó.
+  const ocupantes = new Map<string, number>();
+  for (const persona of personas) {
+    if (persona.puesto_id) {
+      ocupantes.set(persona.puesto_id, (ocupantes.get(persona.puesto_id) ?? 0) + 1);
+    }
+  }
 
   // El buscador filtra en el servidor sobre lo que RLS ya dejo ver.
   const texto = (searchParams.q ?? "").trim().toLowerCase();
@@ -60,13 +100,16 @@ export default async function PaginaDirectorio({
     <>
       <EncabezadoPagina
         titulo="Directorio"
-        descripcion="Quién es quién en Camping 44, y a quién le reporta cada uno."
+        descripcion="Quién es quién en Camping 44, a quién le reporta cada uno y el perfil de su puesto."
       />
 
       <Pestanas defaultValue="personas">
         <PestanasLista>
           <PestanaDisparador value="personas">Personas ({personas.length})</PestanaDisparador>
           <PestanaDisparador value="organigrama">Organigrama</PestanaDisparador>
+          <PestanaDisparador value="puestos">
+            Perfiles de puesto ({puestos.length})
+          </PestanaDisparador>
         </PestanasLista>
 
         <PestanaContenido value="personas">
@@ -102,9 +145,21 @@ export default async function PaginaDirectorio({
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold">{persona.nombre_completo}</p>
-                      <p className="truncate text-[11px] text-atenuado-contraste">
-                        {persona.puestos?.nombre ?? "Sin puesto asignado"}
-                      </p>
+                      {persona.puesto_id && persona.puestos ? (
+                        <Link
+                          href={`/recursos-humanos/puestos/${persona.puesto_id}`}
+                          className="flex items-center gap-1 truncate text-[11px]
+                                     text-atenuado-contraste hover:text-primario"
+                          title="Ver el perfil del puesto"
+                        >
+                          <span className="truncate">{persona.puestos.nombre}</span>
+                          <FileText className="size-3 shrink-0" />
+                        </Link>
+                      ) : (
+                        <p className="truncate text-[11px] text-atenuado-contraste">
+                          Sin puesto asignado
+                        </p>
+                      )}
 
                       {persona.puestos?.area || persona.procesos?.nombre ? (
                         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -144,6 +199,81 @@ export default async function PaginaDirectorio({
           <Tarjeta className="p-4">
             <Organigrama personas={personas} />
           </Tarjeta>
+        </PestanaContenido>
+
+        <PestanaContenido value="puestos">
+          {puestos.length === 0 ? (
+            <EstadoVacio
+              icono={<Users className="size-6" />}
+              titulo="Sin puestos cargados"
+              descripcion="Los perfiles de puesto se cargan desde Recursos humanos."
+            />
+          ) : (
+            <Tarjeta>
+              <Tabla>
+                <TablaCabecera>
+                  <TablaFila>
+                    <TablaEncabezado className="w-[6rem]">Código</TablaEncabezado>
+                    <TablaEncabezado>Puesto</TablaEncabezado>
+                    <TablaEncabezado className="hidden md:table-cell">Área</TablaEncabezado>
+                    <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
+                    <TablaEncabezado className="w-[7rem]">Formulario</TablaEncabezado>
+                    <TablaEncabezado className="w-[7rem]">Ocupan</TablaEncabezado>
+                  </TablaFila>
+                </TablaCabecera>
+                <TablaCuerpo>
+                  {puestos.map((puesto) => {
+                    const cuantos = ocupantes.get(puesto.id) ?? 0;
+
+                    return (
+                      <TablaFila key={puesto.id}>
+                        <TablaCelda className="font-medium tabular text-xs">
+                          <Link
+                            href={`/recursos-humanos/puestos/${puesto.id}`}
+                            className="hover:text-primario"
+                          >
+                            {puesto.codigo}
+                          </Link>
+                        </TablaCelda>
+                        <TablaCelda className="text-xs">
+                          <Link
+                            href={`/recursos-humanos/puestos/${puesto.id}`}
+                            className="hover:text-primario"
+                          >
+                            {puesto.nombre}
+                          </Link>
+                        </TablaCelda>
+                        <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
+                          {puesto.area ?? "—"}
+                        </TablaCelda>
+                        <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
+                          {puesto.procesos?.nombre ?? "—"}
+                        </TablaCelda>
+                        <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                          {puesto.codigo_formulario} · rev. {puesto.revision}
+                        </TablaCelda>
+                        <TablaCelda className="text-xs">
+                          {cuantos === 0 ? (
+                            <span className="text-semaforo-alto">Vacante</span>
+                          ) : (
+                            <span className="text-atenuado-contraste">
+                              {cuantos} {cuantos === 1 ? "persona" : "personas"}
+                            </span>
+                          )}
+                        </TablaCelda>
+                      </TablaFila>
+                    );
+                  })}
+                </TablaCuerpo>
+              </Tabla>
+            </Tarjeta>
+          )}
+
+          <p className="mt-3 text-[11px] text-atenuado-contraste">
+            El perfil de cada puesto es el formulario R-02-01: misión, funciones, formación y
+            experiencia exigidas. La matriz de competencias y las capacitaciones están en
+            Recursos humanos.
+          </p>
         </PestanaContenido>
       </Pestanas>
     </>
