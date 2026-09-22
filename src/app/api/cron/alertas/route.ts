@@ -3,12 +3,14 @@ import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { notificar } from "@/lib/notificaciones";
 import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
-import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import {
+  CORREO_TODOS,
   DIAS_AVISO_ACCION,
   DIAS_AVISO_REVISION_DOCUMENTO,
   DIAS_ESCALAMIENTO_NC,
   DIAS_ESCALAMIENTO_SEGUNDO_NIVEL,
+  ETIQUETAS_TIPO_AUDITORIA,
 } from "@/lib/constantes";
 
 /**
@@ -23,6 +25,7 @@ import {
  *   4. Riesgos que llegaron a su fecha de reevaluacion.
  *   5. Mantenimientos preventivos programados para la semana.
  *   6. Reenvio de las notificaciones cuyo correo no salio en su momento.
+ *   7. Aviso de auditoria a la lista de distribucion de la empresa.
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -39,6 +42,7 @@ interface Resumen {
   documentosPorRevisar: number;
   riesgosPorReevaluar: number;
   mantenimientosProximos: number;
+  avisosDeAuditoria: number;
   correosReenviados: number;
 }
 
@@ -73,6 +77,7 @@ export async function GET(peticion: NextRequest) {
     documentosPorRevisar: 0,
     riesgosPorReevaluar: 0,
     mantenimientosProximos: 0,
+    avisosDeAuditoria: 0,
     correosReenviados: 0,
   };
 
@@ -298,6 +303,42 @@ export async function GET(peticion: NextRequest) {
         .update({ correo_enviado: true, correo_enviado_en: new Date().toISOString() })
         .eq("id", notificacion.id);
       resumen.correosReenviados += 1;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // 7 · Aviso de auditoria a toda la empresa
+  // ---------------------------------------------------------------
+  // Calidad fija la fecha al planificar la auditoria. Ese dia sale un
+  // correo a la lista de distribucion: es un anuncio, no una asignacion,
+  // asi que no genera notificacion en la campana de nadie.
+  //
+  // Se toman tambien las fechas ya pasadas (lte y no eq): si el trabajo
+  // no corrio un dia, el aviso sale al siguiente en vez de perderse. La
+  // marca `aviso_enviado` es lo que evita que se repita.
+  const { data: auditoriasPorAvisar } = await supabase
+    .from("auditorias")
+    .select("id, codigo, tipo, objetivo, fecha_planificada")
+    .eq("aviso_enviado", false)
+    .not("fecha_aviso", "is", null)
+    .lte("fecha_aviso", hoy)
+    .in("estado", ["planificada", "en_curso"]);
+
+  for (const auditoria of (auditoriasPorAvisar ?? []) as any[]) {
+    const enviado = await enviarCorreo({
+      para: CORREO_TODOS,
+      asunto: `Auditoría ${auditoria.codigo} · ${formatearFecha(auditoria.fecha_planificada)}`,
+      titulo: `Auditoría ${ETIQUETAS_TIPO_AUDITORIA[auditoria.tipo] ?? auditoria.tipo}`,
+      cuerpo:
+        `Se realizará la auditoría ${auditoria.codigo} el ` +
+        `${formatearFecha(auditoria.fecha_planificada)}.\n\n${auditoria.objetivo}`,
+      enlace: urlAbsoluta(`/auditorias/${auditoria.id}`),
+      textoEnlace: "Ver la auditoría",
+    });
+
+    if (enviado) {
+      await supabase.from("auditorias").update({ aviso_enviado: true }).eq("id", auditoria.id);
+      resumen.avisosDeAuditoria += 1;
     }
   }
 

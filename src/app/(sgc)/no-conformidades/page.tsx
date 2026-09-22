@@ -53,6 +53,7 @@ interface FilaNoConformidad {
   fecha_deteccion: string;
   fecha_limite_cierre: string | null;
   es_demostracion: boolean;
+  nc_acciones: { id: string; estado: string }[] | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
 }
@@ -70,6 +71,7 @@ export default async function PaginaNoConformidades({
   };
 }) {
   const usuario = await requerirUsuario();
+  const soloLectura = esSoloLectura(usuario);
   const supabase = crearClienteServidor();
 
   const { data: procesos } = await supabase
@@ -82,7 +84,8 @@ export default async function PaginaNoConformidades({
     .from("no_conformidades")
     .select(
       "id, codigo, titulo, origen, severidad, estado, area, fecha_deteccion, " +
-        "fecha_limite_cierre, es_demostracion, procesos:proceso_id (nombre), " +
+        "fecha_limite_cierre, es_demostracion, nc_acciones (id, estado), " +
+        "procesos:proceso_id (nombre), " +
         "responsable:responsable_id (nombre_completo)",
     )
     // Por correlativo ascendente: NC-2026-001, 002, 003. Ordenar por fecha
@@ -121,7 +124,7 @@ export default async function PaginaNoConformidades({
         titulo="No conformidades y acciones correctivas"
         descripcion="Registro de desviaciones, análisis de causa raíz y plan de acción con seguimiento de vencimientos."
         acciones={
-          !esSoloLectura(usuario) ? (
+          !soloLectura ? (
             <Boton comoHijo>
               <Link href="/no-conformidades/nueva">
                 <Plus /> Registrar desviación
@@ -199,6 +202,9 @@ export default async function PaginaNoConformidades({
                 <TablaEncabezado className="hidden md:table-cell">
                   Responsable de la AC
                 </TablaEncabezado>
+                <TablaEncabezado className="w-[8rem] hidden lg:table-cell">
+                  Acción correctiva
+                </TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">Límite</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
@@ -241,6 +247,29 @@ export default async function PaginaNoConformidades({
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                       {nc.responsable?.nombre_completo ?? "Sin asignar"}
+                    </TablaCelda>
+                    {/* Si tiene plan cargado y cuánto. Una desviación
+                        abierta y sin ninguna acción es la que hay que
+                        mirar primero: es la que todavía nadie tomó. */}
+                    <TablaCelda className="hidden text-xs lg:table-cell">
+                      {(nc.nc_acciones ?? []).length > 0 ? (
+                        <Link
+                          href={`/no-conformidades/${nc.id}`}
+                          className="text-atenuado-contraste hover:text-primario"
+                        >
+                          {(nc.nc_acciones ?? []).length}{" "}
+                          {(nc.nc_acciones ?? []).length === 1 ? "cargada" : "cargadas"}
+                        </Link>
+                      ) : soloLectura ? (
+                        <span className="text-semaforo-alto">Sin plan</span>
+                      ) : (
+                        <Link
+                          href={`/acciones/nueva?nc=${nc.id}`}
+                          className="text-semaforo-alto hover:underline"
+                        >
+                          Cargar acción
+                        </Link>
+                      )}
                     </TablaCelda>
                     <TablaCelda className="text-xs">
                       {nc.fecha_limite_cierre ? (

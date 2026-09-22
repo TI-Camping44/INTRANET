@@ -4,6 +4,7 @@ import { FormularioIndicador } from "@/app/(sgc)/indicadores/formulario-indicado
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ROLES_GESTION } from "@/lib/constantes";
+import { hoyEnAsuncion } from "@/lib/formato";
 
 export const metadata: Metadata = { title: "Nuevo indicador" };
 export const dynamic = "force-dynamic";
@@ -12,13 +13,23 @@ export default async function PaginaNuevoIndicador() {
   const usuario = await requerirRol(ROLES_GESTION);
   const supabase = crearClienteServidor();
 
-  const [{ data: procesos }, { data: usuarios }, { data: existentes }] = await Promise.all([
+  const anio = Number(hoyEnAsuncion().slice(0, 4));
+
+  const [{ data: procesos }, { data: usuarios }, { data: objetivos }, { data: existentes }] =
+    await Promise.all([
     supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    // Los objetivos del ano en curso: son los que puede medir un
+    // indicador que se da de alta hoy.
+    supabase
+      .from("objetivos")
+      .select("id, codigo, nombre")
+      .eq("anio", anio)
+      .order("codigo"),
     supabase.from("indicadores").select("codigo").ilike("codigo", "KPI-%"),
   ]);
 
@@ -37,6 +48,7 @@ export default async function PaginaNuevoIndicador() {
       <FormularioIndicador
         procesos={procesos ?? []}
         usuarios={usuarios ?? []}
+        objetivos={objetivos ?? []}
         usuarioActual={usuario.id}
         codigoSugerido={`KPI-${String(siguiente).padStart(2, "0")}`}
       />

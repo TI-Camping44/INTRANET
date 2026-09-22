@@ -30,6 +30,8 @@ interface AccionConResponsable {
   id: string;
   tipo: TipoAccion;
   descripcion: string;
+  /** El descargo de quien respondio: que paso y por que. */
+  descargo: string | null;
   responsable_id: string | null;
   fecha_limite: string;
   estado: EstadoAccion;
@@ -55,12 +57,22 @@ export function PlanAccion({
   personas,
   usuarioActual,
   puedeGestionar,
+  puedeAgregar,
 }: {
   noConformidadId: string;
   acciones: AccionConResponsable[];
   personas: Persona[];
   usuarioActual: string;
   puedeGestionar: boolean;
+  /**
+   * Cargar una accion la puede hacer cualquiera que pueda escribir,
+   * aunque la no conformidad no sea suya: si alguien ve como
+   * resolverla, tiene que poder proponerlo. Editarla, verificarla y
+   * cerrarla sigue siendo de Calidad, del responsable de la
+   * desviacion o del responsable de la propia accion. Es lo mismo
+   * que dice RLS (nc_acciones_alta frente a nc_acciones_edicion).
+   */
+  puedeAgregar: boolean;
 }) {
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
@@ -220,6 +232,23 @@ export function PlanAccion({
                   </div>
                 ) : null}
 
+                {accion.descargo ? (
+
+                  <div className="mt-1.5 border-l-2 border-borde pl-2">
+
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
+
+                      Descargo
+
+                    </p>
+
+                    <p className="whitespace-pre-line text-xs leading-relaxed">{accion.descargo}</p>
+
+                  </div>
+
+                ) : null}
+
+
                 {accion.estado === "ejecutada" && puedeGestionar ? (
                   <div className="mt-2.5 border-t border-borde pt-2.5">
                     <Boton
@@ -237,7 +266,7 @@ export function PlanAccion({
         </ul>
       )}
 
-      {puedeGestionar ? (
+      {puedeAgregar ? (
         <div className="flex justify-end">
           <Boton tamano="pequeno" variante="contorno" onClick={() => definirAbierto(true)}>
             <Plus /> Agregar acción

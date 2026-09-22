@@ -21,6 +21,15 @@ export interface SubentradaNavegacion {
   ruta: string;
   /** Solo para quien puede escribir: un alta no le sirve a Direccion. */
   soloGestion?: boolean;
+  /**
+   * Restringe el atajo a roles concretos.
+   *
+   * Es mas estrecho que `soloGestion`, que solo saca a Direccion. El alta
+   * de documentos, por ejemplo, la hace unicamente el Administrador SGC:
+   * ofrecersela a un colaborador es prometer un boton que la pantalla
+   * despues le niega. El control real sigue estando en RLS.
+   */
+  roles?: RolUsuario[];
 }
 
 export interface EntradaNavegacion {
@@ -58,12 +67,18 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/documentos",
         icono: "FileText",
         fase: "operativo",
+        // Tres atajos y no cinco, a pedido de Calidad: lo que la gente
+        // busca es lo que esta vigente y lo que ya no. «En elaboracion» y
+        // «Por revisar» son vistas de trabajo de Calidad, que las tiene
+        // igual dentro del modulo.
         subentradas: [
           { titulo: "Vigentes", ruta: "/documentos?vista=vigentes" },
-          { titulo: "En elaboración", ruta: "/documentos?vista=en-proceso" },
           { titulo: "Obsoletos", ruta: "/documentos?vista=obsoletos" },
-          { titulo: "Por revisar", ruta: "/documentos?filtro=por-revisar" },
-          { titulo: "Nuevo documento", ruta: "/documentos/nuevo", soloGestion: true },
+          {
+            titulo: "Nuevo documento",
+            ruta: "/documentos/nuevo",
+            roles: ["administrador_sgc"],
+          },
         ],
       },
       {
@@ -75,7 +90,30 @@ export const NAVEGACION: GrupoNavegacion[] = [
           { titulo: "Todas", ruta: "/no-conformidades" },
           { titulo: "Abiertas", ruta: "/no-conformidades?estado=abiertas" },
           { titulo: "Cerradas", ruta: "/no-conformidades?estado=cerrada" },
-          { titulo: "Registrar desviación", ruta: "/no-conformidades/nueva", soloGestion: true },
+          {
+            titulo: "+ Nueva No Conformidad",
+            ruta: "/no-conformidades/nueva",
+            soloGestion: true,
+          },
+        ],
+      },
+      {
+        // Las acciones viven dentro de su no conformidad, pero la
+        // pregunta «que esta pendiente y quien lo debe» no se contesta
+        // abriendo quince fichas. Por eso tienen listado propio.
+        titulo: "Acciones correctivas",
+        ruta: "/acciones",
+        icono: "ListChecks",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Pendientes", ruta: "/acciones?vista=pendientes" },
+          { titulo: "Vencidas", ruta: "/acciones?vista=pendientes&filtro=vencidas" },
+          { titulo: "A mi cargo", ruta: "/acciones?vista=pendientes&filtro=mias" },
+          {
+            titulo: "+ Nueva acción correctiva",
+            ruta: "/acciones/nueva",
+            soloGestion: true,
+          },
         ],
       },
       {
@@ -108,12 +146,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
           { titulo: "Listado", ruta: "/indicadores" },
           { titulo: "Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
         ],
-      },
-      {
-        titulo: "Satisfacción del cliente",
-        ruta: "/satisfaccion",
-        icono: "Smile",
-        fase: "operativo",
       },
       {
         titulo: "Recursos humanos",
@@ -181,7 +213,8 @@ export function navegacionParaRol(rol: RolUsuario): GrupoNavegacion[] {
       .map((entrada) => ({
         ...entrada,
         subentradas: entrada.subentradas?.filter(
-          (sub) => !sub.soloGestion || puedeEscribir,
+          (sub) =>
+            (!sub.soloGestion || puedeEscribir) && (!sub.roles || sub.roles.includes(rol)),
         ),
       })),
   })).filter((grupo) => grupo.entradas.length > 0);

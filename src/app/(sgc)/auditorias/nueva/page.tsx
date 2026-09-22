@@ -14,21 +14,17 @@ export default async function PaginaNuevaAuditoria() {
 
   const supabase = crearClienteServidor();
 
-  const [{ data: programas }, { data: procesos }, { data: normas }, { data: sedes }, { data: usuarios }] =
-    await Promise.all([
-      supabase
-        .from("programas_auditoria")
-        .select("id, nombre, anio")
-        .order("anio", { ascending: false }),
-      supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
-      supabase.from("normas").select("id, codigo").eq("vigente", true).order("codigo"),
-      supabase.from("sedes").select("id, nombre").eq("activa", true).order("nombre"),
-      supabase
-        .from("usuarios")
-        .select("id, nombre_completo")
-        .eq("activo", true)
-        .order("nombre_completo"),
-    ]);
+  // Calidad saco del alta el programa anual, la sede y la norma de
+  // referencia: los tres se completaban siempre igual o se dejaban
+  // vacios. Las columnas siguen en la tabla y se editan en la ficha.
+  const [{ data: procesos }, { data: usuarios }] = await Promise.all([
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("codigo"),
+    supabase
+      .from("usuarios")
+      .select("id, nombre_completo")
+      .eq("activo", true)
+      .order("nombre_completo"),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -37,10 +33,7 @@ export default async function PaginaNuevaAuditoria() {
         descripcion="La auditoría se numera automáticamente y queda planificada. Los hallazgos se cargan durante la ejecución."
       />
       <FormularioAuditoria
-        programas={programas ?? []}
         procesos={procesos ?? []}
-        normas={normas ?? []}
-        sedes={sedes ?? []}
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}
       />

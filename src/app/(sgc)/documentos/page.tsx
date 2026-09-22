@@ -21,7 +21,11 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { DIAS_AVISO_REVISION_DOCUMENTO, ETIQUETAS_TIPO_DOCUMENTO } from "@/lib/constantes";
+import {
+  DIAS_AVISO_REVISION_DOCUMENTO,
+  ETIQUETAS_TIPO_DOCUMENTO,
+  TIPOS_DOCUMENTO_VIGENTES,
+} from "@/lib/constantes";
 import { describirVencimiento, formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { diasHasta } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
@@ -100,6 +104,25 @@ export default async function PaginaDocumentos({
   const { data, error } = await consulta;
   const documentos = (data as FilaDocumento[] | null) ?? [];
 
+  // Que documentos tienen archivo cargado. Una sola consulta con los ids
+  // de la pagina, no una por fila. Hace falta para decidir a donde lleva
+  // el clic: enlazar al archivo un documento que todavia no lo tiene es
+  // prometer un PDF que no esta.
+  const { data: conArchivo } = documentos.length
+    ? await supabase
+        .from("adjuntos")
+        .select("entidad_id")
+        .eq("entidad", "documentos")
+        .in(
+          "entidad_id",
+          documentos.map((documento) => documento.id),
+        )
+    : { data: [] };
+
+  const tieneArchivo = new Set(
+    ((conArchivo as { entidad_id: string }[] | null) ?? []).map((fila) => fila.entidad_id),
+  );
+
   const estadosCargados = (todos as { estado: EstadoDocumento }[] | null) ?? [];
   const vistas = Object.entries(VISTAS).map(([valor, { etiqueta, estados: suyos }]) => ({
     valor,
@@ -136,9 +159,11 @@ export default async function PaginaDocumentos({
           {
             nombre: "tipo",
             etiqueta: "Tipo",
-            opciones: Object.entries(ETIQUETAS_TIPO_DOCUMENTO).map(([valor, etiqueta]) => ({
+            // Solo los cinco tipos vigentes: filtrar por «Registro» o
+            // «Plan», que ya no se dan de alta, devolveria siempre vacio.
+            opciones: TIPOS_DOCUMENTO_VIGENTES.map((valor) => ({
               valor,
-              etiqueta,
+              etiqueta: ETIQUETAS_TIPO_DOCUMENTO[valor],
             })),
           },
           {
@@ -196,6 +221,7 @@ export default async function PaginaDocumentos({
                   <TablaEncabezado className="w-[7rem]">Estado</TablaEncabezado>
                 )}
                 <TablaEncabezado className="hidden xl:table-cell">Próxima revisión</TablaEncabezado>
+                <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -206,18 +232,41 @@ export default async function PaginaDocumentos({
                   dias !== null &&
                   dias <= DIAS_AVISO_REVISION_DOCUMENTO;
 
+                // Tocar el codigo o el titulo abre el archivo, no la ficha:
+                // quien entra al control documental viene a leer el
+                // procedimiento. La ficha queda en su propia columna.
+                const abre = tieneArchivo.has(documento.id);
+                const destino = abre
+                  ? `/documentos/${documento.id}/archivo`
+                  : `/documentos/${documento.id}`;
+                const rotulo = abre
+                  ? "Abrir el archivo en una pestaña nueva"
+                  : "Este documento todavía no tiene archivo cargado";
+
                 return (
                   <TablaFila key={documento.id}>
                     <TablaCelda className="font-medium tabular">
-                      <Link href={`/documentos/${documento.id}`} className="hover:text-primario">
+                      <Link
+                        href={destino}
+                        target={abre ? "_blank" : undefined}
+                        rel={abre ? "noopener noreferrer" : undefined}
+                        title={rotulo}
+                        className="hover:text-primario"
+                      >
                         {documento.codigo ?? <span className="text-atenuado-contraste">—</span>}
                       </Link>
                     </TablaCelda>
                     <TablaCelda>
                       <Link
-                        href={`/documentos/${documento.id}`}
+                        href={destino}
+                        target={abre ? "_blank" : undefined}
+                        rel={abre ? "noopener noreferrer" : undefined}
+                        title={rotulo}
                         className="flex items-center gap-2 hover:text-primario"
                       >
+                        {abre ? (
+                          <FileText className="size-3.5 shrink-0 text-atenuado-contraste" />
+                        ) : null}
                         <span>{recortar(documento.titulo, 80)}</span>
                         {documento.es_demostracion ? <InsigniaDemostracion /> : null}
                       </Link>
@@ -247,6 +296,14 @@ export default async function PaginaDocumentos({
                         <span className="text-atenuado-contraste">—</span>
                       )}
                     </TablaCelda>
+                    <TablaCelda className="text-right">
+                      <Link
+                        href={`/documentos/${documento.id}`}
+                        className="text-xs text-primario hover:underline"
+                      >
+                        Ver
+                      </Link>
+                    </TablaCelda>
                   </TablaFila>
                 );
               })}
@@ -263,7 +320,9 @@ export default async function PaginaDocumentos({
         .{" "}
         {vista === "vigentes"
           ? "Es lo que está en vigencia hoy; las versiones reemplazadas están en «Obsoletos»."
-          : null}
+          : null}{" "}
+        Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
+        versiones.
       </p>
     </>
   );

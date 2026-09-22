@@ -56,6 +56,12 @@ export async function crearIndicador(datos: FormData): Promise<ResultadoAccion> 
       formula: String(datos.get("formula") ?? "").trim() || null,
       unidad: String(datos.get("unidad") ?? "%").trim() || "%",
       frecuencia: String(datos.get("frecuencia") ?? "mensual") as FrecuenciaMedicion,
+      // Las columnas del F-EST-01-05. `objetivo_id` es lo que en la hoja
+      // pone al indicador y a su objetivo en la misma fila.
+      objetivo_id: String(datos.get("objetivo_id") ?? "") || null,
+      linea_base: datos.get("linea_base") ? Number(datos.get("linea_base")) : null,
+      fuente_dato: String(datos.get("fuente_dato") ?? "").trim() || null,
+      consolidacion: String(datos.get("consolidacion") ?? "promedio"),
       sentido,
       meta,
       meta_minima: metaMinima,

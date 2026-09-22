@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
+import {
+  BUCKET_DOCUMENTOS,
+  motivoDeRechazoEvidencia,
+  rutaDeEvidencia,
+} from "@/lib/adjuntos";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { notificar, notificarAVarios } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
@@ -95,14 +100,24 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   const auditorLiderId = String(datos.get("auditor_lider_id") ?? "") || usuario.id;
 
+  // Una auditoria puede abarcar varios procesos. Llegan como varias
+  // casillas con el mismo nombre.
+  const procesos = datos
+    .getAll("procesos")
+    .map((valor) => String(valor))
+    .filter((valor) => valor.length > 0);
+
   const { data: auditoria, error } = await supabase
     .from("auditorias")
     .insert({
       empresa_id: usuario.empresa_id,
       programa_id: String(datos.get("programa_id") ?? "") || null,
       codigo,
-      tipo: String(datos.get("tipo") ?? "interna"),
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      tipo: String(datos.get("tipo") ?? "por_proceso"),
+      // El primero de los elegidos queda tambien en `proceso_id`, que es
+      // lo que leen todavia el listado y la ficha. La lista completa va a
+      // `auditoria_procesos`.
+      proceso_id: procesos[0] ?? null,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: auditorLiderId,
@@ -110,6 +125,9 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
       alcance: String(datos.get("alcance") ?? "").trim() || null,
       criterios: String(datos.get("criterios") ?? "").trim() || null,
       fecha_planificada: fechaPlanificada,
+      // El aviso a toda la empresa. Nulo si no se pidio; el trabajo
+      // programado lo manda ese dia y marca `aviso_enviado`.
+      fecha_aviso: String(datos.get("fecha_aviso") ?? "") || null,
       estado: "planificada",
     })
     .select("id, codigo")
@@ -117,7 +135,15 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   if (error) return { exito: false, error: `No se pudo crear la auditoría: ${error.message}` };
 
-  // El auditor líder forma parte del equipo desde el inicio.
+  // Los procesos que abarca. Si falla, la auditoria igual quedo creada:
+  // se corrige desde la ficha y no se pierde el alta.
+  if (procesos.length > 0) {
+    await supabase
+      .from("auditoria_procesos")
+      .insert(procesos.map((procesoId) => ({ auditoria_id: auditoria.id, proceso_id: procesoId })));
+  }
+
+  // El auditor forma parte del equipo desde el inicio.
   await supabase.from("auditoria_equipo").insert({
     auditoria_id: auditoria.id,
     usuario_id: auditorLiderId,
@@ -137,7 +163,7 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
         correoDestino: lider.correo,
         tipo: "auditoria_programada",
         titulo: `Auditoría asignada: ${auditoria.codigo}`,
-        mensaje: `Queda a su cargo como auditor líder. Fecha planificada: ${fechaPlanificada}.`,
+        mensaje: `Queda a su cargo como auditor. Fecha planificada: ${fechaPlanificada}.`,
         enlace: `/auditorias/${auditoria.id}`,
         entidad: "auditorias",
         entidadId: auditoria.id,
@@ -337,20 +363,80 @@ export async function crearHallazgo(
     p_auditoria_id: auditoriaId,
   });
 
-  const { error } = await supabase.from("auditoria_hallazgos").insert({
-    auditoria_id: auditoriaId,
-    codigo: codigo ?? null,
-    tipo: String(datos.get("tipo") ?? "observacion"),
-    requisito: String(datos.get("requisito") ?? "").trim() || null,
-    descripcion,
-    evidencia: String(datos.get("evidencia") ?? "").trim() || null,
-    proceso_id: String(datos.get("proceso_id") ?? "") || null,
-    registrado_por: usuario.id,
-  });
+  const { data: hallazgo, error } = await supabase
+    .from("auditoria_hallazgos")
+    .insert({
+      auditoria_id: auditoriaId,
+      codigo: codigo ?? null,
+      tipo: String(datos.get("tipo") ?? "no_conformidad_menor"),
+      descripcion,
+      evidencia: String(datos.get("evidencia") ?? "").trim() || null,
+      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      registrado_por: usuario.id,
+    })
+    .select("id")
+    .single();
 
   if (error) return { exito: false, error: `No se pudo registrar el hallazgo: ${error.message}` };
 
+  // Las evidencias adjuntas. Si alguna falla, el hallazgo igual quedo
+  // registrado: el mensaje lo dice y se vuelve a intentar, que es mejor
+  // que perder la descripcion recien escrita.
+  const archivos = datos
+    .getAll("evidencias")
+    .filter((archivo): archivo is File => archivo instanceof File && archivo.size > 0);
+
+  const fallidos: string[] = [];
+
+  for (const archivo of archivos) {
+    const motivo = motivoDeRechazoEvidencia(archivo.name, archivo.size);
+    if (motivo) {
+      fallidos.push(`${archivo.name}: ${motivo}`);
+      continue;
+    }
+
+    const ruta = rutaDeEvidencia(hallazgo.id, archivo.name);
+
+    const { error: errorCarga } = await supabase.storage
+      .from(BUCKET_DOCUMENTOS)
+      .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+
+    if (errorCarga) {
+      fallidos.push(`${archivo.name}: ${errorCarga.message}`);
+      continue;
+    }
+
+    const { error: errorRegistro } = await supabase.from("adjuntos").insert({
+      empresa_id: usuario.empresa_id,
+      entidad: "auditoria_hallazgos",
+      entidad_id: hallazgo.id,
+      nombre_archivo: archivo.name,
+      ruta,
+      bucket: BUCKET_DOCUMENTOS,
+      tamano_bytes: archivo.size,
+      tipo_mime: archivo.type || null,
+      subido_por: usuario.id,
+    });
+
+    if (errorRegistro) {
+      // El archivo ya esta arriba: si no se pudo registrar, se retira
+      // para no dejar un huerfano que nadie sabe de quien es.
+      await supabase.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
+      fallidos.push(`${archivo.name}: ${errorRegistro.message}`);
+    }
+  }
+
   revalidatePath(`/auditorias/${auditoriaId}`);
+
+  if (fallidos.length > 0) {
+    return {
+      exito: true,
+      mensaje:
+        `Hallazgo ${codigo ?? ""} registrado, pero no se pudieron adjuntar: ` +
+        `${fallidos.join("; ")}.`,
+    };
+  }
+
   return { exito: true, mensaje: `Hallazgo ${codigo ?? ""} registrado.` };
 }
 

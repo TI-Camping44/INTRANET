@@ -6,9 +6,11 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { CampoPropuestas } from "@/app/(sgc)/no-conformidades/campo-propuestas";
 import { crearNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
 import {
   AREAS_ORGANIZACIONALES,
+  DIAS_ESCALAMIENTO_NC,
   DIAS_LIMITE_CIERRE_NC,
   ETIQUETAS_ORIGEN_NC,
   ETIQUETAS_SEVERIDAD_NC,
@@ -86,7 +88,7 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo
-            etiqueta="Descripción de la desviación"
+            etiqueta="Descripción de la No Conformidad"
             htmlFor="descripcion"
             requerido
             className="sm:col-span-2"
@@ -162,10 +164,13 @@ export function FormularioNoConformidad({
           <GrupoCampo
             etiqueta="Responsable de la acción correctiva"
             htmlFor="responsable_id"
-            ayuda="Recibe la notificación de asignación."
+            requerido
+            ayuda="Recibe la notificación y es quien analiza la causa y propone la acción. Sin responsable, la no conformidad no le llega a nadie."
           >
-            <Seleccion id="responsable_id" name="responsable_id">
-              <option value="">Asignar más adelante</option>
+            <Seleccion id="responsable_id" name="responsable_id" required defaultValue="">
+              <option value="" disabled>
+                Elija a la persona
+              </option>
               {usuarios.map((persona) => (
                 <option key={persona.id} value={persona.id}>
                   {persona.nombre_completo}
@@ -183,6 +188,14 @@ export function FormularioNoConformidad({
             <AreaTexto id="correccion_inmediata" name="correccion_inmediata" rows={2} />
           </GrupoCampo>
 
+          <GrupoCampo
+            etiqueta="Propuestas de mejora"
+            className="sm:col-span-2"
+            ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una; la que se decida ejecutar se carga después como acción de tipo Mejora."
+          >
+            <CampoPropuestas />
+          </GrupoCampo>
+
           <GrupoCampo etiqueta="Fecha de detección" htmlFor="fecha_deteccion" requerido>
             <Entrada
               id="fecha_deteccion"
@@ -197,7 +210,7 @@ export function FormularioNoConformidad({
 
           <GrupoCampo
             etiqueta="Fecha límite de cierre"
-            ayuda={`Son ${DIAS_LIMITE_CIERRE_NC} días corridos desde la detección y los calcula el sistema. A los ${DIAS_LIMITE_CIERRE_NC} días sin resolver, la acción escala al líder inmediato.`}
+            ayuda={`Son ${DIAS_LIMITE_CIERRE_NC} días corridos desde la detección y los calcula el sistema. A los ${DIAS_ESCALAMIENTO_NC} días sin resolver, la acción escala al líder inmediato.`}
           >
             <p
               className="flex h-9 items-center rounded-md border border-borde bg-acento/40 px-3

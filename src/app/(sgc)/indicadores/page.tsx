@@ -5,6 +5,8 @@ import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { PanelObjetivos } from "@/app/(sgc)/indicadores/panel-objetivos";
+import { obtenerHoja } from "@/app/(sgc)/indicadores/hoja";
+import { TablaHoja } from "@/app/(sgc)/indicadores/tabla-hoja";
 import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -51,8 +53,14 @@ export default async function PaginaIndicadores({
     consulta = consulta.or(`codigo.ilike.${texto},nombre.ilike.${texto}`);
   }
 
-  const [{ data: indicadoresDatos }, { data: mediciones }, { data: objetivos }, { data: procesos }] =
-    await Promise.all([
+  const [
+    hoja,
+    { data: indicadoresDatos },
+    { data: mediciones },
+    { data: objetivos },
+    { data: procesos },
+  ] = await Promise.all([
+    obtenerHoja(anio),
       consulta,
       supabase
         .from("vista_indicadores_looker")
@@ -106,6 +114,25 @@ export default async function PaginaIndicadores({
           ) : null
         }
       />
+
+      {/* El F-EST-01-05 completo, primero. Es la hoja que Calidad venía
+          llevando en el Drive y la razón por la que se entra acá: el
+          resto de la pantalla son cortes de lo mismo. */}
+      <div className="mb-3 flex items-end justify-between gap-3 border-b border-borde pb-2">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight">
+            Objetivos de la calidad e indicadores · {anio}
+          </h2>
+          <p className="mt-0.5 text-xs text-atenuado-contraste">
+            F-EST-01-05. Las mismas columnas de la hoja: el resultado, el cumplimiento y el
+            semáforo los calcula el sistema a partir de los meses cargados.
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-8">
+        <TablaHoja hoja={hoja} puedeEditar={gestiona} />
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <TarjetaIndicador titulo="Indicadores activos" valor={indicadores.length} />

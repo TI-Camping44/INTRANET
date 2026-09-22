@@ -16,21 +16,8 @@ import {
   guardarConclusionCausaRaiz,
   guardarPorques,
 } from "@/app/(sgc)/no-conformidades/acciones";
+import { PREGUNTAS_CINCO_PORQUES as PREGUNTAS } from "@/lib/constantes";
 import type { NcPorque } from "@/lib/tipos";
-
-/**
- * Las cinco preguntas, con la redaccion de Calidad. La primera nombra la
- * desviacion y la ultima dice explicitamente que ahi termina la cadena:
- * quien completa el formulario tiene que saber que ese renglon es la
- * causa raiz y no un sintoma mas.
- */
-const PREGUNTAS = [
-  "¿Por qué ocurrió la desviación?",
-  "¿Por qué?",
-  "¿Por qué?",
-  "¿Por qué?",
-  "¿Por qué? (Causa raíz)",
-];
 
 /**
  * Analisis de causa raiz: la cadena de los cinco porques y la

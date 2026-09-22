@@ -14,6 +14,7 @@ export interface Persona {
   telefono: string | null;
   url_avatar: string | null;
   superior_id: string | null;
+  puesto_id: string | null;
   puestos: { nombre: string; area: string | null } | null;
   procesos: { nombre: string } | null;
 }

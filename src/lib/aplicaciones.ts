@@ -70,7 +70,7 @@ const BASE = "https://ti-camping44.github.io";
 
 export const APLICACIONES: Aplicacion[] = [
   {
-    nombre: "Ticket de soporte de TI",
+    nombre: "Tickets de solicitud para TI",
     descripcion: "Para pedir asistencia a Informática y seguir el pedido.",
     url:
       "https://script.google.com/a/macros/camping44.com.py/s/" +
@@ -78,7 +78,7 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
-    nombre: "Pedido a Logística",
+    nombre: "Tickets de solicitud para Logística",
     descripcion: "Para pedir movimientos, retiros y entregas al área de Logística.",
     url:
       "https://script.google.com/a/macros/camping44.com.py/s/" +
@@ -86,7 +86,7 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
-    nombre: "Solicitud a Marketing",
+    nombre: "Tickets de solicitud para Marketing",
     descripcion: "Para pedir piezas, publicaciones y material de comunicación.",
     url:
       "https://script.google.com/a/macros/camping44.com.py/s/" +
@@ -94,7 +94,7 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
-    nombre: "Solicitud a Administración",
+    nombre: "Tickets de solicitud para Administración",
     descripcion: "Para los pedidos que resuelve Administración.",
     url:
       "https://script.google.com/a/macros/camping44.com.py/s/" +
@@ -102,7 +102,7 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
-    nombre: "Solicitud a Calidad",
+    nombre: "Tickets de solicitud para Calidad",
     descripcion: "Para los pedidos que resuelve Gestión de Calidad.",
     url:
       "https://script.google.com/a/macros/camping44.com.py/s/" +
@@ -110,7 +110,7 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
-    nombre: "Solicitud de compra interna",
+    nombre: "Tickets de solicitud de compra interna",
     descripcion: "Para pedir la compra de insumos o equipamiento del área.",
     url:
       "https://docs.google.com/forms/d/e/" +

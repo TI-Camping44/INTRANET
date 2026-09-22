@@ -5,54 +5,70 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Wand2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
+import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { crearDocumento, sugerirCodigoDocumento } from "@/app/(sgc)/documentos/acciones";
-import { ETIQUETAS_TIPO_DOCUMENTO } from "@/lib/constantes";
+import { ETIQUETAS_TIPO_DOCUMENTO, TIPOS_DOCUMENTO_VIGENTES } from "@/lib/constantes";
+import { extensionesAdmitidas, FORMATO_POR_TIPO, motivoDeRechazo } from "@/lib/adjuntos";
 import type { TipoDocumento } from "@/lib/tipos";
 
-interface Opcion {
-  id: string;
-  nombre?: string;
-  codigo?: string;
-  nombre_completo?: string;
-}
-
-export function FormularioDocumento({
-  procesos,
-  normas,
-  usuarios,
-  usuarioActual,
-}: {
-  procesos: Opcion[];
-  normas: Opcion[];
-  usuarios: Opcion[];
-  usuarioActual: string;
-}) {
+/**
+ * Alta de un documento: cuatro campos y el archivo.
+ *
+ * Calidad pidió sacar la descripción, el proceso asociado, la norma de
+ * referencia, el responsable y la periodicidad de revisión. Los tres
+ * últimos tienen valor por defecto —quien carga queda de responsable, la
+ * revisión a doce meses— y se corrigen en la ficha cuando hace falta.
+ * Un alta de nueve campos es un alta que no se hace.
+ *
+ * El archivo va acá y no después. Un documento sin archivo es un código
+ * en una tabla: el listado lo muestra y al tocarlo no hay nada que abrir.
+ */
+export function FormularioDocumento({ usuarioActual }: { usuarioActual: string }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
-  const [tipo, definirTipo] = React.useState<TipoDocumento>("procedimiento");
-  const [procesoId, definirProcesoId] = React.useState("");
+  const [tipo, definirTipo] = React.useState<TipoDocumento>("manual");
   const [codigo, definirCodigo] = React.useState("");
+  const [archivo, definirArchivo] = React.useState<File | null>(null);
 
   async function sugerirCodigo() {
-    const sugerido = await sugerirCodigoDocumento(tipo, procesoId || null);
+    const sugerido = await sugerirCodigoDocumento(tipo, null);
     definirCodigo(sugerido);
     toast.info(`Código sugerido: ${sugerido}`);
   }
 
-  // Al elegir tipo y proceso se propone el código controlado disponible.
+  // Al elegir el tipo se propone el código controlado disponible.
   React.useEffect(() => {
     let vigente = true;
-    sugerirCodigoDocumento(tipo, procesoId || null).then((sugerido) => {
+    sugerirCodigoDocumento(tipo, null).then((sugerido) => {
       if (vigente) definirCodigo((actual) => (actual ? actual : sugerido));
     });
     return () => {
       vigente = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipo, procesoId]);
+  }, [tipo]);
+
+  function elegirArchivo(evento: React.ChangeEvent<HTMLInputElement>) {
+    const elegido = evento.target.files?.[0] ?? null;
+    if (!elegido) {
+      definirArchivo(null);
+      return;
+    }
+
+    // Se avisa acá para no hacerle esperar la subida de un archivo que la
+    // acción va a rechazar igual. El control que vale es el del servidor.
+    const motivo = motivoDeRechazo(tipo, elegido.name, elegido.size);
+    if (motivo) {
+      toast.error(motivo);
+      evento.target.value = "";
+      definirArchivo(null);
+      return;
+    }
+
+    definirArchivo(elegido);
+  }
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -89,9 +105,9 @@ export function FormularioDocumento({
               value={tipo}
               onChange={(evento) => definirTipo(evento.target.value as TipoDocumento)}
             >
-              {Object.entries(ETIQUETAS_TIPO_DOCUMENTO).map(([valor, etiqueta]) => (
+              {TIPOS_DOCUMENTO_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
-                  {etiqueta}
+                  {ETIQUETAS_TIPO_DOCUMENTO[valor]}
                 </option>
               ))}
             </Seleccion>
@@ -130,77 +146,37 @@ export function FormularioDocumento({
             <Entrada
               id="titulo"
               name="titulo"
-              placeholder="Procedimiento de recepción de mercadería"
+              placeholder="Manual de recepción de mercadería"
               required
               minLength={4}
             />
           </GrupoCampo>
 
           <GrupoCampo
-            etiqueta="Descripción / objeto"
-            htmlFor="descripcion"
+            etiqueta="Archivo del documento"
+            htmlFor="archivo"
             className="sm:col-span-2"
-            ayuda="Para qué sirve el documento y a qué alcance aplica."
+            ayuda={FORMATO_POR_TIPO[tipo].explicacion}
           >
-            <AreaTexto id="descripcion" name="descripcion" rows={3} />
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Proceso asociado" htmlFor="proceso_id">
-            <Seleccion
-              id="proceso_id"
-              name="proceso_id"
-              value={procesoId}
-              onChange={(evento) => definirProcesoId(evento.target.value)}
-            >
-              <option value="">Sin proceso asociado</option>
-              {procesos.map((proceso) => (
-                <option key={proceso.id} value={proceso.id}>
-                  {proceso.codigo} · {proceso.nombre}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Norma de referencia" htmlFor="norma_id">
-            <Seleccion id="norma_id" name="norma_id">
-              <option value="">Sin norma asociada</option>
-              {normas.map((norma) => (
-                <option key={norma.id} value={norma.id}>
-                  {norma.codigo}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Responsable del documento"
-            htmlFor="responsable_id"
-            requerido
-            ayuda="Quien mantiene el contenido actualizado."
-          >
-            <Seleccion id="responsable_id" name="responsable_id" defaultValue={usuarioActual}>
-              {usuarios.map((persona) => (
-                <option key={persona.id} value={persona.id}>
-                  {persona.nombre_completo}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Periodicidad de revisión (meses)"
-            htmlFor="periodicidad_revision_meses"
-            ayuda="Se usa para calcular la fecha de próxima revisión al aprobar."
-          >
-            <Entrada
-              id="periodicidad_revision_meses"
-              name="periodicidad_revision_meses"
-              type="number"
-              min={1}
-              max={60}
-              defaultValue={12}
+            <input
+              id="archivo"
+              name="archivo"
+              type="file"
+              accept={extensionesAdmitidas(tipo)}
+              onChange={elegirArchivo}
+              className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
+                         text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
+                         file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
+                         file:text-texto"
             />
+            {archivo ? (
+              <p className="mt-1.5 text-[11px] text-atenuado-contraste">
+                Se va a subir <span className="font-medium text-texto">{archivo.name}</span>.
+              </p>
+            ) : null}
           </GrupoCampo>
+
+          <input type="hidden" name="responsable_id" value={usuarioActual} />
         </div>
 
         {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
@@ -209,8 +185,8 @@ export function FormularioDocumento({
           <Boton type="button" variante="contorno" onClick={() => router.back()}>
             Cancelar
           </Boton>
-          <Boton type="submit" disabled={enviando}>
-            {enviando ? "Creando…" : "Crear documento"}
+          <Boton type="submit" cargando={enviando}>
+            Crear documento
           </Boton>
         </div>
       </Tarjeta>

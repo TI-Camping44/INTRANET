@@ -20,7 +20,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { esSoloLectura, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   AREAS_ORGANIZACIONALES,
@@ -50,6 +50,7 @@ interface NoConformidadDetalle {
   area: AreaOrganizacional | null;
   empresa_afectada_id: string | null;
   correccion_inmediata: string | null;
+  propuestas_mejora: string[] | null;
   conclusion_causa_raiz: string | null;
   fecha_deteccion: string;
   fecha_limite_cierre: string | null;
@@ -157,7 +158,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
         <div className="space-y-4 lg:col-span-2">
           <Tarjeta>
             <TarjetaCabecera>
-              <TarjetaTitulo>Descripción de la desviación</TarjetaTitulo>
+              <TarjetaTitulo>Descripción de la No Conformidad</TarjetaTitulo>
             </TarjetaCabecera>
             <TarjetaContenido className="space-y-3">
               <p className="whitespace-pre-line text-xs leading-relaxed">
@@ -172,6 +173,29 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
                   <p className="mt-0.5 whitespace-pre-line text-xs leading-relaxed">
                     {noConformidad.correccion_inmediata}
                   </p>
+                </div>
+              ) : null}
+
+              {noConformidad.propuestas_mejora?.length ? (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
+                    {noConformidad.propuestas_mejora.length === 1
+                      ? "Propuesta de mejora"
+                      : "Propuestas de mejora"}
+                  </p>
+                  {/* Cada una en su renglón: se cargaron por separado
+                      para poder leerlas por separado. */}
+                  <ul className="mt-1 space-y-1">
+                    {noConformidad.propuestas_mejora.map((propuesta, indice) => (
+                      <li
+                        key={indice}
+                        className="flex gap-2 whitespace-pre-line text-xs leading-relaxed"
+                      >
+                        <span className="text-atenuado-contraste tabular">{indice + 1}.</span>
+                        <span>{propuesta}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </TarjetaContenido>
@@ -202,6 +226,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
                 personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
                 usuarioActual={usuario.id}
                 puedeGestionar={gestiona}
+                puedeAgregar={!esSoloLectura(usuario)}
               />
             </TarjetaContenido>
           </Tarjeta>

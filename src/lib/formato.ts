@@ -91,6 +91,32 @@ export function hoyEnAsuncion(): string {
   return partes;
 }
 
+/** Hora del dia en Asuncion, de 0 a 23. */
+export function horaEnAsuncion(): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: ZONA_HORARIA,
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date()),
+  );
+}
+
+/**
+ * Saludo segun la hora de Asuncion.
+ *
+ * Decia siempre "Buen dia", tambien a las dos de la tarde. El servidor de
+ * Vercel corre en UTC y la hora hay que pedirla en la zona de la empresa,
+ * como con las fechas: `new Date().getHours()` daria la hora del servidor,
+ * que en Asuncion son tres o cuatro horas menos.
+ */
+export function saludoSegunHora(): string {
+  const hora = horaEnAsuncion();
+  if (hora < 12) return "Buen día";
+  if (hora < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
+
 /**
  * Dias que faltan para una fecha (negativo si ya paso).
  * Se calcula sobre fechas sin hora para que "hoy" siempre sea 0.

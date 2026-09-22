@@ -13,10 +13,13 @@ export type RolUsuario =
 
 export type TipoDocumento =
   | "manual"
-  | "procedimiento"
   | "instructivo"
+  | "protocolo"
   | "formulario"
   | "politica"
+  // Retirados del alta, conservados porque hay documentos cargados con
+  // ellos y porque de un enumerado de PostgreSQL no se saca un valor.
+  | "procedimiento"
   | "registro"
   | "plan"
   | "externo";
@@ -119,9 +122,12 @@ export type EstadoAuditoria =
   | "cancelada";
 
 export type TipoHallazgo =
-  | "no_conformidad_mayor"
   | "no_conformidad_menor"
+  | "no_conformidad_mayor"
   | "observacion"
+  | "otro"
+  // Retirados del alta, conservados porque puede haber hallazgos
+  // cargados con ellos.
   | "oportunidad_mejora"
   | "fortaleza";
 
@@ -245,6 +251,7 @@ export interface NoConformidad {
   cliente_id: string | null;
   requisito_incumplido: string | null;
   correccion_inmediata: string | null;
+  propuestas_mejora: string[];
   conclusion_causa_raiz: string | null;
   detectado_por: string | null;
   responsable_id: string | null;
@@ -263,6 +270,7 @@ export interface NcAccion {
   no_conformidad_id: string;
   tipo: TipoAccion;
   descripcion: string;
+  descargo: string | null;
   responsable_id: string | null;
   fecha_limite: string;
   estado: EstadoAccion;

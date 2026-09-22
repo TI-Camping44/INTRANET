@@ -8,6 +8,7 @@ import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { crearIndicador } from "@/app/(sgc)/indicadores/acciones";
 import { ETIQUETAS_FRECUENCIA, ETIQUETAS_SENTIDO } from "@/lib/constantes";
+import { ETIQUETAS_CONSOLIDACION } from "@/lib/objetivos";
 import type { SentidoIndicador } from "@/lib/tipos";
 
 interface Opcion {
@@ -20,11 +21,13 @@ interface Opcion {
 export function FormularioIndicador({
   procesos,
   usuarios,
+  objetivos,
   usuarioActual,
   codigoSugerido,
 }: {
   procesos: Opcion[];
   usuarios: Opcion[];
+  objetivos: Opcion[];
   usuarioActual: string;
   codigoSugerido: string;
 }) {
@@ -96,6 +99,25 @@ export function FormularioIndicador({
             />
           </GrupoCampo>
 
+          {/* Sin objetivo, el indicador mide algo que no responde a
+              ninguna meta del año y en el F-EST-01-05 queda en una fila
+              suelta al final. Se puede dejar vacío, pero se ve. */}
+          <GrupoCampo
+            etiqueta="Objetivo de la calidad"
+            htmlFor="objetivo_id"
+            className="sm:col-span-2"
+            ayuda="A qué objetivo del año responde. En el F-EST-01-05 van en la misma fila."
+          >
+            <Seleccion id="objetivo_id" name="objetivo_id">
+              <option value="">Sin objetivo asociado</option>
+              {objetivos.map((objetivo) => (
+                <option key={objetivo.id} value={objetivo.id}>
+                  {objetivo.codigo} · {objetivo.nombre}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
           <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">
             <Seleccion id="proceso_id" name="proceso_id">
               <option value="">Sin proceso asociado</option>
@@ -117,6 +139,37 @@ export function FormularioIndicador({
               {usuarios.map((persona) => (
                 <option key={persona.id} value={persona.id}>
                   {persona.nombre_completo}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Línea base"
+            htmlFor="linea_base"
+            ayuda="De dónde se parte. Es contra lo que se mide si la meta se alcanzó."
+          >
+            <Entrada id="linea_base" name="linea_base" type="number" step="0.01" />
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Fuente del dato"
+            htmlFor="fuente_dato"
+            ayuda="Qué planilla, sistema o registro. Sin esto nadie sabe de dónde sale el número."
+          >
+            <Entrada id="fuente_dato" name="fuente_dato" placeholder="Odoo · Inventario" />
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Consolidación"
+            htmlFor="consolidacion"
+            requerido
+            ayuda="Cómo se resume el año: suma para cantidades, promedio para porcentajes."
+          >
+            <Seleccion id="consolidacion" name="consolidacion" defaultValue="promedio">
+              {Object.entries(ETIQUETAS_CONSOLIDACION).map(([valor, etiqueta]) => (
+                <option key={valor} value={valor}>
+                  {etiqueta}
                 </option>
               ))}
             </Seleccion>

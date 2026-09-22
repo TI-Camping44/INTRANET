@@ -133,14 +133,18 @@ function MenuDeGrupo({
                 {entrada.titulo}
               </MenuSubDisparador>
               <MenuSubContenido>
-                {/* El primer elemento lleva al módulo entero. Sin esto,
-                    un módulo con submenú deja de tener puerta de entrada:
-                    se puede ir a sus partes pero no a él. */}
-                <MenuElemento asChild>
-                  <Link href={entrada.ruta} className="font-medium">
-                    Ir a {entrada.titulo}
-                  </Link>
-                </MenuElemento>
+                {/* «Ir a X» solo cuando ningún atajo lleve ya al módulo
+                    entero. Sin esto, un módulo con submenú perdería la
+                    puerta de entrada; con esto de más, «Todas» e «Ir a No
+                    conformidades» serían dos líneas para el mismo
+                    destino. */}
+                {entrada.subentradas.some((sub) => sub.ruta === entrada.ruta) ? null : (
+                  <MenuElemento asChild>
+                    <Link href={entrada.ruta} className="font-medium">
+                      Ir a {entrada.titulo}
+                    </Link>
+                  </MenuElemento>
+                )}
                 {entrada.subentradas.map((sub) => (
                   <MenuElemento key={sub.ruta + sub.titulo} asChild>
                     <Link href={sub.ruta}>{sub.titulo}</Link>
