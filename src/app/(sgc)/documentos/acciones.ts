@@ -736,3 +736,75 @@ export async function anunciarDocumento(
     mensaje: `${documento.codigo ?? documento.titulo} anunciado en el inicio.`,
   };
 }
+
+
+/**
+ * Elimina un documento entero: su ficha, sus versiones, su difusion y
+ * sus archivos del bucket.
+ *
+ * Existe para lo que no deberia haberse cargado —una prueba, un
+ * duplicado, un error de carga—. NO es la forma de retirar un documento
+ * que estuvo en uso: para eso esta «Marcar obsoleto», que lo conserva
+ * con su historial, que es lo que la norma pide.
+ *
+ * Solo el Administrador SGC. Es lo que ya decia RLS
+ * (`documentos_baja`), y aca se repite para poder dar un mensaje en vez
+ * de un borrado que afecta cero filas.
+ *
+ * La bitacora conserva la constancia: el disparador registra la baja
+ * antes de que la fila desaparezca, con quien la hizo y cuando. Sin eso
+ * esto no seria aceptable en una auditoria.
+ */
+export async function eliminarDocumento(documentoId: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  if (usuario.rol !== "administrador_sgc") {
+    return {
+      exito: false,
+      error: "Solo el Administrador SGC puede eliminar un documento. Puede marcarlo obsoleto.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, codigo, titulo")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  if (!documento) return { exito: false, error: "El documento no existe o no tiene acceso." };
+
+  // Primero los archivos del bucket. Si se borrara la fila antes, las
+  // rutas se perderian y los objetos quedarian huerfanos, ocupando lugar
+  // y sin nadie que sepa de que eran.
+  const { data: adjuntos } = await supabase
+    .from("adjuntos")
+    .select("id, bucket, ruta")
+    .eq("entidad", "documentos")
+    .eq("entidad_id", documentoId);
+
+  const porBucket = new Map<string, string[]>();
+  for (const adjunto of (adjuntos as { bucket: string; ruta: string }[] | null) ?? []) {
+    const rutas = porBucket.get(adjunto.bucket) ?? [];
+    rutas.push(adjunto.ruta);
+    porBucket.set(adjunto.bucket, rutas);
+  }
+
+  for (const [bucket, rutas] of Array.from(porBucket.entries())) {
+    await supabase.storage.from(bucket).remove(rutas);
+  }
+
+  await supabase.from("adjuntos").delete().eq("entidad", "documentos").eq("entidad_id", documentoId);
+
+  // Las versiones y la difusion se van solas: su clave foranea cascadea.
+  const { error } = await supabase.from("documentos").delete().eq("id", documentoId);
+
+  if (error) return { exito: false, error: `No se pudo eliminar: ${error.message}` };
+
+  revalidatePath("/documentos");
+  return {
+    exito: true,
+    mensaje: `${documento.codigo ?? ""} ${documento.titulo} se eliminó junto con sus archivos.`,
+  };
+}

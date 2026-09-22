@@ -12,7 +12,11 @@ import {
   ETIQUETAS_SEVERIDAD_NC,
   ETIQUETAS_TIPO_ACCION,
 } from "@/lib/constantes";
-import { etiquetaNivelRiesgo } from "@/lib/riesgos";
+import {
+  ETIQUETAS_PRIORIDAD,
+  etiquetaNivelRiesgo,
+  prioridadOportunidad,
+} from "@/lib/riesgos";
 
 /**
  * Los datos de la reporteria del SGC.
@@ -86,7 +90,7 @@ export async function obtenerReportes(): Promise<Reporte[]> {
       .from("no_conformidades")
       .select("estado, area, origen, severidad, fecha_limite_cierre"),
     supabase.from("nc_acciones").select("estado, tipo, fecha_limite, nivel_escalamiento"),
-    supabase.from("riesgos").select("tipo, estado, nivel"),
+    supabase.from("riesgos").select("tipo, estado, nivel, indice"),
     supabase.from("objetivos").select("estado, avance_porcentaje, anio").eq("anio", anio),
   ]);
 
@@ -105,7 +109,12 @@ export async function obtenerReportes(): Promise<Reporte[]> {
     nivel_escalamiento: number;
   }[];
 
-  const rie = (riesgos ?? []) as { tipo: string; estado: string; nivel: number | null }[];
+  const rie = (riesgos ?? []) as {
+    tipo: string;
+    estado: string;
+    nivel: number | null;
+    indice: number | null;
+  }[];
   const obj = (objetivos ?? []) as { estado: string; avance_porcentaje: number }[];
 
   const ncVencidas = nc.filter(
@@ -147,6 +156,29 @@ export async function obtenerReportes(): Promise<Reporte[]> {
         cantidad: cuentas.get(clave) ?? 0,
         enlace: clave === "critico" ? `/riesgos?tipo=${tipo}&nivel=criticos` : undefined,
         alerta: clave === "alto" || clave === "critico",
+      }))
+      .filter((fila) => fila.cantidad > 0);
+  }
+
+  /**
+   * Oportunidades agrupadas por prioridad.
+   *
+   * No por nivel: una oportunidad no tiene probabilidad ni severidad.
+   * Su indice es Beneficio x Factibilidad y su prioridad sale de ahi,
+   * con cortes distintos a los del semaforo de riesgos. Mezclarlas en
+   * la misma escala era el error que el instructivo vino a corregir.
+   */
+  function porPrioridad(filas: { indice: number | null }[]): FilaReporte[] {
+    const cuentas = new Map<string, number>();
+    for (const fila of filas) {
+      const clave = prioridadOportunidad(fila.indice);
+      if (clave) cuentas.set(clave, (cuentas.get(clave) ?? 0) + 1);
+    }
+    return (Object.keys(ETIQUETAS_PRIORIDAD) as (keyof typeof ETIQUETAS_PRIORIDAD)[])
+      .map((clave) => ({
+        etiqueta: `Prioridad ${ETIQUETAS_PRIORIDAD[clave].toLowerCase()}`,
+        cantidad: cuentas.get(clave) ?? 0,
+        enlace: `/oportunidades?prioridad=${clave}`,
       }))
       .filter((fila) => fila.cantidad > 0);
   }
@@ -254,16 +286,16 @@ export async function obtenerReportes(): Promise<Reporte[]> {
     },
     {
       titulo: "Oportunidades",
-      descripcion: "Las oportunidades de mejora identificadas y su estado.",
+      descripcion: "Por prioridad —Beneficio × Factibilidad— y por estado de tratamiento.",
       total: soloOportunidades.length,
-      modulo: "/riesgos",
+      modulo: "/oportunidades",
       filas: [
-        ...porNivel(soloOportunidades, "oportunidad"),
+        ...porPrioridad(soloOportunidades),
         ...contarPor(
           soloOportunidades,
           "estado",
           ETIQUETAS_ESTADO_RIESGO,
-          (clave) => `/riesgos?tipo=oportunidad&estado=${clave}`,
+          (clave) => `/oportunidades?estado=${clave}`,
         ),
       ],
     },

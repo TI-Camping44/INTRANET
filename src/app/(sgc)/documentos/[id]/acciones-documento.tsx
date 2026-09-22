@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Archive, CheckCircle2, FilePlus2, RefreshCw, Send } from "lucide-react";
+import { Archive, CheckCircle2, FilePlus2, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, GrupoCampo } from "@/components/ui/campo";
 import {
@@ -19,6 +19,7 @@ import {
   aprobarYPublicar,
   confirmarRevisionSinCambios,
   crearNuevaVersion,
+  eliminarDocumento,
   enviarARevision,
   marcarObsoleto,
 } from "@/app/(sgc)/documentos/acciones";
@@ -41,6 +42,7 @@ export function AccionesDocumento({
   revisionesPendientes,
   personas,
   puedeGestionar,
+  puedeEliminar,
 }: {
   documentoId: string;
   estadoDocumento: EstadoDocumento;
@@ -49,6 +51,8 @@ export function AccionesDocumento({
   revisionesPendientes: number;
   personas: Persona[];
   puedeGestionar: boolean;
+  /** Solo el Administrador SGC puede eliminar. */
+  puedeEliminar: boolean;
 }) {
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
@@ -130,6 +134,29 @@ export function AccionesDocumento({
           }}
         >
           <Archive /> Marcar obsoleto
+        </Boton>
+      ) : null}
+
+      {/* Eliminar es para lo que no deberia haberse cargado: una prueba,
+          un duplicado, un error. Retirar un documento que estuvo en uso
+          es «Marcar obsoleto», que lo conserva con su historial. */}
+      {puedeEliminar ? (
+        <Boton
+          variante="fantasma"
+          cargando={procesando}
+          className="text-semaforo-critico hover:bg-semaforo-critico/10"
+          onClick={() => {
+            const aviso =
+              "Se elimina el documento, sus versiones, su lista de difusión y sus archivos. " +
+              "No se puede deshacer.\n\n" +
+              "Si el documento estuvo en uso, lo correcto es marcarlo obsoleto: así se conserva " +
+              "con su historial, que es lo que pide la norma.\n\n¿Eliminar igual?";
+            if (confirm(aviso)) {
+              ejecutar(() => eliminarDocumento(documentoId), () => router.push("/documentos"));
+            }
+          }}
+        >
+          <Trash2 /> Eliminar
         </Boton>
       ) : null}
 

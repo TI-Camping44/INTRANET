@@ -53,7 +53,7 @@ export default async function PaginaPanel() {
         .limit(6),
       supabase
         .from("riesgos")
-        .select("id, codigo, titulo, nivel, probabilidad, impacto, estado")
+        .select("id, codigo, titulo, nivel, probabilidad, severidad, estado")
         .gte("nivel", 10)
         .in("estado", ["identificado", "en_tratamiento", "materializado"])
         .order("nivel", { ascending: false })
@@ -224,7 +224,7 @@ export default async function PaginaPanel() {
                           {recortar(riesgo.titulo, 70)}
                         </p>
                         <p className="mt-1 text-[11px] text-atenuado-contraste">
-                          Probabilidad {riesgo.probabilidad} × Impacto {riesgo.impacto}
+                          Probabilidad {riesgo.probabilidad} × Severidad {riesgo.severidad}
                         </p>
                       </div>
                       <InsigniaNivelRiesgo nivel={riesgo.nivel} />

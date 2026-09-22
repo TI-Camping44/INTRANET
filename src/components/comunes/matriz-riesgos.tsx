@@ -1,27 +1,27 @@
 import Link from "next/link";
 import { cn } from "@/lib/utilidades";
 import { etiquetaNivelRiesgo, RELLENO_NIVEL_RIESGO } from "@/lib/riesgos";
-import { ESCALA_IMPACTO, ESCALA_PROBABILIDAD, ETIQUETAS_NIVEL_RIESGO } from "@/lib/constantes";
+import { ESCALA_SEVERIDAD, ESCALA_PROBABILIDAD, ETIQUETAS_NIVEL_RIESGO } from "@/lib/constantes";
 
 interface RiesgoEnMatriz {
   id: string;
   codigo: string;
   titulo: string;
   probabilidad: number;
-  impacto: number;
+  severidad: number;
   nivel: number;
 }
 
 /**
  * Mapa de calor 5x5. El eje vertical es la probabilidad (de mayor a menor
- * hacia abajo) y el horizontal el impacto, que es la disposicion habitual
+ * hacia abajo) y el horizontal el severidad, que es la disposicion habitual
  * de las matrices de riesgo en los sistemas de gestion.
  */
 export function MatrizRiesgos({ riesgos }: { riesgos: RiesgoEnMatriz[] }) {
   const celdas = new Map<string, RiesgoEnMatriz[]>();
 
   for (const riesgo of riesgos) {
-    const clave = `${riesgo.probabilidad}-${riesgo.impacto}`;
+    const clave = `${riesgo.probabilidad}-${riesgo.severidad}`;
     celdas.set(clave, [...(celdas.get(clave) ?? []), riesgo]);
   }
 
@@ -32,12 +32,12 @@ export function MatrizRiesgos({ riesgos }: { riesgos: RiesgoEnMatriz[] }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[42rem] border-separate border-spacing-1">
           <caption className="sr-only">
-            Matriz de riesgos de 5 por 5: probabilidad contra impacto
+            Matriz de riesgos de 5 por 5: probabilidad contra severidad
           </caption>
           <thead>
             <tr>
               <th className="w-28" />
-              {ESCALA_IMPACTO.map((nivel) => (
+              {ESCALA_SEVERIDAD.map((nivel) => (
                 <th
                   key={nivel.valor}
                   scope="col"
@@ -59,14 +59,14 @@ export function MatrizRiesgos({ riesgos }: { riesgos: RiesgoEnMatriz[] }) {
                 >
                   {probabilidad.valor} · {probabilidad.etiqueta}
                 </th>
-                {ESCALA_IMPACTO.map((impacto) => {
-                  const nivel = probabilidad.valor * impacto.valor;
+                {ESCALA_SEVERIDAD.map((severidad) => {
+                  const nivel = probabilidad.valor * severidad.valor;
                   const etiqueta = etiquetaNivelRiesgo(nivel)!;
-                  const contenido = celdas.get(`${probabilidad.valor}-${impacto.valor}`) ?? [];
+                  const contenido = celdas.get(`${probabilidad.valor}-${severidad.valor}`) ?? [];
 
                   return (
                     <td
-                      key={impacto.valor}
+                      key={severidad.valor}
                       className={cn(
                         "h-20 rounded-md border border-borde/60 p-1 align-top transition-colors",
                         RELLENO_NIVEL_RIESGO[etiqueta],
@@ -99,7 +99,7 @@ export function MatrizRiesgos({ riesgos }: { riesgos: RiesgoEnMatriz[] }) {
 
       {/* Referencia del semáforo */}
       <div className="flex flex-wrap items-center gap-3 text-[11px]">
-        <span className="font-medium text-atenuado-contraste">Nivel = Probabilidad × Impacto</span>
+        <span className="font-medium text-atenuado-contraste">Nivel = Probabilidad × Severidad</span>
         {(
           [
             ["bajo", "1 a 4"],

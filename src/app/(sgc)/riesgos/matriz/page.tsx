@@ -17,7 +17,7 @@ export default async function PaginaMatriz() {
 
   const { data } = await supabase
     .from("riesgos")
-    .select("id, codigo, titulo, probabilidad, impacto, nivel, tipo, estado")
+    .select("id, codigo, titulo, probabilidad, severidad, nivel, tipo, estado")
     .neq("estado", "cerrado")
     .order("codigo");
 
@@ -26,7 +26,7 @@ export default async function PaginaMatriz() {
     codigo: string;
     titulo: string;
     probabilidad: number;
-    impacto: number;
+    severidad: number;
     nivel: number;
     tipo: string;
   }[];
@@ -38,7 +38,7 @@ export default async function PaginaMatriz() {
     <>
       <EncabezadoPagina
         titulo="Matriz de riesgos"
-        descripcion="Evaluación 5×5 de probabilidad por impacto. Cada celda enlaza a la ficha del riesgo."
+        descripcion="Evaluación 5×5 de probabilidad por severidad. Cada celda enlaza a la ficha del riesgo."
         acciones={
           <Boton variante="contorno" comoHijo>
             <Link href="/riesgos">

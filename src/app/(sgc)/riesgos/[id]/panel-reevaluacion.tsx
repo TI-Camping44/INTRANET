@@ -8,7 +8,7 @@ import { Boton } from "@/components/ui/boton";
 import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { reevaluarRiesgo, cambiarEstadoRiesgo } from "@/app/(sgc)/riesgos/acciones";
 import {
-  ESCALA_IMPACTO,
+  ESCALA_SEVERIDAD,
   ESCALA_PROBABILIDAD,
   ETIQUETAS_ESTADO_RIESGO,
   ETIQUETAS_NIVEL_RIESGO,
@@ -25,24 +25,24 @@ import type { EstadoRiesgo } from "@/lib/tipos";
 export function PanelReevaluacion({
   riesgoId,
   probabilidadActual,
-  impactoActual,
+  severidadActual,
   estado,
   puedeEditar,
 }: {
   riesgoId: string;
   probabilidadActual: number;
-  impactoActual: number;
+  severidadActual: number;
   estado: EstadoRiesgo;
   puedeEditar: boolean;
 }) {
   const router = useRouter();
   const [probabilidad, definirProbabilidad] = React.useState(probabilidadActual);
-  const [impacto, definirImpacto] = React.useState(impactoActual);
+  const [severidad, definirSeveridad] = React.useState(severidadActual);
   const [comentario, definirComentario] = React.useState("");
   const [esResidual, definirEsResidual] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
 
-  const nivel = probabilidad * impacto;
+  const nivel = probabilidad * severidad;
   const etiqueta = etiquetaNivelRiesgo(nivel)!;
 
   async function reevaluar() {
@@ -50,7 +50,7 @@ export function PanelReevaluacion({
     const resultado = await reevaluarRiesgo(
       riesgoId,
       probabilidad,
-      impacto,
+      severidad,
       comentario,
       esResidual,
     );
@@ -125,13 +125,13 @@ export function PanelReevaluacion({
             </Seleccion>
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Impacto" htmlFor="impacto-reev">
+          <GrupoCampo etiqueta="Severidad" htmlFor="severidad-reev">
             <Seleccion
-              id="impacto-reev"
-              value={impacto}
-              onChange={(evento) => definirImpacto(Number(evento.target.value))}
+              id="severidad-reev"
+              value={severidad}
+              onChange={(evento) => definirSeveridad(Number(evento.target.value))}
             >
-              {ESCALA_IMPACTO.map((opcion) => (
+              {ESCALA_SEVERIDAD.map((opcion) => (
                 <option key={opcion.valor} value={opcion.valor}>
                   {opcion.valor} · {opcion.etiqueta}
                 </option>

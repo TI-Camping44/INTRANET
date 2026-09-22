@@ -81,7 +81,18 @@ export type EstadoRiesgo =
   | "materializado"
   | "cerrado";
 
-export type TratamientoRiesgo = "evitar" | "mitigar" | "transferir" | "aceptar" | "explotar";
+export type TratamientoRiesgo =
+  | "eliminar_fuente"
+  | "cambiar_probabilidad"
+  | "cambiar_consecuencia"
+  | "compartir"
+  | "evitar"
+  | "asumir"
+  // Retirados del alta, conservados por los riesgos ya cargados.
+  | "mitigar"
+  | "transferir"
+  | "aceptar"
+  | "explotar";
 
 export type TipoProceso = "estrategico" | "operativo" | "apoyo";
 

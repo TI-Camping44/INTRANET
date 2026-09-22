@@ -22,13 +22,13 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
 
   const titulo = String(datos.get("titulo") ?? "").trim();
   const probabilidad = Number(datos.get("probabilidad") ?? 1);
-  const impacto = Number(datos.get("impacto") ?? 1);
+  const severidad = Number(datos.get("severidad") ?? 1);
 
   if (titulo.length < 5) {
     return { exito: false, error: "El título debe tener al menos 5 caracteres." };
   }
-  if (!validarEscala(probabilidad) || !validarEscala(impacto)) {
-    return { exito: false, error: "La probabilidad y el impacto deben estar entre 1 y 5." };
+  if (!validarEscala(probabilidad) || !validarEscala(severidad)) {
+    return { exito: false, error: "La probabilidad y la severidad deben estar entre 1 y 5." };
   }
 
   const { data: codigo, error: errorCodigo } = await supabase.rpc("siguiente_codigo_riesgo", {
@@ -50,12 +50,19 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
       categoria: String(datos.get("categoria") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || usuario.id,
-      tratamiento: String(datos.get("tratamiento") ?? "mitigar"),
+      tratamiento: String(datos.get("tratamiento") ?? "") || null,
       causas: String(datos.get("causas") ?? "").trim() || null,
       consecuencias: String(datos.get("consecuencias") ?? "").trim() || null,
       controles_existentes: String(datos.get("controles_existentes") ?? "").trim() || null,
+      // Columnas del F-EST-01-03.
+      origen: String(datos.get("origen") ?? "").trim() || null,
+      asociado_disrupcion: datos.get("asociado_disrupcion") === "si",
+      accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
+      plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
+      proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
+      fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
       probabilidad,
-      impacto,
+      severidad,
       estado: "identificado",
       creado_por: usuario.id,
     })
@@ -68,7 +75,7 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
   await supabase.from("riesgo_evaluaciones").insert({
     riesgo_id: riesgo.id,
     probabilidad,
-    impacto,
+    severidad,
     comentario: "Evaluación inicial.",
     evaluado_por: usuario.id,
   });
@@ -90,10 +97,16 @@ export async function actualizarRiesgo(id: string, datos: FormData): Promise<Res
       categoria: String(datos.get("categoria") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      tratamiento: String(datos.get("tratamiento") ?? "mitigar"),
+      tratamiento: String(datos.get("tratamiento") ?? "") || null,
       causas: String(datos.get("causas") ?? "").trim() || null,
       consecuencias: String(datos.get("consecuencias") ?? "").trim() || null,
       controles_existentes: String(datos.get("controles_existentes") ?? "").trim() || null,
+      origen: String(datos.get("origen") ?? "").trim() || null,
+      asociado_disrupcion: datos.get("asociado_disrupcion") === "si",
+      accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
+      plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
+      proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
+      fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
     })
     .eq("id", id);
 
@@ -111,20 +124,20 @@ export async function actualizarRiesgo(id: string, datos: FormData): Promise<Res
 export async function reevaluarRiesgo(
   id: string,
   probabilidad: number,
-  impacto: number,
+  severidad: number,
   comentario: string,
   esResidual: boolean,
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  if (!validarEscala(probabilidad) || !validarEscala(impacto)) {
-    return { exito: false, error: "La probabilidad y el impacto deben estar entre 1 y 5." };
+  if (!validarEscala(probabilidad) || !validarEscala(severidad)) {
+    return { exito: false, error: "La probabilidad y la severidad deben estar entre 1 y 5." };
   }
 
   const cambios = esResidual
-    ? { probabilidad_residual: probabilidad, impacto_residual: impacto }
-    : { probabilidad, impacto };
+    ? { probabilidad_residual: probabilidad, severidad_residual: severidad }
+    : { probabilidad, severidad };
 
   const { error } = await supabase.from("riesgos").update(cambios).eq("id", id);
 
@@ -133,7 +146,7 @@ export async function reevaluarRiesgo(
   await supabase.from("riesgo_evaluaciones").insert({
     riesgo_id: id,
     probabilidad,
-    impacto,
+    severidad,
     comentario:
       comentario.trim() ||
       (esResidual ? "Evaluación del riesgo residual." : "Reevaluación periódica."),
@@ -241,4 +254,172 @@ export async function eliminarAccionRiesgo(
 
   revalidatePath(`/riesgos/${riesgoId}`);
   return { exito: true, mensaje: "Acción eliminada." };
+}
+
+
+// ---------------------------------------------------------------------
+// Oportunidades
+// ---------------------------------------------------------------------
+// Van aparte de los riesgos porque no se valoran igual. Una oportunidad
+// no tiene probabilidad ni severidad: tiene Beneficio por Factibilidad,
+// y de ahi sale su indice y su prioridad. Es el apartado 6 del
+// instructivo, y es lo que la intranet tenia mal: las metia en la misma
+// matriz 5x5.
+
+function validarEscalaOpcional(valor: unknown): number | null {
+  const numero = Number(valor);
+  if (!Number.isInteger(numero) || numero < 1 || numero > 5) return null;
+  return numero;
+}
+
+/** Alta de una oportunidad segun el F-EST-01-04. */
+export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite registrar oportunidades." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const titulo = String(datos.get("titulo") ?? "").trim();
+  const beneficio = validarEscalaOpcional(datos.get("beneficio"));
+  const factibilidad = validarEscalaOpcional(datos.get("factibilidad"));
+
+  if (titulo.length < 5) {
+    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
+  }
+  if (beneficio === null || factibilidad === null) {
+    return {
+      exito: false,
+      error: "El beneficio y la factibilidad deben estar entre 1 y 5.",
+    };
+  }
+
+  const { data: codigo, error: errorCodigo } = await supabase.rpc("siguiente_codigo_riesgo", {
+    p_empresa_id: usuario.empresa_id,
+  });
+
+  if (errorCodigo || !codigo) {
+    return { exito: false, error: "No se pudo generar el código de la oportunidad." };
+  }
+
+  const { data: oportunidad, error } = await supabase
+    .from("riesgos")
+    .insert({
+      empresa_id: usuario.empresa_id,
+      codigo,
+      titulo,
+      tipo: "oportunidad",
+      descripcion: String(datos.get("descripcion") ?? "").trim() || null,
+      categoria: String(datos.get("categoria") ?? "").trim() || null,
+      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      responsable_id: String(datos.get("responsable_id") ?? "") || usuario.id,
+      origen: String(datos.get("origen") ?? "").trim() || null,
+      efecto_deseado: String(datos.get("efecto_deseado") ?? "").trim() || null,
+      beneficio,
+      factibilidad,
+      alineacion_estrategica: String(datos.get("alineacion_estrategica") ?? "") || null,
+      se_decide_abordar: datos.get("se_decide_abordar") === "si",
+      fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
+      accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
+      recursos_necesarios: String(datos.get("recursos_necesarios") ?? "").trim() || null,
+      plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
+      proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
+      estado: "identificado",
+      creado_por: usuario.id,
+    })
+    .select("id, codigo, indice")
+    .single();
+
+  if (error) {
+    return { exito: false, error: `No se pudo registrar la oportunidad: ${error.message}` };
+  }
+
+  revalidatePath("/oportunidades");
+  return {
+    exito: true,
+    id: oportunidad.id,
+    mensaje: `Oportunidad ${oportunidad.codigo} registrada, con índice ${oportunidad.indice}.`,
+  };
+}
+
+/** Edicion de una oportunidad ya cargada. */
+export async function actualizarOportunidad(
+  id: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const beneficio = validarEscalaOpcional(datos.get("beneficio"));
+  const factibilidad = validarEscalaOpcional(datos.get("factibilidad"));
+
+  if (beneficio === null || factibilidad === null) {
+    return { exito: false, error: "El beneficio y la factibilidad deben estar entre 1 y 5." };
+  }
+
+  const { error } = await supabase
+    .from("riesgos")
+    .update({
+      titulo: String(datos.get("titulo") ?? "").trim(),
+      descripcion: String(datos.get("descripcion") ?? "").trim() || null,
+      categoria: String(datos.get("categoria") ?? "").trim() || null,
+      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      responsable_id: String(datos.get("responsable_id") ?? "") || null,
+      origen: String(datos.get("origen") ?? "").trim() || null,
+      efecto_deseado: String(datos.get("efecto_deseado") ?? "").trim() || null,
+      beneficio,
+      factibilidad,
+      alineacion_estrategica: String(datos.get("alineacion_estrategica") ?? "") || null,
+      se_decide_abordar: datos.get("se_decide_abordar") === "si",
+      fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
+      accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
+      recursos_necesarios: String(datos.get("recursos_necesarios") ?? "").trim() || null,
+      plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
+      proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
+      resultado_obtenido: String(datos.get("resultado_obtenido") ?? "").trim() || null,
+      fecha_evaluacion_eficacia: String(datos.get("fecha_evaluacion_eficacia") ?? "") || null,
+      eficacia_accion: String(datos.get("eficacia_accion") ?? "") || null,
+    })
+    .eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
+
+  revalidatePath("/oportunidades");
+  revalidatePath(`/riesgos/${id}`);
+  return { exito: true, mensaje: "Oportunidad actualizada." };
+}
+
+/**
+ * Guarda la evaluacion de eficacia de la accion de un riesgo.
+ *
+ * Va aparte del residual porque son dos momentos distintos: el residual
+ * se valora cuando la accion ya opero un ciclo completo o tres meses, y
+ * la eficacia se concluye a partir de ese residual.
+ */
+export async function guardarEficaciaRiesgo(
+  id: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite registrar la eficacia." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { error } = await supabase
+    .from("riesgos")
+    .update({
+      fecha_evaluacion_eficacia: String(datos.get("fecha_evaluacion_eficacia") ?? "") || null,
+      eficacia_accion: String(datos.get("eficacia_accion") ?? "") || null,
+      resultado_obtenido: String(datos.get("resultado_obtenido") ?? "").trim() || null,
+    })
+    .eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo guardar la eficacia: ${error.message}` };
+
+  revalidatePath(`/riesgos/${id}`);
+  revalidatePath("/riesgos");
+  return { exito: true, mensaje: "Evaluación de eficacia registrada." };
 }

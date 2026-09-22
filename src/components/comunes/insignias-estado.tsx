@@ -102,7 +102,7 @@ export function InsigniaEstadoRiesgo({ estado }: { estado: EstadoRiesgo }) {
   );
 }
 
-/** Semaforo del nivel de riesgo: Probabilidad x Impacto. */
+/** Semaforo del nivel de riesgo: Probabilidad x Severidad. */
 export function InsigniaNivelRiesgo({
   nivel,
   mostrarValor = true,

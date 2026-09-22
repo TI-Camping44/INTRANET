@@ -190,6 +190,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
               (persona: { id: string }) => persona.id !== usuario.id,
             )}
             puedeGestionar={gestiona}
+            puedeEliminar={usuario.rol === "administrador_sgc"}
           />
           </div>
         }

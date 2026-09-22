@@ -356,12 +356,36 @@ export const ETIQUETAS_ESTADO_RIESGO: Record<EstadoRiesgo, string> = {
 };
 
 export const ETIQUETAS_TRATAMIENTO_RIESGO: Record<TratamientoRiesgo, string> = {
-  evitar: "Evitar",
+  eliminar_fuente: "Eliminar la fuente",
+  cambiar_probabilidad: "Cambiar la probabilidad",
+  cambiar_consecuencia: "Cambiar la consecuencia",
+  compartir: "Compartir el riesgo",
+  evitar: "Evitar el riesgo",
+  asumir: "Asumir por decisión informada",
+  // Retirados: quedan por los riesgos ya cargados con ellos.
   mitigar: "Mitigar",
   transferir: "Transferir",
   aceptar: "Aceptar",
   explotar: "Explotar",
 };
+
+/**
+ * Las seis opciones del instructivo, en su orden.
+ *
+ * Lo que las distingue no es el nombre: cada una dice QUE FACTOR puede
+ * bajar en el residual. Si el residual muestra una baja en el factor que
+ * la accion no afecta, la valoracion esta mal hecha. Una capacitacion
+ * baja la probabilidad, no la severidad; un plan de contingencia baja la
+ * severidad, no la probabilidad.
+ */
+export const TRATAMIENTOS_VIGENTES: TratamientoRiesgo[] = [
+  "eliminar_fuente",
+  "cambiar_probabilidad",
+  "cambiar_consecuencia",
+  "compartir",
+  "evitar",
+  "asumir",
+];
 
 export const ETIQUETAS_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
   bajo: "Bajo",
@@ -372,20 +396,107 @@ export const ETIQUETAS_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
 
 /** Escala 1 a 5 de probabilidad, acordada con Calidad. */
 export const ESCALA_PROBABILIDAD = [
-  { valor: 1, etiqueta: "Muy improbable", detalle: "Podría ocurrir en casos excepcionales" },
-  { valor: 2, etiqueta: "Improbable", detalle: "Podría ocurrir alguna vez" },
-  { valor: 3, etiqueta: "Posible", detalle: "Podría ocurrir en algún momento" },
-  { valor: 4, etiqueta: "Probable", detalle: "Ocurre con cierta frecuencia" },
-  { valor: 5, etiqueta: "Casi seguro", detalle: "Se espera que ocurra" },
+  {
+    valor: 1,
+    etiqueta: "Muy baja",
+    detalle: "No ocurrió en los últimos cinco años",
+    control: "Control documentado, automatizado o a prueba de error, verificado y sin fallas",
+  },
+  {
+    valor: 2,
+    etiqueta: "Baja",
+    detalle: "Ocurrió una vez en los últimos tres a cinco años",
+    control: "Control documentado y aplicado, con fallas aisladas ya corregidas",
+  },
+  {
+    valor: 3,
+    etiqueta: "Media",
+    detalle: "Ocurre una vez al año o una vez por temporada",
+    control: "El control existe pero depende del criterio o la memoria de una persona",
+  },
+  {
+    valor: 4,
+    etiqueta: "Alta",
+    detalle: "Ocurre varias veces al año",
+    control: "El control es informal, no está documentado o no se verifica",
+  },
+  {
+    valor: 5,
+    etiqueta: "Muy alta",
+    detalle: "Ocurre mensualmente o más, o está ocurriendo ahora",
+    control: "No existe control",
+  },
 ];
 
-/** Escala 1 a 5 de impacto, acordada con Calidad. */
-export const ESCALA_IMPACTO = [
-  { valor: 1, etiqueta: "Insignificante", detalle: "Sin efecto sobre el servicio" },
-  { valor: 2, etiqueta: "Menor", detalle: "Efecto leve, se resuelve en el proceso" },
-  { valor: 3, etiqueta: "Moderado", detalle: "Afecta al cliente o a un proceso completo" },
-  { valor: 4, etiqueta: "Mayor", detalle: "Pérdida relevante o incumplimiento legal" },
-  { valor: 5, etiqueta: "Catastrófico", detalle: "Compromete la continuidad del negocio" },
+/**
+ * Escala 1 a 5 de severidad, del instructivo de valoración.
+ *
+ * Se evalúa en seis dimensiones y se asigna el valor de la MÁS AFECTADA,
+ * no el promedio. Y se valora el peor caso razonable —el peor desenlace
+ * plausible dadas las circunstancias habituales— y no el peor caso
+ * teórico imaginable.
+ *
+ * La dimensión económica no se usa todavía: el instructivo pide fijar
+ * por escrito el umbral que separa los niveles 3, 4 y 5 como porcentaje
+ * de la facturación mensual promedio, y Camping 44 no lo definió.
+ */
+export const ESCALA_SEVERIDAD = [
+  {
+    valor: 1,
+    etiqueta: "Insignificante",
+    detalle: "Se detecta y corrige antes de llegar al cliente",
+    legal: "Sin efecto legal. Sin interrupción. Costo despreciable",
+  },
+  {
+    valor: 2,
+    etiqueta: "Menor",
+    detalle: "Afecta a un cliente, se resuelve en el momento y queda conforme",
+    legal: "Sin efecto legal. Interrupción menor a una hora",
+  },
+  {
+    valor: 3,
+    etiqueta: "Moderada",
+    detalle: "Afecta a varios clientes o a una jornada. Queja formal o reseña negativa",
+    legal: "Observación sin sanción. Interrupción de hasta un día",
+  },
+  {
+    valor: 4,
+    etiqueta: "Mayor",
+    detalle: "Incumplimiento de lo comprometido. Pérdida del cliente o reintegro",
+    legal: "Observación de autoridad con plazo. Suspensión parcial del servicio",
+  },
+  {
+    valor: 5,
+    etiqueta: "Crítica",
+    detalle: "Afecta la seguridad o la salud de personas. Daño reputacional extendido",
+    legal: "Sanción, clausura, pérdida de habilitación. Suspensión total",
+  },
+];
+
+/**
+ * Beneficio potencial de una oportunidad, 1 a 5.
+ * Se asigna el valor de la dimensión MÁS FAVORECIDA.
+ */
+export const ESCALA_BENEFICIO = [
+  { valor: 1, etiqueta: "Marginal", detalle: "Solo perceptible internamente. No cambia indicadores" },
+  { valor: 2, etiqueta: "Menor", detalle: "Mejora puntual de un indicador, sin efecto en el cliente" },
+  { valor: 3, etiqueta: "Moderado", detalle: "Mejora medible en un objetivo, ahorro sostenido o mejora que el cliente percibe" },
+  { valor: 4, etiqueta: "Alto", detalle: "Mejora varios objetivos, habilita capacidad o diferencia el servicio" },
+  { valor: 5, etiqueta: "Muy alto", detalle: "Cambia la propuesta de valor, abre un mercado o transforma la operación" },
+];
+
+/**
+ * Factibilidad de una oportunidad, 1 a 5.
+ *
+ * Se evalúan cuatro dimensiones y se asigna la MÁS RESTRICTIVA: el cuello
+ * de botella. Al revés que la severidad, acá se toma el valor más bajo.
+ */
+export const ESCALA_FACTIBILIDAD = [
+  { valor: 1, etiqueta: "Muy difícil", detalle: "Inversión no presupuestada y competencia inexistente. Más de dieciocho meses" },
+  { valor: 2, etiqueta: "Difícil", detalle: "Inversión a aprobar y competencia a contratar o formar. Doce a dieciocho meses" },
+  { valor: 3, etiqueta: "Moderada", detalle: "Reasignar recursos y capacitar. Seis a doce meses" },
+  { valor: 4, etiqueta: "Factible", detalle: "Presupuesto y competencia disponibles. Tres a seis meses" },
+  { valor: 5, etiqueta: "Muy factible", detalle: "Con los recursos y las personas actuales. Menos de tres meses" },
 ];
 
 // ---------------------------------------------------------------------

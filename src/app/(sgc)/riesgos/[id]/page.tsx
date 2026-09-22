@@ -26,6 +26,12 @@ import {
   ETIQUETAS_TRATAMIENTO_RIESGO,
 } from "@/lib/constantes";
 import { describirVencimiento, formatearFecha } from "@/lib/formato";
+import {
+  DECISION_POR_PRIORIDAD,
+  ETIQUETAS_ALINEACION,
+  ETIQUETAS_PRIORIDAD,
+  prioridadOportunidad,
+} from "@/lib/riesgos";
 import type { EstadoRiesgo, TipoRiesgo, TratamientoRiesgo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -36,17 +42,24 @@ interface RiesgoDetalle {
   titulo: string;
   descripcion: string | null;
   tipo: TipoRiesgo;
+  beneficio: number | null;
+  factibilidad: number | null;
+  indice: number | null;
+  alineacion_estrategica: string | null;
+  se_decide_abordar: boolean | null;
+  efecto_deseado: string | null;
+  resultado_obtenido: string | null;
   categoria: string | null;
   estado: EstadoRiesgo;
   tratamiento: TratamientoRiesgo;
   causas: string | null;
   consecuencias: string | null;
   controles_existentes: string | null;
-  probabilidad: number;
-  impacto: number;
+  probabilidad: number | null;
+  severidad: number;
   nivel: number;
   probabilidad_residual: number | null;
-  impacto_residual: number | null;
+  severidad_residual: number | null;
   nivel_residual: number | null;
   fecha_identificacion: string;
   fecha_ultima_evaluacion: string;
@@ -117,6 +130,8 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
     riesgo.responsable_id === usuario.id ||
     (puedeGestionar(usuario) && riesgo.proceso_id === usuario.proceso_id);
 
+  const prioridad = prioridadOportunidad(riesgo.indice);
+
   return (
     <div className="mx-auto max-w-6xl">
       <Boton variante="fantasma" tamano="pequeno" comoHijo className="mb-3 -ml-2">
@@ -139,7 +154,68 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          {/* Evaluación inherente y residual */}
+          {/* La valoración. Una oportunidad no tiene riesgo inherente ni
+              residual: tiene índice y prioridad. Mostrarle la matriz 5×5
+              sería mostrarle dos tarjetas vacías y un semáforo que no
+              significa nada para ella. */}
+          {riesgo.tipo === "oportunidad" ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Tarjeta className="p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+                  Índice de prioridad
+                </p>
+                <p className="mt-2 text-3xl font-semibold tabular leading-none">
+                  {riesgo.indice ?? "—"}
+                </p>
+                <p className="mt-2 text-[11px] text-atenuado-contraste">
+                  {riesgo.beneficio !== null && riesgo.factibilidad !== null
+                    ? `Beneficio ${riesgo.beneficio} × Factibilidad ${riesgo.factibilidad}`
+                    : "Sin valorar"}
+                </p>
+                {prioridad ? (
+                  <p className="mt-2 text-xs font-medium">
+                    Prioridad {ETIQUETAS_PRIORIDAD[prioridad].toLowerCase()} ·{" "}
+                    <span className="font-normal text-atenuado-contraste">
+                      {DECISION_POR_PRIORIDAD[prioridad]}
+                    </span>
+                  </p>
+                ) : null}
+              </Tarjeta>
+
+              <Tarjeta className="p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+                  Decisión
+                </p>
+                <p className="mt-2 text-xs">
+                  Alineación estratégica:{" "}
+                  <span className="font-medium">
+                    {riesgo.alineacion_estrategica
+                      ? ETIQUETAS_ALINEACION[riesgo.alineacion_estrategica]
+                      : "sin definir"}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs">
+                  {riesgo.se_decide_abordar === null
+                    ? "Todavía no se decidió si se aborda."
+                    : riesgo.se_decide_abordar
+                      ? "Se decidió abordarla."
+                      : "Se decidió no abordarla."}
+                </p>
+                {riesgo.efecto_deseado ? (
+                  <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
+                    <span className="font-medium">Efecto deseado: </span>
+                    {riesgo.efecto_deseado}
+                  </p>
+                ) : null}
+                {riesgo.resultado_obtenido ? (
+                  <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
+                    <span className="font-medium">Resultado obtenido: </span>
+                    {riesgo.resultado_obtenido}
+                  </p>
+                ) : null}
+              </Tarjeta>
+            </div>
+          ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Tarjeta className="p-4">
               <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
@@ -147,7 +223,7 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
               </p>
               <p className="mt-2 text-3xl font-semibold tabular leading-none">{riesgo.nivel}</p>
               <p className="mt-2 text-[11px] text-atenuado-contraste">
-                Probabilidad {riesgo.probabilidad} × Impacto {riesgo.impacto}
+                Probabilidad {riesgo.probabilidad} × Severidad {riesgo.severidad}
               </p>
               <div className="mt-2">
                 <InsigniaNivelRiesgo nivel={riesgo.nivel} mostrarValor={false} />
@@ -164,8 +240,8 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
                     {riesgo.nivel_residual}
                   </p>
                   <p className="mt-2 text-[11px] text-atenuado-contraste">
-                    Probabilidad {riesgo.probabilidad_residual} × Impacto{" "}
-                    {riesgo.impacto_residual}
+                    Probabilidad {riesgo.probabilidad_residual} × Severidad{" "}
+                    {riesgo.severidad_residual}
                   </p>
                   <div className="mt-2">
                     <InsigniaNivelRiesgo nivel={riesgo.nivel_residual} mostrarValor={false} />
@@ -173,12 +249,14 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
                 </>
               ) : (
                 <p className="mt-3 text-xs text-atenuado-contraste">
-                  Todavía no se evaluó el riesgo residual. Se registra después de ejecutar las
-                  acciones de tratamiento.
+                  Todavía no se evaluó el riesgo residual. Se carga recién después de que la
+                  acción operó un ciclo completo o un mínimo de tres meses: un residual cargado
+                  el mismo día que se planificó la acción no es evidencia de nada.
                 </p>
               )}
             </Tarjeta>
           </div>
+          )}
 
           <Tarjeta>
             <TarjetaCabecera>
@@ -235,7 +313,7 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <span className="text-[11px] tabular text-atenuado-contraste">
-                          {evaluacion.probabilidad} × {evaluacion.impacto}
+                          {evaluacion.probabilidad} × {evaluacion.severidad}
                         </span>
                         <InsigniaNivelRiesgo nivel={evaluacion.nivel} />
                       </div>
@@ -312,7 +390,7 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
             </Tarjeta>
           ) : null}
 
-          {gestiona ? (
+          {gestiona && riesgo.tipo === "riesgo" && riesgo.probabilidad !== null ? (
             <Tarjeta>
               <TarjetaCabecera>
                 <TarjetaTitulo>Seguimiento</TarjetaTitulo>
@@ -320,8 +398,8 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
               <TarjetaContenido>
                 <PanelReevaluacion
                   riesgoId={riesgo.id}
-                  probabilidadActual={riesgo.probabilidad}
-                  impactoActual={riesgo.impacto}
+                  probabilidadActual={riesgo.probabilidad ?? 3}
+                  severidadActual={riesgo.severidad ?? 3}
                   estado={riesgo.estado}
                   puedeEditar={gestiona}
                 />

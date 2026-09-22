@@ -8,14 +8,22 @@ import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { crearRiesgo } from "@/app/(sgc)/riesgos/acciones";
 import {
-  ESCALA_IMPACTO,
   ESCALA_PROBABILIDAD,
+  ESCALA_SEVERIDAD,
   ETIQUETAS_NIVEL_RIESGO,
-  ETIQUETAS_TIPO_RIESGO,
   ETIQUETAS_TRATAMIENTO_RIESGO,
+  TRATAMIENTOS_VIGENTES,
 } from "@/lib/constantes";
-import { CLASES_NIVEL_RIESGO, diasReevaluacion, etiquetaNivelRiesgo } from "@/lib/riesgos";
+import {
+  CLASES_NIVEL_RIESGO,
+  DECISION_POR_NIVEL,
+  diasReevaluacion,
+  EFECTO_DEL_TRATAMIENTO,
+  etiquetaNivelRiesgo,
+  requiereAccion,
+} from "@/lib/riesgos";
 import { cn } from "@/lib/utilidades";
+import type { TratamientoRiesgo } from "@/lib/tipos";
 
 interface Opcion {
   id: string;
@@ -37,9 +45,11 @@ export function FormularioRiesgo({
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
   const [probabilidad, definirProbabilidad] = React.useState(3);
-  const [impacto, definirImpacto] = React.useState(3);
+  const [severidad, definirSeveridad] = React.useState(3);
+  const [tratamiento, definirTratamiento] =
+    React.useState<TratamientoRiesgo>("cambiar_probabilidad");
 
-  const nivel = probabilidad * impacto;
+  const nivel = probabilidad * severidad;
   const etiqueta = etiquetaNivelRiesgo(nivel)!;
   const dias = diasReevaluacion(nivel);
 
@@ -65,14 +75,16 @@ export function FormularioRiesgo({
     <form onSubmit={enviar}>
       <Tarjeta className="p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <GrupoCampo etiqueta="Tipo" htmlFor="tipo" requerido>
-            <Seleccion id="tipo" name="tipo" defaultValue="riesgo">
-              {Object.entries(ETIQUETAS_TIPO_RIESGO).map(([valor, texto]) => (
-                <option key={valor} value={valor}>
-                  {texto}
-                </option>
-              ))}
-            </Seleccion>
+          {/* El tipo no se elige: las oportunidades tienen su propio
+              formulario porque no se valoran igual. */}
+          <input type="hidden" name="tipo" value="riesgo" />
+
+          <GrupoCampo
+            etiqueta="Origen"
+            htmlFor="origen"
+            ayuda="De dónde salió: queja de cliente, auditoría, análisis del proceso, incidente."
+          >
+            <Entrada id="origen" name="origen" placeholder="Queja de cliente" />
           </GrupoCampo>
 
           <GrupoCampo
@@ -135,11 +147,84 @@ export function FormularioRiesgo({
             <AreaTexto id="controles_existentes" name="controles_existentes" rows={2} />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Estrategia de tratamiento" htmlFor="tratamiento" requerido>
-            <Seleccion id="tratamiento" name="tratamiento" defaultValue="mitigar">
-              {Object.entries(ETIQUETAS_TRATAMIENTO_RIESGO).map(([valor, texto]) => (
+          <GrupoCampo
+            etiqueta="¿Asociado a disrupción?"
+            htmlFor="asociado_disrupcion"
+            ayuda="Si puede interrumpir la operación."
+          >
+            <Seleccion id="asociado_disrupcion" name="asociado_disrupcion" defaultValue="no">
+              <option value="no">No</option>
+              <option value="si">Sí</option>
+            </Seleccion>
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Opción de tratamiento"
+            htmlFor="tratamiento"
+            requerido
+            className="sm:col-span-2"
+            ayuda={EFECTO_DEL_TRATAMIENTO[tratamiento].explicacion}
+          >
+            <Seleccion
+              id="tratamiento"
+              name="tratamiento"
+              value={tratamiento}
+              onChange={(evento) => definirTratamiento(evento.target.value as TratamientoRiesgo)}
+            >
+              {TRATAMIENTOS_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
-                  {texto}
+                  {ETIQUETAS_TRATAMIENTO_RIESGO[valor]}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
+          {/* «Asumir» sin constancia es un riesgo sin dueño: el
+              instructivo exige registrar quién lo decidió y por qué. */}
+          {tratamiento === "asumir" ? (
+            <GrupoCampo
+              etiqueta="Fundamento de la decisión"
+              htmlFor="fundamento_decision"
+              requerido
+              className="sm:col-span-2"
+              ayuda="Quién decidió asumirlo y con qué fundamento."
+            >
+              <AreaTexto id="fundamento_decision" name="fundamento_decision" rows={2} required />
+            </GrupoCampo>
+          ) : null}
+
+          <GrupoCampo
+            etiqueta="Acción planificada"
+            htmlFor="accion_planificada"
+            className="sm:col-span-2"
+            ayuda={
+              requiereAccion(nivel)
+                ? "Obligatoria: de nivel 4 para arriba el riesgo exige acción con responsable y plazo."
+                : "Opcional: un riesgo bajo se asume y solo se vigila."
+            }
+          >
+            <AreaTexto
+              id="accion_planificada"
+              name="accion_planificada"
+              rows={2}
+              required={requiereAccion(nivel)}
+            />
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="Plazo de la acción" htmlFor="plazo_accion">
+            <Entrada id="plazo_accion" name="plazo_accion" type="date" />
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Proceso donde se integra la acción"
+            htmlFor="proceso_accion_id"
+            ayuda="No siempre es el proceso afectado."
+          >
+            <Seleccion id="proceso_accion_id" name="proceso_accion_id">
+              <option value="">El mismo proceso afectado</option>
+              {procesos.map((proceso) => (
+                <option key={proceso.id} value={proceso.id}>
+                  {proceso.codigo} · {proceso.nombre}
                 </option>
               ))}
             </Seleccion>
@@ -148,7 +233,12 @@ export function FormularioRiesgo({
 
         {/* Evaluación */}
         <div className="mt-5 rounded-md border border-borde p-4">
-          <p className="mb-3 text-xs font-semibold">Evaluación inicial</p>
+          <p className="text-xs font-semibold">Evaluación inicial (riesgo inherente)</p>
+          <p className="mb-3 mt-0.5 text-[11px] text-atenuado-contraste">
+            Sin considerar las acciones que todavía no se implementaron. La severidad se evalúa
+            en seis dimensiones y se toma la más afectada, no el promedio, sobre el peor caso
+            razonable y no el peor caso teórico.
+          </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <GrupoCampo etiqueta="Probabilidad" htmlFor="probabilidad" requerido>
@@ -159,22 +249,22 @@ export function FormularioRiesgo({
                 onChange={(evento) => definirProbabilidad(Number(evento.target.value))}
               >
                 {ESCALA_PROBABILIDAD.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
+                  <option key={opcion.valor} value={opcion.valor} title={opcion.control}>
                     {opcion.valor} · {opcion.etiqueta} — {opcion.detalle}
                   </option>
                 ))}
               </Seleccion>
             </GrupoCampo>
 
-            <GrupoCampo etiqueta="Impacto" htmlFor="impacto" requerido>
+            <GrupoCampo etiqueta="Severidad" htmlFor="severidad" requerido>
               <Seleccion
-                id="impacto"
-                name="impacto"
-                value={impacto}
-                onChange={(evento) => definirImpacto(Number(evento.target.value))}
+                id="severidad"
+                name="severidad"
+                value={severidad}
+                onChange={(evento) => definirSeveridad(Number(evento.target.value))}
               >
-                {ESCALA_IMPACTO.map((opcion) => (
-                  <option key={opcion.valor} value={opcion.valor}>
+                {ESCALA_SEVERIDAD.map((opcion) => (
+                  <option key={opcion.valor} value={opcion.valor} title={opcion.legal}>
                     {opcion.valor} · {opcion.etiqueta} — {opcion.detalle}
                   </option>
                 ))}
@@ -194,8 +284,8 @@ export function FormularioRiesgo({
                 {nivel} · {ETIQUETAS_NIVEL_RIESGO[etiqueta]}
               </p>
             </div>
-            <p className="text-[11px] opacity-90">
-              Reevaluación automática cada {dias} días
+            <p className="max-w-md text-[11px] opacity-90">
+              {DECISION_POR_NIVEL[etiqueta]} Reevaluación cada {dias} días.
             </p>
           </div>
         </div>
@@ -206,8 +296,8 @@ export function FormularioRiesgo({
           <Boton type="button" variante="contorno" onClick={() => router.back()}>
             Cancelar
           </Boton>
-          <Boton type="submit" disabled={enviando}>
-            {enviando ? "Registrando…" : "Registrar riesgo"}
+          <Boton type="submit" cargando={enviando}>
+            Registrar riesgo
           </Boton>
         </div>
       </Tarjeta>

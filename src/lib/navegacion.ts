@@ -117,14 +117,19 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
+        // Riesgos y oportunidades se separan porque no se valoran igual:
+        // unos por Probabilidad x Severidad, las otras por Beneficio x
+        // Factibilidad. Es lo que fija el instructivo de Calidad.
         titulo: "Riesgos y oportunidades",
         ruta: "/riesgos",
         icono: "ShieldAlert",
         fase: "operativo",
         subentradas: [
-          { titulo: "Listado", ruta: "/riesgos" },
+          { titulo: "Riesgos", ruta: "/riesgos" },
+          { titulo: "Oportunidades", ruta: "/oportunidades" },
           { titulo: "Matriz 5×5", ruta: "/riesgos/matriz" },
-          { titulo: "Nuevo riesgo", ruta: "/riesgos/nuevo", soloGestion: true },
+          { titulo: "+ Nuevo riesgo", ruta: "/riesgos/nuevo", soloGestion: true },
+          { titulo: "+ Nueva oportunidad", ruta: "/oportunidades/nueva", soloGestion: true },
         ],
       },
       {
