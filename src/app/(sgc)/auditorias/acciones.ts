@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
+import {
+  BUCKET_DOCUMENTOS,
+  motivoDeRechazoEvidencia,
+  rutaDeEvidencia,
+} from "@/lib/adjuntos";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { notificar, notificarAVarios } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
@@ -358,20 +363,80 @@ export async function crearHallazgo(
     p_auditoria_id: auditoriaId,
   });
 
-  const { error } = await supabase.from("auditoria_hallazgos").insert({
-    auditoria_id: auditoriaId,
-    codigo: codigo ?? null,
-    tipo: String(datos.get("tipo") ?? "observacion"),
-    requisito: String(datos.get("requisito") ?? "").trim() || null,
-    descripcion,
-    evidencia: String(datos.get("evidencia") ?? "").trim() || null,
-    proceso_id: String(datos.get("proceso_id") ?? "") || null,
-    registrado_por: usuario.id,
-  });
+  const { data: hallazgo, error } = await supabase
+    .from("auditoria_hallazgos")
+    .insert({
+      auditoria_id: auditoriaId,
+      codigo: codigo ?? null,
+      tipo: String(datos.get("tipo") ?? "no_conformidad_menor"),
+      descripcion,
+      evidencia: String(datos.get("evidencia") ?? "").trim() || null,
+      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      registrado_por: usuario.id,
+    })
+    .select("id")
+    .single();
 
   if (error) return { exito: false, error: `No se pudo registrar el hallazgo: ${error.message}` };
 
+  // Las evidencias adjuntas. Si alguna falla, el hallazgo igual quedo
+  // registrado: el mensaje lo dice y se vuelve a intentar, que es mejor
+  // que perder la descripcion recien escrita.
+  const archivos = datos
+    .getAll("evidencias")
+    .filter((archivo): archivo is File => archivo instanceof File && archivo.size > 0);
+
+  const fallidos: string[] = [];
+
+  for (const archivo of archivos) {
+    const motivo = motivoDeRechazoEvidencia(archivo.name, archivo.size);
+    if (motivo) {
+      fallidos.push(`${archivo.name}: ${motivo}`);
+      continue;
+    }
+
+    const ruta = rutaDeEvidencia(hallazgo.id, archivo.name);
+
+    const { error: errorCarga } = await supabase.storage
+      .from(BUCKET_DOCUMENTOS)
+      .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+
+    if (errorCarga) {
+      fallidos.push(`${archivo.name}: ${errorCarga.message}`);
+      continue;
+    }
+
+    const { error: errorRegistro } = await supabase.from("adjuntos").insert({
+      empresa_id: usuario.empresa_id,
+      entidad: "auditoria_hallazgos",
+      entidad_id: hallazgo.id,
+      nombre_archivo: archivo.name,
+      ruta,
+      bucket: BUCKET_DOCUMENTOS,
+      tamano_bytes: archivo.size,
+      tipo_mime: archivo.type || null,
+      subido_por: usuario.id,
+    });
+
+    if (errorRegistro) {
+      // El archivo ya esta arriba: si no se pudo registrar, se retira
+      // para no dejar un huerfano que nadie sabe de quien es.
+      await supabase.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
+      fallidos.push(`${archivo.name}: ${errorRegistro.message}`);
+    }
+  }
+
   revalidatePath(`/auditorias/${auditoriaId}`);
+
+  if (fallidos.length > 0) {
+    return {
+      exito: true,
+      mensaje:
+        `Hallazgo ${codigo ?? ""} registrado, pero no se pudieron adjuntar: ` +
+        `${fallidos.join("; ")}.`,
+    };
+  }
+
   return { exito: true, mensaje: `Hallazgo ${codigo ?? ""} registrado.` };
 }
 

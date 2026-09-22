@@ -122,9 +122,12 @@ export type EstadoAuditoria =
   | "cancelada";
 
 export type TipoHallazgo =
-  | "no_conformidad_mayor"
   | "no_conformidad_menor"
+  | "no_conformidad_mayor"
   | "observacion"
+  | "otro"
+  // Retirados del alta, conservados porque puede haber hallazgos
+  // cargados con ellos.
   | "oportunidad_mejora"
   | "fortaleza";
 

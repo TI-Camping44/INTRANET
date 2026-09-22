@@ -74,8 +74,13 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
   const auditoria = consulta as unknown as AuditoriaDetalle | null;
   if (!auditoria) notFound();
 
-  const [{ data: hallazgos }, { data: equipo }, { data: personas }, { data: procesos }] =
-    await Promise.all([
+  const [
+    { data: hallazgos },
+    { data: evidencias },
+    { data: equipo },
+    { data: personas },
+    { data: procesos },
+  ] = await Promise.all([
       supabase
         .from("auditoria_hallazgos")
         .select(
@@ -83,6 +88,13 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
         )
         .eq("auditoria_id", params.id)
         .order("codigo"),
+      // Las evidencias adjuntas de los hallazgos de esta auditoria. Una
+      // sola consulta por `entidad`, no una por hallazgo; se reparten
+      // despues por `entidad_id`.
+      supabase
+        .from("adjuntos")
+        .select("id, entidad_id, nombre_archivo, tamano_bytes")
+        .eq("entidad", "auditoria_hallazgos"),
       supabase
         .from("auditoria_equipo")
         .select("usuario_id, rol_equipo, usuarios:usuario_id (nombre_completo)")
@@ -95,7 +107,20 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
       supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
     ]);
 
-  const listaHallazgos = (hallazgos as any[] | null) ?? [];
+  // Cada hallazgo con sus evidencias adjuntas.
+  const porHallazgo = new Map<string, { id: string; nombre_archivo: string; tamano_bytes: number }[]>();
+  for (const adjunto of (evidencias as
+    | { id: string; entidad_id: string; nombre_archivo: string; tamano_bytes: number }[]
+    | null) ?? []) {
+    const suyos = porHallazgo.get(adjunto.entidad_id) ?? [];
+    suyos.push(adjunto);
+    porHallazgo.set(adjunto.entidad_id, suyos);
+  }
+
+  const listaHallazgos = ((hallazgos as any[] | null) ?? []).map((hallazgo) => ({
+    ...hallazgo,
+    adjuntos: porHallazgo.get(hallazgo.id) ?? [],
+  }));
   const listaEquipo = (equipo as any[] | null) ?? [];
   const gestiona = puedeGestionarAuditorias(usuario);
 

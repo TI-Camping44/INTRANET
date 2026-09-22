@@ -400,12 +400,28 @@ export const ETIQUETAS_ESTADO_AUDITORIA: Record<EstadoAuditoria, string> = {
 };
 
 export const ETIQUETAS_TIPO_HALLAZGO: Record<TipoHallazgo, string> = {
-  no_conformidad_mayor: "No conformidad mayor",
   no_conformidad_menor: "No conformidad menor",
-  observacion: "Observación",
+  no_conformidad_mayor: "No conformidad mayor",
+  observacion: "Observación/Recomendación",
+  otro: "Otros",
   oportunidad_mejora: "Oportunidad de mejora",
   fortaleza: "Fortaleza",
 };
+
+/**
+ * Los cuatro tipos de hallazgo que ofrece Calidad, en su orden.
+ *
+ * «Oportunidad de mejora» y «Fortaleza» siguen en el enumerado porque
+ * puede haber hallazgos cargados con ellos y hay que poder mostrarlos,
+ * pero no se ofrecen. De los cuatro vigentes, los tres primeros derivan
+ * en no conformidad; «Otros» no.
+ */
+export const TIPOS_HALLAZGO_VIGENTES: TipoHallazgo[] = [
+  "no_conformidad_menor",
+  "no_conformidad_mayor",
+  "observacion",
+  "otro",
+];
 
 export const ETIQUETAS_FRECUENCIA: Record<FrecuenciaMedicion, string> = {
   diaria: "Diaria",

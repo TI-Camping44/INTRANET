@@ -135,3 +135,62 @@ export function describirTamano(bytes: number): string {
 export function rutaDeArchivo(documentoId: string, nombreArchivo: string): string {
   return `documentos/${documentoId}/${Date.now()}${extensionDe(nombreArchivo)}`;
 }
+
+// ---------------------------------------------------------------------
+// Evidencias de un hallazgo de auditoria
+// ---------------------------------------------------------------------
+// «Evidencia objetiva» era solo texto. Un auditor describe lo que vio,
+// pero lo que sostiene el hallazgo ante una auditoria de certificacion es
+// la foto de la estanteria, el registro incompleto, la captura del
+// sistema. Sin poder adjuntarlos, esos archivos terminaban en el
+// WhatsApp del auditor.
+//
+// El formato es amplio a proposito: una evidencia puede ser una foto, un
+// PDF firmado o una planilla. Lo que no cambia es el tope de 20 MB y que
+// el bucket sigue siendo privado.
+
+export const EXTENSIONES_EVIDENCIA = [
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".csv",
+];
+
+/** Lo que el selector de archivos ofrece filtrar. */
+export const ACEPTA_EVIDENCIA = EXTENSIONES_EVIDENCIA.join(",");
+
+/** Controla la evidencia. Devuelve el motivo del rechazo, o null. */
+export function motivoDeRechazoEvidencia(
+  nombreArchivo: string,
+  tamanoBytes: number,
+): string | null {
+  if (tamanoBytes === 0) return "El archivo está vacío.";
+
+  if (tamanoBytes > TAMANO_MAXIMO_ADJUNTO) {
+    return (
+      `El archivo pesa ${describirTamano(tamanoBytes)} y el máximo es ` +
+      `${describirTamano(TAMANO_MAXIMO_ADJUNTO)}.`
+    );
+  }
+
+  const extension = extensionDe(nombreArchivo);
+  if (!EXTENSIONES_EVIDENCIA.includes(extension)) {
+    return (
+      `Un archivo ${extension || "sin extensión"} no se puede adjuntar como evidencia. ` +
+      "Use PDF, una imagen o un archivo de Office."
+    );
+  }
+
+  return null;
+}
+
+/** Ruta de la evidencia dentro del bucket. */
+export function rutaDeEvidencia(hallazgoId: string, nombreArchivo: string): string {
+  return `hallazgos/${hallazgoId}/${Date.now()}${extensionDe(nombreArchivo)}`;
+}

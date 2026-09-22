@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, TriangleAlert, Trash2 } from "lucide-react";
+import { Paperclip, Plus, TriangleAlert, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Aviso, AvisoDescripcion } from "@/components/ui/aviso";
@@ -24,7 +24,8 @@ import {
   eliminarHallazgo,
   generarNoConformidad,
 } from "@/app/(sgc)/auditorias/acciones";
-import { ETIQUETAS_TIPO_HALLAZGO } from "@/lib/constantes";
+import { ETIQUETAS_TIPO_HALLAZGO, TIPOS_HALLAZGO_VIGENTES } from "@/lib/constantes";
+import { ACEPTA_EVIDENCIA, describirTamano } from "@/lib/adjuntos";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import type { TipoHallazgo } from "@/lib/tipos";
 
@@ -38,16 +39,20 @@ interface Hallazgo {
   no_conformidad_id: string | null;
   procesos: { nombre: string } | null;
   no_conformidad: { codigo: string; estado: string } | null;
+  adjuntos?: { id: string; nombre_archivo: string; tamano_bytes: number }[] | null;
 }
 
-const VARIANTE: Record<TipoHallazgo, "peligro" | "atencion" | "advertencia" | "primaria" | "exito"> =
-  {
-    no_conformidad_mayor: "peligro",
-    no_conformidad_menor: "atencion",
-    observacion: "advertencia",
-    oportunidad_mejora: "primaria",
-    fortaleza: "exito",
-  };
+const VARIANTE: Record<
+  TipoHallazgo,
+  "peligro" | "atencion" | "advertencia" | "primaria" | "exito" | "contorno"
+> = {
+  no_conformidad_menor: "atencion",
+  no_conformidad_mayor: "peligro",
+  observacion: "advertencia",
+  otro: "contorno",
+  oportunidad_mejora: "primaria",
+  fortaleza: "exito",
+};
 
 /** Un hallazgo genera no conformidad solo si es NC u observacion. */
 function generaNoConformidad(tipo: TipoHallazgo): boolean {
@@ -172,6 +177,29 @@ export function PanelHallazgos({
                       {hallazgo.evidencia}
                     </p>
                   ) : null}
+                  {hallazgo.adjuntos && hallazgo.adjuntos.length > 0 ? (
+                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                      {hallazgo.adjuntos.map((adjunto) => (
+                        <li key={adjunto.id}>
+                          {/* El enlace firmado se genera en el clic, en
+                              la ruta /adjuntos/[id]. Acá solo va el id. */}
+                          <a
+                            href={`/adjuntos/${adjunto.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 rounded border border-borde
+                                       px-2 py-1 text-[11px] transition-colors hover:bg-acento/60"
+                          >
+                            <Paperclip className="size-3 shrink-0 text-atenuado-contraste" />
+                            <span className="max-w-[16rem] truncate">{adjunto.nombre_archivo}</span>
+                            <span className="text-atenuado-contraste">
+                              {describirTamano(adjunto.tamano_bytes)}
+                            </span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {hallazgo.procesos ? (
                     <p className="mt-1 text-[11px] text-atenuado-contraste">
                       Proceso: {hallazgo.procesos.nombre}
@@ -250,21 +278,13 @@ export function PanelHallazgos({
 
             <div className="mt-4 space-y-3">
               <GrupoCampo etiqueta="Tipo de hallazgo" htmlFor="tipo" requerido>
-                <Seleccion id="tipo" name="tipo" defaultValue="observacion">
-                  {Object.entries(ETIQUETAS_TIPO_HALLAZGO).map(([valor, etiqueta]) => (
+                <Seleccion id="tipo" name="tipo" defaultValue="no_conformidad_menor">
+                  {TIPOS_HALLAZGO_VIGENTES.map((valor) => (
                     <option key={valor} value={valor}>
-                      {etiqueta}
+                      {ETIQUETAS_TIPO_HALLAZGO[valor]}
                     </option>
                   ))}
                 </Seleccion>
-              </GrupoCampo>
-
-              <GrupoCampo
-                etiqueta="Requisito"
-                htmlFor="requisito"
-                ayuda="Cláusula de la norma o del procedimiento interno."
-              >
-                <Entrada id="requisito" name="requisito" placeholder="ISO 9001:2015 · 7.5.3" />
               </GrupoCampo>
 
               <GrupoCampo etiqueta="Descripción" htmlFor="descripcion" requerido>
@@ -277,6 +297,28 @@ export function PanelHallazgos({
                 ayuda="Qué se verificó y cómo. Sostiene el hallazgo ante una auditoría externa."
               >
                 <AreaTexto id="evidencia" name="evidencia" rows={2} />
+              </GrupoCampo>
+
+              {/* La evidencia escrita describe; el archivo la sostiene.
+                  Una foto de la estantería, el registro incompleto, la
+                  captura del sistema: sin esto terminaban en el WhatsApp
+                  del auditor y no en el informe. */}
+              <GrupoCampo
+                etiqueta="Archivos de evidencia"
+                htmlFor="evidencias"
+                ayuda="Fotos, PDF o planillas que sostienen el hallazgo. Puede elegir varios, de hasta 20 MB cada uno."
+              >
+                <input
+                  id="evidencias"
+                  name="evidencias"
+                  type="file"
+                  multiple
+                  accept={ACEPTA_EVIDENCIA}
+                  className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
+                             text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
+                             file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
+                             file:text-texto"
+                />
               </GrupoCampo>
 
               <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">

@@ -97,7 +97,7 @@ export function FormularioAuditoria({
             etiqueta="Alcance"
             htmlFor="alcance"
             className="sm:col-span-2"
-            ayuda="Qué procesos, sedes y períodos quedan comprendidos."
+            ayuda="Sedes, períodos y límites de la auditoría. Los procesos van en el campo de abajo."
           >
             <AreaTexto id="alcance" name="alcance" rows={2} />
           </GrupoCampo>
@@ -111,7 +111,7 @@ export function FormularioAuditoria({
             <Entrada
               id="criterios"
               name="criterios"
-              placeholder="ISO 9001:2015 y MP-SOP-04."
+              placeholder="ISO 9001 y los procedimientos del proceso auditado."
             />
           </GrupoCampo>
 
