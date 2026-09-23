@@ -36,7 +36,7 @@ export default async function PaginaNuevaNoConformidad() {
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
         titulo="Registrar desviación"
-        descripcion="La no conformidad se numera automáticamente y queda abierta. El análisis de causa raíz y el plan de acción se cargan luego, en la ficha del registro."
+        descripcion="La no conformidad se numera automáticamente y queda abierta. El descargo, el análisis de causa raíz y la acción correctiva se cargan después, desde «Acciones correctivas»."
       />
       <FormularioNoConformidad
         procesos={procesos ?? []}

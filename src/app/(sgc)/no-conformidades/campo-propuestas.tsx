@@ -17,29 +17,40 @@ import { AreaTexto } from "@/components/ui/campo";
  * manda una lista: la acción de servidor las recoge con
  * `datos.getAll("propuestas_mejora")`.
  */
-export function CampoPropuestas({ nombre = "propuestas_mejora" }: { nombre?: string }) {
+export function CampoPropuestas({
+  nombre = "propuestas_mejora",
+  iniciales = [],
+}: {
+  nombre?: string;
+  /** Las ya cargadas, cuando se está editando. */
+  iniciales?: string[];
+}) {
   // Se arranca con un cuadro vacío. Vacío no se guarda, así que quien no
-  // tenga ninguna propuesta simplemente no lo completa.
-  const [cuadros, definirCuadros] = React.useState([0]);
-  const siguiente = React.useRef(1);
+  // tenga ninguna propuesta simplemente no lo completa. Al editar se
+  // arranca con las que ya estaban, una por cuadro.
+  const [cuadros, definirCuadros] = React.useState(() =>
+    iniciales.length > 0 ? iniciales.map((texto, indice) => ({ clave: indice, texto })) : [{ clave: 0, texto: "" }],
+  );
+  const siguiente = React.useRef(Math.max(iniciales.length, 1));
 
   function agregar() {
-    definirCuadros((actuales) => [...actuales, siguiente.current++]);
+    definirCuadros((actuales) => [...actuales, { clave: siguiente.current++, texto: "" }]);
   }
 
   function quitar(clave: number) {
     definirCuadros((actuales) =>
-      actuales.length === 1 ? actuales : actuales.filter((otra) => otra !== clave),
+      actuales.length === 1 ? actuales : actuales.filter((otra) => otra.clave !== clave),
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {cuadros.map((clave, indice) => (
-        <div key={clave} className="flex items-start gap-2">
+      {cuadros.map((cuadro, indice) => (
+        <div key={cuadro.clave} className="flex items-start gap-2">
           <AreaTexto
             name={nombre}
             rows={2}
+            defaultValue={cuadro.texto}
             aria-label={`Propuesta de mejora ${indice + 1}`}
             placeholder={indice === 0 ? "Qué se podría cambiar para que no vuelva a pasar." : ""}
           />
@@ -48,7 +59,7 @@ export function CampoPropuestas({ nombre = "propuestas_mejora" }: { nombre?: str
               type="button"
               variante="contorno"
               tamano="icono"
-              onClick={() => quitar(clave)}
+              onClick={() => quitar(cuadro.clave)}
               aria-label={`Quitar la propuesta ${indice + 1}`}
               title="Quitar esta propuesta"
             >

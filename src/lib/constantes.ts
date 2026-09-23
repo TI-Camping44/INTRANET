@@ -169,10 +169,20 @@ export const ETIQUETAS_SEVERIDAD_NC: Record<SeveridadNoConformidad, string> = {
   observacion: "Observación/Recomendación",
 };
 
+/**
+ * Los nombres de los estados son los que usa Calidad desde el 23 de
+ * septiembre: Abierto, En proceso y Cerrado. El valor guardado no
+ * cambio —sigue siendo 'abierta', 'en_tratamiento', 'cerrada'— porque lo
+ * que cambio es como se lo llama, no que es.
+ *
+ * El cierre se muestra partido en «en plazo» y «fuera de plazo», y eso
+ * no sale de aca: sale de `pasoDeNoConformidad` en lib/no-conformidades,
+ * que mira tambien la columna `cierre_en_plazo`.
+ */
 export const ETIQUETAS_ESTADO_NC: Record<EstadoNoConformidad, string> = {
-  abierta: "Abierta",
-  en_tratamiento: "En tratamiento",
-  cerrada: "Cerrada",
+  abierta: "Abierto",
+  en_tratamiento: "En proceso",
+  cerrada: "Cerrado",
   en_analisis: "En análisis",
   en_verificacion: "En verificación",
   anulada: "Anulada",

@@ -1,3 +1,4 @@
+import { ETIQUETAS_PASO_NC, pasoDeNoConformidad } from "@/lib/no-conformidades";
 import { Insignia } from "@/components/ui/insignia";
 import {
   ETIQUETAS_ESTADO_ACCION,
@@ -50,9 +51,38 @@ const VARIANTE_ESTADO_NC: Record<EstadoNoConformidad, Variante> = {
   anulada: "contorno",
 };
 
-export function InsigniaEstadoNC({ estado }: { estado: EstadoNoConformidad }) {
+/**
+ * El estado de la no conformidad, con los cuatro nombres de Calidad.
+ *
+ * «Cerrada» son en realidad dos: en plazo y fuera de plazo. La
+ * diferencia no esta en `estado` —sigue siendo 'cerrada'— sino en
+ * `cierre_en_plazo`, asi que hay que pasarle las dos cosas. Sin el
+ * segundo dato se sigue viendo «Cerrada» a secas, que es lo correcto
+ * para un listado que todavia no lo consulta.
+ */
+export function InsigniaEstadoNC({
+  estado,
+  cierreEnPlazo,
+}: {
+  estado: EstadoNoConformidad;
+  cierreEnPlazo?: boolean | null;
+}) {
+  if (estado === "cerrada" && cierreEnPlazo !== undefined) {
+    const paso = pasoDeNoConformidad(estado, cierreEnPlazo ?? null);
+    return (
+      <Insignia variante={cierreEnPlazo ? "exito" : "neutra"}>
+        {ETIQUETAS_PASO_NC[paso]}
+      </Insignia>
+    );
+  }
+
+  const paso = pasoDeNoConformidad(estado, null);
   return (
-    <Insignia variante={VARIANTE_ESTADO_NC[estado]}>{ETIQUETAS_ESTADO_NC[estado]}</Insignia>
+    <Insignia variante={VARIANTE_ESTADO_NC[estado]}>
+      {estado === "abierta" || estado === "en_tratamiento"
+        ? ETIQUETAS_PASO_NC[paso]
+        : ETIQUETAS_ESTADO_NC[estado]}
+    </Insignia>
   );
 }
 

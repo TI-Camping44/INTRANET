@@ -50,6 +50,7 @@ interface FilaNoConformidad {
   origen: OrigenNoConformidad;
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
+  cierre_en_plazo: boolean | null;
   area: AreaOrganizacional | null;
   fecha_deteccion: string;
   fecha_limite_cierre: string | null;
@@ -84,7 +85,7 @@ export default async function PaginaNoConformidades({
   let consulta = supabase
     .from("no_conformidades")
     .select(
-      "id, codigo, titulo, origen, severidad, estado, area, fecha_deteccion, " +
+      "id, codigo, titulo, origen, severidad, estado, cierre_en_plazo, area, fecha_deteccion, " +
         "fecha_limite_cierre, es_demostracion, nc_acciones (id, estado), " +
         "procesos:proceso_id (nombre), " +
         "responsable:responsable_id (nombre_completo)",
@@ -244,7 +245,7 @@ export default async function PaginaNoConformidades({
                       <InsigniaSeveridad severidad={nc.severidad} />
                     </TablaCelda>
                     <TablaCelda>
-                      <InsigniaEstadoNC estado={nc.estado} />
+                      <InsigniaEstadoNC estado={nc.estado} cierreEnPlazo={nc.cierre_en_plazo} />
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                       {nc.responsable?.nombre_completo ?? "Sin asignar"}

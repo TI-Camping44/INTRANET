@@ -130,6 +130,29 @@ export function diasHasta(valor: string | Date | null | undefined): number | nul
   return Math.round((fecha.getTime() - hoy.getTime()) / milisegundosPorDia);
 }
 
+/**
+ * Dias corridos entre dos fechas, la segunda menos la primera.
+ *
+ * Corridos quiere decir corridos: cuenta fines de semana y feriados. Es
+ * la misma cuenta que hace la base con `fecha_deteccion + 5`, y tiene que
+ * seguir siendo la misma para que el plazo que se muestra y el que se
+ * guarda no digan cosas distintas.
+ *
+ * Se apoya en `aFecha`, que ancla al mediodia: sin eso, un cambio de
+ * horario de verano entre las dos fechas puede dar 4,96 dias y redondear
+ * para el lado equivocado.
+ */
+export function diasEntre(
+  desde: string | Date | null | undefined,
+  hasta: string | Date | null | undefined,
+): number {
+  const inicio = aFecha(desde);
+  const fin = aFecha(hasta);
+  if (!inicio || !fin) return 0;
+  const milisegundosPorDia = 86_400_000;
+  return Math.round((fin.getTime() - inicio.getTime()) / milisegundosPorDia);
+}
+
 /** "vence en 5 días" / "vencida hace 3 días" */
 export function describirVencimiento(valor: string | Date | null | undefined) {
   const dias = diasHasta(valor);

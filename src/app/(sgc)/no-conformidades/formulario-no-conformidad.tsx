@@ -7,7 +7,10 @@ import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { CampoPropuestas } from "@/app/(sgc)/no-conformidades/campo-propuestas";
-import { crearNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
+import {
+  actualizarNoConformidad,
+  crearNoConformidad,
+} from "@/app/(sgc)/no-conformidades/acciones";
 import {
   AREAS_ORGANIZACIONALES,
   AREAS_VIGENTES,
@@ -33,15 +36,39 @@ interface Opcion {
  * Los que se sacaron —requisito incumplido, norma de referencia, cliente
  * afectado y sede— se sacaron por la misma razon: nadie los iba a llenar
  * bien, y un campo que se completa mal es peor que uno que no esta.
+ *
+ * Es el mismo formulario para dar de alta y para editar. Se pasa
+ * `inicial` y cambia lo que tiene que cambiar: los valores, el boton y a
+ * donde vuelve al guardar. Tener dos formularios distintos para los
+ * mismos campos es tener dos lugares donde agregar el campo siguiente, y
+ * uno de los dos se olvida.
  */
+export interface NoConformidadInicial {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  origen: string;
+  severidad: string;
+  area: string | null;
+  empresa_afectada_id: string | null;
+  proceso_id: string | null;
+  responsable_id: string | null;
+  correccion_inmediata: string | null;
+  propuestas_mejora: string[] | null;
+  fecha_deteccion: string;
+}
+
 export function FormularioNoConformidad({
   procesos,
   empresas,
   usuarios,
+  inicial,
 }: {
   procesos: Opcion[];
   empresas: Opcion[];
   usuarios: Opcion[];
+  /** Cuando viene, el formulario edita esa desviación en vez de crear una. */
+  inicial?: NoConformidadInicial;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
@@ -52,7 +79,7 @@ export function FormularioNoConformidad({
   // El plazo de cierre no se elige: son diez dias corridos desde la
   // deteccion. Se muestra para que quien registra sepa a que se
   // compromete, pero lo fija la base de datos.
-  const [deteccion, definirDeteccion] = React.useState(hoy);
+  const [deteccion, definirDeteccion] = React.useState(inicial?.fecha_deteccion ?? hoy);
   const limite = sumarDias(deteccion, DIAS_LIMITE_CIERRE_NC);
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
@@ -60,11 +87,14 @@ export function FormularioNoConformidad({
     definirEnviando(true);
     definirError(null);
 
-    const resultado = await crearNoConformidad(new FormData(evento.currentTarget));
+    const datos = new FormData(evento.currentTarget);
+    const resultado = inicial
+      ? await actualizarNoConformidad(inicial.id, datos)
+      : await crearNoConformidad(datos);
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "No conformidad registrada.");
-      router.push(`/no-conformidades/${resultado.id}`);
+      router.push(`/no-conformidades/${inicial?.id ?? resultado.id}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -81,6 +111,7 @@ export function FormularioNoConformidad({
             <Entrada
               id="titulo"
               name="titulo"
+              defaultValue={inicial?.titulo}
               placeholder="Faltante de stock en el conteo cíclico de depósito"
               required
               minLength={5}
@@ -94,11 +125,18 @@ export function FormularioNoConformidad({
             className="sm:col-span-2"
             ayuda="Qué ocurrió, dónde y cuándo. Es la evidencia objetiva del hallazgo."
           >
-            <AreaTexto id="descripcion" name="descripcion" rows={4} required minLength={15} />
+            <AreaTexto
+              id="descripcion"
+              name="descripcion"
+              defaultValue={inicial?.descripcion}
+              rows={4}
+              required
+              minLength={15}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido>
-            <Seleccion id="origen" name="origen" defaultValue="proceso_interno">
+            <Seleccion id="origen" name="origen" defaultValue={inicial?.origen ?? "proceso_interno"}>
               {ORIGENES_NC_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
                   {ETIQUETAS_ORIGEN_NC[valor]}
@@ -108,7 +146,7 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Severidad" htmlFor="severidad" requerido>
-            <Seleccion id="severidad" name="severidad" defaultValue="menor">
+            <Seleccion id="severidad" name="severidad" defaultValue={inicial?.severidad ?? "menor"}>
               {Object.entries(ETIQUETAS_SEVERIDAD_NC).map(([valor, etiqueta]) => (
                 <option key={valor} value={valor}>
                   {etiqueta}
@@ -123,7 +161,7 @@ export function FormularioNoConformidad({
             requerido
             ayuda="Departamento que debe gestionar la No Conformidad y su posterior Acción Correctiva."
           >
-            <Seleccion id="area" name="area" defaultValue="" required>
+            <Seleccion id="area" name="area" defaultValue={inicial?.area ?? ""} required>
               <option value="" disabled>
                 Elija el área
               </option>
@@ -139,7 +177,7 @@ export function FormularioNoConformidad({
             <Seleccion
               id="empresa_afectada_id"
               name="empresa_afectada_id"
-              defaultValue={empresas[0]?.id ?? ""}
+              defaultValue={inicial?.empresa_afectada_id ?? empresas[0]?.id ?? ""}
               required
             >
               {empresas.map((empresa) => (
@@ -151,7 +189,7 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Proceso afectado" htmlFor="proceso_id">
-            <Seleccion id="proceso_id" name="proceso_id">
+            <Seleccion id="proceso_id" name="proceso_id" defaultValue={inicial?.proceso_id ?? ""}>
               <option value="">Sin proceso asociado</option>
               {procesos.map((proceso) => (
                 <option key={proceso.id} value={proceso.id}>
@@ -167,7 +205,12 @@ export function FormularioNoConformidad({
             requerido
             ayuda="Recibe la notificación y es quien analiza la causa y propone la acción. Sin responsable, la no conformidad no le llega a nadie."
           >
-            <Seleccion id="responsable_id" name="responsable_id" required defaultValue="">
+            <Seleccion
+              id="responsable_id"
+              name="responsable_id"
+              required
+              defaultValue={inicial?.responsable_id ?? ""}
+            >
               <option value="" disabled>
                 Elija a la persona
               </option>
@@ -185,7 +228,12 @@ export function FormularioNoConformidad({
             className="sm:col-span-2"
             ayuda="Qué se hizo en el momento para contener el problema."
           >
-            <AreaTexto id="correccion_inmediata" name="correccion_inmediata" rows={2} />
+            <AreaTexto
+              id="correccion_inmediata"
+              name="correccion_inmediata"
+              defaultValue={inicial?.correccion_inmediata ?? ""}
+              rows={2}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -193,7 +241,7 @@ export function FormularioNoConformidad({
             className="sm:col-span-2"
             ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una."
           >
-            <CampoPropuestas />
+            <CampoPropuestas iniciales={inicial?.propuestas_mejora ?? []} />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Fecha de detección" htmlFor="fecha_deteccion" requerido>
@@ -228,7 +276,7 @@ export function FormularioNoConformidad({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Registrar no conformidad
+            {inicial ? "Guardar cambios" : "Registrar no conformidad"}
           </Boton>
         </div>
       </Tarjeta>

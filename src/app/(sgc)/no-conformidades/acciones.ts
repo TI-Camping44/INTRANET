@@ -142,8 +142,25 @@ export async function actualizarNoConformidad(
   id: string,
   datos: FormData,
 ): Promise<ResultadoAccion> {
-  await requerirUsuario();
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
   const supabase = crearClienteServidor();
+
+  const titulo = String(datos.get("titulo") ?? "").trim();
+  const descripcion = String(datos.get("descripcion") ?? "").trim();
+
+  if (titulo.length < 5) {
+    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
+  }
+  if (descripcion.length < 15) {
+    return {
+      exito: false,
+      error: "La descripción debe tener al menos 15 caracteres: es la evidencia del hallazgo.",
+    };
+  }
 
   const { error } = await supabase
     .from("no_conformidades")
@@ -157,6 +174,14 @@ export async function actualizarNoConformidad(
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
       correccion_inmediata: String(datos.get("correccion_inmediata") ?? "").trim() || null,
+      // Las propuestas y la fecha de deteccion tambien se editan: el
+      // formulario de alta las pide y el de edicion es el mismo, asi que
+      // si no se guardaran, editar cualquier cosa las borraria.
+      propuestas_mejora: datos
+        .getAll("propuestas_mejora")
+        .map((valor) => String(valor).trim())
+        .filter((propuesta) => propuesta.length > 0),
+      fecha_deteccion: String(datos.get("fecha_deteccion") ?? "") || undefined,
     })
     .eq("id", id);
 
@@ -476,30 +501,18 @@ export async function responderNoConformidad(
     .update({ conclusion_causa_raiz: porques[porques.length - 1] })
     .eq("id", noConformidadId);
 
-  // 4 · El cierre, por la funcion de la base y no por un update directo.
-  // `no_conformidades_edicion` solo deja editar a Calidad, al
-  // responsable, a quien la detecto y al responsable del proceso: si
-  // responde otra persona, el update no falla, simplemente no alcanza
-  // ninguna fila y la desviacion se queda abierta sin que nadie se
-  // entere. La funcion cierra con su propio control —descargo y cinco
-  // porques— y devuelve error cuando no corresponde.
-  const { error: errorCierre } = await supabase.rpc("cerrar_no_conformidad_por_respuesta", {
-    p_no_conformidad_id: noConformidadId,
-  });
-
+  // 4 · El estado NO se toca aca. La desviacion pasa a «En proceso»
+  // sola, por el disparador `sincronizar_estado_nc_por_accion()`, en
+  // cuanto existe la accion que se acaba de insertar.
+  //
+  // Hasta el 22 de septiembre responder cerraba la no conformidad. La
+  // especificacion de Calidad del 23 lo cambio: cargar la accion la pasa
+  // a «En proceso» y el cierre lo elige una persona desde la linea de
+  // estados, diciendo si fue en plazo o fuera de plazo. Las dos cosas no
+  // pueden convivir: si responder cerrara, «En proceso» no existiria.
   revalidatePath(`/no-conformidades/${noConformidadId}`);
   revalidatePath("/no-conformidades");
   revalidatePath("/acciones");
-
-  if (errorCierre) {
-    return {
-      exito: true,
-      id: noConformidadId,
-      mensaje:
-        "Se guardaron el descargo, el análisis y la acción, pero la no conformidad no se " +
-        `pudo cerrar: ${errorCierre.message} Avise a Calidad.`,
-    };
-  }
 
   if (responsableId && responsableId !== usuario.id) {
     const [{ data: responsable }, { data: noConformidad }] = await Promise.all([
@@ -526,8 +539,8 @@ export async function responderNoConformidad(
     exito: true,
     id: noConformidadId,
     mensaje:
-      "No conformidad respondida y cerrada. La acción correctiva queda abierta: es la que " +
-      "se controla hasta verificar su eficacia.",
+      "No conformidad respondida. Queda en proceso: el cierre se registra desde la ficha, " +
+      "indicando si fue en plazo o fuera de plazo.",
   };
 }
 
@@ -597,4 +610,154 @@ export async function registrarEficacia(
 
   revalidatePath(`/no-conformidades/${noConformidadId}`);
   return { exito: true, mensaje: "Verificación de eficacia registrada." };
+}
+
+
+/**
+ * Cierra la no conformidad, diciendo si fue en plazo o fuera de plazo.
+ *
+ * El cierre lo elige una persona. El sistema sugiere cual corresponde
+ * comparando la fecha de la primera accion correctiva con la de
+ * deteccion, pero no decide: quien cierra puede saber algo que el
+ * sistema no, y lo que vale en una auditoria es que la decision este
+ * tomada por alguien y quede registrada.
+ *
+ * Lo unico obligatorio es que haya una accion correctiva cargada. Lo
+ * controla tambien el disparador `controlar_cierre_nc()`; aca se repite
+ * para poder dar un mensaje entendible en vez del error de PostgreSQL.
+ *
+ * Reemplaza al cierre automatico al responder que se habia definido el
+ * 22 de septiembre: con el nuevo circuito, cargar la accion pasa la
+ * desviacion a «En proceso» y el cierre es el paso siguiente.
+ */
+export async function cerrarNoConformidad(
+  id: string,
+  enPlazo: boolean,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { count } = await supabase
+    .from("nc_acciones")
+    .select("id", { count: "exact", head: true })
+    .eq("no_conformidad_id", id);
+
+  if (!count) {
+    return {
+      exito: false,
+      error:
+        "No se puede cerrar una no conformidad sin acción correctiva. Cargue primero la " +
+        "acción desde «Acciones correctivas».",
+    };
+  }
+
+  const { error } = await supabase
+    .from("no_conformidades")
+    .update({
+      estado: "cerrada",
+      cierre_en_plazo: enPlazo,
+      fecha_cierre: hoyEnAsuncion(),
+      cerrado_por: usuario.id,
+    })
+    .eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo cerrar: ${error.message}` };
+
+  revalidatePath(`/no-conformidades/${id}`);
+  revalidatePath("/no-conformidades");
+
+  return {
+    exito: true,
+    mensaje: enPlazo ? "Cerrada en plazo." : "Cerrada fuera de plazo.",
+  };
+}
+
+/**
+ * Reabre una no conformidad cerrada.
+ *
+ * Vuelve al estado que le corresponda por sus acciones: si tiene alguna,
+ * «En proceso»; si no, «Abierto». El disparador limpia la fecha y la
+ * clasificacion del cierre, para que si vuelve a cerrarse se decida de
+ * nuevo en vez de arrastrar la decision anterior.
+ */
+export async function reabrirNoConformidad(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { count } = await supabase
+    .from("nc_acciones")
+    .select("id", { count: "exact", head: true })
+    .eq("no_conformidad_id", id);
+
+  const { error } = await supabase
+    .from("no_conformidades")
+    .update({ estado: count ? "en_tratamiento" : "abierta", cerrado_por: null })
+    .eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo reabrir: ${error.message}` };
+
+  revalidatePath(`/no-conformidades/${id}`);
+  revalidatePath("/no-conformidades");
+  return { exito: true, mensaje: "No conformidad reabierta." };
+}
+
+/**
+ * Elimina una no conformidad con todo lo que cuelga de ella.
+ *
+ * Es para lo que no deberia haberse cargado: una prueba, un duplicado,
+ * un registro mal abierto. No es la forma de dar por terminada una
+ * desviacion real —para eso esta el cierre, que la conserva con su
+ * historial, que es lo que pide la norma—.
+ *
+ * Solo el Administrador SGC, que es lo que ya dice RLS
+ * (`no_conformidades_baja`). Se repite aca para dar un mensaje en vez de
+ * un borrado que afecta cero filas y no avisa nada.
+ *
+ * La bitacora conserva la constancia: el disparador registra la baja con
+ * quien la hizo antes de que la fila desaparezca.
+ */
+export async function eliminarNoConformidad(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  if (usuario.rol !== "administrador_sgc") {
+    return {
+      exito: false,
+      error:
+        "Solo el Administrador SGC puede eliminar una no conformidad. " +
+        "Si la desviación es real, ciérrela en vez de borrarla.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: noConformidad } = await supabase
+    .from("no_conformidades")
+    .select("codigo, titulo")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!noConformidad) {
+    return { exito: false, error: "La no conformidad no existe o no tiene acceso." };
+  }
+
+  // Las acciones y los porques se van solos: su clave foranea cascadea.
+  const { error } = await supabase.from("no_conformidades").delete().eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo eliminar: ${error.message}` };
+
+  revalidatePath("/no-conformidades");
+  revalidatePath("/acciones");
+
+  return {
+    exito: true,
+    mensaje: `${noConformidad.codigo} eliminada junto con sus acciones y su análisis.`,
+  };
 }
