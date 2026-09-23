@@ -50,6 +50,27 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
     return { exito: false, error: "El origen elegido no está en la lista de Calidad." };
   }
 
+  // Los dos pasaron a obligatorios el 23 de septiembre. La correccion
+  // inmediata es lo que se hizo para contener el problema mientras se
+  // analiza la causa, y sin ella la desviacion queda sin ninguna
+  // constancia de que alguien hizo algo el dia que ocurrio.
+  const correccion = String(datos.get("correccion_inmediata") ?? "").trim();
+  if (correccion.length < 5) {
+    return {
+      exito: false,
+      error: "Escriba la corrección inmediata: qué se hizo en el momento para contener el problema.",
+    };
+  }
+
+  const propuestas = datos
+    .getAll("propuestas_mejora")
+    .map((valor) => String(valor).trim())
+    .filter((propuesta) => propuesta.length > 0);
+
+  if (propuestas.length === 0) {
+    return { exito: false, error: "Cargue al menos una propuesta de mejora." };
+  }
+
   // El correlativo NC-AAAA-NNN lo calcula la base de datos.
   const { data: codigo, error: errorCodigo } = await supabase.rpc(
     "siguiente_codigo_no_conformidad",
@@ -162,6 +183,26 @@ export async function actualizarNoConformidad(
     };
   }
 
+  // Los mismos dos obligatorios que en el alta: es el mismo formulario y
+  // seria raro que se pudiera vaciar editando lo que no se puede dejar
+  // vacio al cargar.
+  const correccion = String(datos.get("correccion_inmediata") ?? "").trim();
+  if (correccion.length < 5) {
+    return {
+      exito: false,
+      error: "Escriba la corrección inmediata: qué se hizo en el momento para contener el problema.",
+    };
+  }
+
+  const propuestas = datos
+    .getAll("propuestas_mejora")
+    .map((valor) => String(valor).trim())
+    .filter((propuesta) => propuesta.length > 0);
+
+  if (propuestas.length === 0) {
+    return { exito: false, error: "Cargue al menos una propuesta de mejora." };
+  }
+
   const { error } = await supabase
     .from("no_conformidades")
     .update({
@@ -173,14 +214,11 @@ export async function actualizarNoConformidad(
       empresa_afectada_id: String(datos.get("empresa_afectada_id") ?? "") || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      correccion_inmediata: String(datos.get("correccion_inmediata") ?? "").trim() || null,
+      correccion_inmediata: correccion,
       // Las propuestas y la fecha de deteccion tambien se editan: el
       // formulario de alta las pide y el de edicion es el mismo, asi que
       // si no se guardaran, editar cualquier cosa las borraria.
-      propuestas_mejora: datos
-        .getAll("propuestas_mejora")
-        .map((valor) => String(valor).trim())
-        .filter((propuesta) => propuesta.length > 0),
+      propuestas_mejora: propuestas,
       fecha_deteccion: String(datos.get("fecha_deteccion") ?? "") || undefined,
     })
     .eq("id", id);

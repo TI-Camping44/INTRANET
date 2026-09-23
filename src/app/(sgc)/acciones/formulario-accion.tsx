@@ -147,7 +147,7 @@ export function FormularioAccion({
                           : "text-atenuado-contraste"
                       }`}
                     >
-                      {pregunta}
+                      {pregunta} <span className="text-primario">*</span>
                     </label>
                     <AreaTexto id={`porque-${indice}`} name="porque" rows={2} required />
                   </div>

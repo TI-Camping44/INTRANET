@@ -20,10 +20,17 @@ import { AreaTexto } from "@/components/ui/campo";
 export function CampoPropuestas({
   nombre = "propuestas_mejora",
   iniciales = [],
+  requerido = false,
 }: {
   nombre?: string;
   /** Las ya cargadas, cuando se está editando. */
   iniciales?: string[];
+  /**
+   * Exige al menos una. Lo pide solo el primer cuadro: las demás son
+   * opcionales, y marcar todas obligaría a borrar los cuadros de más
+   * antes de poder guardar.
+   */
+  requerido?: boolean;
 }) {
   // Se arranca con un cuadro vacío. Vacío no se guarda, así que quien no
   // tenga ninguna propuesta simplemente no lo completa. Al editar se
@@ -51,6 +58,7 @@ export function CampoPropuestas({
             name={nombre}
             rows={2}
             defaultValue={cuadro.texto}
+            required={requerido && indice === 0}
             aria-label={`Propuesta de mejora ${indice + 1}`}
             placeholder={indice === 0 ? "Qué se podría cambiar para que no vuelva a pasar." : ""}
           />

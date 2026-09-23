@@ -225,6 +225,7 @@ export function FormularioNoConformidad({
           <GrupoCampo
             etiqueta="Corrección inmediata aplicada"
             htmlFor="correccion_inmediata"
+            requerido
             className="sm:col-span-2"
             ayuda="Qué se hizo en el momento para contener el problema."
           >
@@ -233,15 +234,18 @@ export function FormularioNoConformidad({
               name="correccion_inmediata"
               defaultValue={inicial?.correccion_inmediata ?? ""}
               rows={2}
+              required
+              minLength={5}
             />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Propuestas de mejora"
+            requerido
             className="sm:col-span-2"
             ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una."
           >
-            <CampoPropuestas iniciales={inicial?.propuestas_mejora ?? []} />
+            <CampoPropuestas iniciales={inicial?.propuestas_mejora ?? []} requerido />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Fecha de detección" htmlFor="fecha_deteccion" requerido>
