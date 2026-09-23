@@ -1280,3 +1280,53 @@ export async function renombrarCategoria(
   revalidatePath("/documentos");
   return { exito: true, mensaje: `«${anterior}» ahora se llama «${nombre}».` };
 }
+
+
+/**
+ * Reordena de una vez todos los documentos de una categoria.
+ *
+ * Es lo que deja el arrastrar y soltar: mover una fila de la posicion
+ * dos a la diez cambia la posicion de las ocho del medio, asi que no
+ * alcanza con intercambiar dos como hacen las flechas.
+ *
+ * Llega la lista completa de la categoria en el orden en que quedo en
+ * pantalla y se numera de diez en diez. Se reescribe entera y no solo lo
+ * que cambio: son tres o cuatro decenas de filas y la cuenta que hay que
+ * hacer para saber cuales se movieron cuesta mas que escribirlas todas.
+ *
+ * El hueco de diez se conserva para que las flechas puedan seguir
+ * intercalando sin renumerar.
+ */
+export async function reordenarDocumentos(ids: string[]): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite reordenar los documentos." };
+  }
+  if (ids.length === 0) return { exito: true };
+
+  const supabase = crearClienteServidor();
+  const fallidos: string[] = [];
+
+  for (let desde = 0; desde < ids.length; desde += 10) {
+    const tanda = ids.slice(desde, desde + 10);
+    const resultados = await Promise.all(
+      tanda.map((id, indice) =>
+        supabase
+          .from("documentos")
+          .update({ orden: (desde + indice + 1) * 10 })
+          .eq("id", id),
+      ),
+    );
+    for (const resultado of resultados) {
+      if (resultado.error) fallidos.push(resultado.error.message);
+    }
+  }
+
+  revalidatePath("/documentos");
+
+  if (fallidos.length > 0) {
+    return { exito: false, error: `No se pudo guardar el orden: ${fallidos[0]}` };
+  }
+
+  return { exito: true };
+}

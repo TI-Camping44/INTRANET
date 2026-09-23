@@ -25,6 +25,10 @@ import { EncabezadoOrdenable } from "@/components/comunes/encabezado-ordenable";
 import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
 import { PanelCategorias } from "@/app/(sgc)/documentos/panel-categorias";
 import {
+  FilaArrastrable,
+  ProveedorArrastre,
+} from "@/app/(sgc)/documentos/arrastre-documentos";
+import {
   BarraSeleccion,
   CasillaDocumento,
   ProveedorSeleccion,
@@ -198,6 +202,19 @@ export default async function PaginaDocumentos({
     ((conArchivo as { entidad_id: string }[] | null) ?? []).map((fila) => fila.entidad_id),
   );
 
+  // Los ids de cada categoria, en el orden en que se ven. Es lo que
+  // necesita el arrastre para recalcular las posiciones al soltar.
+  const CLAVE_SIN_CATEGORIA = "__sin_categoria__";
+  const grupos: Record<string, string[]> = {};
+  for (const documento of documentos) {
+    const clave = documento.categoria ?? CLAVE_SIN_CATEGORIA;
+    (grupos[clave] ??= []).push(documento.id);
+  }
+
+  // Se arrastra cuando hay orden manual que tocar: si la lista viene
+  // ordenada por una columna, mover una fila no significa nada.
+  const seArrastra = puedeOrdenar && !columna;
+
   const vistas = Object.entries(VISTAS).map(([valor, { etiqueta, estados: suyos }]) => ({
     valor,
     etiqueta,
@@ -294,6 +311,7 @@ export default async function PaginaDocumentos({
       ) : (
         <ProveedorSeleccion>
           {puedeEliminar ? <BarraSeleccion /> : null}
+          <ProveedorArrastre grupos={seArrastra ? grupos : {}}>
           <Tarjeta>
           <Tabla>
             <TablaCabecera>
@@ -366,7 +384,10 @@ export default async function PaginaDocumentos({
                         </td>
                       </tr>
                     ) : null}
-                  <TablaFila>
+                  <FilaArrastrable
+                    id={documento.id}
+                    grupo={documento.categoria ?? CLAVE_SIN_CATEGORIA}
+                  >
                     {puedeEliminar ? (
                       <TablaCelda>
                         <CasillaDocumento id={documento.id} titulo={documento.titulo} />
@@ -378,6 +399,7 @@ export default async function PaginaDocumentos({
                         target={abre ? "_blank" : undefined}
                         rel={abre ? "noopener noreferrer" : undefined}
                         title={rotulo}
+                        draggable={false}
                         className="hover:text-primario"
                       >
                         {documento.codigo ?? <span className="text-atenuado-contraste">—</span>}
@@ -389,6 +411,7 @@ export default async function PaginaDocumentos({
                         target={abre ? "_blank" : undefined}
                         rel={abre ? "noopener noreferrer" : undefined}
                         title={rotulo}
+                        draggable={false}
                         className="flex items-center gap-2 hover:text-primario"
                       >
                         {abre ? (
@@ -426,6 +449,7 @@ export default async function PaginaDocumentos({
                     <TablaCelda className="text-right">
                       <Link
                         href={`/documentos/${documento.id}`}
+                        draggable={false}
                         className="text-xs text-primario hover:underline"
                       >
                         Ver
@@ -449,13 +473,14 @@ export default async function PaginaDocumentos({
                         )}
                       </TablaCelda>
                     ) : null}
-                  </TablaFila>
+                  </FilaArrastrable>
                   </React.Fragment>
                 );
               })}
             </TablaCuerpo>
           </Tabla>
           </Tarjeta>
+          </ProveedorArrastre>
         </ProveedorSeleccion>
       )}
 
@@ -470,8 +495,9 @@ export default async function PaginaDocumentos({
           : null}{" "}
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
-        {puedeOrdenar && !columna
-          ? " Las flechas mueven el documento dentro de su categoría, y «Categorías» arma los grupos."
+        {seArrastra
+          ? " Para reordenar, arrastre la fila a donde va; las flechas la mueven de a un lugar. " +
+            "«Categorías» arma los grupos."
           : ""}
         {columna
           ? " Ordenado por una columna: toque el encabezado una vez más para volver al orden de la carpeta."
