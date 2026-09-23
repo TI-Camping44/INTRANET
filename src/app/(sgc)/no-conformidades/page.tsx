@@ -25,13 +25,19 @@ import {
   AREAS_ORGANIZACIONALES,
   AREAS_VIGENTES,
   ESTADOS_NC_ABIERTOS,
-  ESTADOS_NC_VIGENTES,
-  ETIQUETAS_ESTADO_NC,
   ETIQUETAS_ORIGEN_NC,
   ETIQUETAS_SEVERIDAD_NC,
   ORIGENES_NC_VIGENTES,
 } from "@/lib/constantes";
 import { describirVencimiento, diasHasta, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
+import { BarrasPorcentaje, Torta } from "@/app/(sgc)/no-conformidades/graficos";
+import {
+  condicionDePaso,
+  COLOR_PASO_NC,
+  ETIQUETAS_PASO_NC,
+  pasoDeNoConformidad,
+  PASOS_NO_CONFORMIDAD,
+} from "@/lib/no-conformidades";
 import { recortar } from "@/lib/utilidades";
 import type {
   AreaOrganizacional,
@@ -95,10 +101,16 @@ export default async function PaginaNoConformidades({
     // fecha de deteccion no siempre van juntos.
     .order("codigo", { ascending: true });
 
-  if (searchParams.estado === "abiertas") {
-    consulta = consulta.in("estado", ESTADOS_NC_ABIERTOS);
-  } else if (searchParams.estado) {
-    consulta = consulta.eq("estado", searchParams.estado);
+  // Los cuatro estados que ve Calidad no son cuatro valores de `estado`:
+  // los dos cierres comparten 'cerrada' y se separan por
+  // `cierre_en_plazo`. La traduccion vive en `condicionDePaso`.
+  const condicion = condicionDePaso(searchParams.estado);
+  if (condicion) {
+    consulta = consulta.eq("estado", condicion.estado);
+    if (condicion.enPlazo === true) consulta = consulta.eq("cierre_en_plazo", true);
+    // Un cierre viejo sin clasificar cuenta como fuera de plazo, igual
+    // que en `pasoDeNoConformidad`: no se le inventa un cumplimiento.
+    if (condicion.enPlazo === false) consulta = consulta.not("cierre_en_plazo", "is", true);
   }
   if (searchParams.severidad) consulta = consulta.eq("severidad", searchParams.severidad);
   if (searchParams.origen) consulta = consulta.eq("origen", searchParams.origen);
@@ -112,6 +124,51 @@ export default async function PaginaNoConformidades({
   const { data } = await consulta;
   const noConformidades = (data as FilaNoConformidad[] | null) ?? [];
   const hoy = hoyEnAsuncion();
+
+  // Los graficos se arman sobre lo que quedo en el listado, no sobre el
+  // total: si alguien filtra por area, los porcentajes son de esa area,
+  // que es lo que esta mirando.
+  const porPaso = PASOS_NO_CONFORMIDAD.map((paso) => ({
+    etiqueta: ETIQUETAS_PASO_NC[paso],
+    valor: noConformidades.filter(
+      (nc) => pasoDeNoConformidad(nc.estado, nc.cierre_en_plazo) === paso,
+    ).length,
+    color: COLOR_PASO_NC[paso],
+  }));
+
+  // La severidad tambien es un semaforo: mayor es lo grave, la
+  // observacion es lo que todavia no lo es.
+  const COLOR_SEVERIDAD: Record<string, string> = {
+    mayor: "hsl(var(--semaforo-critico))",
+    menor: "hsl(var(--semaforo-medio))",
+    observacion: "hsl(var(--atenuado-contraste))",
+  };
+
+  const porSeveridad = Object.entries(ETIQUETAS_SEVERIDAD_NC).map(([valor, etiqueta]) => ({
+    etiqueta,
+    valor: noConformidades.filter((nc) => nc.severidad === valor).length,
+    color: COLOR_SEVERIDAD[valor] ?? "hsl(var(--primario))",
+  }));
+
+  // Las que no tienen area entran como una fila mas. Sin eso, con una
+  // sola clasificada el grafico decia «100%» al lado de un total de
+  // siete, que es exactamente lo contrario de lo que pasa: el porcentaje
+  // tiene que ser sobre lo que se esta mirando.
+  const porArea = [
+    ...AREAS_VIGENTES.map((area) => ({
+      etiqueta: AREAS_ORGANIZACIONALES[area],
+      valor: noConformidades.filter((nc) => nc.area === area).length,
+    })),
+    {
+      etiqueta: "Sin área asignada",
+      valor: noConformidades.filter((nc) => !nc.area).length,
+    },
+  ];
+
+  const porOrigen = ORIGENES_NC_VIGENTES.map((origen) => ({
+    etiqueta: ETIQUETAS_ORIGEN_NC[origen],
+    valor: noConformidades.filter((nc) => nc.origen === origen).length,
+  }));
 
   const vencidas = noConformidades.filter(
     (nc) =>
@@ -141,13 +198,13 @@ export default async function PaginaNoConformidades({
           {
             nombre: "estado",
             etiqueta: "Estado",
-            opciones: [
-              { valor: "abiertas", etiqueta: "Todas las abiertas" },
-              ...ESTADOS_NC_VIGENTES.map((valor) => ({
-                valor,
-                etiqueta: ETIQUETAS_ESTADO_NC[valor],
-              })),
-            ],
+            // Los cuatro que muestra la ficha, ni mas ni menos: que el
+            // filtro ofrezca otros nombres obliga a traducir mentalmente
+            // entre dos pantallas del mismo modulo.
+            opciones: PASOS_NO_CONFORMIDAD.map((paso) => ({
+              valor: paso,
+              etiqueta: ETIQUETAS_PASO_NC[paso],
+            })),
           },
           {
             nombre: "area",
@@ -183,6 +240,22 @@ export default async function PaginaNoConformidades({
           },
         ]}
       />
+
+      {noConformidades.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por estado" porciones={porPaso} />
+          <Torta titulo="Por severidad" porciones={porSeveridad} />
+          {/* Area y origen van en barras y no en torta: trece areas en un
+              circulo son trece porciones que nadie puede comparar, y el
+              largo de una barra el ojo lo mide bien. */}
+          <BarrasPorcentaje
+            titulo="Por área"
+            filas={porArea}
+            vacio="Ninguna tiene área asignada."
+          />
+          <BarrasPorcentaje titulo="Por origen" filas={porOrigen} />
+        </div>
+      ) : null}
 
       {noConformidades.length === 0 ? (
         <EstadoVacio

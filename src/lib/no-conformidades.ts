@@ -140,3 +140,50 @@ export function estaVencida(
   if (cerrada) return false;
   return diasEntre(fechaDeteccion, hoyEnAsuncion()) > DIAS_LIMITE_CIERRE_NC;
 }
+
+/**
+ * El color de cada paso para los gráficos, como variable del tema.
+ *
+ * Son los cuatro que pidió Calidad: rojo, naranja, verde y gris. El
+ * naranja es el ámbar del semáforo y no el naranja fuerte: contra el
+ * rojo de «Abierto», el naranja fuerte queda a una diferencia que el ojo
+ * normal casi no distingue, y son justo los dos estados que más se
+ * comparan. El ámbar los separa sin dejar de ser naranja.
+ *
+ * El gris del cierre fuera de plazo es deliberadamente apagado: la
+ * desviación se cerró, así que no es un error, pero tampoco es un logro.
+ *
+ * Van como `hsl(var(...))` para que el gráfico cambie solo entre el modo
+ * claro y el oscuro, igual que el resto de la interfaz.
+ */
+export const COLOR_PASO_NC: Record<PasoNoConformidad, string> = {
+  abierto: "hsl(var(--semaforo-critico))",
+  en_proceso: "hsl(var(--semaforo-medio))",
+  cerrado_en_plazo: "hsl(var(--semaforo-bajo))",
+  cerrado_fuera_de_plazo: "hsl(var(--atenuado-contraste))",
+};
+
+/**
+ * Traduce el paso elegido en el filtro a una condición sobre la base.
+ *
+ * Los cuatro pasos que se ven no son cuatro valores de `estado`: los dos
+ * cierres comparten el valor 'cerrada' y se distinguen por
+ * `cierre_en_plazo`. Esto es lo único que sabe traducir una cosa en la
+ * otra, para que el listado y los gráficos filtren igual.
+ */
+export function condicionDePaso(
+  paso: string | undefined,
+): { estado: EstadoNoConformidad; enPlazo?: boolean } | null {
+  switch (paso) {
+    case "abierto":
+      return { estado: "abierta" };
+    case "en_proceso":
+      return { estado: "en_tratamiento" };
+    case "cerrado_en_plazo":
+      return { estado: "cerrada", enPlazo: true };
+    case "cerrado_fuera_de_plazo":
+      return { estado: "cerrada", enPlazo: false };
+    default:
+      return null;
+  }
+}
