@@ -52,8 +52,11 @@ interface DocumentoDetalle {
   elaborador_id: string | null;
   procesos: { id: string; nombre: string; codigo: string } | null;
   normas: { codigo: string } | null;
+  categoria: string | null;
+  fecha_validacion: string | null;
   responsable: { id: string; nombre_completo: string } | null;
   elaborador: { nombre_completo: string } | null;
+  validador: { nombre_completo: string } | null;
   aprobador: { nombre_completo: string } | null;
   url_documento: string | null;
 }
@@ -83,7 +86,8 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     .select(
       "*, procesos:proceso_id (id, nombre, codigo), normas:norma_id (codigo), " +
         "responsable:responsable_id (id, nombre_completo), " +
-        "elaborador:elaborador_id (nombre_completo), aprobador:aprobador_id (nombre_completo)",
+        "elaborador:elaborador_id (nombre_completo), validador:validador_id (nombre_completo), " +
+        "aprobador:aprobador_id (nombre_completo)",
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -191,6 +195,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             )}
             puedeGestionar={gestiona}
             puedeEliminar={usuario.rol === "administrador_sgc"}
+            fechaValidacion={documento.fecha_validacion}
           />
           </div>
         }
@@ -223,38 +228,13 @@ export default async function PaginaDocumento({ params }: { params: { id: string
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          {/* Historial de versiones */}
-          <Tarjeta>
-            <TarjetaCabecera>
-              <TarjetaTitulo>Historial de versiones</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido className="space-y-2">
-              {listaVersiones.map((version: any) => (
-                <div
-                  key={version.id}
-                  className="flex flex-col gap-1 rounded-md border border-borde p-3 sm:flex-row
-                             sm:items-start sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 text-xs font-semibold tabular">
-                      {version.etiqueta}
-                      <InsigniaEstadoDocumento estado={version.estado} />
-                    </p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
-                      {version.resumen_cambios ?? "Sin detalle de cambios."}
-                    </p>
-                    <p className="mt-1 text-[11px] text-atenuado-contraste">
-                      Elaborada por {version.elaborador?.nombre_completo ?? "—"} ·{" "}
-                      {formatearFechaHora(version.creado_en)}
-                      {version.aprobado_por
-                        ? ` · Aprobada por ${version.aprobador?.nombre_completo ?? "—"} el ${formatearFecha(version.fecha_aprobacion)}`
-                        : ""}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </TarjetaContenido>
-          </Tarjeta>
+          {/* El historial de versiones se retiró a pedido de Calidad:
+              la versión y su historial ya están dentro del propio
+              documento, y tenerlos también acá es tener dos fuentes que
+              se pueden contradecir. Lo que se hizo con el documento
+              —quién lo creó, quién lo aprobó, cuándo— sigue en la
+              trazabilidad, que sale de la bitácora y no se puede
+              editar. */}
 
           {/* Revisiones de la versión en curso */}
           {revisionesVersionActual.length > 0 ? (
@@ -357,29 +337,20 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
+                {/* Calidad saco de acá la norma, el responsable, la
+                    fecha de aprobación y la próxima revisión: los cuatro
+                    están dentro del propio documento, y tenerlos también
+                    en la ficha es tener dos fuentes que se pueden
+                    contradecir. Queda quién lo hizo, quién lo validó y
+                    quién lo aprobó, que es lo que la ficha agrega. */}
                 <Dato etiqueta="Proceso" valor={documento.procesos?.nombre ?? "—"} />
-                <Dato etiqueta="Norma" valor={documento.normas?.codigo ?? "—"} />
-                <Dato
-                  etiqueta="Responsable"
-                  valor={documento.responsable?.nombre_completo ?? "—"}
-                />
+                <Dato etiqueta="Categoría" valor={documento.categoria ?? "—"} />
                 <Dato
                   etiqueta="Elaborado por"
                   valor={documento.elaborador?.nombre_completo ?? "—"}
                 />
+                <Dato etiqueta="Validado por" valor={documento.validador?.nombre_completo ?? "—"} />
                 <Dato etiqueta="Aprobado por" valor={documento.aprobador?.nombre_completo ?? "—"} />
-                <Dato
-                  etiqueta="Fecha de aprobación"
-                  valor={formatearFecha(documento.fecha_aprobacion)}
-                />
-                <Dato
-                  etiqueta="Próxima revisión"
-                  valor={
-                    documento.fecha_proxima_revision
-                      ? `${formatearFecha(documento.fecha_proxima_revision)} · ${describirVencimiento(documento.fecha_proxima_revision)}`
-                      : "—"
-                  }
-                />
                 <Dato
                   etiqueta="Periodicidad"
                   valor={`Cada ${documento.periodicidad_revision_meses} meses`}
@@ -414,22 +385,10 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             </TarjetaContenido>
           </Tarjeta>
 
-          {versionVigente ? (
-            <Tarjeta>
-              <TarjetaCabecera>
-                <TarjetaTitulo>Versión vigente</TarjetaTitulo>
-              </TarjetaCabecera>
-              <TarjetaContenido>
-                <p className="text-xs">
-                  <span className="font-semibold tabular">{versionVigente.etiqueta}</span> ·{" "}
-                  {versionVigente.resumen_cambios ?? "Sin detalle de cambios."}
-                </p>
-                <p className="mt-1 text-[11px] text-atenuado-contraste">
-                  Aprobada el {formatearFecha(versionVigente.fecha_aprobacion)}
-                </p>
-              </TarjetaContenido>
-            </Tarjeta>
-          ) : null}
+          {/* La tarjeta de la versión vigente se retiró junto con el
+              historial y por la misma razón: repetía la fecha de
+              aprobación, que está en el documento. La versión en curso
+              ya se ve arriba, en la insignia del encabezado. */}
         </div>
       </div>
     </div>

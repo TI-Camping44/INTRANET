@@ -3,9 +3,17 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Archive, CheckCircle2, FilePlus2, RefreshCw, Send, Trash2 } from "lucide-react";
+import {
+  Archive,
+  CheckCircle2,
+  FilePlus2,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, GrupoCampo } from "@/components/ui/campo";
+import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import {
   Dialogo,
   DialogoCabecera,
@@ -20,8 +28,9 @@ import {
   confirmarRevisionSinCambios,
   crearNuevaVersion,
   eliminarDocumento,
-  enviarARevision,
+  enviarAValidacion,
   marcarObsoleto,
+  validarDocumento,
 } from "@/app/(sgc)/documentos/acciones";
 import type { EstadoDocumento, ResultadoAccion } from "@/lib/tipos";
 
@@ -43,6 +52,7 @@ export function AccionesDocumento({
   personas,
   puedeGestionar,
   puedeEliminar,
+  fechaValidacion,
 }: {
   documentoId: string;
   estadoDocumento: EstadoDocumento;
@@ -53,12 +63,15 @@ export function AccionesDocumento({
   puedeGestionar: boolean;
   /** Solo el Administrador SGC puede eliminar. */
   puedeEliminar: boolean;
+  /** Si ya se registró la validación del contenido. */
+  fechaValidacion: string | null;
 }) {
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
   const [dialogoRevision, definirDialogoRevision] = React.useState(false);
   const [dialogoVersion, definirDialogoVersion] = React.useState(false);
-  const [revisores, definirRevisores] = React.useState<string[]>([]);
+  const [validador, definirValidador] = React.useState("");
+  const [aprobador, definirAprobador] = React.useState("");
   const [resumen, definirResumen] = React.useState("");
 
   async function ejecutar(operacion: () => Promise<ResultadoAccion>, alTerminar?: () => void) {
@@ -97,6 +110,20 @@ export function AccionesDocumento({
           onClick={() => ejecutar(() => aprobarYPublicar(versionEnRevisionId))}
         >
           <CheckCircle2 /> Aprobar y publicar
+        </Boton>
+      ) : null}
+
+      {/* Validar va antes de aprobar: sin la validación, el botón de
+          aprobar se niega. */}
+      {versionEnRevisionId && !fechaValidacion ? (
+        <Boton
+          tamano="pequeno"
+          variante="contorno"
+          cargando={procesando}
+          onClick={() => ejecutar(() => validarDocumento(documentoId))}
+          title="Registra que el contenido fue validado"
+        >
+          <ShieldCheck /> Validar contenido
         </Boton>
       ) : null}
 
@@ -160,39 +187,68 @@ export function AccionesDocumento({
         </Boton>
       ) : null}
 
-      {/* Asignación de revisores */}
+      {/* Validación y aprobación */}
       <Dialogo open={dialogoRevision} onOpenChange={definirDialogoRevision}>
         <DialogoContenido>
           <DialogoCabecera>
-            <DialogoTitulo>Enviar a revisión</DialogoTitulo>
+            <DialogoTitulo>Enviar a validar y aprobar</DialogoTitulo>
             <DialogoDescripcion>
-              Seleccione quiénes deben revisar esta versión. Recibirán una notificación en el
-              sistema y por correo.
+              Dos personas: una valida el contenido y otra lo aprueba. Puede ser la misma en los
+              dos lugares. Las dos reciben el aviso en el sistema y por correo.
             </DialogoDescripcion>
           </DialogoCabecera>
 
-          <div className="max-h-64 overflow-y-auto rounded-md border border-borde p-2">
-            {personas.map((persona) => (
-              <label
-                key={persona.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm
-                           hover:bg-acento"
+          <div className="mt-4 space-y-3">
+            <GrupoCampo
+              etiqueta="Valida el contenido"
+              htmlFor="validador"
+              requerido
+              ayuda="Revisa que lo que dice el documento sea correcto."
+            >
+              <Seleccion
+                id="validador"
+                value={validador}
+                onChange={(evento) => definirValidador(evento.target.value)}
               >
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[#E01E37]"
-                  checked={revisores.includes(persona.id)}
-                  onChange={(evento) =>
-                    definirRevisores((actuales) =>
-                      evento.target.checked
-                        ? [...actuales, persona.id]
-                        : actuales.filter((id) => id !== persona.id),
-                    )
-                  }
-                />
-                {persona.nombre_completo}
-              </label>
-            ))}
+                <option value="" disabled>
+                  Elija a la persona
+                </option>
+                {personas.map((persona) => (
+                  <option key={persona.id} value={persona.id}>
+                    {persona.nombre_completo}
+                  </option>
+                ))}
+              </Seleccion>
+            </GrupoCampo>
+
+            <GrupoCampo
+              etiqueta="Aprueba"
+              htmlFor="aprobador"
+              requerido
+              ayuda="Con su aprobación el documento queda vigente."
+            >
+              <Seleccion
+                id="aprobador"
+                value={aprobador}
+                onChange={(evento) => definirAprobador(evento.target.value)}
+              >
+                <option value="" disabled>
+                  Elija a la persona
+                </option>
+                {personas.map((persona) => (
+                  <option key={persona.id} value={persona.id}>
+                    {persona.nombre_completo}
+                  </option>
+                ))}
+              </Seleccion>
+            </GrupoCampo>
+
+            {validador && validador === aprobador ? (
+              <p className="text-[11px] text-atenuado-contraste">
+                La misma persona valida y aprueba. Está permitido: recibe un solo aviso y hace
+                los dos pasos.
+              </p>
+            ) : null}
           </div>
 
           <DialogoPie>
@@ -200,18 +256,20 @@ export function AccionesDocumento({
               <Boton variante="contorno">Cancelar</Boton>
             </DialogoCierre>
             <Boton
-              disabled={procesando || revisores.length === 0 || !versionEditableId}
+              cargando={procesando}
+              disabled={!validador || !aprobador || !versionEditableId}
               onClick={() =>
                 ejecutar(
-                  () => enviarARevision(versionEditableId!, revisores),
+                  () => enviarAValidacion(versionEditableId!, validador, aprobador),
                   () => {
                     definirDialogoRevision(false);
-                    definirRevisores([]);
+                    definirValidador("");
+                    definirAprobador("");
                   },
                 )
               }
             >
-              Enviar a {revisores.length || "…"} revisor{revisores.length === 1 ? "" : "es"}
+              Enviar
             </Boton>
           </DialogoPie>
         </DialogoContenido>

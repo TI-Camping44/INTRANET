@@ -80,11 +80,17 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
   const responsableId = usuario.id;
   const periodicidad = 12;
 
-  if (!codigo || !FORMATO_CODIGO.test(codigo)) {
+  // Los documentos de contexto y las politicas no llevan codigo
+  // controlado. La columna admite vacio; lo que se agrega es poder
+  // decirlo, en vez de dejar el campo en blanco y que parezca un olvido.
+  const sinCodigo = datos.get("sin_codigo") === "on";
+
+  if (!sinCodigo && (!codigo || !FORMATO_CODIGO.test(codigo))) {
     return {
       exito: false,
       error:
-        "El código no cumple el formato controlado. Use por ejemplo MP-SOP-01 o F-COM-01-02.",
+        "El código no cumple el formato controlado. Use por ejemplo MP-SOP-01 o F-COM-01-02, " +
+        "o marque «No aplica» si este documento va sin código.",
     };
   }
   if (titulo.length < 4) {
@@ -98,9 +104,10 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
     .from("documentos")
     .insert({
       empresa_id: usuario.empresa_id,
-      codigo,
+      codigo: sinCodigo ? null : codigo,
       titulo,
       tipo,
+      categoria: String(datos.get("categoria") ?? "").trim() || null,
       responsable_id: responsableId,
       elaborador_id: usuario.id,
       creado_por: usuario.id,
@@ -219,6 +226,157 @@ export async function crearNuevaVersion(
 }
 
 /** Envia una version a revision y avisa a los revisores asignados. */
+/**
+ * Manda el borrador a validar y aprobar.
+ *
+ * Calidad lo pidio asi: dos personas, una valida el contenido y otra lo
+ * aprueba, y pueden ser la misma sin ninguna traba —en un documento
+ * chico suele serlo, y obligar a poner dos nombres distintos termina en
+ * un nombre puesto de relleno—.
+ *
+ * Reemplaza a la lista de revisores. Revisar era una lista de gente que
+ * opinaba; validar y aprobar son dos cargos con nombre y apellido, que
+ * es lo que despues se firma.
+ */
+export async function enviarAValidacion(
+  versionId: string,
+  validadorId: string,
+  aprobadorId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  if (!validadorId || !aprobadorId) {
+    return { exito: false, error: "Elija quién valida y quién aprueba." };
+  }
+
+  const { data: version } = await supabase
+    .from("documento_versiones")
+    .select("id, version, documento_id, estado")
+    .eq("id", versionId)
+    .maybeSingle();
+
+  if (!version) return { exito: false, error: "La versión no existe." };
+  if (version.estado !== "borrador") {
+    return { exito: false, error: "Solo se puede enviar una versión en borrador." };
+  }
+
+  const { error } = await supabase
+    .from("documento_versiones")
+    .update({ estado: "en_revision" })
+    .eq("id", versionId);
+
+  if (error) return { exito: false, error: `No se pudo enviar: ${error.message}` };
+
+  // Quien valida y quien aprueba quedan en el documento, no en la
+  // version: son el circuito del documento y no cambian en cada vuelta.
+  // Se limpia la validacion anterior, si la habia: es una vuelta nueva.
+  await supabase
+    .from("documentos")
+    .update({
+      validador_id: validadorId,
+      aprobador_id: aprobadorId,
+      fecha_validacion: null,
+      estado: "en_revision",
+    })
+    .eq("id", version.documento_id)
+    .neq("estado", "vigente");
+
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, codigo, titulo")
+    .eq("id", version.documento_id)
+    .maybeSingle();
+
+  // Si valida y aprueba la misma persona, un solo aviso.
+  const destinatarios = Array.from(new Set([validadorId, aprobadorId]));
+
+  const { data: personas } = await supabase
+    .from("usuarios")
+    .select("id, correo")
+    .in("id", destinatarios);
+
+  await notificarAVarios(supabase, (personas ?? []) as { id: string; correo: string }[], {
+    tipo: "revision_solicitada",
+    deParteDe: departe(usuario),
+    titulo: `Documento para validar y aprobar: ${documento?.codigo ?? documento?.titulo ?? ""}`,
+    mensaje:
+      `${documento?.titulo ?? ""} está listo para su validación y aprobación. ` +
+      `Versión v${String(version.version).padStart(2, "0")}.`,
+    enlace: `/documentos/${version.documento_id}`,
+    entidad: "documentos",
+    entidadId: version.documento_id,
+  });
+
+  revalidatePath(`/documentos/${version.documento_id}`);
+  revalidatePath("/documentos");
+  return { exito: true, mensaje: "El documento quedó a la espera de validación y aprobación." };
+}
+
+/**
+ * Registra la validacion del contenido.
+ *
+ * La hace quien fue designado validador, o Calidad. Es el paso previo a
+ * la aprobacion: sin esto, `aprobarYPublicar` se niega.
+ */
+export async function validarDocumento(documentoId: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, codigo, titulo, validador_id, aprobador_id, fecha_validacion")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  if (!documento) return { exito: false, error: "El documento no existe o no tiene acceso." };
+  if (documento.fecha_validacion) {
+    return { exito: false, error: "Este documento ya fue validado." };
+  }
+
+  const esCalidad = usuario.rol === "administrador_sgc";
+  if (documento.validador_id !== usuario.id && !esCalidad) {
+    return {
+      exito: false,
+      error: "La validación la registra quien fue designado validador, o Calidad.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("documentos")
+    .update({ fecha_validacion: hoyEnAsuncion(), validador_id: documento.validador_id ?? usuario.id })
+    .eq("id", documentoId);
+
+  if (error) return { exito: false, error: `No se pudo registrar la validación: ${error.message}` };
+
+  // Se avisa a quien aprueba, que es quien sigue. Si es la misma persona
+  // que acaba de validar, no se avisa: ya lo sabe.
+  if (documento.aprobador_id && documento.aprobador_id !== usuario.id) {
+    const { data: aprobador } = await supabase
+      .from("usuarios")
+      .select("id, correo")
+      .eq("id", documento.aprobador_id)
+      .maybeSingle();
+
+    if (aprobador) {
+      await notificar(supabase, {
+        usuarioId: aprobador.id,
+        correoDestino: aprobador.correo,
+        deParteDe: departe(usuario),
+        tipo: "revision_solicitada",
+        titulo: `Validado, listo para aprobar: ${documento.codigo ?? documento.titulo}`,
+        mensaje: `${documento.titulo} fue validado y queda a la espera de su aprobación.`,
+        enlace: `/documentos/${documentoId}`,
+        entidad: "documentos",
+        entidadId: documentoId,
+      });
+    }
+  }
+
+  revalidatePath(`/documentos/${documentoId}`);
+  return { exito: true, mensaje: "Validación registrada. Queda a la espera de la aprobación." };
+}
+
 export async function enviarARevision(
   versionId: string,
   revisores: string[],
@@ -398,6 +556,29 @@ export async function aprobarYPublicar(versionId: string): Promise<ResultadoAcci
   if (!version) return { exito: false, error: "La versión no existe." };
   if (version.estado === "vigente") {
     return { exito: false, error: "Esta versión ya está vigente." };
+  }
+
+  // Sin validacion no hay aprobacion: es el circuito que fijo Calidad.
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, validador_id, aprobador_id, fecha_validacion")
+    .eq("id", version.documento_id)
+    .maybeSingle();
+
+  const esCalidad = usuario.rol === "administrador_sgc";
+
+  if (documento?.validador_id && !documento.fecha_validacion) {
+    return {
+      exito: false,
+      error: "Falta la validación del contenido. Primero tiene que validarse, después aprobarse.",
+    };
+  }
+
+  if (documento?.aprobador_id && documento.aprobador_id !== usuario.id && !esCalidad) {
+    return {
+      exito: false,
+      error: "La aprobación la registra quien fue designado aprobador, o Calidad.",
+    };
   }
 
   const { data: revisiones } = await supabase

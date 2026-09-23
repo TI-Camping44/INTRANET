@@ -24,13 +24,21 @@ import type { TipoDocumento } from "@/lib/tipos";
  * El archivo va acá y no después. Un documento sin archivo es un código
  * en una tabla: el listado lo muestra y al tocarlo no hay nada que abrir.
  */
-export function FormularioDocumento({ usuarioActual }: { usuarioActual: string }) {
+export function FormularioDocumento({
+  usuarioActual,
+  categorias,
+}: {
+  usuarioActual: string;
+  /** Las categorías ya usadas, para ofrecerlas y no duplicarlas. */
+  categorias: string[];
+}) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
   const [tipo, definirTipo] = React.useState<TipoDocumento>("manual");
   const [codigo, definirCodigo] = React.useState("");
   const [archivo, definirArchivo] = React.useState<File | null>(null);
+  const [sinCodigo, definirSinCodigo] = React.useState(false);
 
   async function sugerirCodigo() {
     const sugerido = await sugerirCodigoDocumento(tipo, null);
@@ -113,20 +121,29 @@ export function FormularioDocumento({ usuarioActual }: { usuarioActual: string }
             </Seleccion>
           </GrupoCampo>
 
+          {/* No todo documento lleva código controlado: los de contexto
+              y las políticas no lo tienen. Antes había que dejarlo en
+              blanco, y un campo obligatorio vacío se lee como un olvido.
+              Ahora se dice. */}
           <GrupoCampo
             etiqueta="Código controlado"
             htmlFor="codigo"
-            requerido
-            ayuda="Formato MP-SOP-01 o F-COM-01-02. Puede editarlo."
+            requerido={!sinCodigo}
+            ayuda={
+              sinCodigo
+                ? "Este documento va sin código controlado."
+                : "Formato MP-SOP-01 o F-COM-01-02. Puede editarlo."
+            }
           >
             <div className="flex gap-2">
               <Entrada
                 id="codigo"
                 name="codigo"
-                value={codigo}
+                value={sinCodigo ? "" : codigo}
                 onChange={(evento) => definirCodigo(evento.target.value.toUpperCase())}
-                placeholder="MP-SOP-01"
-                required
+                placeholder={sinCodigo ? "No aplica" : "MP-SOP-01"}
+                required={!sinCodigo}
+                disabled={sinCodigo}
                 className="tabular"
               />
               <Boton
@@ -134,12 +151,46 @@ export function FormularioDocumento({ usuarioActual }: { usuarioActual: string }
                 variante="contorno"
                 tamano="icono"
                 onClick={sugerirCodigo}
+                disabled={sinCodigo}
                 aria-label="Sugerir código"
                 title="Sugerir el siguiente código disponible"
               >
                 <Wand2 />
               </Boton>
             </div>
+            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px]">
+              <input
+                type="checkbox"
+                name="sin_codigo"
+                checked={sinCodigo}
+                onChange={(evento) => definirSinCodigo(evento.target.checked)}
+                className="size-3.5 accent-primario"
+              />
+              No aplica
+            </label>
+          </GrupoCampo>
+
+          {/* Libre a propósito: la agrupación la decide Calidad según
+              le sirva al auditor, y una lista cerrada obligaría a pedirle
+              a TI cada categoría nueva. Las ya usadas se ofrecen para no
+              terminar con «Compras» y «compras» como dos carpetas. */}
+          <GrupoCampo
+            etiqueta="Categoría"
+            htmlFor="categoria"
+            className="sm:col-span-2"
+            ayuda="Cómo se agrupa en la carpeta. Puede escribir una nueva o elegir una ya usada."
+          >
+            <Entrada
+              id="categoria"
+              name="categoria"
+              list="categorias-usadas"
+              placeholder="Sin categoría"
+            />
+            <datalist id="categorias-usadas">
+              {categorias.map((nombre) => (
+                <option key={nombre} value={nombre} />
+              ))}
+            </datalist>
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Título" htmlFor="titulo" requerido className="sm:col-span-2">
