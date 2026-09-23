@@ -10,7 +10,7 @@ import { CampoPropuestas } from "@/app/(sgc)/no-conformidades/campo-propuestas";
 import { crearNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
 import {
   AREAS_ORGANIZACIONALES,
-  DIAS_ESCALAMIENTO_NC,
+  AREAS_VIGENTES,
   DIAS_LIMITE_CIERRE_NC,
   ETIQUETAS_ORIGEN_NC,
   ETIQUETAS_SEVERIDAD_NC,
@@ -121,15 +121,15 @@ export function FormularioNoConformidad({
             etiqueta="Área"
             htmlFor="area"
             requerido
-            ayuda="El departamento al que corresponde la desviación."
+            ayuda="Departamento que debe gestionar la No Conformidad y su posterior Acción Correctiva."
           >
             <Seleccion id="area" name="area" defaultValue="" required>
               <option value="" disabled>
                 Elija el área
               </option>
-              {Object.entries(AREAS_ORGANIZACIONALES).map(([valor, etiqueta]) => (
+              {AREAS_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
-                  {etiqueta}
+                  {AREAS_ORGANIZACIONALES[valor]}
                 </option>
               ))}
             </Seleccion>
@@ -191,7 +191,7 @@ export function FormularioNoConformidad({
           <GrupoCampo
             etiqueta="Propuestas de mejora"
             className="sm:col-span-2"
-            ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una; la que se decida ejecutar se carga después como acción de tipo Mejora."
+            ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una."
           >
             <CampoPropuestas />
           </GrupoCampo>
@@ -210,7 +210,7 @@ export function FormularioNoConformidad({
 
           <GrupoCampo
             etiqueta="Fecha límite de cierre"
-            ayuda={`Son ${DIAS_LIMITE_CIERRE_NC} días corridos desde la detección y los calcula el sistema. A los ${DIAS_ESCALAMIENTO_NC} días sin resolver, la acción escala al líder inmediato.`}
+            ayuda={`Son ${DIAS_LIMITE_CIERRE_NC} días corridos desde la detección y los calcula el sistema.`}
           >
             <p
               className="flex h-9 items-center rounded-md border border-borde bg-acento/40 px-3

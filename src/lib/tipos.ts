@@ -54,11 +54,15 @@ export type AreaOrganizacional =
   | "consumidor_final"
   | "mayorista"
   | "marketing"
-  | "logistica_operaciones"
+  | "operaciones_logistica"
   | "informatica"
   | "capital_humano"
   | "gestion_calidad"
-  | "directorio";
+  | "gestion_regulatoria"
+  | "directorio"
+  // Retirada: las no conformidades cargadas con ella se migran a
+  // "operaciones_logistica".
+  | "logistica_operaciones";
 
 export type EstadoNoConformidad =
   | "abierta"

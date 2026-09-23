@@ -23,6 +23,7 @@ import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   AREAS_ORGANIZACIONALES,
+  AREAS_VIGENTES,
   ESTADOS_NC_ABIERTOS,
   ESTADOS_NC_VIGENTES,
   ETIQUETAS_ESTADO_NC,
@@ -150,9 +151,9 @@ export default async function PaginaNoConformidades({
           {
             nombre: "area",
             etiqueta: "Área",
-            opciones: Object.entries(AREAS_ORGANIZACIONALES).map(([valor, etiqueta]) => ({
+            opciones: AREAS_VIGENTES.map((valor) => ({
               valor,
-              etiqueta,
+              etiqueta: AREAS_ORGANIZACIONALES[valor],
             })),
           },
           {

@@ -144,8 +144,8 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "comercial",
   },
   {
-    nombre: "Informe de ventas · Vitálica",
-    descripcion: "El mismo informe, para la operación de Vitálica.",
+    nombre: "Informe de ventas · Vitalica",
+    descripcion: "El mismo informe, para la operación de Vitalica.",
     url: `${BASE}/INFORMEVENTASVITALICA/`,
     publico: "comercial",
   },

@@ -159,9 +159,13 @@ export const ORIGENES_NC_VIGENTES: OrigenNoConformidad[] = [
   "requisito_legal",
 ];
 
+/**
+ * El orden es el que pidio Calidad: de mayor a menor gravedad. El
+ * enumerado de PostgreSQL conserva su orden propio; este es el que se ve.
+ */
 export const ETIQUETAS_SEVERIDAD_NC: Record<SeveridadNoConformidad, string> = {
-  menor: "Menor",
   mayor: "Mayor",
+  menor: "Menor",
   observacion: "Observación/Recomendación",
 };
 
@@ -207,12 +211,36 @@ export const AREAS_ORGANIZACIONALES: Record<AreaOrganizacional, string> = {
   consumidor_final: "Consumidor Final",
   mayorista: "Mayorista",
   marketing: "Marketing",
-  logistica_operaciones: "Logística y Operaciones",
+  operaciones_logistica: "Operaciones y Logística",
   informatica: "Informática",
   capital_humano: "Capital Humano",
-  gestion_calidad: "Gestión de Calidad",
+  gestion_calidad: "Sistema de Gestión de la Calidad",
+  gestion_regulatoria: "Gestión Regulatoria",
   directorio: "Directorio",
+  // Retirada: queda para poder mostrar lo cargado antes del cambio.
+  logistica_operaciones: "Operaciones y Logística",
 };
+
+/**
+ * Las areas que se ofrecen hoy, en el orden de Calidad. La retirada
+ * queda fuera: ya no se elige, pero se sigue pudiendo mostrar.
+ */
+export const AREAS_VIGENTES: AreaOrganizacional[] = [
+  "administracion",
+  "tesoreria_caja",
+  "creditos_cobranzas",
+  "contabilidad",
+  "recepcion",
+  "consumidor_final",
+  "mayorista",
+  "marketing",
+  "operaciones_logistica",
+  "informatica",
+  "capital_humano",
+  "gestion_calidad",
+  "gestion_regulatoria",
+  "directorio",
+];
 
 export const ETIQUETAS_TIPO_ACCION: Record<TipoAccion, string> = {
   correccion: "Corrección",

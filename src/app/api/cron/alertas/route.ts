@@ -8,8 +8,6 @@ import {
   CORREO_TODOS,
   DIAS_AVISO_ACCION,
   DIAS_AVISO_REVISION_DOCUMENTO,
-  DIAS_ESCALAMIENTO_NC,
-  DIAS_ESCALAMIENTO_SEGUNDO_NIVEL,
   ETIQUETAS_TIPO_AUDITORIA,
 } from "@/lib/constantes";
 
@@ -19,8 +17,8 @@ import {
  * Se ejecuta una vez por dia desde Vercel Cron (ver vercel.json) y
  * atiende cinco frentes:
  *   1. Acciones correctivas proximas a vencer.
- *   2. Acciones vencidas, con escalamiento al lider inmediato a los
- *      diez dias y al nivel siguiente a los veinte.
+ *   2. Acciones vencidas: aviso al responsable. Sin escalamiento al
+ *      lider: lo retiro Calidad el 23 de septiembre.
  *   3. Documentos vigentes que se acercan a su fecha de revision.
  *   4. Riesgos que llegaron a su fecha de reevaluacion.
  *   5. Mantenimientos preventivos programados para la semana.
@@ -38,7 +36,6 @@ export const maxDuration = 60;
 interface Resumen {
   accionesPorVencer: number;
   accionesVencidas: number;
-  escalamientos: number;
   documentosPorRevisar: number;
   riesgosPorReevaluar: number;
   mantenimientosProximos: number;
@@ -73,7 +70,6 @@ export async function GET(peticion: NextRequest) {
   const resumen: Resumen = {
     accionesPorVencer: 0,
     accionesVencidas: 0,
-    escalamientos: 0,
     documentosPorRevisar: 0,
     riesgosPorReevaluar: 0,
     mantenimientosProximos: 0,
@@ -141,40 +137,15 @@ export async function GET(peticion: NextRequest) {
     });
     resumen.accionesVencidas += 1;
 
-    // Escalamiento por línea de mando.
-    const nivelObjetivo =
-      diasVencida >= DIAS_ESCALAMIENTO_SEGUNDO_NIVEL
-        ? 2
-        : diasVencida >= DIAS_ESCALAMIENTO_NC
-          ? 1
-          : 0;
-
-    if (nivelObjetivo === 0 || accion.nivel_escalamiento >= nivelObjetivo) continue;
-
-    const destinatario = await resolverSuperior(supabase, responsable.superior_id, nivelObjetivo);
-    if (!destinatario) continue;
-
-    await notificar(supabase, {
-      usuarioId: destinatario.id,
-      correoDestino: destinatario.correo,
-      tipo: "escalamiento",
-      titulo: `Escalamiento · acción vencida en ${codigo}`,
-      mensaje:
-        `La acción "${accion.descripcion}", a cargo de ${responsable.nombre_completo}, ` +
-        `lleva ${diasVencida} días vencida y sigue sin resolverse. ` +
-        "Se eleva a su conocimiento conforme al procedimiento de acciones correctivas.",
-      enlace,
-      entidad: "nc_acciones",
-      entidadId: accion.id,
-      claveUnicidad: `escalamiento:${accion.id}:nivel-${nivelObjetivo}`,
-    });
-
-    await supabase
-      .from("nc_acciones")
-      .update({ nivel_escalamiento: nivelObjetivo, fecha_ultima_alerta: new Date().toISOString() })
-      .eq("id", accion.id);
-
-    resumen.escalamientos += 1;
+    // El escalamiento por linea de mando se retiro el 23 de septiembre,
+    // a pedido de Calidad: «que no avise nada a nadie, eso lo gestiono yo
+    // por fuera». El aviso al responsable de la accion vencida se
+    // conserva —es de el y de su trabajo—; lo que deja de salir es el
+    // aviso al lider y al nivel siguiente.
+    //
+    // La columna `nivel_escalamiento` se conserva con lo que ya tenia
+    // cargado: es historia de lo que paso, no una regla vigente. Si
+    // Calidad lo vuelve a pedir, esto se reactiva sin migrar nada.
   }
 
   // -------------------------------------------------------------------

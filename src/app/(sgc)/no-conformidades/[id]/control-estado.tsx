@@ -13,6 +13,7 @@ import {
 } from "@/app/(sgc)/no-conformidades/acciones";
 import {
   AREAS_ORGANIZACIONALES,
+  AREAS_VIGENTES,
   ETIQUETAS_EFICACIA,
   ETIQUETAS_ESTADO_NC,
 } from "@/lib/constantes";
@@ -118,9 +119,9 @@ export function ControlEstado({
             <option value="" disabled>
               Sin clasificar
             </option>
-            {Object.entries(AREAS_ORGANIZACIONALES).map(([valor, etiqueta]) => (
+            {AREAS_VIGENTES.map((valor) => (
               <option key={valor} value={valor}>
-                {etiqueta}
+                {AREAS_ORGANIZACIONALES[valor]}
               </option>
             ))}
           </Seleccion>
