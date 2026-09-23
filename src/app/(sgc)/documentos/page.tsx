@@ -21,6 +21,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { EncabezadoOrdenable } from "@/components/comunes/encabezado-ordenable";
 import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
 import {
   BarraSeleccion,
@@ -72,7 +73,15 @@ const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> =
 export default async function PaginaDocumentos({
   searchParams,
 }: {
-  searchParams: { q?: string; vista?: string; tipo?: string; proceso?: string; filtro?: string };
+  searchParams: {
+    q?: string;
+    vista?: string;
+    tipo?: string;
+    proceso?: string;
+    filtro?: string;
+    orden?: string;
+    dir?: string;
+  };
 }) {
   const usuario = await requerirUsuario();
   // Eliminar es atribucion del Administrador SGC, igual que en RLS.
@@ -97,12 +106,37 @@ export default async function PaginaDocumentos({
       "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, " +
         "es_demostracion, categoria, orden",
     )
-    .in("estado", estados)
+    .in("estado", estados);
+
+  // Las columnas por las que se puede ordenar al tocar el encabezado.
+  // Es una lista cerrada a proposito: `orden` viene de la direccion, o
+  // sea de cualquiera, y pasarselo tal cual a la base seria dejar que
+  // ordene por lo que se le ocurra.
+  const COLUMNAS_ORDENABLES: Record<string, string> = {
+    codigo: "codigo",
+    titulo: "titulo",
+    tipo: "tipo",
+    version: "version_actual",
+    estado: "estado",
+    revision: "fecha_proxima_revision",
+  };
+
+  const columna = searchParams.orden ? COLUMNAS_ORDENABLES[searchParams.orden] : null;
+  const ascendente = searchParams.dir !== "desc";
+
+  if (columna) {
+    // Cuando se ordena por una columna, el orden manual y la agrupacion
+    // por categoria quedan de lado: son dos formas de ordenar la misma
+    // lista y mezclarlas no da ninguna de las dos.
+    consulta = consulta.order(columna, { ascending: ascendente, nullsFirst: false });
+  } else {
     // Por categoria y por el orden manual que fijo Calidad. El codigo
     // queda de desempate para los que todavia no tienen posicion.
-    .order("categoria", { nullsFirst: true })
-    .order("orden", { nullsFirst: false })
-    .order("codigo", { nullsFirst: false });
+    consulta = consulta
+      .order("categoria", { nullsFirst: true })
+      .order("orden", { nullsFirst: false })
+      .order("codigo", { nullsFirst: false });
+  }
 
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
   if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
@@ -230,16 +264,26 @@ export default async function PaginaDocumentos({
             <TablaCabecera>
               <TablaFila>
                 {puedeEliminar ? <TablaEncabezado className="w-8" /> : null}
-                <TablaEncabezado className="w-[9rem]">Código</TablaEncabezado>
-                <TablaEncabezado>Título</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">Tipo</TablaEncabezado>
-                <TablaEncabezado className="w-[5rem]">Versión</TablaEncabezado>
+                <EncabezadoOrdenable campo="codigo" className="w-[9rem]">
+                  Código
+                </EncabezadoOrdenable>
+                <EncabezadoOrdenable campo="titulo">Título</EncabezadoOrdenable>
+                <EncabezadoOrdenable campo="tipo" className="hidden md:table-cell">
+                  Tipo
+                </EncabezadoOrdenable>
+                <EncabezadoOrdenable campo="version" className="w-[5rem]">
+                  Versión
+                </EncabezadoOrdenable>
                 {/* En «Vigentes» la columna de estado diría lo mismo en
                     todas las filas: la pestaña ya lo dice. */}
                 {vista === "vigentes" ? null : (
-                  <TablaEncabezado className="w-[7rem]">Estado</TablaEncabezado>
+                  <EncabezadoOrdenable campo="estado" className="w-[7rem]">
+                    Estado
+                  </EncabezadoOrdenable>
                 )}
-                <TablaEncabezado className="hidden xl:table-cell">Próxima revisión</TablaEncabezado>
+                <EncabezadoOrdenable campo="revision" className="hidden xl:table-cell">
+                  Próxima revisión
+                </EncabezadoOrdenable>
                 <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
                 {puedeOrdenar ? <TablaEncabezado className="w-12">Orden</TablaEncabezado> : null}
               </TablaFila>
@@ -251,7 +295,9 @@ export default async function PaginaDocumentos({
                 // categoría, no por código.
                 const anterior = documentos[indice - 1];
                 const siguiente = documentos[indice + 1];
-                const abreCategoria = anterior?.categoria !== documento.categoria;
+                // Con una columna ordenada no hay categorías ni posición
+                // manual que mostrar: la lista viene por otra cosa.
+                const abreCategoria = !columna && anterior?.categoria !== documento.categoria;
                 const esPrimeroDeCategoria = abreCategoria;
                 const esUltimoDeCategoria = siguiente?.categoria !== documento.categoria;
 
@@ -352,11 +398,20 @@ export default async function PaginaDocumentos({
                     </TablaCelda>
                     {puedeOrdenar ? (
                       <TablaCelda>
+                        {columna ? (
+                          <span
+                            className="text-[10px] text-atenuado-contraste"
+                            title="Se está ordenando por una columna. Quite el orden para mover a mano."
+                          >
+                            —
+                          </span>
+                        ) : (
                         <MoverDocumento
                           documentoId={documento.id}
                           esPrimero={esPrimeroDeCategoria}
                           esUltimo={esUltimoDeCategoria}
                         />
+                        )}
                       </TablaCelda>
                     ) : null}
                   </TablaFila>
@@ -380,8 +435,11 @@ export default async function PaginaDocumentos({
           : null}{" "}
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
-        {puedeOrdenar
+        {puedeOrdenar && !columna
           ? " Las flechas mueven el documento dentro de su categoría."
+          : ""}
+        {columna
+          ? " Ordenado por una columna: toque el encabezado una vez más para volver al orden de la carpeta."
           : ""}
       </p>
     </>
