@@ -100,6 +100,27 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
     return { exito: false, error: "La periodicidad de revisión debe estar entre 1 y 60 meses." };
   }
 
+  const categoria = String(datos.get("categoria") ?? "").trim() || null;
+
+  // La posicion que ya tiene esa categoria en el listado, si existe. En
+  // SQL `categoria = null` no es falso sino nulo y no alcanza ninguna
+  // fila, asi que «Sin categoria» se consulta con `is`.
+  let consultaHermanos = supabase
+    .from("documentos")
+    .select("orden_categoria")
+    .not("orden_categoria", "is", null)
+    .limit(1);
+
+  consultaHermanos =
+    categoria === null
+      ? consultaHermanos.is("categoria", null)
+      : consultaHermanos.eq("categoria", categoria);
+
+  const { data: hermanos } = await consultaHermanos;
+
+  const posicionDeCategoria =
+    ((hermanos as { orden_categoria: number }[] | null) ?? [])[0]?.orden_categoria ?? null;
+
   const { data: documento, error } = await supabase
     .from("documentos")
     .insert({
@@ -107,7 +128,11 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
       codigo: sinCodigo ? null : codigo,
       titulo,
       tipo,
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
+      categoria: categoria,
+      // Hereda la posicion de su categoria. Sin esto el documento nuevo
+      // queda con la posicion en nulo y se va al principio del listado,
+      // fuera de la carpeta a la que pertenece.
+      orden_categoria: posicionDeCategoria,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: responsableId,
       elaborador_id: usuario.id,
@@ -1191,12 +1216,37 @@ export async function guardarCategoria(
 
   const ultimoSuelto = ((sueltos as { orden: number }[] | null) ?? [])[0]?.orden ?? 0;
 
+  // La posicion de la categoria dentro del listado. Si ya existe se
+  // respeta la que tiene —guardarla de nuevo no la mueve de lugar— y si
+  // es nueva va al final, detras de todas.
+  const { data: posiciones } = await supabase
+    .from("documentos")
+    .select("categoria, orden_categoria");
+
+  const porCategoria = new Map<string | null, number>();
+  for (const fila of (posiciones as
+    | { categoria: string | null; orden_categoria: number | null }[]
+    | null) ?? []) {
+    if (fila.orden_categoria === null) continue;
+    if (!porCategoria.has(fila.categoria)) porCategoria.set(fila.categoria, fila.orden_categoria);
+  }
+
+  const maxima = Math.max(0, ...Array.from(porCategoria.values()));
+  const posicionCategoria = porCategoria.get(nombre) ?? maxima + 10;
+  const posicionSinCategoria = porCategoria.get(null) ?? 0;
+
   const cambios = [
-    ...dentro.map((id, indice) => ({ id, categoria: nombre, orden: (indice + 1) * 10 })),
+    ...dentro.map((id, indice) => ({
+      id,
+      categoria: nombre,
+      orden: (indice + 1) * 10,
+      orden_categoria: posicionCategoria,
+    })),
     ...fuera.map((id, indice) => ({
       id,
       categoria: null,
       orden: ultimoSuelto + (indice + 1) * 10,
+      orden_categoria: posicionSinCategoria,
     })),
   ];
 
@@ -1211,7 +1261,11 @@ export async function guardarCategoria(
       tanda.map((cambio) =>
         supabase
           .from("documentos")
-          .update({ categoria: cambio.categoria, orden: cambio.orden })
+          .update({
+            categoria: cambio.categoria,
+            orden: cambio.orden,
+            orden_categoria: cambio.orden_categoria,
+          })
           .eq("id", cambio.id),
       ),
     );
@@ -1328,5 +1382,93 @@ export async function reordenarDocumentos(ids: string[]): Promise<ResultadoAccio
     return { exito: false, error: `No se pudo guardar el orden: ${fallidos[0]}` };
   }
 
+  return { exito: true };
+}
+
+
+/**
+ * Sube o baja una categoria entera dentro del listado.
+ *
+ * Se intercambia la posicion con la categoria vecina, y como la posicion
+ * vive en cada documento, se escribe en todos los de las dos categorias.
+ * Son dos escrituras masivas y no una por fila: se filtra por categoria,
+ * no por id.
+ *
+ * «Sin categoria» cuenta como una categoria mas y tambien se mueve. Por
+ * eso el parametro admite null, y por eso las consultas usan `is` en vez
+ * de `eq` cuando corresponde: en SQL, `categoria = null` no es falso, es
+ * nulo, y no alcanza ninguna fila.
+ *
+ * El orden es global y no por pestaña. Una categoria que hoy solo tiene
+ * borradores igual ocupa su lugar en «Vigentes» el dia que uno se
+ * publique, y que el orden cambiara segun la pestaña abierta seria
+ * imposible de entender.
+ */
+export async function moverCategoria(
+  categoria: string | null,
+  direccion: "subir" | "bajar",
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite reordenar las categorías." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // Todas las categorias con su posicion. Son unas pocas y hace falta la
+  // lista entera para saber cual es la vecina.
+  const { data, error: errorLectura } = await supabase
+    .from("documentos")
+    .select("categoria, orden_categoria");
+
+  if (errorLectura) {
+    return { exito: false, error: `No se pudo leer el orden: ${errorLectura.message}` };
+  }
+
+  const filas = (data as { categoria: string | null; orden_categoria: number | null }[]) ?? [];
+
+  const posiciones = new Map<string | null, number>();
+  for (const fila of filas) {
+    if (fila.orden_categoria === null) continue;
+    if (!posiciones.has(fila.categoria)) posiciones.set(fila.categoria, fila.orden_categoria);
+  }
+
+  const ordenadas = Array.from(posiciones.entries()).sort((una, otra) => una[1] - otra[1]);
+  const indice = ordenadas.findIndex(([nombre]) => nombre === categoria);
+
+  if (indice === -1) {
+    return { exito: false, error: "Esta categoría todavía no tiene posición asignada." };
+  }
+
+  const vecino = ordenadas[direccion === "subir" ? indice - 1 : indice + 1];
+
+  if (!vecino) {
+    return {
+      exito: false,
+      error:
+        direccion === "subir" ? "Ya es la primera categoría." : "Ya es la última categoría.",
+    };
+  }
+
+  const miPosicion = ordenadas[indice][1];
+  const [nombreVecino, posicionVecino] = vecino;
+
+  const escribir = (nombre: string | null, posicion: number) => {
+    const consulta = supabase.from("documentos").update({ orden_categoria: posicion });
+    return nombre === null ? consulta.is("categoria", null) : consulta.eq("categoria", nombre);
+  };
+
+  const { error: errorUno } = await escribir(categoria, posicionVecino);
+  if (errorUno) return { exito: false, error: `No se pudo mover: ${errorUno.message}` };
+
+  const { error: errorDos } = await escribir(nombreVecino, miPosicion);
+  if (errorDos) {
+    // Se deshace la primera, para no dejar dos categorias en el mismo
+    // lugar y un orden que nadie entiende.
+    await escribir(categoria, miPosicion);
+    return { exito: false, error: `No se pudo mover: ${errorDos.message}` };
+  }
+
+  revalidatePath("/documentos");
   return { exito: true };
 }

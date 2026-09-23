@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { EncabezadoOrdenable } from "@/components/comunes/encabezado-ordenable";
+import { MoverCategoria } from "@/app/(sgc)/documentos/mover-categoria";
 import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
 import { PanelCategorias } from "@/app/(sgc)/documentos/panel-categorias";
 import {
@@ -58,6 +59,7 @@ interface FilaDocumento {
   es_demostracion: boolean;
   categoria: string | null;
   orden: number | null;
+  orden_categoria: number | null;
 }
 
 /**
@@ -106,7 +108,8 @@ export default async function PaginaDocumentos({
     // maestra entera y no la pestaña abierta.
     supabase
       .from("documentos")
-      .select("id, codigo, titulo, estado, categoria, orden")
+      .select("id, codigo, titulo, estado, categoria, orden, orden_categoria")
+      .order("orden_categoria", { nullsFirst: true })
       .order("categoria", { nullsFirst: true })
       .order("orden", { nullsFirst: false })
       .order("codigo", { nullsFirst: false }),
@@ -120,6 +123,7 @@ export default async function PaginaDocumentos({
           titulo: string;
           estado: EstadoDocumento;
           categoria: string | null;
+          orden_categoria: number | null;
         }[]
       | null) ?? [];
 
@@ -133,7 +137,7 @@ export default async function PaginaDocumentos({
     .from("documentos")
     .select(
       "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, " +
-        "es_demostracion, categoria, orden",
+        "es_demostracion, categoria, orden, orden_categoria",
     )
     .in("estado", estados);
 
@@ -159,9 +163,12 @@ export default async function PaginaDocumentos({
     // lista y mezclarlas no da ninguna de las dos.
     consulta = consulta.order(columna, { ascending: ascendente, nullsFirst: false });
   } else {
-    // Por categoria y por el orden manual que fijo Calidad. El codigo
-    // queda de desempate para los que todavia no tienen posicion.
+    // Primero la posicion de la categoria —que Calidad mueve entera—,
+    // despues el orden manual dentro de ella. El nombre queda de
+    // desempate por si dos categorias comparten posicion, y el codigo
+    // para los documentos que todavia no tienen lugar asignado.
     consulta = consulta
+      .order("orden_categoria", { nullsFirst: true })
       .order("categoria", { nullsFirst: true })
       .order("orden", { nullsFirst: false })
       .order("codigo", { nullsFirst: false });
@@ -201,6 +208,17 @@ export default async function PaginaDocumentos({
   const tieneArchivo = new Set(
     ((conArchivo as { entidad_id: string }[] | null) ?? []).map((fila) => fila.entidad_id),
   );
+
+  // El orden global de las categorias, sacado de la lista maestra y no
+  // de la pestaña abierta: una categoria que hoy solo tiene borradores
+  // igual ocupa su lugar, y que el orden cambiara segun la pestaña
+  // seria imposible de entender.
+  const ordenGlobalCategorias: (string | null)[] = [];
+  for (const documento of maestra) {
+    if (!ordenGlobalCategorias.includes(documento.categoria)) {
+      ordenGlobalCategorias.push(documento.categoria);
+    }
+  }
 
   // Los ids de cada categoria, en el orden en que se ven. Es lo que
   // necesita el arrastre para recalcular las posiciones al soltar.
@@ -380,7 +398,21 @@ export default async function PaginaDocumentos({
                           className="px-3 py-1.5 text-[11px] font-semibold uppercase
                                      tracking-wide text-atenuado-contraste"
                         >
-                          {documento.categoria ?? "Sin categoría"}
+                          <div className="flex items-center justify-between gap-3">
+                            <span>{documento.categoria ?? "Sin categoría"}</span>
+                            {puedeOrdenar ? (
+                              <MoverCategoria
+                                categoria={documento.categoria}
+                                esPrimera={
+                                  ordenGlobalCategorias.indexOf(documento.categoria) === 0
+                                }
+                                esUltima={
+                                  ordenGlobalCategorias.indexOf(documento.categoria) ===
+                                  ordenGlobalCategorias.length - 1
+                                }
+                              />
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ) : null}
@@ -497,6 +529,7 @@ export default async function PaginaDocumentos({
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
         {seArrastra
           ? " Para reordenar, arrastre la fila a donde va; las flechas la mueven de a un lugar. " +
+            "Las flechas del renglón de la categoría mueven la carpeta entera. " +
             "«Categorías» arma los grupos."
           : ""}
         {columna
