@@ -23,6 +23,7 @@ import {
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { EncabezadoOrdenable } from "@/components/comunes/encabezado-ordenable";
 import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
+import { PanelCategorias } from "@/app/(sgc)/documentos/panel-categorias";
 import {
   BarraSeleccion,
   CasillaDocumento,
@@ -96,9 +97,33 @@ export default async function PaginaDocumentos({
   const [{ data: procesos }, { data: todos }] = await Promise.all([
     supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
     // Para rotular cada pestaña con su cantidad hace falta el estado de
-    // todos los documentos, no solo el de los de la vista actual.
-    supabase.from("documentos").select("estado"),
+    // todos los documentos, no solo el de los de la vista actual. Con la
+    // misma consulta se arma el panel de categorías, que agrupa la lista
+    // maestra entera y no la pestaña abierta.
+    supabase
+      .from("documentos")
+      .select("id, codigo, titulo, estado, categoria, orden")
+      .order("categoria", { nullsFirst: true })
+      .order("orden", { nullsFirst: false })
+      .order("codigo", { nullsFirst: false }),
   ]);
+
+  const maestra =
+    (todos as
+      | {
+          id: string;
+          codigo: string | null;
+          titulo: string;
+          estado: EstadoDocumento;
+          categoria: string | null;
+        }[]
+      | null) ?? [];
+
+  // Las categorías ya en uso, para ofrecerlas y no terminar con
+  // «Políticas» y «politicas» como dos carpetas distintas.
+  const categorias = Array.from(
+    new Set(maestra.map((documento) => documento.categoria).filter(Boolean) as string[]),
+  ).sort((una, otra) => una.localeCompare(otra, "es"));
 
   let consulta = supabase
     .from("documentos")
@@ -173,11 +198,10 @@ export default async function PaginaDocumentos({
     ((conArchivo as { entidad_id: string }[] | null) ?? []).map((fila) => fila.entidad_id),
   );
 
-  const estadosCargados = (todos as { estado: EstadoDocumento }[] | null) ?? [];
   const vistas = Object.entries(VISTAS).map(([valor, { etiqueta, estados: suyos }]) => ({
     valor,
     etiqueta,
-    cantidad: estadosCargados.filter((documento) => suyos.includes(documento.estado)).length,
+    cantidad: maestra.filter((documento) => suyos.includes(documento.estado)).length,
   }));
 
   return (
@@ -187,11 +211,22 @@ export default async function PaginaDocumentos({
         descripcion="Manuales, procedimientos, políticas y formularios con código controlado, versionado y flujo de aprobación."
         acciones={
           puedeGestionar(usuario) ? (
-            <Boton comoHijo>
-              <Link href="/documentos/nuevo">
-                <Plus /> Nuevo documento
-              </Link>
-            </Boton>
+            <>
+              <PanelCategorias
+                documentos={maestra.map(({ id, codigo, titulo, categoria }) => ({
+                  id,
+                  codigo,
+                  titulo,
+                  categoria,
+                }))}
+                categorias={categorias}
+              />
+              <Boton comoHijo>
+                <Link href="/documentos/nuevo">
+                  <Plus /> Nuevo documento
+                </Link>
+              </Boton>
+            </>
           ) : null
         }
       />
@@ -436,7 +471,7 @@ export default async function PaginaDocumentos({
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
         {puedeOrdenar && !columna
-          ? " Las flechas mueven el documento dentro de su categoría."
+          ? " Las flechas mueven el documento dentro de su categoría, y «Categorías» arma los grupos."
           : ""}
         {columna
           ? " Ordenado por una columna: toque el encabezado una vez más para volver al orden de la carpeta."

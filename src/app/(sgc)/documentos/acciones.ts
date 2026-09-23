@@ -1135,3 +1135,148 @@ export async function moverDocumento(
   revalidatePath("/documentos");
   return { exito: true };
 }
+
+
+/**
+ * Arma una categoria: define que documentos van adentro y cuales salen.
+ *
+ * La categoria no es una tabla aparte: es una columna de texto en el
+ * documento. Una categoria, entonces, es el conjunto de documentos que
+ * la llevan escrita, y por eso se crea llenandola y no antes. Crear
+ * «Politicas» vacia y cargarla despues serian dos pasos para una sola
+ * decision, y una categoria vacia que nadie completa queda dando vueltas
+ * en el listado sin decir nada.
+ *
+ * Se guarda la lista entera de una vez —lo que entra y lo que sale— y no
+ * documento por documento: Calidad agrupa la lista maestra en una
+ * sentada, no de a uno.
+ *
+ * Los que entran quedan numerados de diez en diez en el orden en que se
+ * los ve. Es el orden inicial de la carpeta; despues se ajusta con las
+ * flechas sin volver aca.
+ */
+export async function guardarCategoria(
+  categoria: string,
+  dentro: string[],
+  fuera: string[],
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite agrupar los documentos en categorías." };
+  }
+
+  const nombre = categoria.trim();
+  if (nombre.length < 2) {
+    return { exito: false, error: "Escriba el nombre de la categoría, de al menos 2 caracteres." };
+  }
+  if (nombre.length > 60) {
+    return { exito: false, error: "El nombre de la categoría no puede pasar de 60 caracteres." };
+  }
+  if (dentro.length === 0 && fuera.length === 0) {
+    return { exito: false, error: "Marque los documentos que van en la categoría." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // Los que salen van al final de «Sin categoría», detras de los que ya
+  // estaban ahi: sacarlos de una categoria no es motivo para que
+  // aparezcan primeros en otra lista.
+  const { data: sueltos } = await supabase
+    .from("documentos")
+    .select("orden")
+    .is("categoria", null)
+    .not("orden", "is", null)
+    .order("orden", { ascending: false })
+    .limit(1);
+
+  const ultimoSuelto = ((sueltos as { orden: number }[] | null) ?? [])[0]?.orden ?? 0;
+
+  const cambios = [
+    ...dentro.map((id, indice) => ({ id, categoria: nombre, orden: (indice + 1) * 10 })),
+    ...fuera.map((id, indice) => ({
+      id,
+      categoria: null,
+      orden: ultimoSuelto + (indice + 1) * 10,
+    })),
+  ];
+
+  // De a diez en paralelo. Cada fila lleva su propio `orden`, asi que no
+  // hay forma de hacerlo en una sola sentencia desde el cliente; lo que
+  // si se puede evitar es esperar cincuenta veces una detras de otra.
+  const fallidos: string[] = [];
+
+  for (let desde = 0; desde < cambios.length; desde += 10) {
+    const tanda = cambios.slice(desde, desde + 10);
+    const resultados = await Promise.all(
+      tanda.map((cambio) =>
+        supabase
+          .from("documentos")
+          .update({ categoria: cambio.categoria, orden: cambio.orden })
+          .eq("id", cambio.id),
+      ),
+    );
+
+    for (const resultado of resultados) {
+      if (resultado.error) fallidos.push(resultado.error.message);
+    }
+  }
+
+  revalidatePath("/documentos");
+
+  if (fallidos.length > 0) {
+    return {
+      exito: false,
+      error:
+        `Se guardaron ${cambios.length - fallidos.length} de ${cambios.length} documentos. ` +
+        `El resto no se pudo: ${fallidos[0]}`,
+    };
+  }
+
+  const cuantos = dentro.length;
+  return {
+    exito: true,
+    mensaje:
+      `«${nombre}» quedó con ${cuantos} documento${cuantos === 1 ? "" : "s"}.` +
+      (fuera.length > 0
+        ? ` Se sacaron ${fuera.length} de la categoría.`
+        : ""),
+  };
+}
+
+
+/**
+ * Cambia el nombre de una categoria en todos sus documentos.
+ *
+ * Como la categoria es texto repetido en cada fila, renombrarla a mano
+ * seria editar documento por documento y basta con equivocarse en uno
+ * para terminar con dos carpetas casi iguales.
+ */
+export async function renombrarCategoria(
+  anterior: string,
+  nueva: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite renombrar categorías." };
+  }
+
+  const nombre = nueva.trim();
+  if (nombre.length < 2) {
+    return { exito: false, error: "Escriba el nombre nuevo, de al menos 2 caracteres." };
+  }
+  if (nombre === anterior) {
+    return { exito: false, error: "El nombre nuevo es igual al anterior." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { error } = await supabase
+    .from("documentos")
+    .update({ categoria: nombre })
+    .eq("categoria", anterior);
+
+  if (error) return { exito: false, error: `No se pudo renombrar: ${error.message}` };
+
+  revalidatePath("/documentos");
+  return { exito: true, mensaje: `«${anterior}» ahora se llama «${nombre}».` };
+}
