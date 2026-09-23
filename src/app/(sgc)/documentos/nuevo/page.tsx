@@ -14,10 +14,10 @@ export default async function PaginaNuevoDocumento() {
 
   // Las categorías ya usadas, para ofrecerlas en el alta. Sin esto se
   // terminan cargando «Compras» y «compras» como dos carpetas distintas.
-  const { data: usadas } = await supabase
-    .from("documentos")
-    .select("categoria")
-    .not("categoria", "is", null);
+  const [{ data: usadas }, { data: procesos }] = await Promise.all([
+    supabase.from("documentos").select("categoria").not("categoria", "is", null),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("codigo"),
+  ]);
 
   const categorias = Array.from(
     new Set(((usadas as { categoria: string }[] | null) ?? []).map((fila) => fila.categoria)),
@@ -29,7 +29,11 @@ export default async function PaginaNuevoDocumento() {
         titulo="Nuevo documento"
         descripcion="El documento se crea en borrador con su versión v00. Luego se envía a revisión y se aprueba para dejarlo vigente."
       />
-      <FormularioDocumento usuarioActual={usuario.id} categorias={categorias} />
+      <FormularioDocumento
+        usuarioActual={usuario.id}
+        categorias={categorias}
+        procesos={procesos ?? []}
+      />
     </div>
   );
 }

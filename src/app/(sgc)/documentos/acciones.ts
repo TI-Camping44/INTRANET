@@ -108,6 +108,7 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
       titulo,
       tipo,
       categoria: String(datos.get("categoria") ?? "").trim() || null,
+      proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: responsableId,
       elaborador_id: usuario.id,
       creado_por: usuario.id,
@@ -1040,4 +1041,97 @@ export async function eliminarDocumentos(ids: string[]): Promise<ResultadoAccion
     exito: true,
     mensaje: `Se eliminaron ${eliminados} documento${eliminados === 1 ? "" : "s"} con sus archivos.`,
   };
+}
+
+
+/**
+ * Sube o baja un documento dentro de su categoria.
+ *
+ * Calidad arma la carpeta como le sirve al auditor, y ese orden no es el
+ * del codigo ni el alfabetico. Se intercambia el `orden` con el del
+ * vecino en vez de renumerar todo: dos escrituras en lugar de sesenta, y
+ * el resto de la lista no se mueve.
+ *
+ * El movimiento es dentro de la categoria. Subir el primero de una
+ * categoria no lo pasa a la anterior: para eso se le cambia la
+ * categoria, que es una decision distinta.
+ */
+export async function moverDocumento(
+  documentoId: string,
+  direccion: "subir" | "bajar",
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite reordenar los documentos." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: actual } = await supabase
+    .from("documentos")
+    .select("id, categoria, orden, estado")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  if (!actual) return { exito: false, error: "El documento no existe o no tiene acceso." };
+  if (actual.orden === null) {
+    return { exito: false, error: "Este documento todavía no tiene posición asignada." };
+  }
+
+  // El vecino: el mas cercano hacia donde se quiere mover, dentro de la
+  // misma categoria y de la misma lista —vigentes con vigentes—, porque
+  // es lo que la persona esta viendo.
+  let vecinos = supabase
+    .from("documentos")
+    .select("id, orden")
+    .eq("estado", actual.estado)
+    .not("orden", "is", null)
+    .limit(1);
+
+  vecinos =
+    actual.categoria === null
+      ? vecinos.is("categoria", null)
+      : vecinos.eq("categoria", actual.categoria);
+
+  vecinos =
+    direccion === "subir"
+      ? vecinos.lt("orden", actual.orden).order("orden", { ascending: false })
+      : vecinos.gt("orden", actual.orden).order("orden", { ascending: true });
+
+  const { data: encontrados } = await vecinos;
+  const vecino = ((encontrados as { id: string; orden: number }[] | null) ?? [])[0];
+
+  if (!vecino) {
+    return {
+      exito: false,
+      error:
+        direccion === "subir"
+          ? "Ya es el primero de su categoría."
+          : "Ya es el último de su categoría.",
+    };
+  }
+
+  // Se intercambian. No hace falta un valor intermedio: `orden` no es
+  // unico, asi que los dos pueden coincidir un instante sin romper nada.
+  const { error: errorUno } = await supabase
+    .from("documentos")
+    .update({ orden: vecino.orden })
+    .eq("id", actual.id);
+
+  if (errorUno) return { exito: false, error: `No se pudo mover: ${errorUno.message}` };
+
+  const { error: errorDos } = await supabase
+    .from("documentos")
+    .update({ orden: actual.orden })
+    .eq("id", vecino.id);
+
+  if (errorDos) {
+    // Se deshace el primero, para no dejar dos documentos con la misma
+    // posicion y un orden que nadie entiende.
+    await supabase.from("documentos").update({ orden: actual.orden }).eq("id", actual.id);
+    return { exito: false, error: `No se pudo mover: ${errorDos.message}` };
+  }
+
+  revalidatePath("/documentos");
+  return { exito: true };
 }

@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileText, Plus } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
 import {
   BarraSeleccion,
   CasillaDocumento,
@@ -48,6 +50,8 @@ interface FilaDocumento {
   version_actual: number;
   fecha_proxima_revision: string | null;
   es_demostracion: boolean;
+  categoria: string | null;
+  orden: number | null;
 }
 
 /**
@@ -73,6 +77,8 @@ export default async function PaginaDocumentos({
   const usuario = await requerirUsuario();
   // Eliminar es atribucion del Administrador SGC, igual que en RLS.
   const puedeEliminar = usuario.rol === "administrador_sgc";
+  // Reordenar es parte de armar la carpeta: lo hace quien gestiona.
+  const puedeOrdenar = puedeGestionar(usuario);
   const supabase = crearClienteServidor();
 
   const vista = searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "vigentes";
@@ -88,11 +94,14 @@ export default async function PaginaDocumentos({
   let consulta = supabase
     .from("documentos")
     .select(
-      "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, es_demostracion",
+      "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, " +
+        "es_demostracion, categoria, orden",
     )
     .in("estado", estados)
-    // Los documentos sin codigo controlado (contexto, politicas) van al
-    // final: la lista se lee por codigo.
+    // Por categoria y por el orden manual que fijo Calidad. El codigo
+    // queda de desempate para los que todavia no tienen posicion.
+    .order("categoria", { nullsFirst: true })
+    .order("orden", { nullsFirst: false })
     .order("codigo", { nullsFirst: false });
 
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
@@ -232,10 +241,20 @@ export default async function PaginaDocumentos({
                 )}
                 <TablaEncabezado className="hidden xl:table-cell">Próxima revisión</TablaEncabezado>
                 <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
+                {puedeOrdenar ? <TablaEncabezado className="w-12">Orden</TablaEncabezado> : null}
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
-              {documentos.map((documento) => {
+              {documentos.map((documento, indice) => {
+                // El separador se dibuja cuando cambia la categoría. Es
+                // la agrupación que pidió Calidad: la carpeta se lee por
+                // categoría, no por código.
+                const anterior = documentos[indice - 1];
+                const siguiente = documentos[indice + 1];
+                const abreCategoria = anterior?.categoria !== documento.categoria;
+                const esPrimeroDeCategoria = abreCategoria;
+                const esUltimoDeCategoria = siguiente?.categoria !== documento.categoria;
+
                 const dias = diasHasta(documento.fecha_proxima_revision);
                 const porVencer =
                   documento.estado === "vigente" &&
@@ -254,7 +273,19 @@ export default async function PaginaDocumentos({
                   : "Este documento todavía no tiene archivo cargado";
 
                 return (
-                  <TablaFila key={documento.id}>
+                  <React.Fragment key={documento.id}>
+                    {abreCategoria ? (
+                      <tr className="border-b border-borde bg-acento/40">
+                        <td
+                          colSpan={12}
+                          className="px-3 py-1.5 text-[11px] font-semibold uppercase
+                                     tracking-wide text-atenuado-contraste"
+                        >
+                          {documento.categoria ?? "Sin categoría"}
+                        </td>
+                      </tr>
+                    ) : null}
+                  <TablaFila>
                     {puedeEliminar ? (
                       <TablaCelda>
                         <CasillaDocumento id={documento.id} titulo={documento.titulo} />
@@ -319,7 +350,17 @@ export default async function PaginaDocumentos({
                         Ver
                       </Link>
                     </TablaCelda>
+                    {puedeOrdenar ? (
+                      <TablaCelda>
+                        <MoverDocumento
+                          documentoId={documento.id}
+                          esPrimero={esPrimeroDeCategoria}
+                          esUltimo={esUltimoDeCategoria}
+                        />
+                      </TablaCelda>
+                    ) : null}
                   </TablaFila>
+                  </React.Fragment>
                 );
               })}
             </TablaCuerpo>
@@ -339,6 +380,9 @@ export default async function PaginaDocumentos({
           : null}{" "}
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
+        {puedeOrdenar
+          ? " Las flechas mueven el documento dentro de su categoría."
+          : ""}
       </p>
     </>
   );

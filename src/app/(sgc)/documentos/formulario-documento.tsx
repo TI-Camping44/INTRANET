@@ -27,10 +27,12 @@ import type { TipoDocumento } from "@/lib/tipos";
 export function FormularioDocumento({
   usuarioActual,
   categorias,
+  procesos,
 }: {
   usuarioActual: string;
   /** Las categorías ya usadas, para ofrecerlas y no duplicarlas. */
   categorias: string[];
+  procesos: { id: string; nombre: string; codigo: string }[];
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
@@ -174,6 +176,26 @@ export function FormularioDocumento({
               le sirva al auditor, y una lista cerrada obligaría a pedirle
               a TI cada categoría nueva. Las ya usadas se ofrecen para no
               terminar con «Compras» y «compras» como dos carpetas. */}
+          {/* Vuelve al alta. Lo habíamos sacado porque se completaba
+              siempre igual, pero entonces la ficha mostraba «Proceso —» y
+              Calidad necesita ese dato: es lo que ata el documento al
+              mapa de procesos. */}
+          <GrupoCampo
+            etiqueta="Proceso"
+            htmlFor="proceso_id"
+            className="sm:col-span-2"
+            ayuda="A qué proceso del mapa pertenece. Se ve en la ficha del documento."
+          >
+            <Seleccion id="proceso_id" name="proceso_id" defaultValue="">
+              <option value="">Sin proceso asociado</option>
+              {procesos.map((proceso) => (
+                <option key={proceso.id} value={proceso.id}>
+                  {proceso.codigo} · {proceso.nombre}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
           <GrupoCampo
             etiqueta="Categoría"
             htmlFor="categoria"
