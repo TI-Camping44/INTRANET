@@ -1472,3 +1472,50 @@ export async function moverCategoria(
   revalidatePath("/documentos");
   return { exito: true };
 }
+
+
+/**
+ * Reordena todas las categorias de una vez.
+ *
+ * Es lo que deja el arrastrar y soltar sobre el renglon de una
+ * categoria: llevar «Politicas» del primer lugar al cuarto corre las
+ * tres del medio, asi que no alcanza con intercambiar dos como hacen las
+ * flechas.
+ *
+ * Llega la lista completa en el orden en que quedo en pantalla y se
+ * numera de diez en diez. Cada categoria se escribe con una sola
+ * sentencia —filtra por categoria, no por id— asi que son tantas
+ * escrituras como categorias, no como documentos.
+ */
+export async function reordenarCategorias(
+  nombres: (string | null)[],
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite reordenar las categorías." };
+  }
+  if (nombres.length === 0) return { exito: true };
+
+  const supabase = crearClienteServidor();
+
+  const resultados = await Promise.all(
+    nombres.map((nombre, indice) => {
+      const consulta = supabase
+        .from("documentos")
+        .update({ orden_categoria: (indice + 1) * 10 });
+      // En SQL `categoria = null` no es falso, es nulo, y no alcanza
+      // ninguna fila: «Sin categoria» se filtra con `is`.
+      return nombre === null
+        ? consulta.is("categoria", null)
+        : consulta.eq("categoria", nombre);
+    }),
+  );
+
+  const fallido = resultados.find((resultado) => resultado.error);
+  if (fallido?.error) {
+    return { exito: false, error: `No se pudo guardar el orden: ${fallido.error.message}` };
+  }
+
+  revalidatePath("/documentos");
+  return { exito: true };
+}

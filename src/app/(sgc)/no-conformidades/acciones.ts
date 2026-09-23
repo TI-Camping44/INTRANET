@@ -436,10 +436,22 @@ export async function responderNoConformidad(
   const supabase = crearClienteServidor();
 
   const descargo = String(datos.get("descargo") ?? "").trim();
-  const descripcion = String(datos.get("descripcion") ?? "").trim();
-  const fechaLimite = String(datos.get("fecha_limite") ?? "");
-  const responsableId = String(datos.get("responsable_id") ?? "") || null;
   const porques = datos.getAll("porque").map((valor) => String(valor).trim());
+
+  // Las acciones llegan como tres listas paralelas y se arman por
+  // posicion: la primera descripcion va con el primer responsable y el
+  // primer plazo. El navegador conserva el orden de los campos, y el
+  // formulario envia los tres siempre —aunque esten vacios— para que las
+  // tres listas midan lo mismo.
+  const descripciones = datos.getAll("accion_descripcion").map((valor) => String(valor).trim());
+  const plazos = datos.getAll("accion_fecha_limite").map((valor) => String(valor));
+  const responsables = datos.getAll("accion_responsable").map((valor) => String(valor));
+
+  const acciones = descripciones.map((descripcion, indice) => ({
+    descripcion,
+    fechaLimite: plazos[indice] ?? "",
+    responsableId: responsables[indice] || null,
+  }));
 
   if (descargo.length < 10) {
     return {
@@ -447,11 +459,18 @@ export async function responderNoConformidad(
       error: "Escriba el descargo: qué pasó y por qué, con al menos 10 caracteres.",
     };
   }
-  if (descripcion.length < 10) {
-    return { exito: false, error: "Describa la acción con al menos 10 caracteres." };
+  if (acciones.length === 0) {
+    return { exito: false, error: "Cargue al menos una acción." };
   }
-  if (!fechaLimite) {
-    return { exito: false, error: "La acción necesita una fecha límite." };
+  for (let indice = 0; indice < acciones.length; indice += 1) {
+    const accion = acciones[indice];
+    const cual = acciones.length === 1 ? "la acción" : `la acción ${indice + 1}`;
+    if (accion.descripcion.length < 10) {
+      return { exito: false, error: `Describa ${cual} con al menos 10 caracteres.` };
+    }
+    if (!accion.fechaLimite) {
+      return { exito: false, error: `Indique la fecha límite de ${cual}.` };
+    }
   }
   if (porques.length < 5 || porques.some((porque) => porque.length === 0)) {
     return {
@@ -478,19 +497,29 @@ export async function responderNoConformidad(
     return { exito: false, error: `No se pudo guardar el análisis: ${errorPorques.message}` };
   }
 
-  // 2 · La accion, con el descargo. Queda pendiente: es lo que se sigue.
-  const { error: errorAccion } = await supabase.from("nc_acciones").insert({
-    no_conformidad_id: noConformidadId,
-    tipo: String(datos.get("tipo") ?? "accion_correctiva"),
-    descripcion,
-    descargo,
-    responsable_id: responsableId,
-    fecha_limite: fechaLimite,
-    estado: "pendiente",
-  });
+  // 2 · Las acciones, con el descargo. Quedan pendientes: son lo que se
+  // sigue. El tipo es siempre 'accion_correctiva': esta pantalla es la
+  // respuesta a una desviacion y no hay otra cosa que pueda ser, asi que
+  // el desplegable se saco del formulario.
+  //
+  // El descargo va en todas. Es de la persona y de la desviacion, no de
+  // cada accion, y guardarlo solo en la primera haria que borrar esa
+  // dejara la no conformidad sin explicacion.
+  const { error: errorAccion } = await supabase.from("nc_acciones").insert(
+    acciones.map((accion) => ({
+      no_conformidad_id: noConformidadId,
+      tipo: "accion_correctiva",
+      descripcion: accion.descripcion,
+      descargo,
+      responsable_id: accion.responsableId,
+      fecha_limite: accion.fechaLimite,
+      estado: "pendiente",
+    })),
+  );
 
   if (errorAccion) {
-    return { exito: false, error: `No se pudo cargar la acción: ${errorAccion.message}` };
+    const cuantas = acciones.length === 1 ? "la acción" : "las acciones";
+    return { exito: false, error: `No se pudo cargar ${cuantas}: ${errorAccion.message}` };
   }
 
   // 3 · La causa raiz queda como conclusion del analisis, que es donde la
@@ -514,20 +543,36 @@ export async function responderNoConformidad(
   revalidatePath("/no-conformidades");
   revalidatePath("/acciones");
 
-  if (responsableId && responsableId !== usuario.id) {
-    const [{ data: responsable }, { data: noConformidad }] = await Promise.all([
-      supabase.from("usuarios").select("id, correo").eq("id", responsableId).maybeSingle(),
+  // Un aviso por persona y no por accion: si a alguien le tocaron dos, le
+  // llega un correo con las dos y no dos correos.
+  const porPersona = new Map<string, string[]>();
+  for (const accion of acciones) {
+    if (!accion.responsableId || accion.responsableId === usuario.id) continue;
+    const suyas = porPersona.get(accion.responsableId) ?? [];
+    suyas.push(`${accion.descripcion} (para el ${accion.fechaLimite})`);
+    porPersona.set(accion.responsableId, suyas);
+  }
+
+  if (porPersona.size > 0) {
+    const [{ data: personas }, { data: noConformidad }] = await Promise.all([
+      supabase.from("usuarios").select("id, correo").in("id", Array.from(porPersona.keys())),
       supabase.from("no_conformidades").select("codigo").eq("id", noConformidadId).maybeSingle(),
     ]);
 
-    if (responsable) {
+    for (const persona of (personas as { id: string; correo: string }[] | null) ?? []) {
+      const suyas = porPersona.get(persona.id) ?? [];
       await notificar(supabase, {
         deParteDe: departe(usuario),
-        usuarioId: responsable.id,
-        correoDestino: responsable.correo,
+        usuarioId: persona.id,
+        correoDestino: persona.correo,
         tipo: "no_conformidad_asignada",
-        titulo: `Acción asignada · ${noConformidad?.codigo ?? ""}`,
-        mensaje: `Tiene a su cargo: "${descripcion}". Fecha límite: ${fechaLimite}.`,
+        titulo: `${suyas.length === 1 ? "Acción asignada" : "Acciones asignadas"} · ${
+          noConformidad?.codigo ?? ""
+        }`,
+        mensaje:
+          suyas.length === 1
+            ? `Tiene a su cargo: ${suyas[0]}.`
+            : `Tiene a su cargo:\n${suyas.map((una) => `· ${una}`).join("\n")}`,
         enlace: `/no-conformidades/${noConformidadId}`,
         entidad: "no_conformidades",
         entidadId: noConformidadId,
@@ -539,8 +584,9 @@ export async function responderNoConformidad(
     exito: true,
     id: noConformidadId,
     mensaje:
-      "No conformidad respondida. Queda en proceso: el cierre se registra desde la ficha, " +
-      "indicando si fue en plazo o fuera de plazo.",
+      `No conformidad respondida con ${acciones.length} ` +
+      `${acciones.length === 1 ? "acción" : "acciones"}. Queda en proceso: el cierre se ` +
+      "registra desde la ficha, indicando si fue en plazo o fuera de plazo.",
   };
 }
 

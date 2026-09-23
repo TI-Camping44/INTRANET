@@ -27,6 +27,7 @@ import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
 import { PanelCategorias } from "@/app/(sgc)/documentos/panel-categorias";
 import {
   FilaArrastrable,
+  FilaCategoria,
   ProveedorArrastre,
 } from "@/app/(sgc)/documentos/arrastre-documentos";
 import {
@@ -329,7 +330,10 @@ export default async function PaginaDocumentos({
       ) : (
         <ProveedorSeleccion>
           {puedeEliminar ? <BarraSeleccion /> : null}
-          <ProveedorArrastre grupos={seArrastra ? grupos : {}}>
+          <ProveedorArrastre
+            grupos={seArrastra ? grupos : {}}
+            categorias={seArrastra ? ordenGlobalCategorias : []}
+          >
           <Tarjeta>
           <Tabla>
             <TablaCabecera>
@@ -392,7 +396,7 @@ export default async function PaginaDocumentos({
                 return (
                   <React.Fragment key={documento.id}>
                     {abreCategoria ? (
-                      <tr className="border-b border-borde bg-acento/40">
+                      <FilaCategoria categoria={documento.categoria}>
                         <td
                           colSpan={12}
                           className="px-3 py-1.5 text-[11px] font-semibold uppercase
@@ -414,7 +418,7 @@ export default async function PaginaDocumentos({
                             ) : null}
                           </div>
                         </td>
-                      </tr>
+                      </FilaCategoria>
                     ) : null}
                   <FilaArrastrable
                     id={documento.id}
@@ -529,7 +533,7 @@ export default async function PaginaDocumentos({
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
         {seArrastra
           ? " Para reordenar, arrastre la fila a donde va; las flechas la mueven de a un lugar. " +
-            "Las flechas del renglón de la categoría mueven la carpeta entera. " +
+            "El renglón de la categoría se arrastra igual y se lleva sus documentos. " +
             "«Categorías» arma los grupos."
           : ""}
         {columna

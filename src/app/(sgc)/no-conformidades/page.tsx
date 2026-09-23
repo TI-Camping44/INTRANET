@@ -129,7 +129,7 @@ export default async function PaginaNoConformidades({
           !soloLectura ? (
             <Boton comoHijo>
               <Link href="/no-conformidades/nueva">
-                <Plus /> Registrar desviación
+                <Plus /> Nueva No Conformidad
               </Link>
             </Boton>
           ) : null

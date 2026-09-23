@@ -5,7 +5,7 @@ import { FormularioNoConformidad } from "@/app/(sgc)/no-conformidades/formulario
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 
-export const metadata: Metadata = { title: "Registrar desviación" };
+export const metadata: Metadata = { title: "Nueva No Conformidad" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaNuevaNoConformidad() {
@@ -35,7 +35,7 @@ export default async function PaginaNuevaNoConformidad() {
   return (
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
-        titulo="Registrar desviación"
+        titulo="Nueva No Conformidad"
         descripcion="La no conformidad se numera automáticamente y queda abierta. El descargo, el análisis de causa raíz y la acción correctiva se cargan después, desde «Acciones correctivas»."
       />
       <FormularioNoConformidad

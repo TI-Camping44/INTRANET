@@ -4,11 +4,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
+import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { responderNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
-import { ETIQUETAS_TIPO_ACCION, PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
-import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import { CampoAcciones } from "@/app/(sgc)/acciones/campo-acciones";
+import { PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
 
 export interface OpcionNoConformidad {
   id: string;
@@ -28,11 +28,13 @@ export interface OpcionNoConformidad {
  * una desviación que no está a su nombre. Es lo que pidió Calidad y es lo
  * que permite RLS (`nc_acciones_alta`).
  *
- * Responder es un solo paso: el descargo, los cinco porqués y la acción.
- * Con eso la no conformidad se cierra y la acción queda abierta, que es
- * lo que después se controla. Estaba partido en tres pantallas —ficha,
- * análisis, plan— y la mitad de las desviaciones se quedaban con el
- * análisis a medias.
+ * Responder es un solo paso: el descargo, los cinco porqués y las
+ * acciones. Estaba partido en tres pantallas —ficha, análisis, plan— y
+ * la mitad de las desviaciones se quedaban con el análisis a medias.
+ *
+ * Con esto la desviación pasa sola a «En proceso». No se cierra: el
+ * cierre lo decide una persona desde la ficha, diciendo si fue en plazo
+ * o fuera de plazo, que es como lo definió Calidad el 23 de septiembre.
  */
 export function FormularioAccion({
   noConformidades,
@@ -154,56 +156,22 @@ export function FormularioAccion({
             </div>
           </div>
 
-          <GrupoCampo etiqueta="Tipo de acción" htmlFor="tipo" requerido>
-            <Seleccion id="tipo" name="tipo" defaultValue="accion_correctiva">
-              {Object.entries(ETIQUETAS_TIPO_ACCION).map(([valor, etiqueta]) => (
-                <option key={valor} value={valor}>
-                  {etiqueta}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Fecha límite"
-            htmlFor="fecha_limite"
-            requerido
-            ayuda="Cuándo tiene que estar ejecutada."
-          >
-            <Entrada
-              id="fecha_limite"
-              name="fecha_limite"
-              type="date"
-              defaultValue={sumarDias(hoyEnAsuncion(), 15)}
-              required
-            />
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Descripción de la acción"
-            htmlFor="descripcion"
-            requerido
-            className="sm:col-span-2"
-            ayuda="Qué se hará concretamente para eliminar la causa."
-          >
-            <AreaTexto id="descripcion" name="descripcion" rows={3} required minLength={10} />
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Responsable de ejecutarla"
-            htmlFor="responsable_id"
-            className="sm:col-span-2"
-            ayuda="Recibe la notificación de asignación."
-          >
-            <Seleccion id="responsable_id" name="responsable_id" defaultValue={usuarioActual}>
-              <option value="">Asignar más adelante</option>
-              {personas.map((persona) => (
-                <option key={persona.id} value={persona.id}>
-                  {persona.nombre_completo}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
+          {/* El tipo de acción se fue del formulario: acá siempre es una
+              acción correctiva, y un desplegable con una sola respuesta
+              posible es un paso que nadie lee y que igual hay que dar.
+              La columna `tipo` sigue existiendo —hay correcciones y
+              mejoras cargadas por otras vías— y esta pantalla escribe
+              siempre 'accion_correctiva'. */}
+          <div className="sm:col-span-2">
+            <p className="text-xs font-medium">
+              Acciones <span className="text-primario">*</span>
+            </p>
+            <p className="mb-2 mt-0.5 text-[11px] text-atenuado-contraste">
+              De una misma causa suelen salir varias, y cada una la ejecuta una persona
+              distinta. Puede cargar más de una.
+            </p>
+            <CampoAcciones personas={personas} usuarioActual={usuarioActual} />
+          </div>
         </div>
 
         {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
@@ -213,7 +181,7 @@ export function FormularioAccion({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Responder y cerrar la no conformidad
+            Responder la no conformidad
           </Boton>
         </div>
       </Tarjeta>
