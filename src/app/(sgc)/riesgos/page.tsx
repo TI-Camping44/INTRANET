@@ -100,7 +100,6 @@ export default async function PaginaRiesgos({
     <>
       <EncabezadoPagina
         titulo="Matriz de riesgos"
-        descripcion="F-EST-01-03. Nivel = Probabilidad × Severidad, con el semáforo del instructivo: 1-3 bajo, 4-8 medio, 9-14 alto, 15-25 crítico. De 4 para arriba hace falta acción planificada."
         acciones={
           <>
             <Boton variante="fantasma" comoHijo>

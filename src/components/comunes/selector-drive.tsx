@@ -44,6 +44,7 @@ interface VistaDocumentos {
 interface ConstructorSelector {
   setOAuthToken: (token: string) => ConstructorSelector;
   setDeveloperKey: (clave: string) => ConstructorSelector;
+  setAppId: (id: string) => ConstructorSelector;
   setLocale: (idioma: string) => ConstructorSelector;
   setTitle: (titulo: string) => ConstructorSelector;
   addView: (vista: unknown) => ConstructorSelector;
@@ -83,6 +84,22 @@ function ventana(): VentanaConGoogle {
 }
 
 /**
+ * El numero de proyecto de Google, que el selector necesita declarar.
+ *
+ * Sale del propio identificador de cliente, que empieza con el:
+ *
+ *   49415992258-lip97ecc….apps.googleusercontent.com
+ *   ^^^^^^^^^^^
+ *
+ * Se saca de ahi y no de una variable nueva a proposito: son el mismo
+ * dato, y dos variables que tienen que coincidir terminan no
+ * coincidiendo el dia que alguien cambia una sola.
+ */
+function numeroDeProyecto(clienteId: string): string {
+  return clienteId.split("-")[0];
+}
+
+/**
  * Botón que abre el Drive de la persona y devuelve el archivo elegido.
  *
  * Devuelve un `File`, igual que un `<input type="file">`. Es a propósito:
@@ -115,6 +132,7 @@ interface ArchivoElegido {
 function abrirSelector(
   token: string,
   claveApi: string,
+  idAplicacion: string,
   mimes: string[],
 ): Promise<ArchivoElegido | null> {
   return new Promise((resolver, rechazar) => {
@@ -138,6 +156,13 @@ function abrirSelector(
     const constructor = new picker.PickerBuilder()
       .setOAuthToken(token)
       .setDeveloperKey(claveApi)
+      // Sin esto Google entrega el token y despues niega la descarga.
+      // El permiso que pedimos es `drive.file`, que da acceso solo a los
+      // archivos que la persona elige; para saber A QUE aplicacion se los
+      // esta dando, el selector tiene que declarar el numero de proyecto.
+      // Si no lo declara, el archivo se elige pero nunca queda autorizado
+      // y la descarga vuelve con un 404 que parece un archivo inexistente.
+      .setAppId(idAplicacion)
       .setLocale("es")
       .setTitle("Elegir un archivo")
       .addView(vista)
@@ -228,6 +253,7 @@ export function SelectorDrive({
       const archivo = await abrirSelector(
         token,
         claveApi!,
+        numeroDeProyecto(clienteId!),
         mimesParaElSelector(tipoDocumento),
       );
 

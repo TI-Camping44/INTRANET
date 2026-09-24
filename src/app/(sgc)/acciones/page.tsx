@@ -95,6 +95,10 @@ export default async function PaginaAcciones({
   // `ejecucion_en_plazo`. Es el mismo criterio que en no conformidades.
   if (searchParams.estado === "abierta") {
     consulta = consulta.in("estado", ["pendiente", "en_curso"]);
+  } else if (searchParams.estado === "ejecutada") {
+    // «Cerradas» del menu: las dos ejecuciones juntas, en plazo y fuera
+    // de plazo. Adentro del listado se siguen pudiendo separar.
+    consulta = consulta.in("estado", ["ejecutada", "verificada"]);
   } else if (searchParams.estado === "ejecutada_en_plazo") {
     consulta = consulta.in("estado", ["ejecutada", "verificada"]).eq("ejecucion_en_plazo", true);
   } else if (searchParams.estado === "ejecutada_fuera_de_plazo") {
@@ -223,7 +227,7 @@ export default async function PaginaAcciones({
           soloLectura ? null : (
             <Boton comoHijo>
               <Link href="/acciones/nueva">
-                <Plus /> Nueva acción correctiva
+                <Plus /> Nueva Acción Correctiva
               </Link>
             </Boton>
           )
@@ -349,7 +353,7 @@ export default async function PaginaAcciones({
             soloLectura ? null : (
               <Boton comoHijo tamano="pequeno">
                 <Link href="/acciones/nueva">
-                  <Plus /> Nueva acción correctiva
+                  <Plus /> Nueva Acción Correctiva
                 </Link>
               </Boton>
             )

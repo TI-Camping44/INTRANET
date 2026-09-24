@@ -67,15 +67,16 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/documentos",
         icono: "FileText",
         fase: "operativo",
-        // Tres atajos y no cinco, a pedido de Calidad: lo que la gente
-        // busca es lo que esta vigente y lo que ya no. «En elaboracion» y
-        // «Por revisar» son vistas de trabajo de Calidad, que las tiene
-        // igual dentro del modulo.
+        // Cuatro atajos, con la misma forma que los demas modulos: el
+        // listado entero, los dos cortes que la gente pide, y el alta.
+        // «En elaboracion» y «Por revisar» son vistas de trabajo de
+        // Calidad, que las tiene igual dentro del modulo.
         subentradas: [
+          { titulo: "Todos", ruta: "/documentos" },
           { titulo: "Vigentes", ruta: "/documentos?vista=vigentes" },
           { titulo: "Obsoletos", ruta: "/documentos?vista=obsoletos" },
           {
-            titulo: "Nuevo documento",
+            titulo: "+ Nuevo Documento",
             ruta: "/documentos/nuevo",
             roles: ["administrador_sgc"],
           },
@@ -105,12 +106,16 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/acciones",
         icono: "ListChecks",
         fase: "operativo",
+        // Los mismos cuatro atajos que no conformidades, y por la misma
+        // razon: el menu contesta «donde esta el listado» y «como cargo
+        // una». «Vencidas» y «A mi cargo» son cortes de trabajo, y estan
+        // igual en los filtros del listado.
         subentradas: [
-          { titulo: "Pendientes", ruta: "/acciones?vista=pendientes" },
-          { titulo: "Vencidas", ruta: "/acciones?vista=pendientes&filtro=vencidas" },
-          { titulo: "A mi cargo", ruta: "/acciones?vista=pendientes&filtro=mias" },
+          { titulo: "Todas", ruta: "/acciones" },
+          { titulo: "Abiertas", ruta: "/acciones?estado=abierta" },
+          { titulo: "Cerradas", ruta: "/acciones?estado=ejecutada" },
           {
-            titulo: "+ Nueva acción correctiva",
+            titulo: "+ Nueva Acción Correctiva",
             ruta: "/acciones/nueva",
             soloGestion: true,
           },

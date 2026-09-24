@@ -5,6 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
+import { esOrigenValido } from "@/lib/riesgos";
 import type { EstadoAccion, EstadoRiesgo, ResultadoAccion } from "@/lib/tipos";
 
 function validarEscala(valor: number): boolean {
@@ -23,12 +24,38 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
   const titulo = String(datos.get("titulo") ?? "").trim();
   const probabilidad = Number(datos.get("probabilidad") ?? 1);
   const severidad = Number(datos.get("severidad") ?? 1);
+  const origen = String(datos.get("origen") ?? "").trim();
 
   if (titulo.length < 5) {
     return { exito: false, error: "El título debe tener al menos 5 caracteres." };
   }
   if (!validarEscala(probabilidad) || !validarEscala(severidad)) {
     return { exito: false, error: "La probabilidad y la severidad deben estar entre 1 y 5." };
+  }
+  if (!esOrigenValido(origen)) {
+    return { exito: false, error: "Elija un origen de la lista." };
+  }
+
+  // Calidad pidio la ficha completa: un riesgo a medio cargar no se
+  // puede valorar ni revisar despues. El navegador ya lo pide, pero eso
+  // es comodidad; el control es este.
+  const OBLIGATORIOS: { campo: string; nombre: string }[] = [
+    { campo: "descripcion", nombre: "la descripción" },
+    { campo: "proceso_id", nombre: "el proceso afectado" },
+    { campo: "responsable_id", nombre: "el responsable" },
+    { campo: "causas", nombre: "las causas potenciales" },
+    { campo: "consecuencias", nombre: "las consecuencias potenciales" },
+    { campo: "controles_existentes", nombre: "los controles existentes" },
+    { campo: "tratamiento", nombre: "la opción de tratamiento" },
+    { campo: "accion_planificada", nombre: "la acción planificada" },
+    { campo: "plazo_accion", nombre: "el plazo de la acción" },
+  ];
+
+  const faltante = OBLIGATORIOS.find(
+    (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
+  );
+  if (faltante) {
+    return { exito: false, error: `Falta completar ${faltante.nombre}.` };
   }
 
   const { data: codigo, error: errorCodigo } = await supabase.rpc("siguiente_codigo_riesgo", {
@@ -47,7 +74,6 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
       titulo,
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
       tipo: String(datos.get("tipo") ?? "riesgo"),
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || usuario.id,
       tratamiento: String(datos.get("tratamiento") ?? "") || null,
@@ -55,7 +81,7 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
       consecuencias: String(datos.get("consecuencias") ?? "").trim() || null,
       controles_existentes: String(datos.get("controles_existentes") ?? "").trim() || null,
       // Columnas del F-EST-01-03.
-      origen: String(datos.get("origen") ?? "").trim() || null,
+      origen,
       asociado_disrupcion: datos.get("asociado_disrupcion") === "si",
       accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
       plazo_accion: String(datos.get("plazo_accion") ?? "") || null,

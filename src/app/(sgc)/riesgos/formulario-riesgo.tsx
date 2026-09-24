@@ -20,7 +20,7 @@ import {
   diasReevaluacion,
   EFECTO_DEL_TRATAMIENTO,
   etiquetaNivelRiesgo,
-  requiereAccion,
+  ORIGENES_RIESGO,
 } from "@/lib/riesgos";
 import { cn } from "@/lib/utilidades";
 import type { TratamientoRiesgo } from "@/lib/tipos";
@@ -79,20 +79,20 @@ export function FormularioRiesgo({
               formulario porque no se valoran igual. */}
           <input type="hidden" name="tipo" value="riesgo" />
 
-          <GrupoCampo
-            etiqueta="Origen"
-            htmlFor="origen"
-            ayuda="De dónde salió: queja de cliente, auditoría, análisis del proceso, incidente."
-          >
-            <Entrada id="origen" name="origen" placeholder="Queja de cliente" />
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Categoría"
-            htmlFor="categoria"
-            ayuda="Por ejemplo: Operativo, Legal, Financiero, Seguridad."
-          >
-            <Entrada id="categoria" name="categoria" placeholder="Operativo" />
+          {/* Lista cerrada y no texto libre: ver `ORIGENES_RIESGO`. La
+              opcion vacia esta deshabilitada, asi obliga a elegir una en
+              vez de dejar la primera por descuido. */}
+          <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido className="sm:col-span-2">
+            <Seleccion id="origen" name="origen" required defaultValue="">
+              <option value="" disabled>
+                Elija de dónde salió
+              </option>
+              {ORIGENES_RIESGO.map((origen) => (
+                <option key={origen} value={origen}>
+                  {origen}
+                </option>
+              ))}
+            </Seleccion>
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Título" htmlFor="titulo" requerido className="sm:col-span-2">
@@ -105,13 +105,20 @@ export function FormularioRiesgo({
             />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Descripción" htmlFor="descripcion" className="sm:col-span-2">
-            <AreaTexto id="descripcion" name="descripcion" rows={3} />
+          <GrupoCampo
+            etiqueta="Descripción"
+            htmlFor="descripcion"
+            requerido
+            className="sm:col-span-2"
+          >
+            <AreaTexto id="descripcion" name="descripcion" rows={3} required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Proceso afectado" htmlFor="proceso_id">
-            <Seleccion id="proceso_id" name="proceso_id">
-              <option value="">Sin proceso asociado</option>
+          <GrupoCampo etiqueta="Proceso afectado" htmlFor="proceso_id" requerido>
+            <Seleccion id="proceso_id" name="proceso_id" required defaultValue="">
+              <option value="" disabled>
+                Elija el proceso
+              </option>
               {procesos.map((proceso) => (
                 <option key={proceso.id} value={proceso.id}>
                   {proceso.codigo} · {proceso.nombre}
@@ -130,26 +137,28 @@ export function FormularioRiesgo({
             </Seleccion>
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Causas" htmlFor="causas">
-            <AreaTexto id="causas" name="causas" rows={2} />
+          <GrupoCampo etiqueta="Causas potenciales" htmlFor="causas" requerido>
+            <AreaTexto id="causas" name="causas" rows={2} required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Consecuencias" htmlFor="consecuencias">
-            <AreaTexto id="consecuencias" name="consecuencias" rows={2} />
+          <GrupoCampo etiqueta="Consecuencias potenciales" htmlFor="consecuencias" requerido>
+            <AreaTexto id="consecuencias" name="consecuencias" rows={2} required />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Controles existentes"
             htmlFor="controles_existentes"
+            requerido
             className="sm:col-span-2"
             ayuda="Qué se hace hoy para contener el riesgo. Justifica la evaluación."
           >
-            <AreaTexto id="controles_existentes" name="controles_existentes" rows={2} />
+            <AreaTexto id="controles_existentes" name="controles_existentes" rows={2} required />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="¿Asociado a disrupción?"
             htmlFor="asociado_disrupcion"
+            requerido
             ayuda="Si puede interrumpir la operación."
           >
             <Seleccion id="asociado_disrupcion" name="asociado_disrupcion" defaultValue="no">
@@ -193,31 +202,28 @@ export function FormularioRiesgo({
             </GrupoCampo>
           ) : null}
 
+          {/* El instructivo la exige de nivel 4 para arriba; Calidad
+              pidio que se cargue siempre. Un riesgo bajo tambien tiene
+              algo que hacer, aunque sea vigilarlo, y escribirlo cuesta
+              menos que descubrir en la auditoria que nadie lo penso. */}
           <GrupoCampo
             etiqueta="Acción planificada"
             htmlFor="accion_planificada"
+            requerido
             className="sm:col-span-2"
-            ayuda={
-              requiereAccion(nivel)
-                ? "Obligatoria: de nivel 4 para arriba el riesgo exige acción con responsable y plazo."
-                : "Opcional: un riesgo bajo se asume y solo se vigila."
-            }
+            ayuda="Qué se va a hacer, con responsable y plazo."
           >
-            <AreaTexto
-              id="accion_planificada"
-              name="accion_planificada"
-              rows={2}
-              required={requiereAccion(nivel)}
-            />
+            <AreaTexto id="accion_planificada" name="accion_planificada" rows={2} required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Plazo de la acción" htmlFor="plazo_accion">
-            <Entrada id="plazo_accion" name="plazo_accion" type="date" />
+          <GrupoCampo etiqueta="Plazo de la acción" htmlFor="plazo_accion" requerido>
+            <Entrada id="plazo_accion" name="plazo_accion" type="date" required />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Proceso donde se integra la acción"
             htmlFor="proceso_accion_id"
+            requerido
             ayuda="No siempre es el proceso afectado."
           >
             <Seleccion id="proceso_accion_id" name="proceso_accion_id">

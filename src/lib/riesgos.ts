@@ -288,3 +288,37 @@ export function advertenciaAlineacion(
 
   return null;
 }
+
+/**
+ * De dónde puede salir un riesgo, según Calidad.
+ *
+ * Era un campo de texto libre y pasa a ser lista cerrada. El motivo no
+ * es de comodidad: con texto libre, «Queja de cliente», «queja cliente»
+ * y «Reclamo» son tres orígenes distintos para la base y uno solo para
+ * la realidad, y cualquier conteo por origen queda inservible.
+ *
+ * Los dos primeros llevan el número de la cláusula de la norma porque
+ * así los nombra el instructivo, y así los busca Calidad.
+ *
+ * La columna es de texto, así que acá se guarda la etiqueta tal cual.
+ * Los riesgos ya cargados con otro texto se siguen leyendo; la lista
+ * ordena de acá en adelante.
+ */
+export const ORIGENES_RIESGO = [
+  "Contexto (4.1)",
+  "Partes interesadas (4.2)",
+  "Auditoría interna",
+  "Auditoría externa",
+  "No conformidad",
+  "Queja de cliente",
+  "Indicador fuera de meta",
+  "Revisión por la dirección",
+  "Análisis de proceso",
+  "Otro",
+] as const;
+
+export type OrigenRiesgo = (typeof ORIGENES_RIESGO)[number];
+
+export function esOrigenValido(valor: string): valor is OrigenRiesgo {
+  return (ORIGENES_RIESGO as readonly string[]).includes(valor);
+}
