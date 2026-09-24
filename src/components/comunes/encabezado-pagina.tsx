@@ -26,7 +26,17 @@ export function EncabezadoPagina({
           <p className="mt-0.5 text-xs leading-relaxed text-atenuado-contraste">{descripcion}</p>
         ) : null}
       </div>
-      {acciones ? <div className="flex shrink-0 items-center gap-2">{acciones}</div> : null}
+      {/* En el celular los botones SALTAN DE LINEA; en pantalla grande se
+          quedan en una sola fila y no se encogen.
+
+          Antes era `flex shrink-0` a secas: los tres botones de
+          Documentacion —Categorias, Reindexar, Nuevo documento— no
+          entraban en 360 px, no podian saltar, y «Nuevo documento»
+          quedaba cortado contra el borde. `shrink-0` empeoraba lo que
+          `flex-wrap` habria resuelto solo. */}
+      {acciones ? (
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{acciones}</div>
+      ) : null}
     </div>
   );
 }
