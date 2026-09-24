@@ -37,11 +37,23 @@ export interface TextoExtraido {
   paginas: number;
 }
 
-/** La carpeta de fuentes base que trae el paquete, como ruta de archivo. */
-function ubicacionDeFuentes(): string {
-  const require = createRequire(import.meta.url);
-  const paquete = require.resolve("pdfjs-dist/package.json");
-  return `${dirname(paquete)}/standard_fonts/`;
+/**
+ * La carpeta de fuentes base que trae el paquete, como ruta de archivo.
+ *
+ * Devuelve `undefined` si no la encuentra, y no falla. En el servidor de
+ * Vercel el codigo va empaquetado y `require.resolve` puede no dar con el
+ * paquete: sin este resguardo, no encontrar un archivo de fuentes que
+ * NO SE USA —no se dibuja nada, solo se leen palabras— tumbaria la
+ * extraccion del documento entero.
+ */
+function ubicacionDeFuentes(): string | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    const paquete = require.resolve("pdfjs-dist/package.json");
+    return `${dirname(paquete)}/standard_fonts/`;
+  } catch {
+    return undefined;
+  }
 }
 
 function esPdf(nombre: string, tipoMime: string | null): boolean {

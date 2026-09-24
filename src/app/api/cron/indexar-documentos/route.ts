@@ -42,7 +42,20 @@ interface Resumen {
   sinTexto: number;
   fallados: number;
   seCortoPorTiempo: boolean;
+  /**
+   * El motivo de los primeros tropiezos, con el documento al que le
+   * pasaron.
+   *
+   * Sin esto el trabajo devolvia solo numeros, y un «23 sin texto» no
+   * dice si los PDF son escaneados o si la biblioteca no cargo. Se
+   * guardan los primeros y no todos: alcanza para saber que pasa y evita
+   * devolver 23 veces el mismo mensaje.
+   */
+  motivos: string[];
 }
+
+/** Cuantos motivos distintos se devuelven antes de dejar de anotar. */
+const MAXIMO_MOTIVOS = 5;
 
 interface AdjuntoDeDocumento {
   id: string;
@@ -122,7 +135,14 @@ export async function GET(peticion: NextRequest) {
     sinTexto: 0,
     fallados: 0,
     seCortoPorTiempo: false,
+    motivos: [],
   };
+
+  function anotar(documento: string, motivo: string) {
+    if (resumen.motivos.length < MAXIMO_MOTIVOS) {
+      resumen.motivos.push(`${documento}: ${motivo}`);
+    }
+  }
 
   for (const [documentoId, adjunto] of pendientes) {
     if (Date.now() - arranque > PRESUPUESTO_MS) {
@@ -137,6 +157,10 @@ export async function GET(peticion: NextRequest) {
 
       if (errorDescarga || !archivo) {
         resumen.fallados += 1;
+        anotar(
+          adjunto.nombre_archivo,
+          `no se pudo bajar del deposito · ${errorDescarga?.message ?? "sin detalle"}`,
+        );
         continue;
       }
 
@@ -150,6 +174,10 @@ export async function GET(peticion: NextRequest) {
       // PDF escaneado. Se cuenta aparte para poder verlo en el resumen.
       if (!extraido) {
         resumen.sinTexto += 1;
+        anotar(
+          adjunto.nombre_archivo,
+          "sin texto · o es un escaneado, o el formato no se indexa",
+        );
         continue;
       }
 
@@ -164,12 +192,20 @@ export async function GET(peticion: NextRequest) {
         { onConflict: "documento_id" },
       );
 
-      if (errorGuardado) resumen.fallados += 1;
-      else resumen.indexados += 1;
-    } catch {
-      // Un archivo roto no puede cortar la corrida entera: se cuenta y se
-      // sigue con el siguiente.
+      if (errorGuardado) {
+        resumen.fallados += 1;
+        anotar(adjunto.nombre_archivo, `no se pudo guardar · ${errorGuardado.message}`);
+      } else {
+        resumen.indexados += 1;
+      }
+    } catch (error) {
+      // Un archivo roto no puede cortar la corrida entera: se cuenta, se
+      // anota por que, y se sigue con el siguiente.
       resumen.fallados += 1;
+      anotar(
+        adjunto.nombre_archivo,
+        `excepcion · ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
