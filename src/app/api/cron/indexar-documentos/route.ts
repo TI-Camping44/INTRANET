@@ -212,5 +212,10 @@ export async function GET(peticion: NextRequest) {
   return NextResponse.json({
     ...resumen,
     duracionMs: Date.now() - arranque,
+    // QUE VERSION CONTESTO. Sin esto no hay forma de distinguir «el
+    // arreglo no funciono» de «corriste la direccion antes de que
+    // terminara el despliegue», y las dos se ven exactamente igual: el
+    // mismo error, palabra por palabra. Ya nos paso una vez.
+    version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
   });
 }
