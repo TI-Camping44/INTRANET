@@ -12,6 +12,7 @@ import {
   rutaDeArchivo,
 } from "@/lib/adjuntos";
 import { extraerTexto } from "@/lib/extraer-texto";
+import { indexarDocumentosPendientes, resumirIndexacion } from "@/lib/indexar-documentos";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
@@ -1465,4 +1466,53 @@ export async function reordenarCategorias(
 
   revalidatePath("/documentos");
   return { exito: true };
+}
+
+/**
+ * Vuelve a leer el texto de los documentos que quedaron sin indexar.
+ *
+ * El trabajo diario ya hace esto solo. El boton existe para no esperar
+ * hasta manana: despues de cargar un lote de documentos, o cuando algo
+ * fallo, Calidad lo aprieta y listo. Es reintentable —mira que falta y
+ * hace eso—, asi que apretarlo dos veces no duplica nada.
+ *
+ * Corre CON LA SESION de la persona, no con la clave de servicio. Es una
+ * peticion de la interfaz y ahi la clave de servicio no se usa nunca: RLS
+ * decide, y el Administrador SGC puede gestionar todos los documentos, asi
+ * que alcanza.
+ *
+ * El presupuesto es mas corto que el del trabajo diario porque acá hay
+ * alguien esperando frente a la pantalla. Si no llega a todos, lo dice y
+ * el resto lo levanta el trabajo de la noche.
+ */
+const PRESUPUESTO_REINDEXADO_MS = 25_000;
+
+export async function reindexarDocumentos(): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  if (usuario.rol !== "administrador_sgc") {
+    return { exito: false, error: "Solo el Administrador SGC puede reindexar los documentos." };
+  }
+
+  try {
+    const resumen = await indexarDocumentosPendientes(
+      crearClienteServidor(),
+      PRESUPUESTO_REINDEXADO_MS,
+    );
+
+    revalidatePath("/documentos");
+    revalidatePath("/buscar");
+
+    // Los motivos van en el mensaje solo si hubo fallas: si salio todo
+    // bien, la frase alcanza y el detalle tecnico sobra.
+    const detalle =
+      resumen.fallados > 0 && resumen.motivos.length > 0 ? ` · ${resumen.motivos[0]}` : "";
+
+    return { exito: true, mensaje: `${resumirIndexacion(resumen)}${detalle}` };
+  } catch (error) {
+    return {
+      exito: false,
+      error: `No se pudo reindexar: ${error instanceof Error ? error.message : "error desconocido"}`,
+    };
+  }
 }

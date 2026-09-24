@@ -10,6 +10,7 @@ import {
   InsigniaEstadoDocumento,
 } from "@/components/comunes/insignias-estado";
 import { Boton } from "@/components/ui/boton";
+import { BotonReindexar } from "@/app/(sgc)/documentos/boton-reindexar";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
@@ -287,6 +288,11 @@ export default async function PaginaDocumentos({
                 }))}
                 categorias={categorias}
               />
+              {/* Reindexar es del Administrador SGC, no de cualquiera
+                  que pueda gestionar: lee TODOS los documentos, no los
+                  suyos. La accion lo vuelve a controlar; ocultar el boton
+                  no es un control de acceso. */}
+              {puedeEliminar ? <BotonReindexar /> : null}
               <Boton comoHijo>
                 <Link href="/documentos/nuevo">
                   <Plus /> Nuevo documento
