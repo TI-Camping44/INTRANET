@@ -334,6 +334,16 @@ Quedaron así por falta de definición explícita. Son reversibles:
 
 - **Commits chicos y descriptivos, en español.** Primera línea en
   imperativo, sin punto final; luego un cuerpo que explique el porqué.
+- **Se agrupan antes de subir.** Cada `push` a `main` dispara una
+  compilación en Vercel, y el plan gratuito permite **100 por día**. El
+  24 de septiembre se agotaron: varios arreglos seguidos, cada uno subido
+  por separado, y encima empujados a `main` y a la rama de trabajo a la
+  vez, que compila las dos. Los dos últimos commits quedaron sin publicar
+  hasta el día siguiente.
+
+  Entonces: se juntan los cambios de una tanda y se sube una vez. Y **no
+  se empuja a dos ramas**: si el trabajo va a `main`, va solo a `main`.
+  Commits chicos en el historial, sí; subidas de a una, no.
 - **Al modificar un archivo existente, se entrega el archivo completo**,
   no un parche parcial.
 - **No inventar requerimientos.** Si falta información para decidir algo,
