@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/comunes/insignias-estado";
 import { AccionesTratamiento } from "@/app/(sgc)/riesgos/[id]/acciones-tratamiento";
 import { PanelReevaluacion } from "@/app/(sgc)/riesgos/[id]/panel-reevaluacion";
+import { EliminarRiesgo } from "@/app/(sgc)/riesgos/[id]/eliminar-riesgo";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import {
@@ -140,7 +141,31 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
         </Link>
       </Boton>
 
-      <EncabezadoPagina titulo={riesgo.titulo} descripcion={riesgo.descripcion ?? undefined} />
+      <EncabezadoPagina
+        titulo={riesgo.titulo}
+        descripcion={riesgo.descripcion ?? undefined}
+        acciones={
+          <>
+            {/* Editar solo el riesgo: la oportunidad tiene otro
+                formulario porque no se valora igual. La baja sí vale
+                para las dos. */}
+            {gestiona && riesgo.tipo === "riesgo" ? (
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                <Link href={`/riesgos/${params.id}/editar`}>
+                  <Pencil /> Editar Riesgo
+                </Link>
+              </Boton>
+            ) : null}
+            {usuario.rol === "administrador_sgc" ? (
+              <EliminarRiesgo
+                riesgoId={params.id}
+                codigo={riesgo.codigo}
+                esOportunidad={riesgo.tipo === "oportunidad"}
+              />
+            ) : null}
+          </>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Insignia variante="primaria" className="tabular text-xs">

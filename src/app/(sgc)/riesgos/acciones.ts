@@ -12,6 +12,40 @@ function validarEscala(valor: number): boolean {
   return Number.isInteger(valor) && valor >= 1 && valor <= 5;
 }
 
+/**
+ * Los campos que Calidad pide completos, con el nombre que ve la persona.
+ *
+ * Valen para el alta y para la edicion: si se pudiera vaciar un campo al
+ * corregir, la obligatoriedad del alta seria decorativa.
+ */
+const OBLIGATORIOS: { campo: string; nombre: string }[] = [
+  { campo: "titulo", nombre: "el título" },
+  { campo: "descripcion", nombre: "la descripción" },
+  { campo: "proceso_id", nombre: "el proceso afectado" },
+  { campo: "responsable_id", nombre: "el responsable" },
+  { campo: "causas", nombre: "las causas potenciales" },
+  { campo: "consecuencias", nombre: "las consecuencias potenciales" },
+  { campo: "controles_existentes", nombre: "los controles existentes" },
+  { campo: "tratamiento", nombre: "la opción de tratamiento" },
+  { campo: "accion_planificada", nombre: "la acción planificada" },
+  { campo: "plazo_accion", nombre: "el plazo de la acción" },
+];
+
+/** Devuelve el mensaje del primer problema, o null si esta todo bien. */
+function revisarCamposDeRiesgo(datos: FormData): string | null {
+  if (String(datos.get("titulo") ?? "").trim().length < 5) {
+    return "El título debe tener al menos 5 caracteres.";
+  }
+  if (!esOrigenValido(String(datos.get("origen") ?? "").trim())) {
+    return "Elija un origen de la lista.";
+  }
+
+  const faltante = OBLIGATORIOS.find(
+    (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
+  );
+  return faltante ? `Falta completar ${faltante.nombre}.` : null;
+}
+
 /** Alta de un riesgo u oportunidad en la matriz. */
 export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
@@ -26,37 +60,15 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
   const severidad = Number(datos.get("severidad") ?? 1);
   const origen = String(datos.get("origen") ?? "").trim();
 
-  if (titulo.length < 5) {
-    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
-  }
   if (!validarEscala(probabilidad) || !validarEscala(severidad)) {
     return { exito: false, error: "La probabilidad y la severidad deben estar entre 1 y 5." };
-  }
-  if (!esOrigenValido(origen)) {
-    return { exito: false, error: "Elija un origen de la lista." };
   }
 
   // Calidad pidio la ficha completa: un riesgo a medio cargar no se
   // puede valorar ni revisar despues. El navegador ya lo pide, pero eso
   // es comodidad; el control es este.
-  const OBLIGATORIOS: { campo: string; nombre: string }[] = [
-    { campo: "descripcion", nombre: "la descripción" },
-    { campo: "proceso_id", nombre: "el proceso afectado" },
-    { campo: "responsable_id", nombre: "el responsable" },
-    { campo: "causas", nombre: "las causas potenciales" },
-    { campo: "consecuencias", nombre: "las consecuencias potenciales" },
-    { campo: "controles_existentes", nombre: "los controles existentes" },
-    { campo: "tratamiento", nombre: "la opción de tratamiento" },
-    { campo: "accion_planificada", nombre: "la acción planificada" },
-    { campo: "plazo_accion", nombre: "el plazo de la acción" },
-  ];
-
-  const faltante = OBLIGATORIOS.find(
-    (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
-  );
-  if (faltante) {
-    return { exito: false, error: `Falta completar ${faltante.nombre}.` };
-  }
+  const problema = revisarCamposDeRiesgo(datos);
+  if (problema) return { exito: false, error: problema };
 
   const { data: codigo, error: errorCodigo } = await supabase.rpc("siguiente_codigo_riesgo", {
     p_empresa_id: usuario.empresa_id,
@@ -110,17 +122,35 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
   return { exito: true, id: riesgo.id, mensaje: `Riesgo ${riesgo.codigo} registrado.` };
 }
 
-/** Edicion de los datos descriptivos del riesgo. */
+/**
+ * Correccion de los datos con los que se registro el riesgo.
+ *
+ * No toca la valoracion. Cambiar la probabilidad o la severidad es
+ * reevaluar, y una reevaluacion lleva fecha, autor y comentario en
+ * `riesgo_evaluaciones`: para eso esta `reevaluarRiesgo`. Si se pudiera
+ * cambiar el nivel desde acá, se moveria sin dejar rastro de quien lo
+ * movio ni por que.
+ *
+ * Quien puede guardar lo decide RLS. El chequeo de rol que hay acá es
+ * para dar un mensaje en vez de un update que afecta cero filas y se
+ * ve como exito.
+ */
 export async function actualizarRiesgo(id: string, datos: FormData): Promise<ResultadoAccion> {
-  await requerirUsuario();
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite editar riesgos." };
+  }
+
+  const problema = revisarCamposDeRiesgo(datos);
+  if (problema) return { exito: false, error: problema };
+
   const supabase = crearClienteServidor();
 
-  const { error } = await supabase
+  const { data: actualizado, error } = await supabase
     .from("riesgos")
     .update({
       titulo: String(datos.get("titulo") ?? "").trim(),
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
       tratamiento: String(datos.get("tratamiento") ?? "") || null,
@@ -134,12 +164,79 @@ export async function actualizarRiesgo(id: string, datos: FormData): Promise<Res
       proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
       fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("codigo")
+    .maybeSingle();
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
+  if (!actualizado) {
+    return {
+      exito: false,
+      error: "No se pudo guardar: el riesgo no existe o su rol no puede editarlo.",
+    };
+  }
 
+  revalidatePath("/riesgos");
   revalidatePath(`/riesgos/${id}`);
-  return { exito: true, mensaje: "Riesgo actualizado." };
+  return { exito: true, mensaje: `${actualizado.codigo} actualizado.` };
+}
+
+/**
+ * Baja del riesgo.
+ *
+ * Solo el Administrador SGC. Existe para lo que no deberia haberse
+ * cargado —una prueba, un duplicado—: un riesgo real no se borra, se
+ * cierra, porque la norma pide conservar el registro con su historial de
+ * evaluaciones.
+ *
+ * Se lleva por delante las evaluaciones y las acciones de tratamiento,
+ * que cascadean por su clave foranea. La constancia de la baja queda en
+ * la bitacora, que la registra antes de que la fila desaparezca.
+ */
+export async function eliminarRiesgo(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  if (usuario.rol !== "administrador_sgc") {
+    return {
+      exito: false,
+      error:
+        "Solo el Administrador SGC puede eliminar un riesgo. " +
+        "Si el riesgo es real, ciérrelo en vez de borrarlo.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: riesgo } = await supabase
+    .from("riesgos")
+    .select("codigo, tipo")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!riesgo) return { exito: false, error: "El riesgo no existe o no tiene acceso." };
+
+  // Se pide la fila de vuelta para distinguir «se borro» de «RLS no
+  // dejo»: un delete que no afecta ninguna fila no devuelve error, y sin
+  // esto la pantalla diria que se elimino algo que sigue ahi.
+  const { data: borrado, error } = await supabase
+    .from("riesgos")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo eliminar: ${error.message}` };
+  if (!borrado) {
+    return { exito: false, error: "No se pudo eliminar: su rol no tiene permiso para darlo de baja." };
+  }
+
+  revalidatePath("/riesgos");
+  revalidatePath("/oportunidades");
+
+  return {
+    exito: true,
+    mensaje: `${riesgo.codigo} eliminado junto con sus evaluaciones y acciones.`,
+  };
 }
 
 /**

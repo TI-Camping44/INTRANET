@@ -114,7 +114,6 @@ export default async function PaginaOportunidades({
     <>
       <EncabezadoPagina
         titulo="Matriz de oportunidades"
-        descripcion="F-EST-01-04. Índice = Beneficio × Factibilidad: 15-25 prioridad alta, 7-14 media, 1-6 baja. La alineación con la dirección estratégica es condición, no puntaje."
         acciones={
           <>
             <Boton variante="fantasma" comoHijo>

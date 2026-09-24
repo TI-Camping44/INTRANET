@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { crearRiesgo } from "@/app/(sgc)/riesgos/acciones";
+import { actualizarRiesgo, crearRiesgo } from "@/app/(sgc)/riesgos/acciones";
 import {
   ESCALA_PROBABILIDAD,
   ESCALA_SEVERIDAD,
@@ -32,22 +32,62 @@ interface Opcion {
   nombre_completo?: string;
 }
 
+/** Lo que trae un riesgo ya cargado cuando se lo abre para corregir. */
+export interface RiesgoInicial {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  origen: string | null;
+  proceso_id: string | null;
+  responsable_id: string | null;
+  causas: string | null;
+  consecuencias: string | null;
+  controles_existentes: string | null;
+  asociado_disrupcion: boolean | null;
+  tratamiento: TratamientoRiesgo | null;
+  fundamento_decision: string | null;
+  accion_planificada: string | null;
+  plazo_accion: string | null;
+  proceso_accion_id: string | null;
+  probabilidad: number;
+  severidad: number;
+}
+
+/**
+ * El mismo formulario para cargar un riesgo y para corregirlo.
+ *
+ * Con `inicial` edita; sin `inicial` da de alta. Es un solo formulario a
+ * proposito: dos que tienen que pedir los mismos campos terminan pidiendo
+ * campos distintos el dia que se agrega uno.
+ *
+ * La diferencia real esta en la valoracion. Al dar de alta se elige acá,
+ * porque es la evaluacion inicial. Al corregir NO se toca: cambiar la
+ * probabilidad o la severidad es una reevaluacion, y una reevaluacion
+ * lleva fecha, autor y comentario en el historial. Se hace desde la ficha,
+ * en «Reevaluar». Si se pudiera cambiar desde acá, el nivel se movería sin
+ * dejar rastro de quién lo movió ni por qué, que es justo lo que el
+ * historial existe para evitar.
+ */
 export function FormularioRiesgo({
   procesos,
   usuarios,
   usuarioActual,
+  inicial,
 }: {
   procesos: Opcion[];
   usuarios: Opcion[];
   usuarioActual: string;
+  inicial?: RiesgoInicial;
 }) {
   const router = useRouter();
+  const editando = Boolean(inicial);
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
-  const [probabilidad, definirProbabilidad] = React.useState(3);
-  const [severidad, definirSeveridad] = React.useState(3);
-  const [tratamiento, definirTratamiento] =
-    React.useState<TratamientoRiesgo>("cambiar_probabilidad");
+  const [probabilidad, definirProbabilidad] = React.useState(inicial?.probabilidad ?? 3);
+  const [severidad, definirSeveridad] = React.useState(inicial?.severidad ?? 3);
+  const [tratamiento, definirTratamiento] = React.useState<TratamientoRiesgo>(
+    inicial?.tratamiento ?? "cambiar_probabilidad",
+  );
 
   const nivel = probabilidad * severidad;
   const etiqueta = etiquetaNivelRiesgo(nivel)!;
@@ -58,11 +98,14 @@ export function FormularioRiesgo({
     definirEnviando(true);
     definirError(null);
 
-    const resultado = await crearRiesgo(new FormData(evento.currentTarget));
+    const datos = new FormData(evento.currentTarget);
+    const resultado = inicial
+      ? await actualizarRiesgo(inicial.id, datos)
+      : await crearRiesgo(datos);
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Riesgo registrado.");
-      router.push(`/riesgos/${resultado.id}`);
+      router.push(`/riesgos/${inicial?.id ?? resultado.id}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -83,7 +126,7 @@ export function FormularioRiesgo({
               opcion vacia esta deshabilitada, asi obliga a elegir una en
               vez de dejar la primera por descuido. */}
           <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido className="sm:col-span-2">
-            <Seleccion id="origen" name="origen" required defaultValue="">
+            <Seleccion id="origen" name="origen" required defaultValue={inicial?.origen ?? ""}>
               <option value="" disabled>
                 Elija de dónde salió
               </option>
@@ -101,6 +144,7 @@ export function FormularioRiesgo({
               name="titulo"
               required
               minLength={5}
+              defaultValue={inicial?.titulo}
               placeholder="Incumplimiento del registro de armas ante la DIMABEL"
             />
           </GrupoCampo>
@@ -111,11 +155,22 @@ export function FormularioRiesgo({
             requerido
             className="sm:col-span-2"
           >
-            <AreaTexto id="descripcion" name="descripcion" rows={3} required />
+            <AreaTexto
+              id="descripcion"
+              name="descripcion"
+              rows={3}
+              required
+              defaultValue={inicial?.descripcion ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Proceso afectado" htmlFor="proceso_id" requerido>
-            <Seleccion id="proceso_id" name="proceso_id" required defaultValue="">
+            <Seleccion
+              id="proceso_id"
+              name="proceso_id"
+              required
+              defaultValue={inicial?.proceso_id ?? ""}
+            >
               <option value="" disabled>
                 Elija el proceso
               </option>
@@ -128,7 +183,11 @@ export function FormularioRiesgo({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Responsable" htmlFor="responsable_id" requerido>
-            <Seleccion id="responsable_id" name="responsable_id" defaultValue={usuarioActual}>
+            <Seleccion
+              id="responsable_id"
+              name="responsable_id"
+              defaultValue={inicial?.responsable_id ?? usuarioActual}
+            >
               {usuarios.map((persona) => (
                 <option key={persona.id} value={persona.id}>
                   {persona.nombre_completo}
@@ -138,11 +197,23 @@ export function FormularioRiesgo({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Causas potenciales" htmlFor="causas" requerido>
-            <AreaTexto id="causas" name="causas" rows={2} required />
+            <AreaTexto
+              id="causas"
+              name="causas"
+              rows={2}
+              required
+              defaultValue={inicial?.causas ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Consecuencias potenciales" htmlFor="consecuencias" requerido>
-            <AreaTexto id="consecuencias" name="consecuencias" rows={2} required />
+            <AreaTexto
+              id="consecuencias"
+              name="consecuencias"
+              rows={2}
+              required
+              defaultValue={inicial?.consecuencias ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -152,7 +223,13 @@ export function FormularioRiesgo({
             className="sm:col-span-2"
             ayuda="Qué se hace hoy para contener el riesgo. Justifica la evaluación."
           >
-            <AreaTexto id="controles_existentes" name="controles_existentes" rows={2} required />
+            <AreaTexto
+              id="controles_existentes"
+              name="controles_existentes"
+              rows={2}
+              required
+              defaultValue={inicial?.controles_existentes ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -161,7 +238,11 @@ export function FormularioRiesgo({
             requerido
             ayuda="Si puede interrumpir la operación."
           >
-            <Seleccion id="asociado_disrupcion" name="asociado_disrupcion" defaultValue="no">
+            <Seleccion
+              id="asociado_disrupcion"
+              name="asociado_disrupcion"
+              defaultValue={inicial?.asociado_disrupcion ? "si" : "no"}
+            >
               <option value="no">No</option>
               <option value="si">Sí</option>
             </Seleccion>
@@ -198,7 +279,13 @@ export function FormularioRiesgo({
               className="sm:col-span-2"
               ayuda="Quién decidió asumirlo y con qué fundamento."
             >
-              <AreaTexto id="fundamento_decision" name="fundamento_decision" rows={2} required />
+              <AreaTexto
+                id="fundamento_decision"
+                name="fundamento_decision"
+                rows={2}
+                required
+                defaultValue={inicial?.fundamento_decision ?? ""}
+              />
             </GrupoCampo>
           ) : null}
 
@@ -213,11 +300,23 @@ export function FormularioRiesgo({
             className="sm:col-span-2"
             ayuda="Qué se va a hacer, con responsable y plazo."
           >
-            <AreaTexto id="accion_planificada" name="accion_planificada" rows={2} required />
+            <AreaTexto
+              id="accion_planificada"
+              name="accion_planificada"
+              rows={2}
+              required
+              defaultValue={inicial?.accion_planificada ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Plazo de la acción" htmlFor="plazo_accion" requerido>
-            <Entrada id="plazo_accion" name="plazo_accion" type="date" required />
+            <Entrada
+              id="plazo_accion"
+              name="plazo_accion"
+              type="date"
+              required
+              defaultValue={inicial?.plazo_accion ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -226,7 +325,11 @@ export function FormularioRiesgo({
             requerido
             ayuda="No siempre es el proceso afectado."
           >
-            <Seleccion id="proceso_accion_id" name="proceso_accion_id">
+            <Seleccion
+              id="proceso_accion_id"
+              name="proceso_accion_id"
+              defaultValue={inicial?.proceso_accion_id ?? ""}
+            >
               <option value="">El mismo proceso afectado</option>
               {procesos.map((proceso) => (
                 <option key={proceso.id} value={proceso.id}>
@@ -239,14 +342,16 @@ export function FormularioRiesgo({
 
         {/* Evaluación */}
         <div className="mt-5 rounded-md border border-borde p-4">
-          <p className="text-xs font-semibold">Evaluación inicial (riesgo inherente)</p>
+          <p className="text-xs font-semibold">
+            {editando ? "Valoración vigente" : "Evaluación inicial (riesgo inherente)"}
+          </p>
           <p className="mb-3 mt-0.5 text-[11px] text-atenuado-contraste">
-            Sin considerar las acciones que todavía no se implementaron. La severidad se evalúa
-            en seis dimensiones y se toma la más afectada, no el promedio, sobre el peor caso
-            razonable y no el peor caso teórico.
+            {editando
+              ? "La valoración no se corrige desde acá: cambiarla es reevaluar, y una reevaluación lleva fecha, autor y comentario. Se hace desde la ficha, en «Reevaluar»."
+              : "Sin considerar las acciones que todavía no se implementaron. La severidad se evalúa en seis dimensiones y se toma la más afectada, no el promedio, sobre el peor caso razonable y no el peor caso teórico."}
           </p>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={cn("grid gap-4 sm:grid-cols-2", editando && "hidden")}>
             <GrupoCampo etiqueta="Probabilidad" htmlFor="probabilidad" requerido>
               <Seleccion
                 id="probabilidad"
@@ -303,7 +408,7 @@ export function FormularioRiesgo({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Registrar riesgo
+            {editando ? "Guardar cambios" : "Registrar riesgo"}
           </Boton>
         </div>
       </Tarjeta>
