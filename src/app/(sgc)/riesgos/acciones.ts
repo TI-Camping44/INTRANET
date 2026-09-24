@@ -5,7 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
-import { esOrigenValido } from "@/lib/riesgos";
+import { esOrigenDeOportunidadValido, esOrigenValido } from "@/lib/riesgos";
 import type { EstadoAccion, EstadoRiesgo, ResultadoAccion } from "@/lib/tipos";
 
 function validarEscala(valor: number): boolean {
@@ -30,6 +30,49 @@ const OBLIGATORIOS: { campo: string; nombre: string }[] = [
   { campo: "accion_planificada", nombre: "la acción planificada" },
   { campo: "plazo_accion", nombre: "el plazo de la acción" },
 ];
+
+/**
+ * Los campos que Calidad pide completos en una oportunidad.
+ *
+ * Los del plan van aparte porque solo se piden cuando se decide
+ * abordarla: exigir accion, recursos y plazo para algo que se decidio no
+ * abordar seria pedir que se invente un plan que nadie va a ejecutar.
+ */
+const OBLIGATORIOS_OPORTUNIDAD: { campo: string; nombre: string }[] = [
+  { campo: "titulo", nombre: "el título" },
+  { campo: "descripcion", nombre: "la descripción" },
+  { campo: "efecto_deseado", nombre: "el efecto deseado esperado" },
+  { campo: "proceso_id", nombre: "el proceso" },
+  { campo: "responsable_id", nombre: "el responsable" },
+  { campo: "alineacion_estrategica", nombre: "la alineación con la dirección estratégica" },
+  { campo: "fundamento_decision", nombre: "el fundamento de la decisión" },
+];
+
+const OBLIGATORIOS_PLAN_OPORTUNIDAD: { campo: string; nombre: string }[] = [
+  { campo: "accion_planificada", nombre: "la acción planificada" },
+  { campo: "recursos_necesarios", nombre: "los recursos necesarios" },
+  { campo: "plazo_accion", nombre: "el plazo" },
+];
+
+/** Devuelve el mensaje del primer problema, o null si esta todo bien. */
+function revisarCamposDeOportunidad(datos: FormData): string | null {
+  if (String(datos.get("titulo") ?? "").trim().length < 5) {
+    return "El título debe tener al menos 5 caracteres.";
+  }
+  if (!esOrigenDeOportunidadValido(String(datos.get("origen") ?? "").trim())) {
+    return "Elija un origen de la lista.";
+  }
+
+  const pedidos =
+    datos.get("se_decide_abordar") === "si"
+      ? [...OBLIGATORIOS_OPORTUNIDAD, ...OBLIGATORIOS_PLAN_OPORTUNIDAD]
+      : OBLIGATORIOS_OPORTUNIDAD;
+
+  const faltante = pedidos.find(
+    (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
+  );
+  return faltante ? `Falta completar ${faltante.nombre}.` : null;
+}
 
 /** Devuelve el mensaje del primer problema, o null si esta todo bien. */
 function revisarCamposDeRiesgo(datos: FormData): string | null {
@@ -409,15 +452,15 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
   const beneficio = validarEscalaOpcional(datos.get("beneficio"));
   const factibilidad = validarEscalaOpcional(datos.get("factibilidad"));
 
-  if (titulo.length < 5) {
-    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
-  }
   if (beneficio === null || factibilidad === null) {
     return {
       exito: false,
       error: "El beneficio y la factibilidad deben estar entre 1 y 5.",
     };
   }
+
+  const problema = revisarCamposDeOportunidad(datos);
+  if (problema) return { exito: false, error: problema };
 
   const { data: codigo, error: errorCodigo } = await supabase.rpc("siguiente_codigo_riesgo", {
     p_empresa_id: usuario.empresa_id,
@@ -435,10 +478,9 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
       titulo,
       tipo: "oportunidad",
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || usuario.id,
-      origen: String(datos.get("origen") ?? "").trim() || null,
+      origen: String(datos.get("origen") ?? "").trim(),
       efecto_deseado: String(datos.get("efecto_deseado") ?? "").trim() || null,
       beneficio,
       factibilidad,

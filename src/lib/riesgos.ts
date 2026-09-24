@@ -322,3 +322,36 @@ export type OrigenRiesgo = (typeof ORIGENES_RIESGO)[number];
 export function esOrigenValido(valor: string): valor is OrigenRiesgo {
   return (ORIGENES_RIESGO as readonly string[]).includes(valor);
 }
+
+/**
+ * De dónde puede salir una oportunidad, según Calidad.
+ *
+ * Lista propia y no la de riesgos: una oportunidad no nace de una no
+ * conformidad ni de una queja, nace de una tecnología que apareció, de
+ * un mercado que se movió o de alguien que propuso algo. Compartir una
+ * sola lista obligaría a ofrecer en cada pantalla la mitad de las
+ * opciones que ahí no aplican.
+ *
+ * Los dos primeros llevan el número de la cláusula porque así los nombra
+ * el instructivo, y coinciden con los de riesgos: el contexto y las
+ * partes interesadas dan las dos cosas.
+ */
+export const ORIGENES_OPORTUNIDAD = [
+  "Contexto (4.1)",
+  "Partes interesadas (4.2)",
+  "Tecnología emergente",
+  "Condiciones del mercado",
+  "Requisito reglamentario",
+  "Sugerencia del personal",
+  "Retroalimentación del cliente",
+  "Auditoría interna",
+  "Revisión por la dirección",
+  "Nueva asociación",
+  "Otro",
+] as const;
+
+export type OrigenOportunidad = (typeof ORIGENES_OPORTUNIDAD)[number];
+
+export function esOrigenDeOportunidadValido(valor: string): valor is OrigenOportunidad {
+  return (ORIGENES_OPORTUNIDAD as readonly string[]).includes(valor);
+}

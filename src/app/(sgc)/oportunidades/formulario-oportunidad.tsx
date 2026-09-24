@@ -13,6 +13,7 @@ import {
   CLASES_PRIORIDAD,
   DECISION_POR_PRIORIDAD,
   ETIQUETAS_PRIORIDAD,
+  ORIGENES_OPORTUNIDAD,
   prioridadOportunidad,
 } from "@/lib/riesgos";
 import { cn } from "@/lib/utilidades";
@@ -79,16 +80,21 @@ export function FormularioOportunidad({
     <form onSubmit={enviar}>
       <Tarjeta className="p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <GrupoCampo
-            etiqueta="Origen"
-            htmlFor="origen"
-            ayuda="De dónde salió: revisión por la dirección, sugerencia, auditoría, análisis del proceso."
-          >
-            <Entrada id="origen" name="origen" placeholder="Revisión por la dirección" />
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Categoría" htmlFor="categoria">
-            <Entrada id="categoria" name="categoria" placeholder="Comercial" />
+          {/* Lista cerrada y propia, no la de riesgos: ver
+              `ORIGENES_OPORTUNIDAD`. La opcion vacia esta deshabilitada,
+              asi obliga a elegir en vez de dejar la primera por
+              descuido. */}
+          <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido className="sm:col-span-2">
+            <Seleccion id="origen" name="origen" required defaultValue="">
+              <option value="" disabled>
+                Elija de dónde salió
+              </option>
+              {ORIGENES_OPORTUNIDAD.map((origen) => (
+                <option key={origen} value={origen}>
+                  {origen}
+                </option>
+              ))}
+            </Seleccion>
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Título" htmlFor="titulo" requerido className="sm:col-span-2">
@@ -104,9 +110,10 @@ export function FormularioOportunidad({
           <GrupoCampo
             etiqueta="Descripción de la oportunidad"
             htmlFor="descripcion"
+            requerido
             className="sm:col-span-2"
           >
-            <AreaTexto id="descripcion" name="descripcion" rows={3} />
+            <AreaTexto id="descripcion" name="descripcion" rows={3} required />
           </GrupoCampo>
 
           {/* Contra esto se mide la eficacia al cerrar, no contra el
@@ -122,9 +129,11 @@ export function FormularioOportunidad({
             <AreaTexto id="efecto_deseado" name="efecto_deseado" rows={2} required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">
-            <Seleccion id="proceso_id" name="proceso_id">
-              <option value="">Sin proceso asociado</option>
+          <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id" requerido>
+            <Seleccion id="proceso_id" name="proceso_id" required defaultValue="">
+              <option value="" disabled>
+                Elija el proceso
+              </option>
               {procesos.map((proceso) => (
                 <option key={proceso.id} value={proceso.id}>
                   {proceso.codigo} · {proceso.nombre}
@@ -240,15 +249,10 @@ export function FormularioOportunidad({
             etiqueta="Fundamento de la decisión"
             htmlFor="fundamento_decision"
             className="sm:col-span-2"
-            requerido={Boolean(advertencia)}
+            requerido
             ayuda="Por qué se decidió abordarla o dejarla. Queda como constancia de la decisión."
           >
-            <AreaTexto
-              id="fundamento_decision"
-              name="fundamento_decision"
-              rows={2}
-              required={Boolean(advertencia)}
-            />
+            <AreaTexto id="fundamento_decision" name="fundamento_decision" rows={2} required />
           </GrupoCampo>
         </div>
 
@@ -258,23 +262,25 @@ export function FormularioOportunidad({
             <GrupoCampo
               etiqueta="Acción planificada"
               htmlFor="accion_planificada"
+              requerido
               className="sm:col-span-2"
             >
-              <AreaTexto id="accion_planificada" name="accion_planificada" rows={2} />
+              <AreaTexto id="accion_planificada" name="accion_planificada" rows={2} required />
             </GrupoCampo>
 
-            <GrupoCampo etiqueta="Recursos necesarios" htmlFor="recursos_necesarios">
-              <AreaTexto id="recursos_necesarios" name="recursos_necesarios" rows={2} />
+            <GrupoCampo etiqueta="Recursos necesarios" htmlFor="recursos_necesarios" requerido>
+              <AreaTexto id="recursos_necesarios" name="recursos_necesarios" rows={2} required />
             </GrupoCampo>
 
             <div className="grid gap-4">
-              <GrupoCampo etiqueta="Plazo" htmlFor="plazo_accion">
-                <Entrada id="plazo_accion" name="plazo_accion" type="date" />
+              <GrupoCampo etiqueta="Plazo" htmlFor="plazo_accion" requerido>
+                <Entrada id="plazo_accion" name="plazo_accion" type="date" required />
               </GrupoCampo>
 
               <GrupoCampo
                 etiqueta="Proceso donde se integra la acción"
                 htmlFor="proceso_accion_id"
+                requerido
               >
                 <Seleccion id="proceso_accion_id" name="proceso_accion_id">
                   <option value="">El mismo proceso</option>
