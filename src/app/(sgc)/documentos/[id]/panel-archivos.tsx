@@ -155,7 +155,13 @@ export function PanelArchivos({
           <Boton variante="contorno" onClick={() => definirMirando(null)}>
             Cerrar
           </Boton>
-          <GuardarEnDrive url={mirando.url} nombre={mirando.nombre} />
+          {/* Mismo criterio que la pantalla del archivo: el PDF y las
+              imagenes se leen aca, el resto lo abre Drive. */}
+          <GuardarEnDrive
+            url={mirando.url}
+            nombre={mirando.nombre}
+            abrir={!/\.(pdf|png|jpe?g|webp|gif|svg)$/i.test(mirando.nombre)}
+          />
         </div>
       </DialogoContenido>
     </Dialogo>

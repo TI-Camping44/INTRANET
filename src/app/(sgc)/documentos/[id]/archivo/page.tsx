@@ -108,7 +108,23 @@ export default async function PaginaArchivoDocumento({
           <Boton variante="contorno" tamano="pequeno" comoHijo>
             <Link href={`/documentos/${params.id}`}>Ver la ficha</Link>
           </Boton>
-          <GuardarEnDrive url={paraVer} nombre={adjunto.nombre_archivo} />
+          {/* UN SOLO BOTON POR TIPO, y no dos.
+
+              El PDF y las imagenes se leen aca con el visor propio, asi
+              que su boton solo guarda la copia en Drive.
+
+              Word, Excel y PowerPoint los abre Drive mejor que nosotros,
+              asi que su boton lleva derecho ahi. Y como para abrirlo hay
+              que subirlo primero, ese mismo boton ya deja la copia
+              guardada: poner al lado otro que solo guarde seria invitar a
+              apretar los dos y terminar con dos copias del mismo archivo
+              en el Drive de la persona. */}
+          <GuardarEnDrive
+            url={paraVer}
+            nombre={adjunto.nombre_archivo}
+            abrir={!esPdf && !esImagen}
+          />
+
         </div>
       </div>
 
@@ -135,7 +151,7 @@ export default async function PaginaArchivoDocumento({
             Vista del documento de Word: sirve para leerlo, y la conversión puede perder
             encabezados, pies de página y el corte en páginas.{" "}
             <span className="text-texto">
-              Para completarlo o editarlo, use «Guardar en mi Drive»
+              Para completarlo o editarlo, use «Abrir en Drive»
             </span>{" "}
             y trabaje sobre su copia. El documento del SGC no cambia.
           </p>
@@ -143,8 +159,8 @@ export default async function PaginaArchivoDocumento({
       ) : (
         <EstadoVacio
           icono={<FileText className="size-6" />}
-          titulo="Este formato no se puede ver acá"
-          descripcion="Las planillas y las presentaciones se abren en su programa. Use «Guardar en mi Drive» y ábralo desde ahí."
+          titulo="Este formato lo abre Drive"
+          descripcion="Las planillas y las presentaciones no se dibujan acá, pero Drive sí las muestra y las deja editar. Use «Abrir en Drive», arriba."
         />
       )}
     </div>
