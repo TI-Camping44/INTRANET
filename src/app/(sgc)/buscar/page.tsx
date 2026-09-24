@@ -46,7 +46,7 @@ export default async function PaginaBusqueda({
     <div className="mx-auto max-w-4xl">
       <EncabezadoPagina
         titulo="Búsqueda global"
-        descripcion="Busca sobre documentos, no conformidades, riesgos y proveedores. Solo aparece lo que su rol puede consultar."
+        descripcion="Busca dentro del contenido de los documentos, y sobre no conformidades, riesgos y proveedores. Solo aparece lo que su rol puede consultar."
       />
 
       <div className="mb-5">
@@ -57,7 +57,7 @@ export default async function PaginaBusqueda({
         <EstadoVacio
           icono={<Search className="size-6" />}
           titulo="Escriba al menos dos caracteres"
-          descripcion="Puede buscar por código (MP-SOP-01, NC-2026-004), por título o por parte del contenido."
+          descripcion="Puede buscar por código (MP-SOP-01, NC-2026-004), por título, o por una frase que esté escrita adentro de un documento."
         />
       ) : fallo ? (
         <EstadoVacio titulo="No se pudo completar la búsqueda" descripcion={fallo} />

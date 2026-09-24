@@ -11,6 +11,7 @@ import {
   nombreDeArchivoLegible,
   rutaDeArchivo,
 } from "@/lib/adjuntos";
+import { extraerTexto } from "@/lib/extraer-texto";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
@@ -795,6 +796,47 @@ export async function confirmarRevisionSinCambios(
 // El bucket es privado. Nada se entrega por URL directa: cada descarga
 // pide un enlace firmado que dura minutos.
 
+/**
+ * Guarda el texto del archivo para que el buscador pueda mirar adentro.
+ *
+ * Nunca lanza. Es deliberado: esto es un indice, no el documento. Si el
+ * archivo es un escaneado sin texto, o un formato que no se sabe leer, o
+ * PDF.js se cae con un archivo mal armado, la subida tiene que terminar
+ * bien igual. El trabajo programado vuelve a intentarlo despues.
+ *
+ * No esta exportada a proposito: un archivo «use server» solo puede
+ * exportar funciones asincronas que sean acciones de verdad, y esta es
+ * interna.
+ */
+async function indexarTextoDelArchivo(
+  documentoId: string,
+  adjuntoId: string,
+  archivo: File,
+): Promise<void> {
+  try {
+    const extraido = await extraerTexto(
+      await archivo.arrayBuffer(),
+      archivo.name,
+      archivo.type || null,
+    );
+    if (!extraido) return;
+
+    const supabase = crearClienteServidor();
+    await supabase.from("documento_texto").upsert(
+      {
+        documento_id: documentoId,
+        adjunto_id: adjuntoId,
+        texto: extraido.texto,
+        paginas: extraido.paginas,
+        extraido_en: new Date().toISOString(),
+      },
+      { onConflict: "documento_id" },
+    );
+  } catch {
+    // A proposito en silencio. Ver el comentario de arriba.
+  }
+}
+
 /** Sube el archivo del documento y lo deja registrado en `adjuntos`. */
 export async function subirArchivoDocumento(
   documentoId: string,
@@ -835,24 +877,37 @@ export async function subirArchivoDocumento(
     return { exito: false, error: `No se pudo subir el archivo: ${errorCarga.message}` };
   }
 
-  const { error } = await supabase.from("adjuntos").insert({
-    empresa_id: usuario.empresa_id,
-    entidad: "documentos",
-    entidad_id: documentoId,
-    nombre_archivo: nombreDeArchivoLegible(archivo.name),
-    ruta,
-    bucket: BUCKET_DOCUMENTOS,
-    tamano_bytes: archivo.size,
-    tipo_mime: archivo.type || null,
-    subido_por: usuario.id,
-  });
+  const { data: adjunto, error } = await supabase
+    .from("adjuntos")
+    .insert({
+      empresa_id: usuario.empresa_id,
+      entidad: "documentos",
+      entidad_id: documentoId,
+      nombre_archivo: nombreDeArchivoLegible(archivo.name),
+      ruta,
+      bucket: BUCKET_DOCUMENTOS,
+      tamano_bytes: archivo.size,
+      tipo_mime: archivo.type || null,
+      subido_por: usuario.id,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
+  if (error || !adjunto) {
     // El archivo ya esta arriba: si no se pudo registrar, se retira para
     // no dejar un huerfano en el bucket que nadie sabe de quien es.
     await supabase.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
-    return { exito: false, error: `No se pudo registrar el archivo: ${error.message}` };
+    return {
+      exito: false,
+      error: `No se pudo registrar el archivo: ${error?.message ?? "sin detalle"}`,
+    };
   }
+
+  // Se lee el texto para que el buscador pueda mirar adentro. NO CORTA LA
+  // SUBIDA si falla: el archivo ya esta guardado y registrado, que es lo
+  // que la persona pidio. Lo que no se indexe aca lo levanta el trabajo
+  // programado, que busca justamente lo que le falta.
+  await indexarTextoDelArchivo(documentoId, adjunto.id, archivo);
 
   revalidatePath(`/documentos/${documentoId}`);
   return { exito: true, mensaje: `${archivo.name} quedó adjunto al documento.` };
