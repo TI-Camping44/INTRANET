@@ -8,6 +8,11 @@ import {
   FormularioDocumento,
   type DocumentoInicial,
 } from "@/app/(sgc)/documentos/formulario-documento";
+import {
+  PanelArchivos,
+  type ArchivoAdjunto,
+} from "@/app/(sgc)/documentos/[id]/panel-archivos";
+import { Tarjeta, TarjetaCabecera, TarjetaContenido, TarjetaTitulo } from "@/components/ui/tarjeta";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 
@@ -34,8 +39,13 @@ export default async function PaginaEditarDocumento({
 
   const supabase = crearClienteServidor();
 
-  const [{ data: documento }, { data: usadas }, { data: procesos }, { data: personas }] =
-    await Promise.all([
+  const [
+    { data: documento },
+    { data: usadas },
+    { data: procesos },
+    { data: personas },
+    { data: archivos },
+  ] = await Promise.all([
       supabase
         .from("documentos")
         .select(
@@ -51,9 +61,17 @@ export default async function PaginaEditarDocumento({
         .select("id, nombre_completo")
         .eq("activo", true)
         .order("nombre_completo"),
+      supabase
+        .from("adjuntos")
+        .select("id, nombre_archivo, tamano_bytes, creado_en, subido:subido_por (nombre_completo)")
+        .eq("entidad", "documentos")
+        .eq("entidad_id", params.id)
+        .order("creado_en", { ascending: false }),
     ]);
 
   if (!documento) notFound();
+
+  const ficha = documento as unknown as DocumentoInicial;
 
   const categorias = Array.from(
     new Set(((usadas as { categoria: string }[] | null) ?? []).map((fila) => fila.categoria)),
@@ -77,8 +95,30 @@ export default async function PaginaEditarDocumento({
         categorias={categorias}
         procesos={procesos ?? []}
         personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-        inicial={documento as unknown as DocumentoInicial}
+        inicial={ficha}
       />
+
+      {/* El archivo se administra acá y no dentro del formulario: subir
+          y borrar son inmediatos, no esperan a «Guardar cambios». Si
+          fueran parte del formulario, alguien podría reemplazar el
+          archivo, cancelar la edición y quedarse igual con el archivo
+          cambiado. */}
+      <Tarjeta className="mt-4">
+        <TarjetaCabecera>
+          <TarjetaTitulo>Archivo del documento</TarjetaTitulo>
+          <p className="text-xs text-atenuado-contraste">
+            Para reemplazarlo, borre el actual y suba el nuevo. Se conserva el último cargado.
+          </p>
+        </TarjetaCabecera>
+        <TarjetaContenido>
+          <PanelArchivos
+            documentoId={params.id}
+            tipo={ficha.tipo}
+            archivos={(archivos as unknown as ArchivoAdjunto[] | null) ?? []}
+            puedeGestionar
+          />
+        </TarjetaContenido>
+      </Tarjeta>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   DialogoContenido,
   DialogoTitulo,
 } from "@/components/ui/dialogo";
+import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
 import { SelectorDrive } from "@/components/comunes/selector-drive";
 import {
   eliminarArchivoDocumento,
@@ -159,6 +160,7 @@ export function PanelArchivos({
           <Boton variante="contorno" onClick={() => definirMirando(null)}>
             Cerrar
           </Boton>
+          <GuardarEnDrive url={mirando.url} nombre={mirando.nombre} />
           <Boton onClick={() => descargar(mirando.id)}>
             <Download /> Descargar
           </Boton>

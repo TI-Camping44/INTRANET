@@ -8,7 +8,6 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import { obtenerResumenPanel } from "@/app/(sgc)/panel/datos";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
@@ -40,7 +39,7 @@ export default async function PaginaInicio() {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const [{ data: publicaciones }, { data: efemerides }, { data: personas }, { data: procesos }, resumen] =
+  const [{ data: publicaciones }, { data: efemerides }, { data: personas }, { data: procesos }] =
     await Promise.all([
       supabase
         .from("publicaciones")
@@ -62,7 +61,6 @@ export default async function PaginaInicio() {
         .eq("activo", true)
         .order("nombre_completo"),
       supabase.from("procesos").select("id, nombre").order("nombre"),
-      obtenerResumenPanel(usuario),
     ]);
 
   const hoy = hoyEnAsuncion();
@@ -240,78 +238,9 @@ export default async function PaginaInicio() {
             </TarjetaContenido>
           </Tarjeta>
 
-          <Tarjeta>
-            <TarjetaCabecera>
-              <TarjetaTitulo>Calidad hoy</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              <dl className="space-y-2 text-xs">
-                <Cifra
-                  etiqueta="No conformidades abiertas"
-                  valor={resumen.ncAbiertas}
-                  enlace="/no-conformidades"
-                  alerta={resumen.ncVencidas > 0}
-                  nota={resumen.ncVencidas > 0 ? `${resumen.ncVencidas} vencidas` : undefined}
-                />
-                <Cifra
-                  etiqueta="Riesgos altos y críticos"
-                  valor={resumen.riesgosAltos}
-                  enlace="/riesgos"
-                />
-                <Cifra
-                  etiqueta="Documentos por revisar"
-                  valor={resumen.documentosPorRevisar}
-                  enlace="/documentos"
-                />
-                <Cifra
-                  etiqueta="Indicadores fuera de meta"
-                  valor={resumen.indicadoresFueraDeMeta}
-                  enlace="/indicadores"
-                />
-              </dl>
-              <p className="mt-3 border-t border-borde pt-3 text-[11px] leading-relaxed text-atenuado-contraste">
-                El detalle completo está en{" "}
-                <Link href="/panel" className="text-primario hover:underline">
-                  el panel de calidad
-                </Link>
-                .
-              </p>
-            </TarjetaContenido>
-          </Tarjeta>
         </div>
       </div>
     </>
   );
 }
 
-function Cifra({
-  etiqueta,
-  valor,
-  enlace,
-  alerta,
-  nota,
-}: {
-  etiqueta: string;
-  valor: number;
-  enlace: string;
-  alerta?: boolean;
-  nota?: string;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-atenuado-contraste">
-        <Link href={enlace} className="hover:text-primario hover:underline">
-          {etiqueta}
-        </Link>
-        {nota ? <span className="ml-1 text-semaforo-critico">· {nota}</span> : null}
-      </dt>
-      <dd
-        className={
-          "shrink-0 font-semibold tabular " + (alerta ? "text-semaforo-critico" : "text-texto")
-        }
-      >
-        {valor}
-      </dd>
-    </div>
-  );
-}

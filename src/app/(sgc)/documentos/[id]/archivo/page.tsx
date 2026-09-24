@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
+import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { requerirUsuario } from "@/lib/sesion";
@@ -89,10 +90,11 @@ export default async function PaginaArchivoDocumento({
             {adjunto.nombre_archivo}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Boton variante="contorno" tamano="pequeno" comoHijo>
             <Link href={`/documentos/${params.id}`}>Ver la ficha</Link>
           </Boton>
+          <GuardarEnDrive url={paraVer} nombre={adjunto.nombre_archivo} />
           {paraBajar ? (
             <Boton tamano="pequeno" comoHijo>
               <a href={paraBajar.signedUrl}>

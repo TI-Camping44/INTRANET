@@ -4,8 +4,8 @@ import * as React from "react";
 import { toast } from "sonner";
 import { HardDrive } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { cargarGis, cargarGuion, pedirToken } from "@/lib/google-token";
 import {
-  ALCANCE_DRIVE,
   esNativoDeGoogle,
   formatoDeExportacion,
   mimesParaElSelector,
@@ -87,28 +87,8 @@ function ventana(): VentanaConGoogle {
  * nunca ve ese token, y Google nunca ve nuestra base.
  */
 
-/** Las dos bibliotecas de Google que hacen falta, cargadas una sola vez. */
-let promesaGis: Promise<void> | null = null;
-let promesaPicker: Promise<void> | null = null;
-
-function cargarGuion(url: string): Promise<void> {
-  return new Promise((resolver, rechazar) => {
-    const guion = document.createElement("script");
-    guion.src = url;
-    guion.async = true;
-    guion.onload = () => resolver();
-    guion.onerror = () => rechazar(new Error(`No se pudo cargar ${url}`));
-    document.head.appendChild(guion);
-  });
-}
-
-function cargarGis(): Promise<void> {
-  promesaGis ??= cargarGuion("https://accounts.google.com/gsi/client");
-  return promesaGis;
-}
-
 function cargarPicker(): Promise<void> {
-  promesaPicker ??= cargarGuion("https://apis.google.com/js/api.js").then(
+  return cargarGuion("https://apis.google.com/js/api.js").then(
     () =>
       new Promise<void>((resolver, rechazar) => {
         const gapi = ventana().gapi;
@@ -116,27 +96,6 @@ function cargarPicker(): Promise<void> {
         gapi.load("picker", () => resolver());
       }),
   );
-  return promesaPicker;
-}
-
-/** Pide a Google un permiso acotado a los archivos que la persona elija. */
-function pedirToken(clienteId: string): Promise<string> {
-  return new Promise((resolver, rechazar) => {
-    const cuentas = ventana().google?.accounts;
-    if (!cuentas) return rechazar(new Error("No se pudo cargar el ingreso de Google."));
-
-    cuentas.oauth2
-      .initTokenClient({
-        client_id: clienteId,
-        scope: ALCANCE_DRIVE,
-        callback: (respuesta) => {
-          if (respuesta.access_token) resolver(respuesta.access_token);
-          else rechazar(new Error(respuesta.error ?? "permiso_denegado"));
-        },
-        error_callback: () => rechazar(new Error("permiso_denegado")),
-      })
-      .requestAccessToken();
-  });
 }
 
 interface ArchivoElegido {

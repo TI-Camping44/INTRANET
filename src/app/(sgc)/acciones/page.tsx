@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ListChecks, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
-import { PestanasListado } from "@/components/comunes/pestanas-listado";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -63,23 +62,13 @@ interface FilaAccion {
  * No hay alta acá. Una acción correctiva nace de una no conformidad, no
  * suelta: se carga desde la ficha de la desviación que la origina.
  */
-const VISTAS: Record<string, { etiqueta: string; estados: EstadoAccion[] }> = {
-  pendientes: { etiqueta: "Pendientes", estados: ["pendiente", "en_curso"] },
-  ejecutadas: { etiqueta: "Ejecutadas", estados: ["ejecutada", "verificada"] },
-  todas: {
-    etiqueta: "Todas",
-    estados: ["pendiente", "en_curso", "ejecutada", "verificada", "cancelada"],
-  },
-};
-
 export default async function PaginaAcciones({
   searchParams,
 }: {
   searchParams: {
     q?: string;
-    vista?: string;
     estado?: string;
-    tipo?: string;
+    responsable?: string;
     filtro?: string;
     nc?: string;
   };
@@ -89,10 +78,6 @@ export default async function PaginaAcciones({
   const hoy = hoyEnAsuncion();
   const soloLectura = esSoloLectura(usuario);
 
-  const vista =
-    searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "pendientes";
-  const { estados } = VISTAS[vista];
-
   let consulta = supabase
     .from("nc_acciones")
     .select(
@@ -101,14 +86,24 @@ export default async function PaginaAcciones({
         "nivel_escalamiento, responsable:responsable_id (nombre_completo), " +
         "no_conformidad:no_conformidad_id (codigo, titulo)",
     )
-    .in("estado", estados)
     // Por fecha límite ascendente: lo que vence antes va arriba. Es un
     // listado de trabajo, no un archivo.
     .order("fecha_limite", { ascending: true });
 
-  if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
-  if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
+  // Los tres estados que ve Calidad no son tres valores de `estado`: las
+  // dos ejecuciones comparten 'ejecutada' y se separan por
+  // `ejecucion_en_plazo`. Es el mismo criterio que en no conformidades.
+  if (searchParams.estado === "abierta") {
+    consulta = consulta.in("estado", ["pendiente", "en_curso"]);
+  } else if (searchParams.estado === "ejecutada_en_plazo") {
+    consulta = consulta.in("estado", ["ejecutada", "verificada"]).eq("ejecucion_en_plazo", true);
+  } else if (searchParams.estado === "ejecutada_fuera_de_plazo") {
+    consulta = consulta
+      .in("estado", ["ejecutada", "verificada"])
+      .not("ejecucion_en_plazo", "is", true);
+  }
   if (searchParams.nc) consulta = consulta.eq("no_conformidad_id", searchParams.nc);
+  if (searchParams.responsable) consulta = consulta.eq("responsable_id", searchParams.responsable);
   if (searchParams.filtro === "mias") consulta = consulta.eq("responsable_id", usuario.id);
   if (searchParams.filtro === "vencidas") consulta = consulta.lt("fecha_limite", hoy);
   // Se busca en la descripcion de la accion, pero tambien por el codigo
@@ -131,24 +126,27 @@ export default async function PaginaAcciones({
         : consulta.ilike("descripcion", `%${texto}%`);
   }
 
-  // Para rotular las pestañas hace falta el estado de todas, no solo el
-  // de las de la vista actual.
-  //
-  // La tercera consulta es la que contesta lo que Calidad pidió: quien
+  // La segunda consulta es la que contesta lo que Calidad pidió: quien
   // recibe una no conformidad tiene que analizarla y proponer la acción
   // correctiva, así que al entrar acá lo primero que necesita ver es qué
   // desviaciones suyas todavía no tienen plan. Sin esto, una no
   // conformidad asignada y sin acciones no aparece en ningún listado:
   // hay que acordarse de ella.
-  const [{ data, error }, { data: todas }, { data: mias }] = await Promise.all([
+  const [{ data, error }, { data: mias }, { data: gente }] = await Promise.all([
     consulta,
-    supabase.from("nc_acciones").select("estado"),
     supabase
       .from("no_conformidades")
       .select("id, codigo, titulo, responsable_id, fecha_limite_cierre, nc_acciones (id)")
       .in("estado", ESTADOS_NC_ABIERTOS)
       .order("fecha_limite_cierre", { ascending: true }),
+    supabase
+      .from("usuarios")
+      .select("id, nombre_completo")
+      .eq("activo", true)
+      .order("nombre_completo"),
   ]);
+
+  const personas = (gente as { id: string; nombre_completo: string }[] | null) ?? [];
 
   // Las abiertas que todavía no tienen ninguna acción cargada. Van todas,
   // no solo las propias: Calidad pidió que quien ve cómo resolver una
@@ -177,13 +175,6 @@ export default async function PaginaAcciones({
   const miasSinPlan = sinPlan.filter((nc) => nc.responsable_id === usuario.id).length;
 
   const acciones = (data as FilaAccion[] | null) ?? [];
-
-  const estadosCargados = (todas as { estado: EstadoAccion }[] | null) ?? [];
-  const vistas = Object.entries(VISTAS).map(([valor, { etiqueta, estados: suyos }]) => ({
-    valor,
-    etiqueta,
-    cantidad: estadosCargados.filter((accion) => suyos.includes(accion.estado)).length,
-  }));
 
   // Los graficos se arman sobre lo que quedo en el listado, no sobre el
   // total: si se filtra por responsable, los porcentajes son de esa
@@ -239,31 +230,24 @@ export default async function PaginaAcciones({
         }
       />
 
-      <PestanasListado
-        nombre="vista"
-        ruta="/acciones"
-        actual={vista}
-        vistas={vistas}
-        parametros={searchParams}
-      />
-
       <FiltrosListado
         marcadorBusqueda="Buscar en la descripción de la acción…"
         campos={[
           {
-            nombre: "tipo",
-            etiqueta: "Tipo",
-            opciones: Object.entries(ETIQUETAS_TIPO_ACCION).map(([valor, etiqueta]) => ({
-              valor,
-              etiqueta,
+            nombre: "estado",
+            etiqueta: "Estado",
+            // Los tres de Calidad, los mismos que muestra la ficha.
+            opciones: PASOS_ACCION.map((paso) => ({
+              valor: paso,
+              etiqueta: ETIQUETAS_PASO_ACCION[paso],
             })),
           },
           {
-            nombre: "estado",
-            etiqueta: "Estado",
-            opciones: Object.entries(ETIQUETAS_ESTADO_ACCION).map(([valor, etiqueta]) => ({
-              valor,
-              etiqueta,
+            nombre: "responsable",
+            etiqueta: "Responsable",
+            opciones: personas.map((persona) => ({
+              valor: persona.id,
+              etiqueta: persona.nombre_completo,
             })),
           },
           {
@@ -356,12 +340,10 @@ export default async function PaginaAcciones({
         <EstadoVacio
           icono={<ListChecks className="size-6" />}
           titulo={
-            vista === "pendientes" ? "Sin acciones pendientes" : "No hay acciones que coincidan"
+"No hay acciones que coincidan"
           }
           descripcion={
-            vista === "pendientes"
-              ? "Ninguna acción correctiva está esperando ejecución."
-              : "Ajuste los filtros o cargue una acción sobre una desviación abierta."
+"Ajuste los filtros o cargue una acción sobre una desviación abierta."
           }
           accion={
             soloLectura ? null : (
