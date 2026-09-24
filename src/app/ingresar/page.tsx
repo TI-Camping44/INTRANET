@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { FormularioIngreso } from "@/app/ingresar/formulario-ingreso";
-import { Logotipo } from "@/components/comunes/logotipo";
+import { LogotipoOficial } from "@/components/comunes/logotipo-oficial";
 import { DOMINIO_AUTORIZADO, NOMBRE_EMPRESA, NOMBRE_SISTEMA } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Ingresar" };
@@ -19,7 +19,7 @@ export default function PaginaIngreso({
     <main className="flex min-h-dvh items-center justify-center bg-fondo px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <Logotipo tamano={48} />
+          <LogotipoOficial ancho={190} />
           <div>
             <h1 className="text-xl font-semibold tracking-tight">{NOMBRE_SISTEMA}</h1>
             <p className="text-sm text-atenuado-contraste">{NOMBRE_EMPRESA}</p>

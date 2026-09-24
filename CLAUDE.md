@@ -67,7 +67,7 @@ endpoint intermedio de solo lectura.
 | Rojo institucional | `#E01E37` → `352 76% 50%` |
 | Gris tinta | `#14161B` → `223 15% 9%` |
 | Tipografía | Inter, mediante `next/font/google` |
-| Logotipo | Siglas `C44`, en `src/components/comunes/logotipo.tsx` |
+| Logotipo | Oficial en `public/logotipo-camping44.png`, mostrado por `logotipo-oficial.tsx` en el ingreso. En la barra va el `C44` de `logotipo.tsx`: a 32 px el detalle del oficial se convierte en manchas |
 
 Los colores se declaran como variables CSS en `src/app/globals.css` y se
 exponen en Tailwind con nombres en español: `bg-fondo`, `text-texto`,
@@ -296,7 +296,12 @@ Quedaron así por falta de definición explícita. Son reversibles:
 - **Alta de usuarios**: el perfil se crea en el primer ingreso con rol
   Colaborador; el Administrador SGC ajusta rol y líder inmediato.
 - **Adjuntos**: 20 MB, PDF, Office e imágenes.
-- **Logotipo**: tipográfico en SVG, a la espera del oficial en vectores.
+- **Logotipo**: el oficial llegó como PNG de 740 × 679 con fondo
+  transparente. Va en el ingreso, sobre recuadro blanco **solo en modo
+  oscuro**: tiene las dos armas en negro y sin el recuadro
+  desaparecerían. Queda pendiente el `.svg` del diseñador; cuando
+  llegue se sube a `public/` y se cambia una línea en
+  `logotipo-oficial.tsx`.
 - **Las solicitudes por área NO se absorben**: los seis formularios de
   Apps Script —TI, Logística, Marketing, Administración, Calidad y compra
   interna— se enlazan desde Aplicaciones y siguen viviendo en Workspace.
@@ -376,9 +381,8 @@ conocer de memoria. No los reemplaza: los enlaza. La lista está en
 
 - Credenciales cargadas y despliegue andando en Vercel, proyecto
   **intranet-sgc-camping44**. El framework va declarado en `vercel.json`
-  y no en los ajustes del panel: sin eso Vercel compila y después busca
-  una carpeta `public/` que este proyecto no tiene, y el despliegue
-  termina en error.
+  y no en los ajustes del panel: sin eso Vercel compila y después trata
+  el proyecto como sitio estático, y el despliegue termina en error.
 - Datos reales cargados y seed retirado: 19 procesos, 58 documentos,
   84 activos, 30 objetivos del PE 2026, 17 puestos.
 - Módulo de no conformidades rehecho según la revisión de Calidad del
