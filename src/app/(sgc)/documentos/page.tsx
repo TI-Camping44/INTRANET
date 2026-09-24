@@ -400,7 +400,7 @@ export default async function PaginaDocumentos({
                   ? `/documentos/${documento.id}/archivo`
                   : `/documentos/${documento.id}`;
                 const rotulo = abre
-                  ? "Abrir el archivo en una pestaña nueva"
+                  ? "Abrir el archivo"
                   : "Este documento todavía no tiene archivo cargado";
 
                 return (
@@ -444,8 +444,6 @@ export default async function PaginaDocumentos({
                       <Link
                         href={destino}
                         style={colgado ? { paddingLeft: "1.5rem" } : undefined}
-                        target={abre ? "_blank" : undefined}
-                        rel={abre ? "noopener noreferrer" : undefined}
                         title={rotulo}
                         draggable={false}
                         className="hover:text-primario"
@@ -456,8 +454,6 @@ export default async function PaginaDocumentos({
                     <TablaCelda>
                       <Link
                         href={destino}
-                        target={abre ? "_blank" : undefined}
-                        rel={abre ? "noopener noreferrer" : undefined}
                         title={rotulo}
                         draggable={false}
                         className="flex items-center gap-2 hover:text-primario"
