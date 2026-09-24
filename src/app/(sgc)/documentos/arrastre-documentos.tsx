@@ -256,17 +256,25 @@ export function FilaArrastrable({
   grupo,
   children,
   className,
+  fijo = false,
 }: {
   id: string;
   /** La categoría. Solo se puede soltar dentro de la misma. */
   grupo: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Una fila que no se mueve. Son los documentos que cuelgan de un
+   * manual de proceso: su lugar lo decide el código —F-EST-01-02 va
+   * debajo de MP-EST-01— y arrastrarlos no significaría nada.
+   */
+  fijo?: boolean;
 }) {
   const contexto = React.useContext(ContextoArrastre);
 
-  // Sin contexto —listado ordenado por una columna— es una fila común.
-  if (!contexto) {
+  // Sin contexto —listado ordenado por una columna— o fila fija, es una
+  // fila común.
+  if (!contexto || fijo) {
     return (
       <tr className={cn("border-b border-borde transition-colors hover:bg-acento/60", className)}>
         {children}

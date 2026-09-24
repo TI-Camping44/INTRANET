@@ -40,6 +40,7 @@ import {
   ETIQUETAS_TIPO_DOCUMENTO,
   TIPOS_DOCUMENTO_VIGENTES,
 } from "@/lib/constantes";
+import { armarJerarquia } from "@/lib/documentos";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoDocumento, TipoDocumento } from "@/lib/tipos";
@@ -207,6 +208,37 @@ export default async function PaginaDocumentos({
     ((conArchivo as { entidad_id: string }[] | null) ?? []).map((fila) => fila.entidad_id),
   );
 
+  // El arbol de la lista maestra. El codigo dice de quien depende cada
+  // documento —F-EST-01-02 cuelga de MP-EST-01— asi que los hijos se
+  // dibujan debajo de su manual de proceso, indentados, y no en el lugar
+  // que les tocaria por orden alfabetico.
+  //
+  // Con una columna ordenada no hay arbol: la lista viene por otra cosa
+  // y anidar ahi seria mezclar dos criterios.
+  const { hijosPorPadre, esHijo } = columna
+    ? { hijosPorPadre: new Map<string, FilaDocumento[]>(), esHijo: new Set<string>() }
+    : armarJerarquia(documentos);
+
+  // Cada fila sabe si cuelga de otra y si abre una categoria. Se calcula
+  // una sola vez al armar la lista, que es cuando se conoce cual fue la
+  // ultima categoria de primer nivel: un hijo no abre categoria, y si se
+  // mirara solo la fila anterior, el documento que viene despues de un
+  // hijo abriria una que ya estaba abierta.
+  const filas: { documento: FilaDocumento; esHijo: boolean; abreCategoria: boolean }[] = [];
+  let categoriaAbierta: string | null | undefined = undefined;
+
+  for (const documento of documentos) {
+    if (esHijo.has(documento.id)) continue;
+
+    const abre = !columna && categoriaAbierta !== documento.categoria;
+    if (abre) categoriaAbierta = documento.categoria;
+
+    filas.push({ documento, esHijo: false, abreCategoria: abre });
+    for (const hijo of hijosPorPadre.get(documento.id) ?? []) {
+      filas.push({ documento: hijo, esHijo: true, abreCategoria: false });
+    }
+  }
+
   // El orden global de las categorias, sacado de la lista maestra y no
   // de la pestaña abierta: una categoria que hoy solo tiene borradores
   // igual ocupa su lugar, y que el orden cambiara segun la pestaña
@@ -222,7 +254,8 @@ export default async function PaginaDocumentos({
   // necesita el arrastre para recalcular las posiciones al soltar.
   const CLAVE_SIN_CATEGORIA = "__sin_categoria__";
   const grupos: Record<string, string[]> = {};
-  for (const documento of documentos) {
+  for (const { documento, esHijo: colgado } of filas) {
+    if (colgado) continue;
     const clave = documento.categoria ?? CLAVE_SIN_CATEGORIA;
     (grupos[clave] ??= []).push(documento.id);
   }
@@ -357,14 +390,7 @@ export default async function PaginaDocumentos({
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
-              {documentos.map((documento, indice) => {
-                // El separador se dibuja cuando cambia la categoría. Es
-                // la agrupación que pidió Calidad: la carpeta se lee por
-                // categoría, no por código.
-                const anterior = documentos[indice - 1];
-                // Con una columna ordenada no hay categorías ni posición
-                // manual que mostrar: la lista viene por otra cosa.
-                const abreCategoria = !columna && anterior?.categoria !== documento.categoria;
+              {filas.map(({ documento, esHijo: colgado, abreCategoria }) => {
 
                 // Tocar el codigo o el titulo abre el archivo, no la ficha:
                 // quien entra al control documental viene a leer el
@@ -406,7 +432,8 @@ export default async function PaginaDocumentos({
                     ) : null}
                   <FilaArrastrable
                     id={documento.id}
-                    grupo={documento.categoria ?? CLAVE_SIN_CATEGORIA}
+                    grupo={colgado ? "" : documento.categoria ?? CLAVE_SIN_CATEGORIA}
+                    fijo={colgado}
                   >
                     {puedeEliminar ? (
                       <TablaCelda>
@@ -416,6 +443,7 @@ export default async function PaginaDocumentos({
                     <TablaCelda className="font-medium tabular">
                       <Link
                         href={destino}
+                        style={colgado ? { paddingLeft: "1.5rem" } : undefined}
                         target={abre ? "_blank" : undefined}
                         rel={abre ? "noopener noreferrer" : undefined}
                         title={rotulo}
