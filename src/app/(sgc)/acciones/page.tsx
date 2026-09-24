@@ -19,11 +19,12 @@ import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   ESTADOS_NC_ABIERTOS,
+  ETIQUETAS_EFICACIA,
   ETIQUETAS_ESTADO_ACCION,
   ETIQUETAS_TIPO_ACCION,
 } from "@/lib/constantes";
 import { describirVencimiento, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
-import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
+import { Torta } from "@/components/comunes/graficos";
 import {
   CLASES_PASO_ACCION,
   ETIQUETAS_PASO_ACCION,
@@ -31,7 +32,7 @@ import {
   PASOS_ACCION,
 } from "@/lib/acciones";
 import { recortar } from "@/lib/utilidades";
-import type { EstadoAccion, TipoAccion } from "@/lib/tipos";
+import type { EstadoAccion, ResultadoEficacia, TipoAccion } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Acciones correctivas" };
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ interface FilaAccion {
   fecha_ejecucion: string | null;
   nivel_escalamiento: number;
   responsable: { nombre_completo: string } | null;
-  no_conformidad: { codigo: string; titulo: string } | null;
+  no_conformidad: { codigo: string; titulo: string; eficacia: ResultadoEficacia } | null;
 }
 
 /**
@@ -84,7 +85,7 @@ export default async function PaginaAcciones({
       "id, no_conformidad_id, tipo, descripcion, estado, ejecucion_en_plazo, " +
         "fecha_limite, fecha_ejecucion, " +
         "nivel_escalamiento, responsable:responsable_id (nombre_completo), " +
-        "no_conformidad:no_conformidad_id (codigo, titulo)",
+        "no_conformidad:no_conformidad_id (codigo, titulo, eficacia)",
     )
     // Por fecha límite ascendente: lo que vence antes va arriba. Es un
     // listado de trabajo, no un archivo.
@@ -198,19 +199,46 @@ export default async function PaginaAcciones({
     color: COLOR_PASO[paso],
   }));
 
-  // Por responsable, en barras: son tantas personas como tenga la
-  // empresa y una torta de veinte porciones no se puede comparar.
-  const nombres = Array.from(
-    new Set(
-      acciones.map((accion) => accion.responsable?.nombre_completo ?? "Sin asignar"),
-    ),
-  );
+  // La eficacia no es de la tarea, es de la accion correctiva: se
+  // verifica una vez, sobre la desviacion entera, cuando todas sus
+  // tareas estan ejecutadas. Por eso esta torta cuenta DESVIACIONES y no
+  // filas: una no conformidad con tres tareas eficaces es una accion
+  // correctiva eficaz, no tres. Contar filas inflaria a las que tienen
+  // muchas tareas y el porcentaje no diria nada.
+  const eficaciaPorNc = new Map<string, ResultadoEficacia>();
+  for (const accion of acciones) {
+    if (accion.no_conformidad) {
+      eficaciaPorNc.set(accion.no_conformidad_id, accion.no_conformidad.eficacia);
+    }
+  }
 
-  const porResponsable = nombres.map((nombre) => ({
-    etiqueta: nombre,
-    valor: acciones.filter(
-      (accion) => (accion.responsable?.nombre_completo ?? "Sin asignar") === nombre,
-    ).length,
+  const COLOR_EFICACIA: Record<string, string> = {
+    eficaz: "hsl(var(--semaforo-bajo))",
+    parcialmente_eficaz: "hsl(var(--semaforo-medio))",
+    no_eficaz: "hsl(var(--semaforo-critico))",
+    pendiente: "hsl(var(--atenuado-contraste))",
+  };
+
+  const resultados = Array.from(eficaciaPorNc.values());
+
+  // «Parcialmente eficaz» solo aparece si hay alguna: el formulario de
+  // Calidad cierra con eficaz o no eficaz, asi que una porcion siempre en
+  // cero seria una opcion que no existe ocupando lugar.
+  const ORDEN_EFICACIA: ResultadoEficacia[] = [
+    "eficaz",
+    "no_eficaz",
+    "parcialmente_eficaz",
+    "pendiente",
+  ];
+
+  const porEficacia = ORDEN_EFICACIA.filter(
+    (resultado) =>
+      resultado !== "parcialmente_eficaz" ||
+      resultados.some((valor) => valor === "parcialmente_eficaz"),
+  ).map((resultado) => ({
+    etiqueta: ETIQUETAS_EFICACIA[resultado],
+    valor: resultados.filter((valor) => valor === resultado).length,
+    color: COLOR_EFICACIA[resultado],
   }));
 
   const vencidas = acciones.filter(
@@ -323,7 +351,7 @@ export default async function PaginaAcciones({
       {acciones.length > 0 ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <Torta titulo="Por estado" porciones={porPaso} />
-          <BarrasPorcentaje titulo="Por responsable" filas={porResponsable} />
+          <Torta titulo="Por eficacia" porciones={porEficacia} />
         </div>
       ) : null}
 
