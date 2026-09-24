@@ -20,3 +20,6 @@ next-env.d.ts
 # pantallas. Nunca va al repositorio.
 src/app/auth/entrar-demo/
 migraciones-para-subir/
+
+# El trabajador de PDF.js lo copia `scripts/copiar-visor-pdf.mjs` al compilar.
+public/pdf.worker.min.mjs

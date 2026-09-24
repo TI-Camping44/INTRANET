@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
 import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
+import { VisorPdf } from "@/components/comunes/visor-pdf";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { requerirUsuario } from "@/lib/sesion";
@@ -33,7 +34,8 @@ export const dynamic = "force-dynamic";
  * pueda ver el documento no ve el archivo: esta pantalla no agrega
  * permisos.
  */
-const VISIBLES_EN_EL_NAVEGADOR = /\.(pdf|png|jpe?g|webp|gif|svg)$/i;
+const ES_PDF = /\.pdf$/i;
+const ES_IMAGEN = /\.(png|jpe?g|webp|gif|svg)$/i;
 
 export default async function PaginaArchivoDocumento({
   params,
@@ -72,7 +74,8 @@ export default async function PaginaArchivoDocumento({
     .from(adjunto.bucket)
     .createSignedUrl(adjunto.ruta, 300, { download: adjunto.nombre_archivo });
 
-  const seVe = VISIBLES_EN_EL_NAVEGADOR.test(adjunto.nombre_archivo);
+  const esPdf = ES_PDF.test(adjunto.nombre_archivo);
+  const esImagen = ES_IMAGEN.test(adjunto.nombre_archivo);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -105,11 +108,18 @@ export default async function PaginaArchivoDocumento({
         </div>
       </div>
 
-      {seVe ? (
-        <iframe
+      {/* El PDF lo dibuja el visor propio y no un marco: Chrome puede
+          estar configurado para descargar los PDF en vez de mostrarlos, y
+          entonces el marco queda en un recuadro gris con un botón. La
+          imagen no tiene ese problema y se muestra tal cual. */}
+      {esPdf ? (
+        <VisorPdf url={paraVer} nombre={adjunto.nombre_archivo} />
+      ) : esImagen ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={paraVer}
-          title={adjunto.nombre_archivo}
-          className="h-[78vh] w-full rounded-lg border border-borde bg-fondo"
+          alt={adjunto.nombre_archivo}
+          className="mx-auto h-auto max-w-full rounded-lg border border-borde"
         />
       ) : (
         <EstadoVacio

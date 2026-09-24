@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Download, Eye, Paperclip, Trash2, Upload } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { VisorPdf } from "@/components/comunes/visor-pdf";
 import {
   Dialogo,
   DialogoCabecera,
@@ -141,14 +142,22 @@ export function PanelArchivos({
           <DialogoTitulo className="truncate pr-4">{mirando.nombre}</DialogoTitulo>
         </DialogoCabecera>
 
-        {/* El PDF y las imágenes se muestran acá; lo demás —Word, una
+        {/* El PDF lo dibuja el visor propio y no un marco: Chrome puede
+            estar configurado para descargar los PDF en vez de abrirlos, y
+            ahí el marco muestra un recuadro gris en lugar del documento.
+            Las imágenes se muestran tal cual; lo demás —Word, una
             planilla— el navegador no lo sabe dibujar, así que en vez de
             un cuadro en blanco se ofrece la descarga. */}
-        {/^.+\.(pdf|png|jpe?g|webp)$/i.test(mirando.nombre) ? (
-          <iframe
+        {/^.+\.pdf$/i.test(mirando.nombre) ? (
+          <div className="max-h-[70vh] overflow-y-auto">
+            <VisorPdf url={mirando.url} nombre={mirando.nombre} />
+          </div>
+        ) : /^.+\.(png|jpe?g|webp|gif|svg)$/i.test(mirando.nombre) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={mirando.url}
-            title={mirando.nombre}
-            className="h-[70vh] w-full rounded-md border border-borde bg-fondo"
+            alt={mirando.nombre}
+            className="mx-auto max-h-[70vh] w-auto max-w-full rounded-md border border-borde"
           />
         ) : (
           <p className="py-8 text-center text-xs text-atenuado-contraste">
