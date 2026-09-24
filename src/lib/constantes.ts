@@ -70,16 +70,22 @@ export const ETIQUETAS_TIPO_DOCUMENTO: Record<TipoDocumento, string> = {
   procedimiento: "Procedimiento",
   registro: "Registro",
   plan: "Plan",
-  externo: "Documento externo",
+  externo: "Otro",
 };
 
 /**
- * Los cinco tipos que usa Camping 44, en el orden que definio Calidad.
+ * Los tipos que usa Camping 44, en el orden que definio Calidad.
  *
- * Los otros cuatro siguen en `ETIQUETAS_TIPO_DOCUMENTO` porque hay
- * documentos cargados con ellos y hay que poder mostrarlos, pero no se
- * ofrecen ni en el alta ni en los filtros. Es el mismo criterio que con
- * los origenes de no conformidad retirados.
+ * «Otro» es el valor `externo` del enumerado con otra etiqueta. Se
+ * reusa en vez de agregar un valor nuevo por la misma razon que con los
+ * origenes de no conformidad: agregar a un enumerado obliga a una
+ * migracion aparte —un valor recien agregado no se puede usar en la
+ * misma transaccion— y aca lo unico que cambia es como se lo llama.
+ *
+ * Los tres que quedan afuera —procedimiento, registro, plan— siguen en
+ * `ETIQUETAS_TIPO_DOCUMENTO` porque hay documentos cargados con ellos y
+ * hay que poder mostrarlos, pero no se ofrecen ni en el alta ni en los
+ * filtros.
  */
 export const TIPOS_DOCUMENTO_VIGENTES: TipoDocumento[] = [
   "manual",
@@ -87,6 +93,7 @@ export const TIPOS_DOCUMENTO_VIGENTES: TipoDocumento[] = [
   "protocolo",
   "formulario",
   "politica",
+  "externo",
 ];
 
 export const ETIQUETAS_ESTADO_DOCUMENTO: Record<EstadoDocumento, string> = {
@@ -120,7 +127,7 @@ export const PREFIJO_CODIGO_DOCUMENTO: Record<TipoDocumento, string> = {
   procedimiento: "PROC",
   registro: "REG",
   plan: "PLAN",
-  externo: "EXT",
+  externo: "DOC",
 };
 
 // ---------------------------------------------------------------------

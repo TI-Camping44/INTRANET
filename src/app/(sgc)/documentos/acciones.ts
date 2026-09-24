@@ -197,7 +197,11 @@ export async function actualizarDocumento(
   id: string,
   datos: FormData,
 ): Promise<ResultadoAccion> {
-  await requerirUsuario();
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite editar documentos." };
+  }
+
   const supabase = crearClienteServidor();
 
   const titulo = String(datos.get("titulo") ?? "").trim();
@@ -205,22 +209,62 @@ export async function actualizarDocumento(
     return { exito: false, error: "El título debe tener al menos 4 caracteres." };
   }
 
-  const { error } = await supabase
-    .from("documentos")
-    .update({
-      titulo,
-      descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      tipo: String(datos.get("tipo") ?? "procedimiento"),
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
-      norma_id: String(datos.get("norma_id") ?? "") || null,
-      responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      periodicidad_revision_meses: Number(datos.get("periodicidad_revision_meses") ?? 12),
-    })
-    .eq("id", id);
+  const sinCodigo = datos.get("sin_codigo") === "on";
+  const codigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
 
-  if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
+  if (!sinCodigo && codigo && !FORMATO_CODIGO.test(codigo)) {
+    return {
+      exito: false,
+      error:
+        "El código no cumple el formato controlado. Use por ejemplo MP-SOP-01 o F-COM-01-02, " +
+        "o marque «No aplica» si este documento va sin código.",
+    };
+  }
+
+  const categoria = String(datos.get("categoria") ?? "").trim() || null;
+
+  // Si cambia de categoria, hereda la posicion de la nueva: si no,
+  // quedaria con la posicion de la carpeta de la que salio y apareceria
+  // en un lugar que no le corresponde.
+  let consultaHermanos = supabase
+    .from("documentos")
+    .select("orden_categoria")
+    .not("orden_categoria", "is", null)
+    .neq("id", id)
+    .limit(1);
+
+  consultaHermanos =
+    categoria === null
+      ? consultaHermanos.is("categoria", null)
+      : consultaHermanos.eq("categoria", categoria);
+
+  const { data: hermanos } = await consultaHermanos;
+  const posicionDeCategoria =
+    ((hermanos as { orden_categoria: number }[] | null) ?? [])[0]?.orden_categoria ?? null;
+
+  const cambios: Record<string, unknown> = {
+    titulo,
+    codigo: sinCodigo || !codigo ? null : codigo,
+    tipo: String(datos.get("tipo") ?? "manual"),
+    categoria,
+    proceso_id: String(datos.get("proceso_id") ?? "") || null,
+    responsable_id: String(datos.get("responsable_id") ?? "") || null,
+    periodicidad_revision_meses: Number(datos.get("periodicidad_revision_meses") ?? 12),
+  };
+
+  if (posicionDeCategoria !== null) cambios.orden_categoria = posicionDeCategoria;
+
+  const { error } = await supabase.from("documentos").update(cambios).eq("id", id);
+
+  if (error) {
+    if (error.code === "23505") {
+      return { exito: false, error: `Ya existe otro documento con el código ${codigo}.` };
+    }
+    return { exito: false, error: `No se pudo actualizar: ${error.message}` };
+  }
 
   revalidatePath(`/documentos/${id}`);
+  revalidatePath("/documentos");
   return { exito: true, mensaje: "Documento actualizado." };
 }
 
@@ -820,7 +864,10 @@ export async function subirArchivoDocumento(
  * Dura cinco minutos: alcanza para abrirlo y no para dejarlo pegado en un
  * chat y que lo abra cualquiera dentro de un mes.
  */
-export async function enlaceDeArchivo(adjuntoId: string): Promise<ResultadoAccion> {
+export async function enlaceDeArchivo(
+  adjuntoId: string,
+  paraDescargar = true,
+): Promise<ResultadoAccion> {
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
@@ -832,9 +879,16 @@ export async function enlaceDeArchivo(adjuntoId: string): Promise<ResultadoAccio
 
   if (!adjunto) return { exito: false, error: "El archivo no existe o no tiene acceso." };
 
+  // Con `download` el navegador guarda el archivo; sin eso lo muestra.
+  // Son el mismo objeto y el mismo permiso: lo unico que cambia es la
+  // cabecera con la que Storage lo entrega.
   const { data, error } = await supabase.storage
     .from(adjunto.bucket)
-    .createSignedUrl(adjunto.ruta, 300, { download: adjunto.nombre_archivo });
+    .createSignedUrl(
+      adjunto.ruta,
+      300,
+      paraDescargar ? { download: adjunto.nombre_archivo } : {},
+    );
 
   if (error || !data) {
     return { exito: false, error: `No se pudo generar el enlace: ${error?.message ?? ""}` };
@@ -877,80 +931,6 @@ export async function eliminarArchivoDocumento(
 //
 // El texto se propone, no se impone: llega redactado a la pantalla y
 // quien anuncia lo edita antes de publicar.
-
-/** Publica el documento como anuncio en el muro del inicio. */
-export async function anunciarDocumento(
-  documentoId: string,
-  datos: FormData,
-): Promise<ResultadoAccion> {
-  const usuario = await requerirUsuario();
-  if (!puedeGestionar(usuario)) {
-    return { exito: false, error: "Su rol no permite publicar en la intranet." };
-  }
-
-  const supabase = crearClienteServidor();
-
-  const { data: documento } = await supabase
-    .from("documentos")
-    .select("id, codigo, titulo, estado, proceso_id")
-    .eq("id", documentoId)
-    .maybeSingle();
-
-  if (!documento) return { exito: false, error: "El documento no existe." };
-
-  if (documento.estado !== "vigente") {
-    return {
-      exito: false,
-      error:
-        "Solo se anuncia un documento vigente. Anunciar un borrador es pedirle a la " +
-        "gente que aplique algo que todavía puede cambiar.",
-    };
-  }
-
-  const titulo = String(datos.get("titulo") ?? "").trim();
-  const cuerpo = String(datos.get("cuerpo") ?? "").trim();
-
-  if (titulo.length < 5) {
-    return { exito: false, error: "El título debe tener al menos 5 caracteres." };
-  }
-  if (cuerpo.length < 10) {
-    return { exito: false, error: "El texto del anuncio debe tener al menos 10 caracteres." };
-  }
-
-  const { data: publicacion, error } = await supabase
-    .from("publicaciones")
-    .insert({
-      empresa_id: usuario.empresa_id,
-      tipo: "anuncio",
-      titulo,
-      cuerpo,
-      estado: "publicada",
-      fecha_publicacion: new Date().toISOString(),
-      fijada: datos.get("fijada") === "si",
-      fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
-      // El anuncio hereda el proceso del documento: asi queda claro de qué
-      // área es sin que nadie lo vuelva a elegir.
-      proceso_id: documento.proceso_id,
-      documento_id: documento.id,
-      creado_por: usuario.id,
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    return { exito: false, error: `No se pudo publicar el anuncio: ${error.message}` };
-  }
-
-  revalidatePath("/inicio");
-  revalidatePath(`/documentos/${documentoId}`);
-
-  return {
-    exito: true,
-    id: publicacion.id,
-    mensaje: `${documento.codigo ?? documento.titulo} anunciado en el inicio.`,
-  };
-}
-
 
 /**
  * Elimina un documento entero: su ficha, sus versiones, su difusion y

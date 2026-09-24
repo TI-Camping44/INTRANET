@@ -3,8 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, Paperclip, Trash2, Upload } from "lucide-react";
+import { Download, Eye, Paperclip, Trash2, Upload } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import {
+  Dialogo,
+  DialogoCabecera,
+  DialogoContenido,
+  DialogoTitulo,
+} from "@/components/ui/dialogo";
 import { SelectorDrive } from "@/components/comunes/selector-drive";
 import {
   eliminarArchivoDocumento,
@@ -51,6 +57,12 @@ export function PanelArchivos({
   const entrada = React.useRef<HTMLInputElement>(null);
   const [subiendo, definirSubiendo] = React.useState(false);
   const [abriendo, definirAbriendo] = React.useState<string | null>(null);
+  // El archivo que se está mirando en la ventana, con su enlace firmado.
+  const [mirando, definirMirando] = React.useState<{
+    nombre: string;
+    url: string;
+    id: string;
+  } | null>(null);
 
   async function subir(archivo: File) {
     // El control de verdad esta en la accion de servidor. Este es para
@@ -76,9 +88,32 @@ export function PanelArchivos({
     }
   }
 
-  async function abrir(adjuntoId: string) {
+  /**
+   * Abre el archivo en una ventana dentro de la intranet.
+   *
+   * Antes se abría en una pestaña nueva y la persona quedaba fuera del
+   * sistema, con una dirección firmada a la vista. Ahora se muestra acá
+   * y desde la misma ventana se descarga.
+   *
+   * El enlace para mirar va sin la marca de descarga: es el mismo objeto
+   * y el mismo permiso, lo único que cambia es la cabecera con la que
+   * Storage lo entrega. Dura cinco minutos, como antes.
+   */
+  async function mirar(adjuntoId: string, nombre: string) {
     definirAbriendo(adjuntoId);
-    const resultado = await enlaceDeArchivo(adjuntoId);
+    const resultado = await enlaceDeArchivo(adjuntoId, false);
+    definirAbriendo(null);
+
+    if (resultado.exito && resultado.mensaje) {
+      definirMirando({ nombre, url: resultado.mensaje, id: adjuntoId });
+    } else if (!resultado.exito) {
+      toast.error(resultado.error);
+    }
+  }
+
+  async function descargar(adjuntoId: string) {
+    definirAbriendo(adjuntoId);
+    const resultado = await enlaceDeArchivo(adjuntoId, true);
     definirAbriendo(null);
 
     if (resultado.exito && resultado.mensaje) {
@@ -98,8 +133,43 @@ export function PanelArchivos({
     }
   }
 
+  const visor = mirando ? (
+    <Dialogo open onOpenChange={() => definirMirando(null)}>
+      <DialogoContenido className="max-w-5xl">
+        <DialogoCabecera>
+          <DialogoTitulo className="truncate pr-4">{mirando.nombre}</DialogoTitulo>
+        </DialogoCabecera>
+
+        {/* El PDF y las imágenes se muestran acá; lo demás —Word, una
+            planilla— el navegador no lo sabe dibujar, así que en vez de
+            un cuadro en blanco se ofrece la descarga. */}
+        {/^.+\.(pdf|png|jpe?g|webp)$/i.test(mirando.nombre) ? (
+          <iframe
+            src={mirando.url}
+            title={mirando.nombre}
+            className="h-[70vh] w-full rounded-md border border-borde bg-fondo"
+          />
+        ) : (
+          <p className="py-8 text-center text-xs text-atenuado-contraste">
+            Este formato no se puede ver en el navegador. Descárguelo para abrirlo.
+          </p>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2">
+          <Boton variante="contorno" onClick={() => definirMirando(null)}>
+            Cerrar
+          </Boton>
+          <Boton onClick={() => descargar(mirando.id)}>
+            <Download /> Descargar
+          </Boton>
+        </div>
+      </DialogoContenido>
+    </Dialogo>
+  ) : null;
+
   return (
     <div className="space-y-3">
+      {visor}
       {archivos.length === 0 ? (
         <p className="text-xs text-atenuado-contraste">
           Todavía no hay ningún archivo cargado.
@@ -123,9 +193,19 @@ export function PanelArchivos({
               <Boton
                 variante="fantasma"
                 tamano="pequeno"
-                onClick={() => abrir(archivo.id)}
+                onClick={() => mirar(archivo.id, archivo.nombre_archivo)}
                 cargando={abriendo === archivo.id}
-                aria-label={`Abrir ${archivo.nombre_archivo}`}
+                aria-label={`Ver ${archivo.nombre_archivo}`}
+                title="Ver el archivo"
+              >
+                <Eye />
+              </Boton>
+              <Boton
+                variante="fantasma"
+                tamano="pequeno"
+                onClick={() => descargar(archivo.id)}
+                aria-label={`Descargar ${archivo.nombre_archivo}`}
+                title="Descargar"
               >
                 <Download />
               </Boton>

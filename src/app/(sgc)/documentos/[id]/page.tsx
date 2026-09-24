@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
-import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
+import { HistorialDocumental } from "@/app/(sgc)/documentos/[id]/historial-documental";
 import {
   InsigniaDemostracion,
   InsigniaEstadoDocumento,
 } from "@/components/comunes/insignias-estado";
 import { AccionesDocumento } from "@/app/(sgc)/documentos/[id]/acciones-documento";
-import { PanelAnuncio, type AnuncioPrevio } from "@/app/(sgc)/documentos/[id]/panel-anuncio";
 import { PanelArchivos, type ArchivoAdjunto } from "@/app/(sgc)/documentos/[id]/panel-archivos";
 import { PanelDifusion } from "@/app/(sgc)/documentos/[id]/panel-difusion";
 import { PanelRevision } from "@/app/(sgc)/documentos/[id]/panel-revision";
@@ -102,7 +101,6 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     { data: personas },
     { data: procesos },
     { data: archivos },
-    { data: anuncios },
   ] = await Promise.all([
     supabase
       .from("documento_versiones")
@@ -184,6 +182,13 @@ export default async function PaginaDocumento({ params }: { params: { id: string
                 </a>
               </Boton>
             ) : null}
+          {gestiona ? (
+            <Boton variante="contorno" tamano="pequeno" comoHijo>
+              <Link href={`/documentos/${documento.id}/editar`}>
+                <Pencil /> Editar
+              </Link>
+            </Boton>
+          ) : null}
           <AccionesDocumento
             documentoId={documento.id}
             estadoDocumento={documento.estado}
@@ -286,27 +291,6 @@ export default async function PaginaDocumento({ params }: { params: { id: string
 
           <Tarjeta>
             <TarjetaCabecera>
-              <TarjetaTitulo>Anuncio en Inicio</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              <PanelAnuncio
-                documentoId={documento.id}
-                documento={{
-                  codigo: documento.codigo,
-                  titulo: documento.titulo,
-                  tipo: documento.tipo as TipoDocumento,
-                  estado: documento.estado,
-                  version_actual: documento.version_actual,
-                  fecha_aprobacion: documento.fecha_aprobacion,
-                }}
-                anunciosPrevios={(anuncios as AnuncioPrevio[] | null) ?? []}
-                puedeGestionar={gestiona}
-              />
-            </TarjetaContenido>
-          </Tarjeta>
-
-          <Tarjeta>
-            <TarjetaCabecera>
               <TarjetaTitulo>Archivos</TarjetaTitulo>
             </TarjetaCabecera>
             <TarjetaContenido>
@@ -324,7 +308,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
               <TarjetaTitulo>Trazabilidad</TarjetaTitulo>
             </TarjetaCabecera>
             <TarjetaContenido>
-              <HistorialBitacora tablas={["documentos"]} registroId={documento.id} />
+              <HistorialDocumental documentoId={documento.id} />
             </TarjetaContenido>
           </Tarjeta>
         </div>

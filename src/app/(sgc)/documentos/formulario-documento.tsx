@@ -7,7 +7,11 @@ import { Wand2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { crearDocumento, sugerirCodigoDocumento } from "@/app/(sgc)/documentos/acciones";
+import {
+  actualizarDocumento,
+  crearDocumento,
+  sugerirCodigoDocumento,
+} from "@/app/(sgc)/documentos/acciones";
 import { ETIQUETAS_TIPO_DOCUMENTO, TIPOS_DOCUMENTO_VIGENTES } from "@/lib/constantes";
 import { extensionesAdmitidas, FORMATO_POR_TIPO, motivoDeRechazo } from "@/lib/adjuntos";
 import type { TipoDocumento } from "@/lib/tipos";
@@ -23,24 +27,48 @@ import type { TipoDocumento } from "@/lib/tipos";
  *
  * El archivo va acá y no después. Un documento sin archivo es un código
  * en una tabla: el listado lo muestra y al tocarlo no hay nada que abrir.
+ *
+ * El mismo formulario edita. Hasta ahora no había forma de corregir un
+ * documento ya cargado: si se creaba sin proceso, o con el título mal
+ * escrito, quedaba así para siempre. Al editar no se pide el archivo,
+ * que se administra en su propio bloque de la ficha.
  */
+export interface DocumentoInicial {
+  id: string;
+  codigo: string | null;
+  titulo: string;
+  tipo: TipoDocumento;
+  categoria: string | null;
+  proceso_id: string | null;
+  responsable_id: string | null;
+  periodicidad_revision_meses: number;
+}
+
 export function FormularioDocumento({
   usuarioActual,
   categorias,
   procesos,
+  personas = [],
+  inicial,
 }: {
   usuarioActual: string;
   /** Las categorías ya usadas, para ofrecerlas y no duplicarlas. */
   categorias: string[];
   procesos: { id: string; nombre: string; codigo: string }[];
+  /** Solo hace falta al editar: en el alta el responsable es quien carga. */
+  personas?: { id: string; nombre_completo: string }[];
+  /** Cuando viene, el formulario edita ese documento en vez de crear uno. */
+  inicial?: DocumentoInicial;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
-  const [tipo, definirTipo] = React.useState<TipoDocumento>("manual");
-  const [codigo, definirCodigo] = React.useState("");
+  const [tipo, definirTipo] = React.useState<TipoDocumento>(inicial?.tipo ?? "manual");
+  const [codigo, definirCodigo] = React.useState(inicial?.codigo ?? "");
   const [archivo, definirArchivo] = React.useState<File | null>(null);
-  const [sinCodigo, definirSinCodigo] = React.useState(false);
+  const [sinCodigo, definirSinCodigo] = React.useState(
+    Boolean(inicial) && !inicial?.codigo,
+  );
 
   async function sugerirCodigo() {
     const sugerido = await sugerirCodigoDocumento(tipo, null);
@@ -48,8 +76,11 @@ export function FormularioDocumento({
     toast.info(`Código sugerido: ${sugerido}`);
   }
 
-  // Al elegir el tipo se propone el código controlado disponible.
+  // Al elegir el tipo se propone el código controlado disponible. Al
+  // editar no: el código ya está puesto y proponerle otro sería
+  // cambiárselo por haber tocado el desplegable del tipo.
   React.useEffect(() => {
+    if (inicial) return;
     let vigente = true;
     sugerirCodigoDocumento(tipo, null).then((sugerido) => {
       if (vigente) definirCodigo((actual) => (actual ? actual : sugerido));
@@ -86,11 +117,13 @@ export function FormularioDocumento({
     definirError(null);
 
     const datos = new FormData(evento.currentTarget);
-    const resultado = await crearDocumento(datos);
+    const resultado = inicial
+      ? await actualizarDocumento(inicial.id, datos)
+      : await crearDocumento(datos);
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Documento creado.");
-      router.push(`/documentos/${resultado.id}`);
+      router.push(`/documentos/${inicial?.id ?? resultado.id}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -186,7 +219,11 @@ export function FormularioDocumento({
             className="sm:col-span-2"
             ayuda="A qué proceso del mapa pertenece. Se ve en la ficha del documento."
           >
-            <Seleccion id="proceso_id" name="proceso_id" defaultValue="">
+            <Seleccion
+              id="proceso_id"
+              name="proceso_id"
+              defaultValue={inicial?.proceso_id ?? ""}
+            >
               <option value="">Sin proceso asociado</option>
               {procesos.map((proceso) => (
                 <option key={proceso.id} value={proceso.id}>
@@ -206,6 +243,7 @@ export function FormularioDocumento({
               id="categoria"
               name="categoria"
               list="categorias-usadas"
+              defaultValue={inicial?.categoria ?? ""}
               placeholder="Sin categoría"
             />
             <datalist id="categorias-usadas">
@@ -219,12 +257,52 @@ export function FormularioDocumento({
             <Entrada
               id="titulo"
               name="titulo"
+              defaultValue={inicial?.titulo ?? ""}
               placeholder="Manual de recepción de mercadería"
               required
               minLength={4}
             />
           </GrupoCampo>
 
+          {inicial ? (
+            <>
+              <GrupoCampo
+                etiqueta="Responsable"
+                htmlFor="responsable_id"
+                ayuda="Quien mantiene el documento al día."
+              >
+                <Seleccion
+                  id="responsable_id"
+                  name="responsable_id"
+                  defaultValue={inicial.responsable_id ?? ""}
+                >
+                  <option value="">Sin responsable</option>
+                  {personas.map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo}
+                    </option>
+                  ))}
+                </Seleccion>
+              </GrupoCampo>
+
+              <GrupoCampo
+                etiqueta="Periodicidad de revisión"
+                htmlFor="periodicidad_revision_meses"
+                ayuda="Cada cuántos meses se revisa."
+              >
+                <Entrada
+                  id="periodicidad_revision_meses"
+                  name="periodicidad_revision_meses"
+                  type="number"
+                  min={1}
+                  max={60}
+                  defaultValue={inicial.periodicidad_revision_meses}
+                />
+              </GrupoCampo>
+            </>
+          ) : null}
+
+          {inicial ? null : (
           <GrupoCampo
             etiqueta="Archivo del documento"
             htmlFor="archivo"
@@ -248,8 +326,11 @@ export function FormularioDocumento({
               </p>
             ) : null}
           </GrupoCampo>
+          )}
 
-          <input type="hidden" name="responsable_id" value={usuarioActual} />
+          {inicial ? null : (
+            <input type="hidden" name="responsable_id" value={usuarioActual} />
+          )}
         </div>
 
         {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
@@ -259,7 +340,7 @@ export function FormularioDocumento({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Crear documento
+            {inicial ? "Guardar cambios" : "Crear documento"}
           </Boton>
         </div>
       </Tarjeta>

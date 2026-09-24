@@ -1,12 +1,16 @@
 /**
  * Reglas de los archivos del sistema documental.
  *
- * Las decidio Calidad y valen para toda la casa: lo que rige se publica
- * en PDF y lo que se completa se publica en su formato editable. La
- * razon es practica, no estetica. Un procedimiento en .docx circulando
- * por correo se edita, y a la semana hay tres versiones distintas de un
- * documento que deberia tener una sola. Un formulario en PDF, al reves,
- * no se puede llenar: se imprime, se completa a mano y se pierde.
+ * Hasta el 24 de septiembre el formato estaba atado al tipo: PDF para lo
+ * que rige, editable para lo que se completa. La idea era evitar que un
+ * procedimiento en .docx circule por correo y termine en tres versiones
+ * distintas. Calidad pidio retirarla: en la practica hay documentos
+ * legitimos en otros formatos —una planilla de calculo que es el
+ * procedimiento, un instructivo con capturas— y el sistema los rechazaba
+ * sin que nadie pudiera hacer nada.
+ *
+ * Queda el control que si importa: el tamano maximo y la lista de
+ * formatos conocidos. Un ejecutable no entra.
  *
  * Vive en `lib/` y no en la accion de servidor porque lo necesitan los
  * dos lados: el navegador para avisar antes de subir, el servidor para
@@ -28,20 +32,6 @@ interface FormatoAdmitido {
   explicacion: string;
 }
 
-const PDF: FormatoAdmitido = {
-  extensiones: [".pdf"],
-  explicacion:
-    "Los manuales, procedimientos, instructivos, políticas y planes se publican en PDF: " +
-    "es lo que evita que circulen copias editadas.",
-};
-
-const EDITABLE: FormatoAdmitido = {
-  extensiones: [".doc", ".docx", ".xls", ".xlsx", ".csv"],
-  explicacion:
-    "Los formularios y registros se publican en su formato editable (Word o planilla): " +
-    "están hechos para completarse.",
-};
-
 const LIBRE: FormatoAdmitido = {
   extensiones: [
     ".pdf",
@@ -58,19 +48,28 @@ const LIBRE: FormatoAdmitido = {
     ".webp",
     ".txt",
   ],
-  explicacion: "Un documento externo se guarda tal como lo entregó su emisor.",
+  explicacion:
+    "Se admiten PDF, Word, planillas, presentaciones, imágenes y texto. " +
+    "Hasta 20 MB por archivo.",
 };
 
-/** Que formato admite cada tipo de documento. */
+/**
+ * Que formato admite cada tipo de documento: todos, el mismo.
+ *
+ * El mapa se conserva —en vez de borrarlo— porque la interfaz lo
+ * consulta para explicar la regla y para armar el `accept` del selector,
+ * y porque si Calidad vuelve a atar el formato al tipo, se cambia acá y
+ * en ningun otro lado.
+ */
 export const FORMATO_POR_TIPO: Record<TipoDocumento, FormatoAdmitido> = {
-  manual: PDF,
-  instructivo: PDF,
-  protocolo: PDF,
-  politica: PDF,
-  procedimiento: PDF,
-  plan: PDF,
-  formulario: EDITABLE,
-  registro: EDITABLE,
+  manual: LIBRE,
+  instructivo: LIBRE,
+  protocolo: LIBRE,
+  politica: LIBRE,
+  procedimiento: LIBRE,
+  plan: LIBRE,
+  formulario: LIBRE,
+  registro: LIBRE,
   externo: LIBRE,
 };
 
@@ -104,8 +103,7 @@ export function motivoDeRechazo(
 
   if (!formato.extensiones.includes(extension)) {
     return (
-      `Un archivo ${extension || "sin extensión"} no corresponde a este tipo de documento. ` +
-      formato.explicacion
+      `No se admiten archivos ${extension || "sin extensión"}. ` + formato.explicacion
     );
   }
 
