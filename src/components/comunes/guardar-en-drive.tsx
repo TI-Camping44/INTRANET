@@ -4,7 +4,13 @@ import * as React from "react";
 import { toast } from "sonner";
 import { HardDrive } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { cargarGis, pedirToken } from "@/lib/google-token";
+import {
+  MENSAJE_VENTANA_BLOQUEADA,
+  PERMISO_DENEGADO,
+  VENTANA_BLOQUEADA,
+  cargarGis,
+  pedirToken,
+} from "@/lib/google-token";
 
 /**
  * Guarda una copia del archivo en el Drive de quien está mirando.
@@ -37,6 +43,15 @@ export function GuardarEnDrive({
 }) {
   const clienteId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const [guardando, definirGuardando] = React.useState(false);
+
+  // El guion de Google se trae al abrir la pantalla, no al apretar el
+  // botón: la ventana de permiso solo se puede abrir en los segundos que
+  // siguen al clic, y esa descarga en el medio alcanza para que el
+  // navegador la bloquee. Ver `pedirToken`.
+  React.useEffect(() => {
+    if (!clienteId) return;
+    void cargarGis().catch(() => {});
+  }, [clienteId]);
 
   // Sin el identificador de Google el botón no tiene con qué pedir
   // permiso, así que no se dibuja. Es la misma regla del selector.
@@ -84,9 +99,11 @@ export function GuardarEnDrive({
     } catch (error) {
       const motivo = error instanceof Error ? error.message : "";
       toast.error(
-        motivo === "permiso_denegado"
-          ? "Hace falta autorizar el acceso a su Drive para guardar la copia."
-          : `No se pudo guardar en Drive. ${motivo}`,
+        motivo === VENTANA_BLOQUEADA
+          ? MENSAJE_VENTANA_BLOQUEADA
+          : motivo === PERMISO_DENEGADO
+            ? "Hace falta autorizar el acceso a su Drive para guardar la copia."
+            : `No se pudo guardar en Drive. ${motivo}`,
       );
     } finally {
       definirGuardando(false);

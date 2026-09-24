@@ -23,6 +23,11 @@ interface RespuestaToken {
   error?: string;
 }
 
+interface FalloToken {
+  type?: string;
+  message?: string;
+}
+
 interface ClienteToken {
   requestAccessToken: () => void;
 }
@@ -36,7 +41,7 @@ interface VentanaConGoogle extends Window {
           client_id: string;
           scope: string;
           callback: (respuesta: RespuestaToken) => void;
-          error_callback: () => void;
+          error_callback: (fallo: FalloToken) => void;
         }) => ClienteToken;
       };
     };
@@ -46,6 +51,20 @@ interface VentanaConGoogle extends Window {
 export function ventanaConGoogle(): VentanaConGoogle {
   return window as VentanaConGoogle;
 }
+
+/**
+ * Motivos que se distinguen al pedir el token.
+ *
+ * `VENTANA_BLOQUEADA` importa porque no es culpa de la persona ni de un
+ * permiso mal dado: es el navegador tapando la ventana de Google. Sin
+ * separarlo, el aviso le pide autorizar algo que nunca llegó a ver.
+ */
+export const VENTANA_BLOQUEADA = "ventana_bloqueada";
+export const PERMISO_DENEGADO = "permiso_denegado";
+
+export const MENSAJE_VENTANA_BLOQUEADA =
+  "El navegador bloqueó la ventana de Google. Permita las ventanas emergentes " +
+  "para este sitio y vuelva a intentar.";
 
 const cargadas = new Map<string, Promise<void>>();
 
@@ -70,7 +89,16 @@ export function cargarGis(): Promise<void> {
   return cargarGuion("https://accounts.google.com/gsi/client");
 }
 
-/** Pide a Google un permiso acotado a los archivos que la persona elija o cree. */
+/**
+ * Pide a Google un permiso acotado a los archivos que la persona elija o cree.
+ *
+ * Abre una ventana emergente, y esa ventana solo se puede abrir dentro de
+ * los pocos segundos que siguen al clic. Por eso quien llame a esta
+ * función tiene que llegar hasta acá sin esperar nada por el camino: los
+ * guiones de Google se cargan al abrir la pantalla, no al apretar el
+ * botón. Si se cargan en el medio, la descarga se come el plazo y el
+ * navegador tapa la ventana.
+ */
 export function pedirToken(clienteId: string): Promise<string> {
   return new Promise((resolver, rechazar) => {
     const cuentas = ventanaConGoogle().google?.accounts;
@@ -82,9 +110,14 @@ export function pedirToken(clienteId: string): Promise<string> {
         scope: ALCANCE_DRIVE,
         callback: (respuesta) => {
           if (respuesta.access_token) resolver(respuesta.access_token);
-          else rechazar(new Error(respuesta.error ?? "permiso_denegado"));
+          else rechazar(new Error(respuesta.error ?? PERMISO_DENEGADO));
         },
-        error_callback: () => rechazar(new Error("permiso_denegado")),
+        error_callback: (fallo) =>
+          rechazar(
+            new Error(
+              fallo?.type === "popup_failed_to_open" ? VENTANA_BLOQUEADA : PERMISO_DENEGADO,
+            ),
+          ),
       })
       .requestAccessToken();
   });

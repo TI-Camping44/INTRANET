@@ -4,7 +4,14 @@ import * as React from "react";
 import { toast } from "sonner";
 import { HardDrive } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { cargarGis, cargarGuion, pedirToken } from "@/lib/google-token";
+import {
+  MENSAJE_VENTANA_BLOQUEADA,
+  PERMISO_DENEGADO,
+  VENTANA_BLOQUEADA,
+  cargarGis,
+  cargarGuion,
+  pedirToken,
+} from "@/lib/google-token";
 import {
   esNativoDeGoogle,
   formatoDeExportacion,
@@ -199,6 +206,16 @@ export function SelectorDrive({
   const clienteId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const claveApi = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
 
+  // Los guiones de Google se traen al abrir la pantalla, no al apretar el
+  // botón. Si se trajeran en el clic, esa espera se comería el plazo que
+  // da el navegador para abrir una ventana emergente y Chrome taparía el
+  // pedido de permiso sin decir nada. Si acá falla no se avisa: el clic
+  // vuelve a intentarlo y ahí sí el error se muestra.
+  React.useEffect(() => {
+    if (!clienteId || !claveApi) return;
+    void Promise.all([cargarGis(), cargarPicker()]).catch(() => {});
+  }, [clienteId, claveApi]);
+
   // Sin configurar, el botón no existe. La subida desde la computadora
   // sigue andando: es una comodidad que se suma, no un requisito.
   if (!clienteId || !claveApi) return null;
@@ -221,9 +238,11 @@ export function SelectorDrive({
     } catch (error) {
       const motivo = (error as Error).message;
       toast.error(
-        motivo === "permiso_denegado"
-          ? "Hace falta autorizar el acceso al archivo que elija para poder traerlo."
-          : motivo,
+        motivo === VENTANA_BLOQUEADA
+          ? MENSAJE_VENTANA_BLOQUEADA
+          : motivo === PERMISO_DENEGADO
+            ? "Hace falta autorizar el acceso al archivo que elija para poder traerlo."
+            : motivo,
       );
     } finally {
       definirTrabajando(false);
