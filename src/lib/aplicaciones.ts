@@ -171,6 +171,26 @@ export const APLICACIONES: Aplicacion[] = [
     url: `${BASE}/GESTIONREGULATORIA/`,
     publico: "operaciones",
   },
+  /**
+   * NotebookLM entra enlazado, como el resto: viene con el Workspace de
+   * la empresa, así que se ingresa con la misma cuenta.
+   *
+   * ES UN CUADERNO, NO UN BUSCADOR DEL SGC. Responde sobre los documentos
+   * que alguien haya cargado adentro, y no se entera de que la intranet
+   * aprobó una versión nueva: si el manual pasa de la 00 a la 01, el
+   * cuaderno sigue contestando con la 00 hasta que una persona lo
+   * actualice a mano. Para consultar sí sirve; como fuente de verdad del
+   * SGC, no. La descripción lo dice para que nadie lo confunda.
+   */
+  {
+    nombre: "NotebookLM",
+    descripcion:
+      "Preguntar en lenguaje natural sobre los documentos que se carguen " +
+      "en el cuaderno. Se ingresa con la cuenta de la empresa. La versión " +
+      "que rige es siempre la de Documentación.",
+    url: "https://notebooklm.google.com/",
+    publico: "operaciones",
+  },
 ];
 
 /** Las aplicaciones agrupadas por público, en el orden de presentación. */
