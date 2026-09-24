@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
 import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
 import { VisorPdf } from "@/components/comunes/visor-pdf";
+import { VisorWord } from "@/components/comunes/visor-word";
 import { convertirWordAHtml, documentoDeLaVista, esWord } from "@/lib/vista-word";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -88,8 +89,11 @@ export default async function PaginaArchivoDocumento({
       })()
     : null;
 
+  // El Word va mas ancho: es un formulario con tabla de dos columnas y en
+  // una columna de lectura queda apretado. El PDF y las imagenes se
+  // quedan como estaban, que ya traen su propio ancho de hoja.
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className={vistaWord ? "mx-auto max-w-7xl" : "mx-auto max-w-5xl"}>
       <Boton variante="fantasma" tamano="pequeno" comoHijo className="mb-3 -ml-2">
         <Link href="/documentos">
           <ArrowLeft /> Volver al listado
@@ -134,16 +138,9 @@ export default async function PaginaArchivoDocumento({
         />
       ) : vistaWord ? (
         <>
-          {/* MARCO AISLADO, con `sandbox` vacío: sin permiso para
-              ejecutar guiones, abrir ventanas ni enviar formularios. El
-              contenido sale de un archivo que subió alguien, y aunque la
-              conversión no genera guiones, el aislamiento no se apoya en
-              eso: se apoya en que el navegador no se los deja correr. */}
-          <iframe
-            sandbox=""
-            srcDoc={documentoDeLaVista(vistaWord.html, adjunto.nombre_archivo)}
-            title={adjunto.nombre_archivo}
-            className="h-[78vh] w-full rounded-lg border border-borde bg-white"
+          <VisorWord
+            documento={documentoDeLaVista(vistaWord.html, adjunto.nombre_archivo)}
+            titulo={adjunto.nombre_archivo}
           />
           <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
             Vista del documento de Word. La conversión puede perder encabezados, pies de página y
