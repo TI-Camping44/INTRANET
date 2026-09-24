@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, FileText } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
 import { VisorPdf } from "@/components/comunes/visor-pdf";
 import { VisorWord } from "@/components/comunes/visor-word";
@@ -72,10 +72,6 @@ export default async function PaginaArchivoDocumento({
   // propio cuadro con un botón «Abrir» en vez del PDF.
   const paraVer = `/documentos/${params.id}/archivo/contenido`;
 
-  const { data: paraBajar } = await supabase.storage
-    .from(adjunto.bucket)
-    .createSignedUrl(adjunto.ruta, 300, { download: adjunto.nombre_archivo });
-
   const esPdf = ES_PDF.test(adjunto.nombre_archivo);
   const esImagen = ES_IMAGEN.test(adjunto.nombre_archivo);
 
@@ -113,13 +109,6 @@ export default async function PaginaArchivoDocumento({
             <Link href={`/documentos/${params.id}`}>Ver la ficha</Link>
           </Boton>
           <GuardarEnDrive url={paraVer} nombre={adjunto.nombre_archivo} />
-          {paraBajar ? (
-            <Boton tamano="pequeno" comoHijo>
-              <a href={paraBajar.signedUrl}>
-                <Download /> Descargar
-              </a>
-            </Boton>
-          ) : null}
         </div>
       </div>
 
@@ -143,15 +132,19 @@ export default async function PaginaArchivoDocumento({
             titulo={adjunto.nombre_archivo}
           />
           <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
-            Vista del documento de Word. La conversión puede perder encabezados, pies de página y
-            el corte en páginas: el archivo que rige es el que se descarga.
+            Vista del documento de Word: sirve para leerlo, y la conversión puede perder
+            encabezados, pies de página y el corte en páginas.{" "}
+            <span className="text-texto">
+              Para completarlo o editarlo, use «Guardar en mi Drive»
+            </span>{" "}
+            y trabaje sobre su copia. El documento del SGC no cambia.
           </p>
         </>
       ) : (
         <EstadoVacio
           icono={<FileText className="size-6" />}
-          titulo="Este formato no se puede ver en el navegador"
-          descripcion="Las planillas y las presentaciones se abren en su programa. Descárguelo para leerlo."
+          titulo="Este formato no se puede ver acá"
+          descripcion="Las planillas y las presentaciones se abren en su programa. Use «Guardar en mi Drive» y ábralo desde ahí."
         />
       )}
     </div>

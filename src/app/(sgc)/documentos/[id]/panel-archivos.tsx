@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, Eye, Paperclip, Trash2, Upload } from "lucide-react";
+import { Eye, Paperclip, Trash2, Upload } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { VisorPdf } from "@/components/comunes/visor-pdf";
 import {
@@ -16,7 +16,6 @@ import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
 import { SelectorDrive } from "@/components/comunes/selector-drive";
 import {
   eliminarArchivoDocumento,
-  enlaceDeArchivo,
   subirArchivoDocumento,
 } from "@/app/(sgc)/documentos/acciones";
 import {
@@ -58,7 +57,6 @@ export function PanelArchivos({
   const router = useRouter();
   const entrada = React.useRef<HTMLInputElement>(null);
   const [subiendo, definirSubiendo] = React.useState(false);
-  const [abriendo, definirAbriendo] = React.useState<string | null>(null);
   // El archivo que se está mirando en la ventana, con su enlace firmado.
   const [mirando, definirMirando] = React.useState<{
     nombre: string;
@@ -113,18 +111,6 @@ export function PanelArchivos({
     });
   }
 
-  async function descargar(adjuntoId: string) {
-    definirAbriendo(adjuntoId);
-    const resultado = await enlaceDeArchivo(adjuntoId, true);
-    definirAbriendo(null);
-
-    if (resultado.exito && resultado.mensaje) {
-      window.open(resultado.mensaje, "_blank", "noopener,noreferrer");
-    } else if (!resultado.exito) {
-      toast.error(resultado.error);
-    }
-  }
-
   async function eliminar(adjuntoId: string) {
     const resultado = await eliminarArchivoDocumento(adjuntoId, documentoId);
     if (resultado.exito) {
@@ -170,9 +156,6 @@ export function PanelArchivos({
             Cerrar
           </Boton>
           <GuardarEnDrive url={mirando.url} nombre={mirando.nombre} />
-          <Boton onClick={() => descargar(mirando.id)}>
-            <Download /> Descargar
-          </Boton>
         </div>
       </DialogoContenido>
     </Dialogo>
@@ -209,15 +192,6 @@ export function PanelArchivos({
                 title="Ver el archivo"
               >
                 <Eye />
-              </Boton>
-              <Boton
-                variante="fantasma"
-                tamano="pequeno"
-                onClick={() => descargar(archivo.id)}
-                aria-label={`Descargar ${archivo.nombre_archivo}`}
-                title="Descargar"
-              >
-                <Download />
               </Boton>
               {puedeGestionar ? (
                 <button

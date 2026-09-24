@@ -919,6 +919,12 @@ export async function subirArchivoDocumento(
  *
  * Dura cinco minutos: alcanza para abrirlo y no para dejarlo pegado en un
  * chat y que lo abra cualquiera dentro de un mes.
+ *
+ * HOY NO LA LLAMA NADIE. Calidad pidio sacar el boton «Descargar» del
+ * modulo documental: el archivo se lee en pantalla y, para trabajarlo, se
+ * guarda una copia en el Drive de la persona. Se conserva porque la
+ * decision es reversible —basta volver a poner el boton— y porque
+ * reescribirla despues seria trabajo repetido.
  */
 export async function enlaceDeArchivo(
   adjuntoId: string,
