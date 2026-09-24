@@ -99,16 +99,16 @@ export function PanelArchivos({
    * y el mismo permiso, lo único que cambia es la cabecera con la que
    * Storage lo entrega. Dura cinco minutos, como antes.
    */
-  async function mirar(adjuntoId: string, nombre: string) {
-    definirAbriendo(adjuntoId);
-    const resultado = await enlaceDeArchivo(adjuntoId, false);
-    definirAbriendo(null);
-
-    if (resultado.exito && resultado.mensaje) {
-      definirMirando({ nombre, url: resultado.mensaje, id: adjuntoId });
-    } else if (!resultado.exito) {
-      toast.error(resultado.error);
-    }
+  function mirar(adjuntoId: string, nombre: string) {
+    // El archivo se pide a una dirección de la intranet que lo entrega
+    // con la cabecera «inline». El enlace firmado de Storage no sirve
+    // para mostrar: el navegador lo toma como descarga y dibuja su
+    // propio cuadro con un botón «Abrir» en vez del documento.
+    definirMirando({
+      nombre,
+      url: `/documentos/${documentoId}/archivo/contenido?adjunto=${adjuntoId}`,
+      id: adjuntoId,
+    });
   }
 
   async function descargar(adjuntoId: string) {
@@ -194,7 +194,6 @@ export function PanelArchivos({
                 variante="fantasma"
                 tamano="pequeno"
                 onClick={() => mirar(archivo.id, archivo.nombre_archivo)}
-                cargando={abriendo === archivo.id}
                 aria-label={`Ver ${archivo.nombre_archivo}`}
                 title="Ver el archivo"
               >

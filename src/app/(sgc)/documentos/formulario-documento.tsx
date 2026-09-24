@@ -7,6 +7,7 @@ import { Wand2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { SelectorDrive } from "@/components/comunes/selector-drive";
 import {
   actualizarDocumento,
   crearDocumento,
@@ -117,6 +118,13 @@ export function FormularioDocumento({
     definirError(null);
 
     const datos = new FormData(evento.currentTarget);
+
+    // El archivo elegido desde Drive no está en ningún campo del
+    // formulario: lo bajó el navegador y vive en memoria. Se agrega acá
+    // para que llegue por el mismo camino que el de la computadora y
+    // pase por las mismas validaciones.
+    if (archivo) datos.set("archivo", archivo);
+
     const resultado = inicial
       ? await actualizarDocumento(inicial.id, datos)
       : await crearDocumento(datos);
@@ -309,17 +317,26 @@ export function FormularioDocumento({
             className="sm:col-span-2"
             ayuda={FORMATO_POR_TIPO[tipo].explicacion}
           >
-            <input
-              id="archivo"
-              name="archivo"
-              type="file"
-              accept={extensionesAdmitidas(tipo)}
-              onChange={elegirArchivo}
-              className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
-                         text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
-                         file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
-                         file:text-texto"
-            />
+            {/* Los dos orígenes terminan en el mismo lugar: el archivo
+                pasa por las mismas validaciones venga de donde venga. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <SelectorDrive
+                tipoDocumento={tipo}
+                onElegir={(elegido) => definirArchivo(elegido)}
+                deshabilitado={enviando}
+              />
+              <input
+                id="archivo"
+                name="archivo"
+                type="file"
+                accept={extensionesAdmitidas(tipo)}
+                onChange={elegirArchivo}
+                className="min-w-0 flex-1 cursor-pointer rounded-md border border-borde
+                           bg-fondo text-xs text-texto file:mr-3 file:cursor-pointer
+                           file:border-0 file:bg-acento file:px-3 file:py-2 file:text-xs
+                           file:font-medium file:text-texto"
+              />
+            </div>
             {archivo ? (
               <p className="mt-1.5 text-[11px] text-atenuado-contraste">
                 Se va a subir <span className="font-medium text-texto">{archivo.name}</span>.

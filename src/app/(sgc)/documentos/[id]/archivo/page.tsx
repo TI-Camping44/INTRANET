@@ -61,12 +61,15 @@ export default async function PaginaArchivoDocumento({
   if (!documento) redirect("/documentos");
   if (!adjunto) redirect(`/documentos/${params.id}`);
 
-  const [{ data: paraVer }, { data: paraBajar }] = await Promise.all([
-    supabase.storage.from(adjunto.bucket).createSignedUrl(adjunto.ruta, 300),
-    supabase.storage
-      .from(adjunto.bucket)
-      .createSignedUrl(adjunto.ruta, 300, { download: adjunto.nombre_archivo }),
-  ]);
+  // Para ver, el archivo se pide a una dirección de la intranet que lo
+  // entrega con la cabecera «inline». El enlace firmado de Storage no
+  // sirve para eso: el navegador lo toma como descarga y dibuja su
+  // propio cuadro con un botón «Abrir» en vez del PDF.
+  const paraVer = `/documentos/${params.id}/archivo/contenido`;
+
+  const { data: paraBajar } = await supabase.storage
+    .from(adjunto.bucket)
+    .createSignedUrl(adjunto.ruta, 300, { download: adjunto.nombre_archivo });
 
   const seVe = VISIBLES_EN_EL_NAVEGADOR.test(adjunto.nombre_archivo);
 
@@ -100,9 +103,9 @@ export default async function PaginaArchivoDocumento({
         </div>
       </div>
 
-      {seVe && paraVer ? (
+      {seVe ? (
         <iframe
-          src={paraVer.signedUrl}
+          src={paraVer}
           title={adjunto.nombre_archivo}
           className="h-[78vh] w-full rounded-lg border border-borde bg-fondo"
         />
