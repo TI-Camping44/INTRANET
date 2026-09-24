@@ -19,6 +19,7 @@
 
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 
 /** Tope de caracteres que se guardan por documento. */
 const MAXIMO_CARACTERES = 500_000;
@@ -56,6 +57,16 @@ function ubicacionDeFuentes(): string | undefined {
   }
 }
 
+/** La ruta real del worker de PDF.js, como direccion de archivo. */
+function rutaDelWorker(): string | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    return pathToFileURL(require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
+  } catch {
+    return undefined;
+  }
+}
+
 function esPdf(nombre: string, tipoMime: string | null): boolean {
   return tipoMime === "application/pdf" || /\.pdf$/i.test(nombre);
 }
@@ -70,6 +81,12 @@ export async function extraerTexto(
   // La compilación «legacy», igual que el visor: la moderna usa funciones
   // de JavaScript que no están en todos lados.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+  // Se le dice DONDE está su propio worker, con la ruta real del archivo.
+  // Dejarselo adivinar es lo que fallaba: en el servidor la biblioteca lo
+  // buscaba en una carpeta de la compilación donde nunca estuvo.
+  const worker = rutaDelWorker();
+  if (worker) pdfjs.GlobalWorkerOptions.workerSrc = worker;
 
   // Se guarda la tarea, no solo el documento: `destroy()` es de la tarea,
   // y sin llamarlo queda un trabajador vivo por cada archivo leído.
