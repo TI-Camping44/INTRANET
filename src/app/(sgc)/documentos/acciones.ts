@@ -5,7 +5,12 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar, notificarAVarios } from "@/lib/notificaciones";
 import { PREFIJO_CODIGO_DOCUMENTO } from "@/lib/constantes";
-import { BUCKET_DOCUMENTOS, motivoDeRechazo, rutaDeArchivo } from "@/lib/adjuntos";
+import {
+  BUCKET_DOCUMENTOS,
+  motivoDeRechazo,
+  nombreDeArchivoLegible,
+  rutaDeArchivo,
+} from "@/lib/adjuntos";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
@@ -790,7 +795,7 @@ export async function subirArchivoDocumento(
     empresa_id: usuario.empresa_id,
     entidad: "documentos",
     entidad_id: documentoId,
-    nombre_archivo: archivo.name,
+    nombre_archivo: nombreDeArchivoLegible(archivo.name),
     ruta,
     bucket: BUCKET_DOCUMENTOS,
     tamano_bytes: archivo.size,

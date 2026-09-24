@@ -23,31 +23,53 @@ import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
  * envían siempre, aunque estén vacíos, y por eso el bloque entero se
  * agrega y se quita junto.
  */
+export interface AccionInicial {
+  id: string;
+  descripcion: string;
+  responsable_id: string | null;
+  fecha_limite: string;
+}
+
 export function CampoAcciones({
   personas,
   usuarioActual,
+  iniciales = [],
 }: {
   personas: { id: string; nombre_completo: string }[];
   usuarioActual: string;
+  /** Las ya cargadas, cuando se está editando la respuesta. */
+  iniciales?: AccionInicial[];
 }) {
-  const [bloques, definirBloques] = React.useState([0]);
-  const siguiente = React.useRef(1);
   const plazoPorDefecto = sumarDias(hoyEnAsuncion(), 15);
 
+  // Cada bloque lleva el id de la acción que ya existe, o vacío si es
+  // nueva. Sin eso, guardar una edición no sabría cuál fila actualizar y
+  // habría que borrarlas todas y volver a crearlas, perdiendo el estado
+  // de ejecución de las que ya estaban cerradas.
+  const [bloques, definirBloques] = React.useState(() =>
+    iniciales.length > 0
+      ? iniciales.map((accion, indice) => ({ clave: indice, accion }))
+      : [{ clave: 0, accion: null as AccionInicial | null }],
+  );
+  const siguiente = React.useRef(Math.max(iniciales.length, 1));
+
   function agregar() {
-    definirBloques((actuales) => [...actuales, siguiente.current++]);
+    definirBloques((actuales) => [...actuales, { clave: siguiente.current++, accion: null }]);
   }
 
   function quitar(clave: number) {
     definirBloques((actuales) =>
-      actuales.length === 1 ? actuales : actuales.filter((otra) => otra !== clave),
+      actuales.length === 1 ? actuales : actuales.filter((otra) => otra.clave !== clave),
     );
   }
 
   return (
     <div className="space-y-3">
-      {bloques.map((clave, indice) => (
+      {bloques.map(({ clave, accion }, indice) => (
         <div key={clave} className="rounded-md border border-borde p-3">
+          {/* Vacío en las nuevas. Va siempre, aunque esté vacío, para
+              que las cuatro listas del envío midan lo mismo. */}
+          <input type="hidden" name="accion_id" value={accion?.id ?? ""} />
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-atenuado-contraste">
               Acción {indice + 1}
@@ -76,6 +98,7 @@ export function CampoAcciones({
               <AreaTexto
                 id={`accion-descripcion-${clave}`}
                 name="accion_descripcion"
+                defaultValue={accion?.descripcion ?? ""}
                 rows={3}
                 required
                 minLength={10}
@@ -90,7 +113,7 @@ export function CampoAcciones({
               <Seleccion
                 id={`accion-responsable-${clave}`}
                 name="accion_responsable"
-                defaultValue={indice === 0 ? usuarioActual : ""}
+                defaultValue={accion ? (accion.responsable_id ?? "") : indice === 0 ? usuarioActual : ""}
               >
                 <option value="">Asignar más adelante</option>
                 {personas.map((persona) => (
@@ -111,7 +134,7 @@ export function CampoAcciones({
                 id={`accion-fecha-${clave}`}
                 name="accion_fecha_limite"
                 type="date"
-                defaultValue={plazoPorDefecto}
+                defaultValue={accion?.fecha_limite ?? plazoPorDefecto}
                 required
               />
             </GrupoCampo>

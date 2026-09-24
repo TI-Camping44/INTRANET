@@ -194,3 +194,36 @@ export function motivoDeRechazoEvidencia(
 export function rutaDeEvidencia(hallazgoId: string, nombreArchivo: string): string {
   return `hallazgos/${hallazgoId}/${Date.now()}${extensionDe(nombreArchivo)}`;
 }
+
+/**
+ * Repara el nombre de un archivo que llegó mal decodificado.
+ *
+ * «Política de Calidad.pdf» se guardaba como «PolÃ­tica de Calidad.pdf».
+ * No es culpa del navegador: el nombre viaja en la cabecera del envío
+ * como bytes UTF-8 crudos, y el lector de formularios del servidor los
+ * interpreta como Latin-1, que es un byte por letra. Cada acento sale
+ * partido en dos caracteres.
+ *
+ * Se deshace el daño al revés: se vuelven a tomar los caracteres como
+ * bytes y se leen como UTF-8. La comprobación de seguridad es que el
+ * resultado sea UTF-8 válido —un nombre que ya estaba bien no lo es, y
+ * se devuelve tal cual—, así que la función nunca rompe un nombre
+ * correcto.
+ *
+ * Se aplica al guardar. La ruta dentro del bucket no la usa: esa se
+ * arma con la fecha y la extensión, así que ningún archivo ya subido
+ * quedó inaccesible por esto.
+ */
+export function nombreDeArchivoLegible(nombre: string): string {
+  // Sin caracteres en el rango alto no hay nada que reparar.
+  if (!/[\u0080-ÿ]/.test(nombre)) return nombre;
+
+  try {
+    const bytes = Uint8Array.from(Array.from(nombre, (letra) => letra.charCodeAt(0) & 0xff));
+    const leido = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return leido;
+  } catch {
+    // No era UTF-8 mal leído: el nombre ya estaba bien.
+    return nombre;
+  }
+}

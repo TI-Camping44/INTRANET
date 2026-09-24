@@ -67,7 +67,14 @@ const VISTAS: Record<string, { etiqueta: string; estados: EstadoAccion[] }> = {
 export default async function PaginaAcciones({
   searchParams,
 }: {
-  searchParams: { q?: string; vista?: string; estado?: string; tipo?: string; filtro?: string };
+  searchParams: {
+    q?: string;
+    vista?: string;
+    estado?: string;
+    tipo?: string;
+    filtro?: string;
+    nc?: string;
+  };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
@@ -92,9 +99,28 @@ export default async function PaginaAcciones({
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
+  if (searchParams.nc) consulta = consulta.eq("no_conformidad_id", searchParams.nc);
   if (searchParams.filtro === "mias") consulta = consulta.eq("responsable_id", usuario.id);
   if (searchParams.filtro === "vencidas") consulta = consulta.lt("fecha_limite", hoy);
-  if (searchParams.q) consulta = consulta.ilike("descripcion", `%${searchParams.q}%`);
+  // Se busca en la descripcion de la accion, pero tambien por el codigo
+  // de la desviacion: «NC-2026-003» es como se la nombra, y buscarlo
+  // devolvia vacio porque el codigo no esta en esta tabla.
+  if (searchParams.q) {
+    const texto = searchParams.q.trim();
+    const { data: porCodigo } = await supabase
+      .from("no_conformidades")
+      .select("id")
+      .ilike("codigo", `%${texto}%`);
+
+    const ids = ((porCodigo as { id: string }[] | null) ?? []).map((fila) => fila.id);
+
+    consulta =
+      ids.length > 0
+        ? consulta.or(
+            `descripcion.ilike.%${texto}%,no_conformidad_id.in.(${ids.join(",")})`,
+          )
+        : consulta.ilike("descripcion", `%${texto}%`);
+  }
 
   // Para rotular las pestañas hace falta el estado de todas, no solo el
   // de las de la vista actual.
@@ -327,8 +353,13 @@ export default async function PaginaAcciones({
                       </Link>
                     </TablaCelda>
                     <TablaCelda>
+                      {/* Lleva a la accion correctiva y no a la ficha de
+                          la desviacion: desde la revision del 23, la
+                          ficha ya no muestra ni el analisis ni el plan,
+                          asi que se llegaba a una pantalla que no tenia
+                          lo que se habia ido a buscar. */}
                       <Link
-                        href={`/no-conformidades/${accion.no_conformidad_id}`}
+                        href={`/acciones/${accion.no_conformidad_id}`}
                         className="hover:text-primario"
                       >
                         {recortar(accion.descripcion, 90)}

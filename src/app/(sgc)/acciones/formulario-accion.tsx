@@ -7,7 +7,8 @@ import { Boton } from "@/components/ui/boton";
 import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { responderNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
-import { CampoAcciones } from "@/app/(sgc)/acciones/campo-acciones";
+import { CampoAcciones, type AccionInicial } from "@/app/(sgc)/acciones/campo-acciones";
+import { actualizarRespuesta } from "@/app/(sgc)/acciones/acciones";
 import { PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
 
 export interface OpcionNoConformidad {
@@ -36,24 +37,35 @@ export interface OpcionNoConformidad {
  * cierre lo decide una persona desde la ficha, diciendo si fue en plazo
  * o fuera de plazo, que es como lo definió Calidad el 23 de septiembre.
  */
+export interface RespuestaInicial {
+  noConformidadId: string;
+  descargo: string;
+  porques: string[];
+  acciones: AccionInicial[];
+}
+
 export function FormularioAccion({
   noConformidades,
   personas,
   usuarioActual,
   noConformidadInicial,
+  inicial,
 }: {
   noConformidades: OpcionNoConformidad[];
   personas: { id: string; nombre_completo: string }[];
   usuarioActual: string;
   noConformidadInicial?: string;
+  /** Cuando viene, el formulario edita esa respuesta en vez de crear una. */
+  inicial?: RespuestaInicial;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
   const [noConformidadId, definirNoConformidadId] = React.useState(
-    noConformidadInicial && noConformidades.some((nc) => nc.id === noConformidadInicial)
-      ? noConformidadInicial
-      : "",
+    inicial?.noConformidadId ??
+      (noConformidadInicial && noConformidades.some((nc) => nc.id === noConformidadInicial)
+        ? noConformidadInicial
+        : ""),
   );
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
@@ -68,13 +80,16 @@ export function FormularioAccion({
     definirError(null);
 
     const datos = new FormData(evento.currentTarget);
-    const resultado = await responderNoConformidad(noConformidadId, datos);
+    const resultado = inicial
+      ? await actualizarRespuesta(inicial.noConformidadId, datos)
+      : await responderNoConformidad(noConformidadId, datos);
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "No conformidad respondida.");
-      // Se vuelve a la ficha de la desviación y no al listado: quien
-      // acaba de cargar la acción suele querer ver cómo queda el plan.
-      router.push(`/no-conformidades/${noConformidadId}`);
+      // Se va a la acción correctiva y no a la ficha de la desviación:
+      // quien acaba de cargarla suele querer ver cómo quedó el plan, y
+      // eso está acá, no allá.
+      router.push(`/acciones/${inicial?.noConformidadId ?? noConformidadId}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -99,6 +114,7 @@ export function FormularioAccion({
               value={noConformidadId}
               onChange={(evento) => definirNoConformidadId(evento.target.value)}
               required
+              disabled={Boolean(inicial)}
             >
               <option value="" disabled>
                 Elija la no conformidad
@@ -118,7 +134,14 @@ export function FormularioAccion({
             className="sm:col-span-2"
             ayuda="Qué pasó y por qué, en sus palabras. Es su explicación de la desviación, no lo que va a hacer."
           >
-            <AreaTexto id="descargo" name="descargo" rows={3} required minLength={10} />
+            <AreaTexto
+              id="descargo"
+              name="descargo"
+              defaultValue={inicial?.descargo ?? ""}
+              rows={3}
+              required
+              minLength={10}
+            />
           </GrupoCampo>
 
           <div className="sm:col-span-2">
@@ -149,7 +172,13 @@ export function FormularioAccion({
                     >
                       {pregunta} <span className="text-primario">*</span>
                     </label>
-                    <AreaTexto id={`porque-${indice}`} name="porque" rows={2} required />
+                    <AreaTexto
+                      id={`porque-${indice}`}
+                      name="porque"
+                      defaultValue={inicial?.porques[indice] ?? ""}
+                      rows={2}
+                      required
+                    />
                   </div>
                 </div>
               ))}
@@ -170,7 +199,11 @@ export function FormularioAccion({
               De una misma causa suelen salir varias, y cada una la ejecuta una persona
               distinta. Puede cargar más de una.
             </p>
-            <CampoAcciones personas={personas} usuarioActual={usuarioActual} />
+            <CampoAcciones
+              personas={personas}
+              usuarioActual={usuarioActual}
+              iniciales={inicial?.acciones ?? []}
+            />
           </div>
         </div>
 
@@ -181,7 +214,7 @@ export function FormularioAccion({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Responder la no conformidad
+            {inicial ? "Guardar cambios" : "Responder la no conformidad"}
           </Boton>
         </div>
       </Tarjeta>

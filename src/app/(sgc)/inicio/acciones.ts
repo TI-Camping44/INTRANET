@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { nombreDeArchivoLegible } from "@/lib/adjuntos";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import {
@@ -111,7 +112,7 @@ async function adjuntarImagen(
         empresa_id: usuario.empresa_id,
         entidad: "publicaciones",
         entidad_id: publicacionId,
-        nombre_archivo: archivo.name,
+        nombre_archivo: nombreDeArchivoLegible(archivo.name),
         ruta,
         bucket: BUCKET_IMAGENES,
         tamano_bytes: archivo.size,

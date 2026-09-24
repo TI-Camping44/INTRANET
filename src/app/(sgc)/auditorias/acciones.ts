@@ -5,6 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   BUCKET_DOCUMENTOS,
   motivoDeRechazoEvidencia,
+  nombreDeArchivoLegible,
   rutaDeEvidencia,
 } from "@/lib/adjuntos";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
@@ -412,7 +413,7 @@ export async function crearHallazgo(
       empresa_id: usuario.empresa_id,
       entidad: "auditoria_hallazgos",
       entidad_id: hallazgo.id,
-      nombre_archivo: archivo.name,
+      nombre_archivo: nombreDeArchivoLegible(archivo.name),
       ruta,
       bucket: BUCKET_DOCUMENTOS,
       tamano_bytes: archivo.size,

@@ -279,15 +279,19 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
                   : `${vinculadas.length} acciones correctivas vinculadas.`}
             </p>
             <Boton variante="contorno" tamano="pequeno" comoHijo>
+              {/* Lleva a la accion correctiva de esta desviacion. Antes
+                  iba al listado filtrado por texto, y ese filtro busca en
+                  la descripcion de la accion, no en el codigo de la NC:
+                  la pantalla se abria vacia. */}
               <Link
                 href={
                   vinculadas.length === 0
                     ? `/acciones/nueva?nc=${nc.id}`
-                    : `/acciones?vista=todas&q=${encodeURIComponent(nc.codigo)}`
+                    : `/acciones/${nc.id}`
                 }
               >
                 <ListChecks />
-                {vinculadas.length === 0 ? "Cargar la acción correctiva" : "Ver las acciones"}
+                {vinculadas.length === 0 ? "Cargar la acción correctiva" : "Ver la acción correctiva"}
               </Link>
             </Boton>
           </TarjetaContenido>
