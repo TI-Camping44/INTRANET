@@ -30,7 +30,7 @@ import {
   ORIGENES_NC_VIGENTES,
 } from "@/lib/constantes";
 import { describirVencimiento, diasHasta, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
-import { BarrasPorcentaje, Torta } from "@/app/(sgc)/no-conformidades/graficos";
+import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import {
   condicionDePaso,
   COLOR_PASO_NC,

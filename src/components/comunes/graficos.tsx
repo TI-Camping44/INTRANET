@@ -1,7 +1,10 @@
 import { cn } from "@/lib/utilidades";
 
 /**
- * Los gráficos del tablero de no conformidades.
+ * Los gráficos de los tableros del SGC.
+ *
+ * Nacieron en no conformidades y hoy los usa también el listado de
+ * acciones correctivas, así que viven acá y no dentro de un módulo.
  *
  * Son SVG escritos a mano, sin librería, como el resto de los del
  * proyecto. No hay estado ni interacción: son componentes de servidor y

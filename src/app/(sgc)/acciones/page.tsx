@@ -4,8 +4,8 @@ import { ListChecks, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { PestanasListado } from "@/components/comunes/pestanas-listado";
-import { InsigniaEstadoAccion } from "@/components/comunes/insignias-estado";
 import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Tarjeta, TarjetaCabecera, TarjetaTitulo } from "@/components/ui/tarjeta";
 import {
@@ -24,6 +24,13 @@ import {
   ETIQUETAS_TIPO_ACCION,
 } from "@/lib/constantes";
 import { describirVencimiento, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
+import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
+import {
+  CLASES_PASO_ACCION,
+  ETIQUETAS_PASO_ACCION,
+  pasoDeAccion,
+  PASOS_ACCION,
+} from "@/lib/acciones";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoAccion, TipoAccion } from "@/lib/tipos";
 
@@ -36,6 +43,7 @@ interface FilaAccion {
   tipo: TipoAccion;
   descripcion: string;
   estado: EstadoAccion;
+  ejecucion_en_plazo: boolean | null;
   fecha_limite: string;
   fecha_ejecucion: string | null;
   nivel_escalamiento: number;
@@ -88,7 +96,8 @@ export default async function PaginaAcciones({
   let consulta = supabase
     .from("nc_acciones")
     .select(
-      "id, no_conformidad_id, tipo, descripcion, estado, fecha_limite, fecha_ejecucion, " +
+      "id, no_conformidad_id, tipo, descripcion, estado, ejecucion_en_plazo, " +
+        "fecha_limite, fecha_ejecucion, " +
         "nivel_escalamiento, responsable:responsable_id (nombre_completo), " +
         "no_conformidad:no_conformidad_id (codigo, titulo)",
     )
@@ -174,6 +183,39 @@ export default async function PaginaAcciones({
     valor,
     etiqueta,
     cantidad: estadosCargados.filter((accion) => suyos.includes(accion.estado)).length,
+  }));
+
+  // Los graficos se arman sobre lo que quedo en el listado, no sobre el
+  // total: si se filtra por responsable, los porcentajes son de esa
+  // persona, que es lo que se esta mirando. Mismo criterio que en no
+  // conformidades.
+  const COLOR_PASO: Record<string, string> = {
+    abierta: "hsl(var(--semaforo-medio))",
+    ejecutada_en_plazo: "hsl(var(--semaforo-bajo))",
+    ejecutada_fuera_de_plazo: "hsl(var(--atenuado-contraste))",
+  };
+
+  const porPaso = PASOS_ACCION.map((paso) => ({
+    etiqueta: ETIQUETAS_PASO_ACCION[paso],
+    valor: acciones.filter(
+      (accion) => pasoDeAccion(accion.estado, accion.ejecucion_en_plazo) === paso,
+    ).length,
+    color: COLOR_PASO[paso],
+  }));
+
+  // Por responsable, en barras: son tantas personas como tenga la
+  // empresa y una torta de veinte porciones no se puede comparar.
+  const nombres = Array.from(
+    new Set(
+      acciones.map((accion) => accion.responsable?.nombre_completo ?? "Sin asignar"),
+    ),
+  );
+
+  const porResponsable = nombres.map((nombre) => ({
+    etiqueta: nombre,
+    valor: acciones.filter(
+      (accion) => (accion.responsable?.nombre_completo ?? "Sin asignar") === nombre,
+    ).length,
   }));
 
   const vencidas = acciones.filter(
@@ -290,6 +332,13 @@ export default async function PaginaAcciones({
         </Tarjeta>
       ) : null}
 
+      {acciones.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por estado" porciones={porPaso} />
+          <BarrasPorcentaje titulo="Por responsable" filas={porResponsable} />
+        </div>
+      ) : null}
+
       {vencidas > 0 ? (
         <p className="mb-3 text-xs text-semaforo-critico">
           {vencidas} {vencidas === 1 ? "acción pasó" : "acciones pasaron"} su fecha límite sin
@@ -393,7 +442,23 @@ export default async function PaginaAcciones({
                       ) : null}
                     </TablaCelda>
                     <TablaCelda>
-                      <InsigniaEstadoAccion estado={accion.estado} />
+                      {/* Los tres nombres de Calidad, no los del
+                          enumerado: «Ejecutada» son en realidad dos
+                          —en plazo y fuera de plazo— y la diferencia
+                          esta en `ejecucion_en_plazo`. */}
+                      <Insignia
+                        className={
+                          CLASES_PASO_ACCION[
+                            pasoDeAccion(accion.estado, accion.ejecucion_en_plazo)
+                          ]
+                        }
+                      >
+                        {
+                          ETIQUETAS_PASO_ACCION[
+                            pasoDeAccion(accion.estado, accion.ejecucion_en_plazo)
+                          ]
+                        }
+                      </Insignia>
                     </TablaCelda>
                   </TablaFila>
                 );

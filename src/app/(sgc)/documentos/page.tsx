@@ -23,7 +23,6 @@ import {
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { EncabezadoOrdenable } from "@/components/comunes/encabezado-ordenable";
 import { MoverCategoria } from "@/app/(sgc)/documentos/mover-categoria";
-import { MoverDocumento } from "@/app/(sgc)/documentos/mover-documento";
 import { PanelCategorias } from "@/app/(sgc)/documentos/panel-categorias";
 import {
   FilaArrastrable,
@@ -41,8 +40,7 @@ import {
   ETIQUETAS_TIPO_DOCUMENTO,
   TIPOS_DOCUMENTO_VIGENTES,
 } from "@/lib/constantes";
-import { describirVencimiento, formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
-import { diasHasta } from "@/lib/formato";
+import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoDocumento, TipoDocumento } from "@/lib/tipos";
 
@@ -152,7 +150,6 @@ export default async function PaginaDocumentos({
     tipo: "tipo",
     version: "version_actual",
     estado: "estado",
-    revision: "fecha_proxima_revision",
   };
 
   const columna = searchParams.orden ? COLUMNAS_ORDENABLES[searchParams.orden] : null;
@@ -356,11 +353,7 @@ export default async function PaginaDocumentos({
                     Estado
                   </EncabezadoOrdenable>
                 )}
-                <EncabezadoOrdenable campo="revision" className="hidden xl:table-cell">
-                  Próxima revisión
-                </EncabezadoOrdenable>
                 <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
-                {puedeOrdenar ? <TablaEncabezado className="w-12">Orden</TablaEncabezado> : null}
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -369,18 +362,9 @@ export default async function PaginaDocumentos({
                 // la agrupación que pidió Calidad: la carpeta se lee por
                 // categoría, no por código.
                 const anterior = documentos[indice - 1];
-                const siguiente = documentos[indice + 1];
                 // Con una columna ordenada no hay categorías ni posición
                 // manual que mostrar: la lista viene por otra cosa.
                 const abreCategoria = !columna && anterior?.categoria !== documento.categoria;
-                const esPrimeroDeCategoria = abreCategoria;
-                const esUltimoDeCategoria = siguiente?.categoria !== documento.categoria;
-
-                const dias = diasHasta(documento.fecha_proxima_revision);
-                const porVencer =
-                  documento.estado === "vigente" &&
-                  dias !== null &&
-                  dias <= DIAS_AVISO_REVISION_DOCUMENTO;
 
                 // Tocar el codigo o el titulo abre el archivo, no la ficha:
                 // quien entra al control documental viene a leer el
@@ -468,20 +452,6 @@ export default async function PaginaDocumentos({
                         <InsigniaEstadoDocumento estado={documento.estado} />
                       </TablaCelda>
                     )}
-                    <TablaCelda className="hidden text-xs xl:table-cell">
-                      {documento.fecha_proxima_revision ? (
-                        <span className={porVencer ? "text-semaforo-alto" : "text-atenuado-contraste"}>
-                          {formatearFecha(documento.fecha_proxima_revision)}
-                          {porVencer ? (
-                            <span className="block text-[10px]">
-                              {describirVencimiento(documento.fecha_proxima_revision)}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        <span className="text-atenuado-contraste">—</span>
-                      )}
-                    </TablaCelda>
                     <TablaCelda className="text-right">
                       <Link
                         href={`/documentos/${documento.id}`}
@@ -491,24 +461,6 @@ export default async function PaginaDocumentos({
                         Ver
                       </Link>
                     </TablaCelda>
-                    {puedeOrdenar ? (
-                      <TablaCelda>
-                        {columna ? (
-                          <span
-                            className="text-[10px] text-atenuado-contraste"
-                            title="Se está ordenando por una columna. Quite el orden para mover a mano."
-                          >
-                            —
-                          </span>
-                        ) : (
-                        <MoverDocumento
-                          documentoId={documento.id}
-                          esPrimero={esPrimeroDeCategoria}
-                          esUltimo={esUltimoDeCategoria}
-                        />
-                        )}
-                      </TablaCelda>
-                    ) : null}
                   </FilaArrastrable>
                   </React.Fragment>
                 );
@@ -532,8 +484,8 @@ export default async function PaginaDocumentos({
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
         versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
         {seArrastra
-          ? " Para reordenar, arrastre la fila a donde va; las flechas la mueven de a un lugar. " +
-            "El renglón de la categoría se arrastra igual y se lleva sus documentos. " +
+          ? " Para reordenar, arrastre la fila a donde va. El renglón de la categoría se " +
+            "arrastra igual y se lleva sus documentos, y sus flechas la mueven de a un lugar. " +
             "«Categorías» arma los grupos."
           : ""}
         {columna
