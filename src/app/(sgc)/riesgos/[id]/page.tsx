@@ -146,13 +146,19 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
         descripcion={riesgo.descripcion ?? undefined}
         acciones={
           <>
-            {/* Editar solo el riesgo: la oportunidad tiene otro
-                formulario porque no se valora igual. La baja sí vale
-                para las dos. */}
-            {gestiona && riesgo.tipo === "riesgo" ? (
+            {/* La ficha es una sola, pero la edición no: la oportunidad
+                se valora por beneficio y factibilidad, el riesgo por
+                probabilidad y severidad. Cada una va a su formulario. */}
+            {gestiona ? (
               <Boton variante="contorno" tamano="pequeno" comoHijo>
-                <Link href={`/riesgos/${params.id}/editar`}>
-                  <Pencil /> Editar Riesgo
+                <Link
+                  href={
+                    riesgo.tipo === "oportunidad"
+                      ? `/oportunidades/${params.id}/editar`
+                      : `/riesgos/${params.id}/editar`
+                  }
+                >
+                  <Pencil /> Editar {riesgo.tipo === "oportunidad" ? "Oportunidad" : "Riesgo"}
                 </Link>
               </Boton>
             ) : null}

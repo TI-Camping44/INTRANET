@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { crearOportunidad } from "@/app/(sgc)/riesgos/acciones";
+import { actualizarOportunidad, crearOportunidad } from "@/app/(sgc)/riesgos/acciones";
 import { ESCALA_BENEFICIO, ESCALA_FACTIBILIDAD } from "@/lib/constantes";
 import {
   advertenciaAlineacion,
@@ -37,22 +37,47 @@ interface Opcion {
  * oportunidad que necesita una sola cosa imposible no es factible,
  * aunque todo lo demás esté resuelto.
  */
+/** Lo que trae una oportunidad ya cargada cuando se la abre para corregir. */
+export interface OportunidadInicial {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  origen: string | null;
+  efecto_deseado: string | null;
+  proceso_id: string | null;
+  responsable_id: string | null;
+  beneficio: number | null;
+  factibilidad: number | null;
+  alineacion_estrategica: string | null;
+  se_decide_abordar: boolean | null;
+  fundamento_decision: string | null;
+  accion_planificada: string | null;
+  recursos_necesarios: string | null;
+  plazo_accion: string | null;
+  proceso_accion_id: string | null;
+}
+
 export function FormularioOportunidad({
   procesos,
   usuarios,
   usuarioActual,
+  inicial,
 }: {
   procesos: Opcion[];
   usuarios: Opcion[];
   usuarioActual: string;
+  inicial?: OportunidadInicial;
 }) {
   const router = useRouter();
+  const editando = Boolean(inicial);
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
-  const [beneficio, definirBeneficio] = React.useState(3);
-  const [factibilidad, definirFactibilidad] = React.useState(3);
-  const [alineacion, definirAlineacion] = React.useState("media");
-  const [seAborda, definirSeAborda] = React.useState(true);
+  const [beneficio, definirBeneficio] = React.useState(inicial?.beneficio ?? 3);
+  const [factibilidad, definirFactibilidad] = React.useState(inicial?.factibilidad ?? 3);
+  const [alineacion, definirAlineacion] = React.useState(
+    inicial?.alineacion_estrategica ?? "media",
+  );
+  const [seAborda, definirSeAborda] = React.useState(inicial?.se_decide_abordar ?? true);
 
   const indice = beneficio * factibilidad;
   const prioridad = prioridadOportunidad(indice)!;
@@ -63,11 +88,14 @@ export function FormularioOportunidad({
     definirEnviando(true);
     definirError(null);
 
-    const resultado = await crearOportunidad(new FormData(evento.currentTarget));
+    const datos = new FormData(evento.currentTarget);
+    const resultado = inicial
+      ? await actualizarOportunidad(inicial.id, datos)
+      : await crearOportunidad(datos);
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Oportunidad registrada.");
-      router.push("/oportunidades");
+      router.push(inicial ? `/riesgos/${inicial.id}` : "/oportunidades");
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -85,7 +113,7 @@ export function FormularioOportunidad({
               asi obliga a elegir en vez de dejar la primera por
               descuido. */}
           <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido className="sm:col-span-2">
-            <Seleccion id="origen" name="origen" required defaultValue="">
+            <Seleccion id="origen" name="origen" required defaultValue={inicial?.origen ?? ""}>
               <option value="" disabled>
                 Elija de dónde salió
               </option>
@@ -103,6 +131,7 @@ export function FormularioOportunidad({
               name="titulo"
               required
               minLength={5}
+              defaultValue={inicial?.titulo}
               placeholder="Venta con retiro programado desde el depósito"
             />
           </GrupoCampo>
@@ -113,7 +142,13 @@ export function FormularioOportunidad({
             requerido
             className="sm:col-span-2"
           >
-            <AreaTexto id="descripcion" name="descripcion" rows={3} required />
+            <AreaTexto
+              id="descripcion"
+              name="descripcion"
+              rows={3}
+              required
+              defaultValue={inicial?.descripcion ?? ""}
+            />
           </GrupoCampo>
 
           {/* Contra esto se mide la eficacia al cerrar, no contra el
@@ -126,11 +161,22 @@ export function FormularioOportunidad({
             className="sm:col-span-2"
             ayuda="Qué se espera lograr, en concreto. La eficacia se evalúa comparando el resultado obtenido contra esto."
           >
-            <AreaTexto id="efecto_deseado" name="efecto_deseado" rows={2} required />
+            <AreaTexto
+              id="efecto_deseado"
+              name="efecto_deseado"
+              rows={2}
+              required
+              defaultValue={inicial?.efecto_deseado ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id" requerido>
-            <Seleccion id="proceso_id" name="proceso_id" required defaultValue="">
+            <Seleccion
+              id="proceso_id"
+              name="proceso_id"
+              required
+              defaultValue={inicial?.proceso_id ?? ""}
+            >
               <option value="" disabled>
                 Elija el proceso
               </option>
@@ -143,7 +189,11 @@ export function FormularioOportunidad({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Responsable" htmlFor="responsable_id" requerido>
-            <Seleccion id="responsable_id" name="responsable_id" defaultValue={usuarioActual}>
+            <Seleccion
+              id="responsable_id"
+              name="responsable_id"
+              defaultValue={inicial?.responsable_id ?? usuarioActual}
+            >
               {usuarios.map((persona) => (
                 <option key={persona.id} value={persona.id}>
                   {persona.nombre_completo}
@@ -252,7 +302,13 @@ export function FormularioOportunidad({
             requerido
             ayuda="Por qué se decidió abordarla o dejarla. Queda como constancia de la decisión."
           >
-            <AreaTexto id="fundamento_decision" name="fundamento_decision" rows={2} required />
+            <AreaTexto
+              id="fundamento_decision"
+              name="fundamento_decision"
+              rows={2}
+              required
+              defaultValue={inicial?.fundamento_decision ?? ""}
+            />
           </GrupoCampo>
         </div>
 
@@ -265,16 +321,34 @@ export function FormularioOportunidad({
               requerido
               className="sm:col-span-2"
             >
-              <AreaTexto id="accion_planificada" name="accion_planificada" rows={2} required />
+              <AreaTexto
+                id="accion_planificada"
+                name="accion_planificada"
+                rows={2}
+                required
+                defaultValue={inicial?.accion_planificada ?? ""}
+              />
             </GrupoCampo>
 
             <GrupoCampo etiqueta="Recursos necesarios" htmlFor="recursos_necesarios" requerido>
-              <AreaTexto id="recursos_necesarios" name="recursos_necesarios" rows={2} required />
+              <AreaTexto
+                id="recursos_necesarios"
+                name="recursos_necesarios"
+                rows={2}
+                required
+                defaultValue={inicial?.recursos_necesarios ?? ""}
+              />
             </GrupoCampo>
 
             <div className="grid gap-4">
               <GrupoCampo etiqueta="Plazo" htmlFor="plazo_accion" requerido>
-                <Entrada id="plazo_accion" name="plazo_accion" type="date" required />
+                <Entrada
+                  id="plazo_accion"
+                  name="plazo_accion"
+                  type="date"
+                  required
+                  defaultValue={inicial?.plazo_accion ?? ""}
+                />
               </GrupoCampo>
 
               <GrupoCampo
@@ -282,7 +356,11 @@ export function FormularioOportunidad({
                 htmlFor="proceso_accion_id"
                 requerido
               >
-                <Seleccion id="proceso_accion_id" name="proceso_accion_id">
+                <Seleccion
+                  id="proceso_accion_id"
+                  name="proceso_accion_id"
+                  defaultValue={inicial?.proceso_accion_id ?? ""}
+                >
                   <option value="">El mismo proceso</option>
                   {procesos.map((proceso) => (
                     <option key={proceso.id} value={proceso.id}>
@@ -302,7 +380,7 @@ export function FormularioOportunidad({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Registrar oportunidad
+            {editando ? "Guardar cambios" : "Registrar oportunidad"}
           </Boton>
         </div>
       </Tarjeta>

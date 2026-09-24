@@ -510,12 +510,28 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
 }
 
 /** Edicion de una oportunidad ya cargada. */
+/**
+ * Correccion de los datos con los que se registro la oportunidad.
+ *
+ * A diferencia del riesgo, acá SI se corrige la valoracion. El riesgo
+ * tiene «Reevaluar» en la ficha, que deja fecha, autor y comentario en
+ * `riesgo_evaluaciones`; la oportunidad no tiene ese panel, asi que si no
+ * se pudiera cambiar el beneficio o la factibilidad desde acá, un numero
+ * mal cargado quedaria para siempre.
+ *
+ * No toca las columnas de eficacia —`resultado_obtenido`,
+ * `fecha_evaluacion_eficacia`, `eficacia_accion`—: no estan en este
+ * formulario, y escribirlas desde acá las vaciaria. La eficacia se
+ * evalua al cierre, cuando Calidad defina esa pantalla.
+ */
 export async function actualizarOportunidad(
   id: string,
   datos: FormData,
 ): Promise<ResultadoAccion> {
-  await requerirUsuario();
-  const supabase = crearClienteServidor();
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite editar oportunidades." };
+  }
 
   const beneficio = validarEscalaOpcional(datos.get("beneficio"));
   const factibilidad = validarEscalaOpcional(datos.get("factibilidad"));
@@ -524,15 +540,19 @@ export async function actualizarOportunidad(
     return { exito: false, error: "El beneficio y la factibilidad deben estar entre 1 y 5." };
   }
 
-  const { error } = await supabase
+  const problema = revisarCamposDeOportunidad(datos);
+  if (problema) return { exito: false, error: problema };
+
+  const supabase = crearClienteServidor();
+
+  const { data: actualizada, error } = await supabase
     .from("riesgos")
     .update({
       titulo: String(datos.get("titulo") ?? "").trim(),
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      origen: String(datos.get("origen") ?? "").trim() || null,
+      origen: String(datos.get("origen") ?? "").trim(),
       efecto_deseado: String(datos.get("efecto_deseado") ?? "").trim() || null,
       beneficio,
       factibilidad,
@@ -543,17 +563,22 @@ export async function actualizarOportunidad(
       recursos_necesarios: String(datos.get("recursos_necesarios") ?? "").trim() || null,
       plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
       proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
-      resultado_obtenido: String(datos.get("resultado_obtenido") ?? "").trim() || null,
-      fecha_evaluacion_eficacia: String(datos.get("fecha_evaluacion_eficacia") ?? "") || null,
-      eficacia_accion: String(datos.get("eficacia_accion") ?? "") || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("codigo")
+    .maybeSingle();
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
+  if (!actualizada) {
+    return {
+      exito: false,
+      error: "No se pudo guardar: la oportunidad no existe o su rol no puede editarla.",
+    };
+  }
 
   revalidatePath("/oportunidades");
   revalidatePath(`/riesgos/${id}`);
-  return { exito: true, mensaje: "Oportunidad actualizada." };
+  return { exito: true, mensaje: `${actualizada.codigo} actualizada.` };
 }
 
 /**
