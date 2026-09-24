@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
 import { GuardarEnDrive } from "@/components/comunes/guardar-en-drive";
 import { VisorPdf } from "@/components/comunes/visor-pdf";
+import { convertirWordAHtml, documentoDeLaVista, esWord } from "@/lib/vista-word";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { requerirUsuario } from "@/lib/sesion";
@@ -77,6 +78,16 @@ export default async function PaginaArchivoDocumento({
   const esPdf = ES_PDF.test(adjunto.nombre_archivo);
   const esImagen = ES_IMAGEN.test(adjunto.nombre_archivo);
 
+  // El Word se convierte acá, en el servidor. Se baja el archivo del
+  // depósito con la sesión de la persona, así que RLS ya decidió que
+  // puede verlo: esta pantalla no agrega permisos.
+  const vistaWord = esWord(adjunto.nombre_archivo)
+    ? await (async () => {
+        const { data } = await supabase.storage.from(adjunto.bucket).download(adjunto.ruta);
+        return data ? convertirWordAHtml(await data.arrayBuffer()) : null;
+      })()
+    : null;
+
   return (
     <div className="mx-auto max-w-5xl">
       <Boton variante="fantasma" tamano="pequeno" comoHijo className="mb-3 -ml-2">
@@ -121,11 +132,29 @@ export default async function PaginaArchivoDocumento({
           alt={adjunto.nombre_archivo}
           className="mx-auto h-auto max-w-full rounded-lg border border-borde"
         />
+      ) : vistaWord ? (
+        <>
+          {/* MARCO AISLADO, con `sandbox` vacío: sin permiso para
+              ejecutar guiones, abrir ventanas ni enviar formularios. El
+              contenido sale de un archivo que subió alguien, y aunque la
+              conversión no genera guiones, el aislamiento no se apoya en
+              eso: se apoya en que el navegador no se los deja correr. */}
+          <iframe
+            sandbox=""
+            srcDoc={documentoDeLaVista(vistaWord.html, adjunto.nombre_archivo)}
+            title={adjunto.nombre_archivo}
+            className="h-[78vh] w-full rounded-lg border border-borde bg-white"
+          />
+          <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
+            Vista del documento de Word. La conversión puede perder encabezados, pies de página y
+            el corte en páginas: el archivo que rige es el que se descarga.
+          </p>
+        </>
       ) : (
         <EstadoVacio
           icono={<FileText className="size-6" />}
           titulo="Este formato no se puede ver en el navegador"
-          descripcion="Los documentos de Word y las planillas se abren en su programa. Descárguelo para leerlo."
+          descripcion="Las planillas y las presentaciones se abren en su programa. Descárguelo para leerlo."
         />
       )}
     </div>

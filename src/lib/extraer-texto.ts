@@ -4,12 +4,16 @@
  * Corre SOLO EN EL SERVIDOR. Usa la misma biblioteca que el visor, pero
  * sin dibujar nada: en vez de pintar las páginas, junta las palabras.
  *
- * POR AHORA, SOLO PDF. Es el formato en el que Calidad publica los
- * manuales, procedimientos, instructivos, políticas y planes, que son los
- * documentos sobre los que alguien busca. Los formularios y registros son
- * editables —Word, Excel— y ahí no hay nada que buscar: son plantillas
- * para completar. Si más adelante hace falta, se agrega acá y el resto
- * del sistema no se entera.
+ * PDF Y WORD. El PDF es el formato en el que Calidad publica manuales,
+ * procedimientos, instructivos, políticas y planes. El Word —`.docx`— es
+ * el de los formularios y registros, y aunque sean plantillas para
+ * completar, su texto también sirve: un formulario dice qué campos pide y
+ * qué instrucciones lleva, y eso es justo lo que alguien busca cuando no
+ * se acuerda en qué formulario iba tal dato.
+ *
+ * NO el `.doc` viejo ni las planillas. El `.doc` anterior a 2007 es otro
+ * formato, binario, que esta biblioteca no lee; una planilla no tiene
+ * texto corrido que indexar. Los dos siguen descargándose normalmente.
  *
  * Devuelve `null` cuando no hay nada que indexar, y eso NO es un error:
  * un formato que no se sabe leer, o un PDF que es una foto escaneada sin
@@ -71,11 +75,35 @@ function esPdf(nombre: string, tipoMime: string | null): boolean {
   return tipoMime === "application/pdf" || /\.pdf$/i.test(nombre);
 }
 
+export function esWord(nombre: string, tipoMime: string | null = null): boolean {
+  return (
+    tipoMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    /\.docx$/i.test(nombre)
+  );
+}
+
+/**
+ * El texto de un `.docx`.
+ *
+ * Un `.docx` es un zip con XML adentro; la biblioteca lo abre y devuelve
+ * el texto corrido. No tiene páginas —el corte en páginas lo decide el
+ * programa al imprimir, no el archivo—, así que se informa `paginas: 0`
+ * en vez de inventar un número.
+ */
+async function extraerDeWord(contenido: ArrayBuffer): Promise<TextoExtraido | null> {
+  const mammoth = await import("mammoth");
+  const { value } = await mammoth.extractRawText({ buffer: Buffer.from(contenido) });
+
+  const texto = value.replace(/[ \t]+/g, " ").trim().slice(0, MAXIMO_CARACTERES);
+  return texto ? { texto, paginas: 0 } : null;
+}
+
 export async function extraerTexto(
   contenido: ArrayBuffer,
   nombre: string,
   tipoMime: string | null = null,
 ): Promise<TextoExtraido | null> {
+  if (esWord(nombre, tipoMime)) return extraerDeWord(contenido);
   if (!esPdf(nombre, tipoMime)) return null;
 
   // La compilación «legacy», igual que el visor: la moderna usa funciones
