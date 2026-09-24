@@ -111,4 +111,79 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+
+  /*
+    Sombra en el borde de lo que se puede arrastrar de costado.
+
+    En el celular una tabla ancha se corta contra el borde y nada avisa
+    que sigue. Esta sombra aparece del lado donde hay contenido oculto y
+    desaparece al llegar al final, asi que ademas de avisar, dice cuanto
+    falta.
+
+    COMO FUNCIONA, que no es evidente. Son cuatro fondos superpuestos:
+    dos tapas del color de la tarjeta y dos sombras. Las tapas van con
+    `local`, o sea que se desplazan CON el contenido; las sombras van con
+    `scroll`, o sea que quedan fijas al borde del recuadro. Cuando la
+    tabla esta al comienzo, la tapa izquierda esta encima de la sombra
+    izquierda y la esconde; al arrastrar, la tapa se va con el contenido
+    y la sombra queda a la vista.
+
+    Se hace asi y no con JavaScript porque no hace falta medir nada: lo
+    resuelve el navegador solo, sin un componente de cliente ni un
+    detector de tamano en cada tabla del sistema.
+
+    `--superficie-desplazable` es el color de la tapa. Por defecto es el
+    de la tarjeta, que es donde viven todas las tablas; si alguna queda
+    sobre otro fondo, se le pasa el color por estilo y nada mas.
+  */
+  .desplazable-x {
+    --superficie-desplazable: var(--tarjeta);
+    --sombra-desplazable: 223 15% 9%;
+    --fuerza-desplazable: 0.16;
+
+    background-image:
+      linear-gradient(
+        to right,
+        hsl(var(--superficie-desplazable)) 30%,
+        hsl(var(--superficie-desplazable) / 0)
+      ),
+      linear-gradient(
+        to left,
+        hsl(var(--superficie-desplazable)) 30%,
+        hsl(var(--superficie-desplazable) / 0)
+      ),
+      linear-gradient(
+        to right,
+        hsl(var(--sombra-desplazable) / var(--fuerza-desplazable)),
+        hsl(var(--sombra-desplazable) / 0)
+      ),
+      linear-gradient(
+        to left,
+        hsl(var(--sombra-desplazable) / var(--fuerza-desplazable)),
+        hsl(var(--sombra-desplazable) / 0)
+      );
+    background-position:
+      left center,
+      right center,
+      left center,
+      right center;
+    background-repeat: no-repeat;
+    background-size:
+      32px 100%,
+      32px 100%,
+      14px 100%,
+      14px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  /*
+    En modo oscuro la misma sombra no se ve: negro al 16% sobre una
+    tarjeta oscura es casi nada. Se usa negro puro y mucho mas fuerte,
+    que sobre un fondo oscuro sigue leyendose como un borde y no como una
+    mancha.
+  */
+  .dark .desplazable-x {
+    --sombra-desplazable: 0 0% 0%;
+    --fuerza-desplazable: 0.55;
+  }
 }

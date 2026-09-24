@@ -41,7 +41,7 @@ export function TablaHoja({ hoja, puedeEditar }: { hoja: Hoja; puedeEditar: bool
   return (
     <>
       <Tarjeta>
-        <div className="w-full overflow-x-auto">
+        <div className="desplazable-x w-full overflow-x-auto">
           <table className="w-max min-w-full border-collapse text-[11px]">
             <thead>
               <tr className="border-b border-borde">

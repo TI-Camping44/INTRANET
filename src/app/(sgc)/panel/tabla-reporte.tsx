@@ -35,7 +35,7 @@ export function TablaReporte({ reporte }: { reporte: Reporte }) {
         </Link>
       </TarjetaCabecera>
 
-      <div className="w-full overflow-x-auto">
+      <div className="desplazable-x w-full overflow-x-auto">
         <table className="w-full text-xs">
           <tbody>
             {reporte.filas.length === 0 ? (

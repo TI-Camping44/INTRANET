@@ -140,7 +140,7 @@ export function CalendarioMantenimientos({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="desplazable-x overflow-x-auto">
         <div className="min-w-[36rem]">
           <div className="grid grid-cols-7 gap-1 pb-1">
             {DIAS.map((dia) => (

@@ -90,7 +90,7 @@ export function MatrizCompetencias({
 
   return (
     <div className="space-y-3">
-      <div className="w-full overflow-x-auto">
+      <div className="desplazable-x w-full overflow-x-auto">
         <table className="w-auto border-separate border-spacing-0.5 text-xs">
           <caption className="sr-only">
             Matriz de competencias: nivel exigido de cada competencia por puesto

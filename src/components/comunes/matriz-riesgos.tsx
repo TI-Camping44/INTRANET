@@ -29,7 +29,7 @@ export function MatrizRiesgos({ riesgos }: { riesgos: RiesgoEnMatriz[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto">
+      <div className="desplazable-x overflow-x-auto">
         <table className="w-full min-w-[42rem] border-separate border-spacing-1">
           <caption className="sr-only">
             Matriz de riesgos de 5 por 5: probabilidad contra severidad
