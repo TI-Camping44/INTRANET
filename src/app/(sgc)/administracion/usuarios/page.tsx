@@ -26,7 +26,8 @@ export default async function PaginaUsuarios() {
     supabase
       .from("usuarios")
       .select(
-        "id, nombre_completo, correo, rol, superior_id, proceso_id, puesto_id, activo, ultimo_ingreso",
+        "id, nombre_completo, correo, rol, superior_id, proceso_id, puesto_id, "
+        + "vendedor_planilla, activo, ultimo_ingreso",
       )
       .order("nombre_completo"),
     supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),

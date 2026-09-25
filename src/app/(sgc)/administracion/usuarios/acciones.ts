@@ -55,6 +55,7 @@ export async function actualizarUsuario(
       superior_id: superiorId,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       puesto_id: String(datos.get("puesto_id") ?? "") || null,
+      vendedor_planilla: String(datos.get("vendedor_planilla") ?? "").trim() || null,
       activo: datos.get("activo") === "on",
     })
     .eq("id", id);

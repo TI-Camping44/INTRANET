@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { Seleccion } from "@/components/ui/campo";
+import { Entrada, Seleccion } from "@/components/ui/campo";
 import { TablaCelda, TablaFila } from "@/components/ui/tabla";
 import { actualizarUsuario } from "@/app/(sgc)/administracion/usuarios/acciones";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
@@ -20,6 +20,7 @@ interface UsuarioFila {
   superior_id: string | null;
   proceso_id: string | null;
   puesto_id: string | null;
+  vendedor_planilla: string | null;
   activo: boolean;
   ultimo_ingreso: string | null;
 }
@@ -118,6 +119,19 @@ export function FilaUsuario({
               </option>
             ))}
           </Seleccion>
+
+          {/* El nombre con el que la persona figura en el tablero
+              comercial. Se carga a mano porque no hay forma automatica de
+              unir un correo de Google con un nombre completo de Odoo, y
+              adivinar por parecido es como alguien termina viendo las
+              ventas de otro. Vacio = no es comercial. */}
+          <Entrada
+            name="vendedor_planilla"
+            defaultValue={usuario.vendedor_planilla ?? ""}
+            placeholder="Vendedor en la planilla"
+            aria-label={`Nombre de ${usuario.nombre_completo} en el tablero comercial`}
+            className="h-8 w-auto min-w-[13rem] text-xs"
+          />
 
           <label className="flex items-center gap-1.5 whitespace-nowrap text-[11px]">
             <input
