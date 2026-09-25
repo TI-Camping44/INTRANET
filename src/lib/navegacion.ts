@@ -113,6 +113,21 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
+        // Va pegado a No conformidades a proposito: un cambio que sale
+        // mal termina en una accion correctiva, y una accion correctiva
+        // eficaz suele terminar en un cambio. Se leen juntos.
+        titulo: "Planificación y Gestión de Cambios",
+        ruta: "/cambios",
+        icono: "GitBranch",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Todos", ruta: "/cambios" },
+          { titulo: "En aprobación", ruta: "/cambios?vista=aprobacion" },
+          { titulo: "Seguimiento vencido", ruta: "/cambios?vista=vencidos" },
+          { titulo: "+ Nuevo Cambio", ruta: "/cambios/nuevo", soloGestion: true },
+        ],
+      },
+      {
         // Las acciones viven dentro de su no conformidad, pero la
         // pregunta «que esta pendiente y quien lo debe» no se contesta
         // abriendo quince fichas. Por eso tienen listado propio.
