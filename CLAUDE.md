@@ -277,7 +277,7 @@ en la base de datos y en `src/lib/`.
 | Solo un detractor con comentario genera no conformidad, de origen `reclamo_cliente` | `generar_no_conformidad_desde_respuesta()` |
 | Un mes con menos de 5 respuestas no se grafica: el índice deja de significar algo | `RESPUESTAS_MINIMAS_NPS` |
 | Solo puede haber una publicación fijada a la vez | `fijarPublicacion()` |
-| Plazo para cerrar una NC: **10 días corridos desde la detección, siempre**. No se escribe a mano | Disparador `completar_no_conformidad()` y `DIAS_LIMITE_CIERRE_NC` |
+| Plazo para cerrar una NC: **5 días corridos desde la detección, siempre**. No se escribe a mano | Disparador `completar_no_conformidad()` y `DIAS_LIMITE_CIERRE_NC` |
 | Origen de la NC: los seis del formulario de Calidad. Los valores del enumerado conservan su nombre viejo; lo que cambió es la etiqueta | `ETIQUETAS_ORIGEN_NC` y `ORIGENES_NC_VIGENTES` |
 | Severidad de la NC: Menor, Mayor, Observación/Recomendación. «Crítica» no existe en Camping 44 | `ETIQUETAS_SEVERIDAD_NC` y el enumerado `severidad_no_conformidad` |
 | Ciclo de la NC en tres estados: abierta, en tratamiento, cerrada | `ESTADOS_NC_VIGENTES` |

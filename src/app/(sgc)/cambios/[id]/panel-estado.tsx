@@ -159,7 +159,7 @@ export function PanelEstado({
                   etiqueta="Decisión"
                   htmlFor="decision"
                   requerido
-                  ayuda="Dejarlo en «no eficaz» y nada más es lo que el procedimiento quiere evitar."
+                  ayuda="«Acción correctiva» abre una no conformidad de verdad, con su número, su plazo de cinco días y su responsable, y la deja vinculada a este cambio."
                 >
                   <Seleccion id="decision" name="decision" defaultValue="ajuste">
                     {DECISIONES_CAMBIO.map((valor) => (

@@ -298,6 +298,37 @@ export async function cambiarEstadoCambio(
   const { error } = await supabase.from("cambios").update(parche).eq("id", id);
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
+  // Si la decision fue accion correctiva, la no conformidad se abre de
+  // verdad: con su numero, su plazo de cinco dias y su responsable. Una
+  // accion correctiva que existe solo como palabra en un campo no aparece
+  // en el listado donde Calidad mira lo que esta abierto.
+  //
+  // El vinculo lo arma la base, en una sola operacion, para que no pueda
+  // quedar la NC creada y el cambio sin apuntarla. Es idempotente: cerrar
+  // dos veces por un doble clic no abre dos NC.
+  if (nuevoEstado === "cerrado" && parche.decision === "accion_correctiva") {
+    const { error: errorNc } = await supabase.rpc("generar_no_conformidad_desde_cambio", {
+      p_cambio_id: id,
+      p_responsable_id: null,
+    });
+
+    if (errorNc) {
+      // El cambio YA quedo cerrado y eso esta bien: lo que fallo es la
+      // derivacion. Se dice, en vez de dar todo por exitoso y que nadie
+      // se entere de que la NC no existe.
+      revalidatePath("/cambios");
+      revalidatePath(`/cambios/${id}`);
+      return {
+        exito: false,
+        error:
+          `El cambio quedó cerrado, pero no se pudo abrir la no conformidad: ${errorNc.message}. ` +
+          "Avise a TI: el cambio está bien guardado, falta solo la derivación.",
+      };
+    }
+
+    revalidatePath("/no-conformidades");
+  }
+
   revalidatePath("/cambios");
   revalidatePath(`/cambios/${id}`);
   return { exito: true, mensaje: `${cambio.codigo}: ${nuevoEstado.replace("_", " ")}.` };

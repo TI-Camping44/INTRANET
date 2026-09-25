@@ -58,6 +58,7 @@ interface Cambio {
   fecha_seguimiento: string | null;
   documentacion_actualizada: string | null;
   requiere_actualizar_documentacion: boolean;
+  no_conformidad: { id: string; codigo: string } | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
   aprobador: { nombre_completo: string } | null;
@@ -70,6 +71,7 @@ const CAMPOS = "id, codigo, titulo, tipo, estado, proposito, consecuencias_poten
   + "indicador_exito, criterio_exito, fecha_revision, fecha_aprobacion, motivo_rechazo, "
   + "fecha_implementacion, capacitacion_detalle, resultado, seguimiento_observacion, decision, "
   + "fecha_seguimiento, documentacion_actualizada, requiere_actualizar_documentacion, "
+  + "no_conformidad:no_conformidad_id (id, codigo), "
   + "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo), "
   + "aprobador:aprobado_por (nombre_completo), seguidor:seguido_por (nombre_completo)";
 
@@ -212,6 +214,22 @@ export default async function PaginaCambio({ params }: { params: { id: string } 
                     </p>
                   </div>
                 ) : null}
+                {cambio.no_conformidad ? (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
+                      No conformidad abierta por este cambio
+                    </p>
+                    <p className="mt-0.5 text-xs">
+                      <Link
+                        href={`/no-conformidades/${cambio.no_conformidad.id}`}
+                        className="text-primario hover:underline"
+                      >
+                        {cambio.no_conformidad.codigo}
+                      </Link>
+                    </p>
+                  </div>
+                ) : null}
+
                 <Bloque
                   titulo="Información documentada actualizada"
                   texto={cambio.documentacion_actualizada}
