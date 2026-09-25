@@ -33,6 +33,15 @@ export const metadata: Metadata = { title: "Mis ventas" };
 export const dynamic = "force-dynamic";
 
 /**
+ * Un minuto, que es lo maximo que permite la funcion.
+ *
+ * Sin esto la funcion se corta a los diez segundos por defecto y matarian
+ * la lectura antes que el tope de veinte: Google tarda catorce en
+ * entregar las hojas.
+ */
+export const maxDuration = 60;
+
+/**
  * Como va el comercial contra su objetivo.
  *
  * CADA UNO VE LO SUYO. El resumen se pide entero al informe de ventas

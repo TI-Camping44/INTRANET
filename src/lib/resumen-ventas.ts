@@ -21,15 +21,19 @@ import type { ResumenDeVentas, VentaDelMes } from "@/lib/ventas";
 /**
  * Cuanto se espera a Google antes de darlo por perdido.
  *
- * Ocho segundos, mas que los seis del correo, y es a proposito: el CSV de
- * `CONFIG` sale de una hoja con una funcion personalizada y Google tarda
- * en generarlo. A cambio el resultado queda en cache un cuarto de hora,
- * asi que como maximo una persona cada quince minutos paga esa espera.
+ * VEINTE SEGUNDOS, Y ESTA MEDIDO, no estimado: la hoja `DATA` son 5,5 MB
+ * y 15.594 lineas, y Google tarda 13 segundos en generar su CSV; `CONFIG`
+ * tarda 14. Con el tope anterior de 8 segundos la pantalla cortaba
+ * siempre y decia «no respondio», que era verdad y no servia para nada.
  *
- * Lo que no se negocia es que haya tope: sin esto, una hoja que no
- * responde deja la pantalla colgada en blanco.
+ * ES UN PARCHE Y SE NOTA. Veinte segundos de espera contradicen la regla
+ * del proyecto: nada que dependa de un servicio externo debe demorar la
+ * respuesta que ve la persona. Lo que corresponde es que un trabajo
+ * programado lea las hojas y deje el resumen guardado, y que la pantalla
+ * lea eso. Mientras tanto, el resultado queda en cache un cuarto de hora,
+ * asi que la espera la paga como mucho una persona cada quince minutos.
  */
-const ESPERA_MAXIMA_MS = 8_000;
+const ESPERA_MAXIMA_MS = 20_000;
 
 export type FalloDeVentas = "sin_configurar" | "sin_respuesta" | "respuesta_invalida";
 
