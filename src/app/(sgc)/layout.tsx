@@ -1,5 +1,6 @@
 import { Cabecera } from "@/components/comunes/cabecera";
 import { NavegacionSuperior } from "@/components/comunes/navegacion-superior";
+import { esJefeDeVentas } from "@/lib/permisos-ventas";
 import { navegacionParaRol } from "@/lib/navegacion";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
@@ -32,12 +33,24 @@ export default async function SgcLayout({ children }: { children: React.ReactNod
       .select("id", { count: "exact", head: true })
       .eq("usuario_id", usuario.id)
       .eq("leida", false),
-    // Si esta vinculado al informe comercial, ve «Mis ventas» en el menu.
-    supabase.from("usuarios").select("vendedor_planilla").eq("id", usuario.id).maybeSingle(),
+    // «Mis ventas» aparece para quien vende y tambien para quien
+    // supervisa un canal sin vender, como un jefe comercial.
+    supabase
+      .from("usuarios")
+      .select("vendedor_planilla, ventas_canales")
+      .eq("id", usuario.id)
+      .maybeSingle(),
   ]);
 
+  const datosComerciales = perfil as {
+    vendedor_planilla: string | null;
+    ventas_canales: string[] | null;
+  } | null;
+
   const grupos = navegacionParaRol(usuario.rol, {
-    esComercial: Boolean((perfil as { vendedor_planilla: string | null } | null)?.vendedor_planilla),
+    esComercial:
+      Boolean(datosComerciales?.vendedor_planilla) ||
+      esJefeDeVentas(usuario.rol, datosComerciales?.ventas_canales ?? null),
   });
 
   return (

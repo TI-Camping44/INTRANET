@@ -14,6 +14,8 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { AvanceDelMes } from "@/app/(sgc)/mis-ventas/avance-del-mes";
+import { TablaEquipo } from "@/app/(sgc)/mis-ventas/tabla-equipo";
+import { CANALES_DE_VENTA, canalesVisiblesPara, esJefeDeVentas } from "@/lib/permisos-ventas";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFechaHora, formatearGuaranies } from "@/lib/formato";
@@ -47,21 +49,30 @@ export default async function PaginaMisVentas() {
 
   const { data: perfil } = await supabase
     .from("usuarios")
-    .select("vendedor_planilla")
+    .select("vendedor_planilla, ventas_canales")
     .eq("id", usuario.id)
     .maybeSingle();
 
-  const nombreEnPlanilla =
-    (perfil as { vendedor_planilla: string | null } | null)?.vendedor_planilla ?? null;
+  const datos = perfil as {
+    vendedor_planilla: string | null;
+    ventas_canales: string[] | null;
+  } | null;
 
-  if (!nombreEnPlanilla) {
+  const nombreEnPlanilla = datos?.vendedor_planilla ?? null;
+
+  // Los canales cuyo detalle puede ver. Vacio para casi todos; Direccion
+  // los tiene todos sin configurar nada.
+  const canalesVisibles = canalesVisiblesPara(usuario.rol, datos?.ventas_canales ?? null);
+  const esJefe = esJefeDeVentas(usuario.rol, datos?.ventas_canales ?? null);
+
+  if (!nombreEnPlanilla && !esJefe) {
     return (
       <div className="mx-auto max-w-3xl">
         <EncabezadoPagina titulo="Mis ventas" />
         <EstadoVacio
           icono={<TrendingUp className="size-6" />}
           titulo="Todavía no está vinculado al informe de ventas"
-          descripcion="Esta pantalla muestra su avance contra el objetivo del mes. Para que aparezca, el Administrador SGC tiene que indicar con qué nombre figura usted en el informe comercial."
+          descripcion="Esta pantalla muestra su avance contra el objetivo del mes. Para que aparezca, el Administrador SGC tiene que indicar con qué nombre figura usted en el informe comercial, o qué canales puede supervisar."
         />
       </div>
     );
@@ -91,7 +102,17 @@ export default async function PaginaMisVentas() {
   }
 
   const { resumen } = lectura;
-  const mias = filasDelVendedor(resumen, nombreEnPlanilla);
+  const mias = nombreEnPlanilla ? filasDelVendedor(resumen, nombreEnPlanilla) : [];
+
+  // El equipo: el mes en curso de los canales que tiene asignados, sin su
+  // propia fila, que ya esta arriba y con mas detalle.
+  const equipo = resumen.filas.filter(
+    (f) =>
+      f.mes === resumen.mesEnCurso &&
+      f.anio === resumen.anioEnCurso &&
+      canalesVisibles.includes(f.canal as (typeof canalesVisibles)[number]) &&
+      !mias.includes(f),
+  );
 
   const enCurso =
     mias.find((f) => f.mes === resumen.mesEnCurso && f.anio === resumen.anioEnCurso) ?? mias[0];
@@ -102,16 +123,22 @@ export default async function PaginaMisVentas() {
     <div className="mx-auto max-w-4xl">
       <EncabezadoPagina
         titulo="Mis ventas"
-        descripcion="Su avance contra el objetivo, con los mismos números del informe comercial."
+        descripcion={
+          nombreEnPlanilla
+            ? "Su avance contra el objetivo, con los mismos números del informe comercial."
+            : "Cómo va su equipo contra el objetivo, con los mismos números del informe comercial."
+        }
       />
 
-      {!enCurso ? (
+      {!enCurso && nombreEnPlanilla ? (
         <EstadoVacio
           icono={<TrendingUp className="size-6" />}
           titulo="Todavía no hay movimientos suyos este mes"
           descripcion={`El informe no trae filas a nombre de «${nombreEnPlanilla}». Si cree que es un error, avise a TI.`}
         />
-      ) : (
+      ) : null}
+
+      {enCurso ? (
         <>
           <AvanceDelMes
             fila={enCurso}
@@ -186,19 +213,47 @@ export default async function PaginaMisVentas() {
             </p>
           ) : null}
 
-          {/* De cuando es el dato. Sin esto, alguien puede tomar una
-              decision creyendo que mira el minuto a minuto. */}
-          <p className="mt-4 text-[11px] leading-relaxed text-atenuado-contraste">
-            Datos del informe comercial, actualizados al{" "}
-            {formatearFechaHora(resumen.actualizado)}. El detalle completo, con el desglose por
-            marca y por producto, está en{" "}
-            <Link href="/aplicaciones" className="text-primario hover:underline">
-              Aplicaciones
-            </Link>
-            .
-          </p>
         </>
-      )}
+      ) : null}
+
+      {/* El equipo, para quien tiene canales asignados. Va DESPUES de lo
+          propio: un jefe que ademas vende viene a ver primero lo suyo. */}
+      {esJefe ? (
+        <section className="mt-5">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-atenuado-contraste">
+            {nombreDeMes(resumen.mesEnCurso)} {resumen.anioEnCurso} ·{" "}
+            {canalesVisibles.length === CANALES_DE_VENTA.length
+              ? "Todos los canales"
+              : canalesVisibles.join(" · ")}
+          </h2>
+
+          {equipo.length === 0 ? (
+            <EstadoVacio
+              icono={<TrendingUp className="size-6" />}
+              titulo="Todavía no hay movimientos en estos canales"
+              descripcion="El informe no trae ventas este mes para los canales que usted supervisa."
+            />
+          ) : (
+            <TablaEquipo
+              filas={equipo}
+              diasMes={resumen.diasMes}
+              diasTranscurridos={resumen.diasTranscurridos}
+            />
+          )}
+        </section>
+      ) : null}
+
+      {/* De cuando es el dato. Sin esto, alguien puede tomar una
+          decision creyendo que mira el minuto a minuto. */}
+      <p className="mt-4 text-[11px] leading-relaxed text-atenuado-contraste">
+        Datos del informe comercial, actualizados al{" "}
+        {formatearFechaHora(resumen.actualizado)}. El detalle completo, con el desglose por marca y
+        por producto, está en{" "}
+        <Link href="/aplicaciones" className="text-primario hover:underline">
+          Aplicaciones
+        </Link>
+        .
+      </p>
     </div>
   );
 }

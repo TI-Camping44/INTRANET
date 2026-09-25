@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { requerirRol } from "@/lib/sesion";
+import { esCanalDeVenta } from "@/lib/permisos-ventas";
 import type { ResultadoAccion, RolUsuario } from "@/lib/tipos";
 
 /**
@@ -56,6 +57,10 @@ export async function actualizarUsuario(
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       puesto_id: String(datos.get("puesto_id") ?? "") || null,
       vendedor_planilla: String(datos.get("vendedor_planilla") ?? "").trim() || null,
+      // Se filtra contra la lista antes de escribir. La base tiene su
+      // propia restriccion, pero un canal mal escrito tiene que fallar
+      // aca con un mensaje en castellano y no con un error de Postgres.
+      ventas_canales: datos.getAll("ventas_canales").map(String).filter(esCanalDeVenta),
       activo: datos.get("activo") === "on",
     })
     .eq("id", id);
