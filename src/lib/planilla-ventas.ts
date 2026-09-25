@@ -318,10 +318,16 @@ export function finDeMes(fecha: FechaPlanilla): FechaPlanilla {
 /* Hoja CONFIG                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Objetivos de un mes: el global y el de cada vendedor. */
+/** Objetivos de un mes: el global, el de cada vendedor y el de cada canal. */
 export interface ObjetivosDelMes {
   global: number;
   porVendedor: Record<string, number>;
+  /**
+   * Por canal. Hacen falta porque no todos los objetivos se cargan por
+   * vendedor: el de E-commerce esta cargado al canal, y de ahi sale el de
+   * quien lo atiende. Sin leerlos, esa persona aparecia «sin meta».
+   */
+  porCanal: Record<string, number>;
 }
 
 export interface ConfiguracionPlanilla {
@@ -348,6 +354,7 @@ export function leerConfiguracion(filas: string[][]): ConfiguracionPlanilla {
   let corte: FechaPlanilla | null = null;
   let global = 0;
   const porVendedor: Record<string, number> = {};
+  const porCanal: Record<string, number> = {};
   const canalPorVendedor: Record<string, string> = {};
   const feriados = new Set<string>();
   const trozosHistorico: { orden: number; texto: string }[] = [];
@@ -373,6 +380,14 @@ export function leerConfiguracion(filas: string[][]): ConfiguracionPlanilla {
     if (feriado) feriados.add(claveDeFecha(feriado));
 
     if (indice === 3 && fila[3]) global = aNumero(fila[3]);
+
+    // Objetivos por canal, en las columnas F y G. Se leen porque el de
+    // E-commerce vive aca y no en la columna de vendedores.
+    const canal = (fila[5] ?? "").trim();
+    if (indice >= 3 && canal && canal !== "Canal") {
+      const meta = aNumero(fila[6]);
+      if (meta > 0) porCanal[canalReal("", canal)] = meta;
+    }
 
     const vendedor = (fila[8] ?? "").trim();
     if (indice >= 3 && vendedor && vendedor !== "Vendedor") {
@@ -403,7 +418,7 @@ export function leerConfiguracion(filas: string[][]): ConfiguracionPlanilla {
     corte,
     diasMes,
     diasTranscurridos,
-    objetivos: { global, porVendedor },
+    objetivos: { global, porVendedor, porCanal },
     canalPorVendedor,
     historico: decodificarHistorico(trozosHistorico),
   };
@@ -421,7 +436,11 @@ function decodificarHistorico(
       .join("");
     const crudo = JSON.parse(Buffer.from(base64, "base64").toString("utf8")) as Record<
       string,
-      { global?: number; vendedoresTotales?: Record<string, number> }
+      {
+        global?: number;
+        vendedoresTotales?: Record<string, number>;
+        canales?: Record<string, number>;
+      }
     >;
 
     const salida: Record<string, ObjetivosDelMes> = {};
@@ -431,7 +450,17 @@ function decodificarHistorico(
         const valor = Number(meta);
         if (valor > 0) porVendedor[limpiarNombre(vendedor)] = valor;
       });
-      salida[String(Number(mes))] = { global: Number(datos.global) || 0, porVendedor };
+      const porCanalHistorico: Record<string, number> = {};
+      Object.entries(datos.canales ?? {}).forEach(([canal, meta]) => {
+        const valor = Number(meta);
+        if (valor > 0) porCanalHistorico[canalReal("", canal)] = valor;
+      });
+
+      salida[String(Number(mes))] = {
+        global: Number(datos.global) || 0,
+        porVendedor,
+        porCanal: porCanalHistorico,
+      };
     });
     return salida;
   } catch {
@@ -439,6 +468,48 @@ function decodificarHistorico(
     // —que es lo que el comercial viene a ver— no depende de esto.
     return {};
   }
+}
+
+/**
+ * A quien se le atribuye todo el e-commerce.
+ *
+ * Es una regla del informe, no de la intranet: Tupi, Porter y Contimarket
+ * se facturan por separado pero los atiende una sola persona, asi que el
+ * objetivo esta cargado AL CANAL y no a ella. Si se buscara su meta en la
+ * columna de vendedores, aparece «sin meta cargada» teniendo una de ciento
+ * sesenta millones.
+ *
+ * Si algun dia el e-commerce lo atiende otra persona, esto cambia aca y en
+ * el tablero. Por eso esta con nombre y no escondido en un `if`.
+ */
+export const VENDEDOR_DE_ECOMMERCE = "Maria Julia Olmedo Cuevas";
+export const CANAL_DE_ECOMMERCE = "E-commerce";
+
+/**
+ * La meta de una persona, con la regla del e-commerce aplicada.
+ *
+ * Primero la excepcion, despues la busqueda normal por nombre. Devuelve
+ * `null` cuando no hay meta cargada, que no es lo mismo que cero.
+ */
+export function metaDeLaPlanilla(
+  objetivos: ObjetivosDelMes | null,
+  vendedor: string,
+  canal: string,
+): number | null {
+  if (!objetivos) return null;
+
+  if (canal === CANAL_DE_ECOMMERCE && mismoVendedor(vendedor, VENDEDOR_DE_ECOMMERCE)) {
+    const delCanal = objetivos.porCanal[CANAL_DE_ECOMMERCE];
+    if (delCanal !== undefined) return delCanal;
+  }
+
+  const directa = objetivos.porVendedor[limpiarNombre(vendedor)];
+  if (directa !== undefined) return directa;
+
+  const entrada = Object.entries(objetivos.porVendedor).find(([nombre]) =>
+    mismoVendedor(nombre, vendedor),
+  );
+  return entrada ? entrada[1] : null;
 }
 
 /* ------------------------------------------------------------------ */

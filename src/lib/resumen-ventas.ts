@@ -12,7 +12,7 @@ import {
   analizarCsv,
   canalDominante,
   leerConfiguracion,
-  mismoVendedor,
+  metaDeLaPlanilla,
   type ConfiguracionPlanilla,
   type ObjetivosDelMes,
 } from "@/lib/planilla-ventas";
@@ -107,16 +107,21 @@ export async function calcularResumen(): Promise<ResumenDeVentas> {
 
   const filas: VentaDelMes[] = acumulado.map((registro) => {
     const objetivos = objetivosDelMes(configuracion, registro.mes, mesEnCurso);
+
+    // El canal se resuelve antes que la meta: la del e-commerce depende
+    // de el, porque esta cargada al canal y no a la persona.
+    const canal =
+      configuracion.canalPorVendedor[registro.vendedor] ??
+      canalDominante(registro.porCanal) ??
+      "";
+
     return {
       mes: registro.mes,
       anio: registro.anio,
       cod: registro.vendedor,
       vendedor: registro.vendedor,
-      canal:
-        configuracion.canalPorVendedor[registro.vendedor] ??
-        canalDominante(registro.porCanal) ??
-        "",
-      meta: metaDelVendedor(objetivos, registro.vendedor),
+      canal,
+      meta: metaDeLaPlanilla(objetivos, registro.vendedor, canal),
       venta: registro.venta,
       devoluciones: registro.devoluciones,
     };
@@ -150,23 +155,3 @@ function objetivosDelMes(
   return configuracion.historico[String(mes)] ?? null;
 }
 
-/**
- * La meta de una persona.
- *
- * Se busca primero por el nombre limpio y despues tolerando que en
- * `CONFIG` figure con mas o menos nombres que en `DATA`.
- */
-function metaDelVendedor(objetivos: ObjetivosDelMes | null, vendedor: string): number | null {
-  if (!objetivos) return null;
-
-  const directa = objetivos.porVendedor[vendedor];
-  if (directa !== undefined) return directa;
-
-  // Se busca con `mismoVendedor` y no con una comparacion propia para que
-  // haya un solo criterio de union en todo el proyecto. Se recorre a mano
-  // porque hace falta quedarse con la meta, no con un booleano.
-  const entrada = Object.entries(objetivos.porVendedor).find(([nombre]) =>
-    mismoVendedor(nombre, vendedor),
-  );
-  return entrada ? entrada[1] : null;
-}
