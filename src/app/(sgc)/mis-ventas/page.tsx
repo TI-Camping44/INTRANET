@@ -51,9 +51,10 @@ export default async function PaginaMisVentas() {
     .eq("id", usuario.id)
     .maybeSingle();
 
-  const cod = (perfil as { vendedor_planilla: string | null } | null)?.vendedor_planilla ?? null;
+  const nombreEnPlanilla =
+    (perfil as { vendedor_planilla: string | null } | null)?.vendedor_planilla ?? null;
 
-  if (!cod) {
+  if (!nombreEnPlanilla) {
     return (
       <div className="mx-auto max-w-3xl">
         <EncabezadoPagina titulo="Mis ventas" />
@@ -90,7 +91,7 @@ export default async function PaginaMisVentas() {
   }
 
   const { resumen } = lectura;
-  const mias = filasDelVendedor(resumen, cod);
+  const mias = filasDelVendedor(resumen, nombreEnPlanilla);
 
   const enCurso =
     mias.find((f) => f.mes === resumen.mesEnCurso && f.anio === resumen.anioEnCurso) ?? mias[0];
@@ -108,11 +109,15 @@ export default async function PaginaMisVentas() {
         <EstadoVacio
           icono={<TrendingUp className="size-6" />}
           titulo="Todavía no hay movimientos suyos este mes"
-          descripcion={`El informe no trae filas a nombre de «${cod}». Si cree que es un error, avise a TI.`}
+          descripcion={`El informe no trae filas a nombre de «${nombreEnPlanilla}». Si cree que es un error, avise a TI.`}
         />
       ) : (
         <>
-          <AvanceDelMes fila={enCurso} />
+          <AvanceDelMes
+            fila={enCurso}
+            diasMes={resumen.diasMes}
+            diasTranscurridos={resumen.diasTranscurridos}
+          />
 
           {anteriores.length > 0 ? (
             <section className="mt-5">
@@ -126,6 +131,7 @@ export default async function PaginaMisVentas() {
                       <TablaEncabezado>Mes</TablaEncabezado>
                       <TablaEncabezado className="text-right">Objetivo</TablaEncabezado>
                       <TablaEncabezado className="text-right">Vendido</TablaEncabezado>
+                      <TablaEncabezado className="text-right">Devoluciones</TablaEncabezado>
                       <TablaEncabezado className="text-right">Alcance</TablaEncabezado>
                       <TablaEncabezado>Estado</TablaEncabezado>
                     </TablaFila>
@@ -145,6 +151,11 @@ export default async function PaginaMisVentas() {
                           <TablaCelda className="whitespace-nowrap text-right text-xs tabular">
                             {fila.venta === null ? "—" : formatearGuaranies(fila.venta)}
                           </TablaCelda>
+                          <TablaCelda className="whitespace-nowrap text-right text-xs tabular text-atenuado-contraste">
+                            {fila.devoluciones === 0
+                              ? "—"
+                              : formatearGuaranies(fila.devoluciones)}
+                          </TablaCelda>
                           <TablaCelda
                             className={`whitespace-nowrap text-right text-xs font-semibold tabular ${CLASES_NIVEL_ALCANCE[nivel]}`}
                           >
@@ -162,6 +173,17 @@ export default async function PaginaMisVentas() {
                 </Tabla>
               </Tarjeta>
             </section>
+          ) : null}
+
+          {/* Por que un mes cerrado puede no tener objetivo: el informe
+              guarda los objetivos del mes en curso, y los de meses
+              anteriores solo si se archivaron. Se dice en vez de reusar el
+              objetivo de este mes, que daria un porcentaje falso. */}
+          {anteriores.some((f) => f.meta === null) ? (
+            <p className="mt-3 text-[11px] leading-relaxed text-atenuado-contraste">
+              Los meses sin objetivo son los que el informe comercial no archivó: quedan con lo
+              vendido, sin porcentaje.
+            </p>
           ) : null}
 
           {/* De cuando es el dato. Sin esto, alguien puede tomar una
