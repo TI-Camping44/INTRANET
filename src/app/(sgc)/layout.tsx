@@ -20,9 +20,7 @@ import type { Notificacion } from "@/lib/tipos";
 export default async function SgcLayout({ children }: { children: React.ReactNode }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
-  const grupos = navegacionParaRol(usuario.rol);
-
-  const [{ data: notificaciones }, { count: sinLeer }] = await Promise.all([
+  const [{ data: notificaciones }, { count: sinLeer }, { data: perfil }] = await Promise.all([
     supabase
       .from("notificaciones")
       .select("*")
@@ -34,7 +32,13 @@ export default async function SgcLayout({ children }: { children: React.ReactNod
       .select("id", { count: "exact", head: true })
       .eq("usuario_id", usuario.id)
       .eq("leida", false),
+    // Si esta vinculado al informe comercial, ve «Mis ventas» en el menu.
+    supabase.from("usuarios").select("vendedor_planilla").eq("id", usuario.id).maybeSingle(),
   ]);
+
+  const grupos = navegacionParaRol(usuario.rol, {
+    esComercial: Boolean((perfil as { vendedor_planilla: string | null } | null)?.vendedor_planilla),
+  });
 
   return (
     <div className="min-h-dvh bg-fondo">

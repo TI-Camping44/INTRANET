@@ -40,6 +40,8 @@ export interface EntradaNavegacion {
   fase: FaseModulo;
   /** Texto mostrado en los modulos que aun no tienen interfaz completa. */
   notaFase?: string;
+  /** Se muestra solo a quien esta vinculado al informe comercial. */
+  soloComerciales?: boolean;
   subentradas?: SubentradaNavegacion[];
 }
 
@@ -56,6 +58,18 @@ export const NAVEGACION: GrupoNavegacion[] = [
       { titulo: "Directorio", ruta: "/directorio", icono: "Contact", fase: "operativo" },
       { titulo: "Aplicaciones", ruta: "/aplicaciones", icono: "LayoutGrid", fase: "operativo" },
       { titulo: "Buscar", ruta: "/buscar", icono: "Search", fase: "operativo" },
+      {
+        // Solo la ve quien esta vinculado al informe comercial. No es un
+        // control de acceso —la pantalla vuelve a comprobarlo, y el dato
+        // se filtra en el servidor— es para no ofrecerle a cuarenta
+        // personas una pantalla que les va a decir «usted no es
+        // comercial».
+        titulo: "Mis ventas",
+        ruta: "/mis-ventas",
+        icono: "TrendingUp",
+        fase: "operativo",
+        soloComerciales: true,
+      },
     ],
   },
   {
@@ -213,12 +227,16 @@ export const NAVEGACION: GrupoNavegacion[] = [
  * ofrecerle "Nuevo documento" a Direccion es prometer un boton que la
  * pantalla despues le va a negar.
  */
-export function navegacionParaRol(rol: RolUsuario): GrupoNavegacion[] {
+export function navegacionParaRol(
+  rol: RolUsuario,
+  opciones: { esComercial?: boolean } = {},
+): GrupoNavegacion[] {
   const puedeEscribir = rol !== "direccion";
 
   return NAVEGACION.map((grupo) => ({
     ...grupo,
     entradas: grupo.entradas
+      .filter((entrada) => !entrada.soloComerciales || opciones.esComercial === true)
       .filter((entrada) => !entrada.roles || entrada.roles.includes(rol))
       .map((entrada) => ({
         ...entrada,
