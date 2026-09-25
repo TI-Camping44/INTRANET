@@ -32,7 +32,15 @@ import type {
   TratamientoRiesgo,
 } from "@/lib/tipos";
 
-export const NOMBRE_SISTEMA = "Intranet SGC";
+/**
+ * Como se llama el sistema en la barra, en el ingreso y en los correos.
+ *
+ * Se llamo «Intranet SGC» mientras Calidad era todo lo que habia. Ya no:
+ * la portada son las publicaciones, los cumpleaños y el directorio, el
+ * SGC es una seccion, y Aplicaciones es otra. El nombre tenia que dejar
+ * de nombrar a una sola de las tres.
+ */
+export const NOMBRE_SISTEMA = "Intranet";
 export const NOMBRE_EMPRESA = "Camping 44 S.A.";
 export const DOMINIO_AUTORIZADO = "camping44.com.py";
 

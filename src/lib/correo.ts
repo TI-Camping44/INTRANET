@@ -60,7 +60,7 @@ interface OpcionesCorreo {
    * El correo sale igual desde la casilla del sistema —es la unica con
    * la que el SMTP puede autenticarse— pero se muestra con el nombre de
    * esa persona y la respuesta le vuelve a ella. En la bandeja se lee
-   * «Facundo Colman · Intranet SGC», y si el destinatario contesta, le
+   * «Facundo Colman · Intranet», y si el destinatario contesta, le
    * contesta a Facundo y no a una casilla que nadie mira.
    *
    * Poner el correo de la persona en el campo `from` de verdad seria
@@ -78,7 +78,7 @@ function construirHtml({ titulo, cuerpo, enlace, textoEnlace }: OpcionesCorreo):
     ? `<tr><td style="padding:24px 32px 0 32px;">
          <a href="${enlace}" style="display:inline-block;background:#E01E37;color:#ffffff;
             text-decoration:none;padding:11px 20px;border-radius:6px;font-weight:600;
-            font-size:14px;">${textoEnlace ?? "Abrir en la Intranet SGC"}</a>
+            font-size:14px;">${textoEnlace ?? `Abrir en la ${NOMBRE_SISTEMA}`}</a>
        </td></tr>`
     : "";
 

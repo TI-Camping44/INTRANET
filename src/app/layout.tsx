@@ -17,8 +17,8 @@ export const metadata: Metadata = {
     template: `%s · ${NOMBRE_SISTEMA}`,
   },
   description:
-    "Sistema de Gestión de Calidad de Camping 44 S.A.: información documentada, " +
-    "no conformidades, riesgos, auditorías e indicadores.",
+    "Intranet de Camping 44 S.A.: publicaciones y directorio, el Sistema de " +
+    "Gestión de Calidad y las aplicaciones de la empresa.",
   robots: { index: false, follow: false },
 };
 
