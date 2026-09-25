@@ -22,8 +22,8 @@ import {
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
-  AREAS_ORGANIZACIONALES,
-  AREAS_VIGENTES,
+  DEPARTAMENTOS,
+  DEPARTAMENTOS_VIGENTES,
   ESTADOS_NC_ABIERTOS,
   ETIQUETAS_ORIGEN_NC,
   ETIQUETAS_SEVERIDAD_NC,
@@ -40,7 +40,7 @@ import {
 } from "@/lib/no-conformidades";
 import { recortar } from "@/lib/utilidades";
 import type {
-  AreaOrganizacional,
+  Departamento,
   EstadoNoConformidad,
   OrigenNoConformidad,
   SeveridadNoConformidad,
@@ -57,7 +57,7 @@ interface FilaNoConformidad {
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
   cierre_en_plazo: boolean | null;
-  area: AreaOrganizacional | null;
+  area: Departamento | null;
   fecha_deteccion: string;
   fecha_limite_cierre: string | null;
   es_demostracion: boolean;
@@ -155,12 +155,12 @@ export default async function PaginaNoConformidades({
   // siete, que es exactamente lo contrario de lo que pasa: el porcentaje
   // tiene que ser sobre lo que se esta mirando.
   const porArea = [
-    ...AREAS_VIGENTES.map((area) => ({
-      etiqueta: AREAS_ORGANIZACIONALES[area],
+    ...DEPARTAMENTOS_VIGENTES.map((area) => ({
+      etiqueta: DEPARTAMENTOS[area],
       valor: noConformidades.filter((nc) => nc.area === area).length,
     })),
     {
-      etiqueta: "Sin área asignada",
+      etiqueta: "Sin departamento asignado",
       valor: noConformidades.filter((nc) => !nc.area).length,
     },
   ];
@@ -208,10 +208,10 @@ export default async function PaginaNoConformidades({
           },
           {
             nombre: "area",
-            etiqueta: "Área",
-            opciones: AREAS_VIGENTES.map((valor) => ({
+            etiqueta: "Departamento",
+            opciones: DEPARTAMENTOS_VIGENTES.map((valor) => ({
               valor,
-              etiqueta: AREAS_ORGANIZACIONALES[valor],
+              etiqueta: DEPARTAMENTOS[valor],
             })),
           },
           {
@@ -249,9 +249,9 @@ export default async function PaginaNoConformidades({
               circulo son trece porciones que nadie puede comparar, y el
               largo de una barra el ojo lo mide bien. */}
           <BarrasPorcentaje
-            titulo="Por área"
+            titulo="Por departamento"
             filas={porArea}
-            vacio="Ninguna tiene área asignada."
+            vacio="Ninguna tiene departamento asignado."
           />
           <BarrasPorcentaje titulo="Por origen" filas={porOrigen} />
         </div>
@@ -270,7 +270,7 @@ export default async function PaginaNoConformidades({
               <TablaFila>
                 <TablaEncabezado className="w-[8rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Título</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Área</TablaEncabezado>
+                <TablaEncabezado className="hidden lg:table-cell">Departamento</TablaEncabezado>
                 <TablaEncabezado className="hidden xl:table-cell">Origen</TablaEncabezado>
                 <TablaEncabezado className="w-[6rem]">Severidad</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
@@ -309,7 +309,7 @@ export default async function PaginaNoConformidades({
                       </Link>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {nc.area ? AREAS_ORGANIZACIONALES[nc.area] : "—"}
+                      {nc.area ? DEPARTAMENTOS[nc.area] : "—"}
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
                       {ETIQUETAS_ORIGEN_NC[nc.origen]}

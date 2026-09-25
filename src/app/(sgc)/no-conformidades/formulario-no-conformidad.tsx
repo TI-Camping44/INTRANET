@@ -12,8 +12,8 @@ import {
   crearNoConformidad,
 } from "@/app/(sgc)/no-conformidades/acciones";
 import {
-  AREAS_ORGANIZACIONALES,
-  AREAS_VIGENTES,
+  DEPARTAMENTOS,
+  DEPARTAMENTOS_VIGENTES,
   DIAS_LIMITE_CIERRE_NC,
   ETIQUETAS_ORIGEN_NC,
   ETIQUETAS_SEVERIDAD_NC,
@@ -47,6 +47,7 @@ export interface NoConformidadInicial {
   id: string;
   titulo: string;
   descripcion: string;
+  consecuencias: string | null;
   origen: string;
   severidad: string;
   area: string | null;
@@ -135,6 +136,26 @@ export function FormularioNoConformidad({
             />
           </GrupoCampo>
 
+          {/* La descripcion dice QUE paso; esto dice QUE PROVOCA. Hasta
+              ahora iban en el mismo parrafo y no son lo mismo: el impacto
+              es lo que decide la severidad y la urgencia. */}
+          <GrupoCampo
+            etiqueta="Consecuencias/Impacto de los eventos que ocasiona la No Conformidad"
+            htmlFor="consecuencias"
+            requerido
+            className="sm:col-span-2"
+            ayuda="Qué provocó o puede provocar: a qué cliente, proceso o departamento afectó, y con qué alcance."
+          >
+            <AreaTexto
+              id="consecuencias"
+              name="consecuencias"
+              defaultValue={inicial?.consecuencias ?? ""}
+              rows={3}
+              required
+              minLength={15}
+            />
+          </GrupoCampo>
+
           <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido>
             <Seleccion id="origen" name="origen" defaultValue={inicial?.origen ?? "proceso_interno"}>
               {ORIGENES_NC_VIGENTES.map((valor) => (
@@ -156,18 +177,18 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo
-            etiqueta="Área"
+            etiqueta="Departamento"
             htmlFor="area"
             requerido
             ayuda="Departamento que debe gestionar la No Conformidad y su posterior Acción Correctiva."
           >
             <Seleccion id="area" name="area" defaultValue={inicial?.area ?? ""} required>
               <option value="" disabled>
-                Elija el área
+                Elija el departamento
               </option>
-              {AREAS_VIGENTES.map((valor) => (
+              {DEPARTAMENTOS_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
-                  {AREAS_ORGANIZACIONALES[valor]}
+                  {DEPARTAMENTOS[valor]}
                 </option>
               ))}
             </Seleccion>

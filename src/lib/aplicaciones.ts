@@ -79,7 +79,7 @@ export const APLICACIONES: Aplicacion[] = [
   },
   {
     nombre: "Tickets de solicitud para Logística",
-    descripcion: "Para pedir movimientos, retiros y entregas al área de Logística.",
+    descripcion: "Para pedir movimientos, retiros y entregas al departamento de Logística.",
     url:
       "https://script.google.com/a/macros/camping44.com.py/s/" +
       "AKfycbyJHegM7gNFwSqrK2X8wVJwtF9f0tyfS1PLMVJMA4z4q3bT2DLD9-UOsFv-Z2REyYyI/exec",
@@ -111,7 +111,7 @@ export const APLICACIONES: Aplicacion[] = [
   },
   {
     nombre: "Tickets de solicitud de compra interna",
-    descripcion: "Para pedir la compra de insumos o equipamiento del área.",
+    descripcion: "Para pedir la compra de insumos o equipamiento del departamento.",
     url:
       "https://docs.google.com/forms/d/e/" +
       "1FAIpQLSfiaCoYHde68BDDM8KEiVmoP9WmV9nm2M_e-fZbu1CgapUDPQ/viewform",

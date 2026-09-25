@@ -45,7 +45,15 @@ export type SeveridadNoConformidad = "menor" | "mayor" | "observacion";
  * departamento. La lista tambien vive en el CHECK de la tabla; si
  * cambia, cambia en los dos lados.
  */
-export type AreaOrganizacional =
+/**
+ * Los trece departamentos de Camping 44.
+ *
+ * SE LLAMABAN «areas» hasta que Calidad pidio que en todos lados diga
+ * Departamento. Es un cambio de como se lee, no de que se guarda: la
+ * columna de la base sigue llamandose `area`, para no arrastrar detras de
+ * una palabra el CHECK, el indice y el importador.
+ */
+export type Departamento =
   | "administracion"
   | "tesoreria_caja"
   | "creditos_cobranzas"
@@ -260,7 +268,7 @@ export interface NoConformidad {
   estado: EstadoNoConformidad;
   proceso_id: string | null;
   empresa_afectada_id: string | null;
-  area: AreaOrganizacional | null;
+  area: Departamento | null;
   sede_id: string | null;
   norma_id: string | null;
   cliente_id: string | null;

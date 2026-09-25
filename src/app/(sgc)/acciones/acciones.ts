@@ -232,6 +232,13 @@ export async function actualizarRespuesta(
   const descargo = String(datos.get("descargo") ?? "").trim();
   const porques = datos.getAll("porque").map((valor) => String(valor).trim());
 
+  // `null` es «no contesto»: distinto de «no». La validacion de abajo lo
+  // exige, asi que no se puede guardar una respuesta sin responder esto.
+  const respuestaSimilares = String(datos.get("hay_nc_similares") ?? "");
+  const hayNcSimilares =
+    respuestaSimilares === "si" ? true : respuestaSimilares === "no" ? false : null;
+  const analisisHorizontal = String(datos.get("analisis_horizontal") ?? "").trim();
+
   const ids = datos.getAll("accion_id").map((valor) => String(valor));
   const descripciones = datos.getAll("accion_descripcion").map((valor) => String(valor).trim());
   const plazos = datos.getAll("accion_fecha_limite").map((valor) => String(valor));
@@ -252,6 +259,19 @@ export async function actualizarRespuesta(
   }
   if (tareas.length === 0) {
     return { exito: false, error: "Deje al menos una acción." };
+  }
+  if (hayNcSimilares === null) {
+    return {
+      exito: false,
+      error: "Indique si existen no conformidades similares o que puedan ocurrir.",
+    };
+  }
+  if (hayNcSimilares && analisisHorizontal.length < 15) {
+    return {
+      exito: false,
+      error:
+        "Detalle el análisis horizontal con al menos 15 caracteres: dónde más ocurrió o puede ocurrir.",
+    };
   }
   for (let indice = 0; indice < tareas.length; indice += 1) {
     const cual = tareas.length === 1 ? "la acción" : `la acción ${indice + 1}`;
@@ -280,7 +300,13 @@ export async function actualizarRespuesta(
 
   await supabase
     .from("no_conformidades")
-    .update({ conclusion_causa_raiz: porques[porques.length - 1] })
+    .update({
+      conclusion_causa_raiz: porques[porques.length - 1],
+      hay_nc_similares: hayNcSimilares,
+      // Si contesto que no, no queda guardado un analisis que contradice
+      // la respuesta: se limpia.
+      analisis_horizontal: hayNcSimilares ? analisisHorizontal : null,
+    })
     .eq("id", noConformidadId);
 
   // Las que se sacaron del formulario. Se borran primero, para que la

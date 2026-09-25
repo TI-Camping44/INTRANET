@@ -2,7 +2,7 @@ import "server-only";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
-  AREAS_ORGANIZACIONALES,
+  DEPARTAMENTOS,
   ESTADOS_NC_ABIERTOS,
   ETIQUETAS_ESTADO_ACCION,
   ETIQUETAS_ESTADO_NC,
@@ -209,12 +209,12 @@ export async function obtenerReportes(): Promise<Reporte[]> {
       ],
     },
     {
-      titulo: "No conformidades por área",
+      titulo: "No conformidades por departamento",
       descripcion: "Cuáles son las desviaciones de cada departamento.",
       total: nc.length,
       modulo: "/no-conformidades",
       filas: [
-        ...contarPor(nc, "area", AREAS_ORGANIZACIONALES, (clave) =>
+        ...contarPor(nc, "area", DEPARTAMENTOS, (clave) =>
           `/no-conformidades?area=${clave}`,
         ),
         ...(ncSinArea > 0

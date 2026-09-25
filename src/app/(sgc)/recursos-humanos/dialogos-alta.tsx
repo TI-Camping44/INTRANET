@@ -107,7 +107,7 @@ export function AltaPuesto({
         <GrupoCampo etiqueta="Código" htmlFor="codigo" requerido>
           <Entrada id="codigo" name="codigo" defaultValue={codigoSugerido} required className="tabular" />
         </GrupoCampo>
-        <GrupoCampo etiqueta="Área" htmlFor="area">
+        <GrupoCampo etiqueta="Departamento" htmlFor="area">
           <Entrada id="area" name="area" placeholder="Comercial" />
         </GrupoCampo>
       </div>

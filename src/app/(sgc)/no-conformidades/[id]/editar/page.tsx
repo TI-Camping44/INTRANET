@@ -38,7 +38,7 @@ export default async function PaginaEditarNoConformidad({
       supabase
         .from("no_conformidades")
         .select(
-          "id, codigo, titulo, descripcion, origen, severidad, area, empresa_afectada_id, " +
+          "id, codigo, titulo, descripcion, consecuencias, origen, severidad, area, empresa_afectada_id, " +
             "proceso_id, responsable_id, correccion_inmediata, propuestas_mejora, fecha_deteccion",
         )
         .eq("id", params.id)

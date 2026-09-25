@@ -5,7 +5,7 @@
  */
 
 import type {
-  AreaOrganizacional,
+  Departamento,
   EstadoAccion,
   EstadoActivo,
   EstadoAuditoria,
@@ -227,7 +227,7 @@ export const ESTADOS_NC_VIGENTES: EstadoNoConformidad[] = [
  * La misma lista esta en el CHECK de no_conformidades.area. Si cambia,
  * cambia en los dos lados.
  */
-export const AREAS_ORGANIZACIONALES: Record<AreaOrganizacional, string> = {
+export const DEPARTAMENTOS: Record<Departamento, string> = {
   administracion: "Administración",
   tesoreria_caja: "Tesorería/Caja",
   creditos_cobranzas: "Créditos y Cobranzas",
@@ -247,10 +247,10 @@ export const AREAS_ORGANIZACIONALES: Record<AreaOrganizacional, string> = {
 };
 
 /**
- * Las areas que se ofrecen hoy, en el orden de Calidad. La retirada
- * queda fuera: ya no se elige, pero se sigue pudiendo mostrar.
+ * Los departamentos que se ofrecen hoy, en el orden de Calidad. El
+ * retirado queda fuera: ya no se elige, pero se sigue pudiendo mostrar.
  */
-export const AREAS_VIGENTES: AreaOrganizacional[] = [
+export const DEPARTAMENTOS_VIGENTES: Departamento[] = [
   "administracion",
   "tesoreria_caja",
   "creditos_cobranzas",

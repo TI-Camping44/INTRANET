@@ -6,12 +6,12 @@ import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
-  AREAS_ORGANIZACIONALES,
+  DEPARTAMENTOS,
   ORIGENES_NC_VIGENTES,
   PREGUNTAS_CINCO_PORQUES,
 } from "@/lib/constantes";
 import type {
-  AreaOrganizacional,
+  Departamento,
   EstadoAccion,
   EstadoNoConformidad,
   OrigenNoConformidad,
@@ -29,6 +29,7 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
 
   const titulo = String(datos.get("titulo") ?? "").trim();
   const descripcion = String(datos.get("descripcion") ?? "").trim();
+  const consecuencias = String(datos.get("consecuencias") ?? "").trim();
 
   if (titulo.length < 5) {
     return { exito: false, error: "El título debe tener al menos 5 caracteres." };
@@ -39,10 +40,17 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
       error: "Describa la desviación con al menos 15 caracteres: es la evidencia del hallazgo.",
     };
   }
+  if (consecuencias.length < 15) {
+    return {
+      exito: false,
+      error:
+        "Indique las consecuencias o el impacto con al menos 15 caracteres: es lo que define la severidad.",
+    };
+  }
 
   const area = String(datos.get("area") ?? "");
-  if (!(area in AREAS_ORGANIZACIONALES)) {
-    return { exito: false, error: "Elija el área a la que corresponde la desviación." };
+  if (!(area in DEPARTAMENTOS)) {
+    return { exito: false, error: "Elija el departamento al que corresponde la desviación." };
   }
 
   const origen = String(datos.get("origen") ?? "proceso_interno");
@@ -101,10 +109,11 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
       codigo,
       titulo,
       descripcion,
+      consecuencias,
       origen,
       severidad: String(datos.get("severidad") ?? "menor"),
       estado: "abierta",
-      area: area as AreaOrganizacional,
+      area: area as Departamento,
       empresa_afectada_id: String(datos.get("empresa_afectada_id") ?? "") || usuario.empresa_id,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       correccion_inmediata: String(datos.get("correccion_inmediata") ?? "").trim() || null,
@@ -172,6 +181,7 @@ export async function actualizarNoConformidad(
 
   const titulo = String(datos.get("titulo") ?? "").trim();
   const descripcion = String(datos.get("descripcion") ?? "").trim();
+  const consecuencias = String(datos.get("consecuencias") ?? "").trim();
 
   if (titulo.length < 5) {
     return { exito: false, error: "El título debe tener al menos 5 caracteres." };
@@ -180,6 +190,13 @@ export async function actualizarNoConformidad(
     return {
       exito: false,
       error: "La descripción debe tener al menos 15 caracteres: es la evidencia del hallazgo.",
+    };
+  }
+  if (consecuencias.length < 15) {
+    return {
+      exito: false,
+      error:
+        "Indique las consecuencias o el impacto con al menos 15 caracteres: es lo que define la severidad.",
     };
   }
 
@@ -208,6 +225,7 @@ export async function actualizarNoConformidad(
     .update({
       titulo: String(datos.get("titulo") ?? "").trim(),
       descripcion: String(datos.get("descripcion") ?? "").trim(),
+      consecuencias,
       origen: String(datos.get("origen") ?? "proceso_interno"),
       severidad: String(datos.get("severidad") ?? "menor"),
       area: String(datos.get("area") ?? "") || null,
@@ -244,8 +262,8 @@ export async function clasificarNoConformidad(
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  if (!(area in AREAS_ORGANIZACIONALES)) {
-    return { exito: false, error: "Elija el área a la que corresponde la desviación." };
+  if (!(area in DEPARTAMENTOS)) {
+    return { exito: false, error: "Elija el departamento al que corresponde la desviación." };
   }
 
   const { error } = await supabase

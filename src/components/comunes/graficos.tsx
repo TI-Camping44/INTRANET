@@ -16,7 +16,7 @@ import { cn } from "@/lib/utilidades";
  *   · **Torta** donde las porciones son pocas —estado y severidad—. Una
  *     torta se lee de un vistazo cuando son cuatro pedazos; con catorce
  *     es un círculo de colores que nadie puede comparar.
- *   · **Barras** donde son muchas —área y origen—. La barra se compara
+ *   · **Barras** donde son muchas —departamento y origen—. La barra se compara
  *     por longitud, que el ojo mide bien, y admite tantas filas como
  *     haga falta.
  *
@@ -169,7 +169,7 @@ export function Torta({
 /**
  * Barras horizontales con su porcentaje.
  *
- * Para las dimensiones de muchas categorías —las trece áreas, los seis
+ * Para las dimensiones de muchas categorías —los trece departamentos, los seis
  * orígenes—. Un solo color: acá lo que se compara es el largo, y pintar
  * cada fila de un color distinto sería inventar trece colores que además
  * no significan nada.

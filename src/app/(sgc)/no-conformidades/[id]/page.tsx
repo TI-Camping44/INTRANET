@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tarjeta";
 import { esSoloLectura, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { AREAS_ORGANIZACIONALES, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
+import { DEPARTAMENTOS, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
 import {
   cierreSugerido,
@@ -31,7 +31,7 @@ import {
 } from "@/lib/no-conformidades";
 import { cn } from "@/lib/utilidades";
 import type {
-  AreaOrganizacional,
+  Departamento,
   EstadoNoConformidad,
   OrigenNoConformidad,
   SeveridadNoConformidad,
@@ -44,11 +44,14 @@ interface ResumenNoConformidad {
   codigo: string;
   titulo: string;
   descripcion: string;
+  consecuencias: string | null;
   origen: OrigenNoConformidad;
   severidad: SeveridadNoConformidad;
   estado: EstadoNoConformidad;
   cierre_en_plazo: boolean | null;
-  area: AreaOrganizacional | null;
+  area: Departamento | null;
+  hay_nc_similares: boolean | null;
+  analisis_horizontal: string | null;
   correccion_inmediata: string | null;
   propuestas_mejora: string[] | null;
   fecha_deteccion: string;
@@ -99,7 +102,8 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   const { data: consulta } = await supabase
     .from("no_conformidades")
     .select(
-      "id, codigo, titulo, descripcion, origen, severidad, estado, cierre_en_plazo, area, " +
+      "id, codigo, titulo, descripcion, consecuencias, origen, severidad, estado, "
+        + "cierre_en_plazo, area, hay_nc_similares, analisis_horizontal, " +
         "correccion_inmediata, propuestas_mejora, fecha_deteccion, fecha_limite_cierre, " +
         "fecha_cierre, es_demostracion, detectado_por, responsable_id, proceso_id, " +
         "procesos:proceso_id (nombre), empresa_afectada:empresa_afectada_id (razon_social), " +
@@ -207,6 +211,35 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
           <TarjetaContenido className="space-y-3">
             <p className="whitespace-pre-line text-xs leading-relaxed">{nc.descripcion}</p>
 
+            {/* Las anteriores a este campo no lo tienen y no se les
+                inventa: simplemente no aparece. */}
+            {nc.consecuencias ? (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
+                  Consecuencias/Impacto de los eventos que ocasiona
+                </p>
+                <p className="mt-0.5 whitespace-pre-line text-xs leading-relaxed">
+                  {nc.consecuencias}
+                </p>
+              </div>
+            ) : null}
+
+            {nc.hay_nc_similares !== null ? (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
+                  ¿Existen no conformidades similares o que puedan ocurrir?
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed">
+                  {nc.hay_nc_similares ? "Sí" : "No"}
+                </p>
+                {nc.analisis_horizontal ? (
+                  <p className="mt-1 whitespace-pre-line text-xs leading-relaxed">
+                    {nc.analisis_horizontal}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             {nc.correccion_inmediata ? (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-atenuado-contraste">
@@ -247,7 +280,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
           </TarjetaCabecera>
           <TarjetaContenido>
             <dl className="grid gap-x-8 gap-y-2.5 text-xs sm:grid-cols-2">
-              <Dato etiqueta="Área" valor={nc.area ? AREAS_ORGANIZACIONALES[nc.area] : "—"} />
+              <Dato etiqueta="Departamento" valor={nc.area ? DEPARTAMENTOS[nc.area] : "—"} />
               <Dato etiqueta="Empresa" valor={nc.empresa_afectada?.razon_social ?? "—"} />
               <Dato etiqueta="Proceso" valor={nc.procesos?.nombre ?? "—"} />
               <Dato etiqueta="Detectada por" valor={nc.detector?.nombre_completo ?? "—"} />

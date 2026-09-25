@@ -114,7 +114,7 @@ export default async function PaginaDirectorio({
 
         <PestanaContenido value="personas">
           <div className="mb-3">
-            <FiltrosListado campos={[]} marcadorBusqueda="Buscar por nombre, puesto o área…" />
+            <FiltrosListado campos={[]} marcadorBusqueda="Buscar por nombre, puesto o departamento…" />
           </div>
 
           {filtradas.length === 0 ? (
@@ -126,7 +126,7 @@ export default async function PaginaDirectorio({
               descripcion={
                 personas.length === 0
                   ? "Los perfiles se crean solos cuando cada persona ingresa por primera vez."
-                  : "Pruebe con otro nombre, puesto o área."
+                  : "Pruebe con otro nombre, puesto o departamento."
               }
             />
           ) : (
@@ -215,7 +215,7 @@ export default async function PaginaDirectorio({
                   <TablaFila>
                     <TablaEncabezado className="w-[6rem]">Código</TablaEncabezado>
                     <TablaEncabezado>Puesto</TablaEncabezado>
-                    <TablaEncabezado className="hidden md:table-cell">Área</TablaEncabezado>
+                    <TablaEncabezado className="hidden md:table-cell">Departamento</TablaEncabezado>
                     <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
                     <TablaEncabezado className="w-[7rem]">Formulario</TablaEncabezado>
                     <TablaEncabezado className="w-[7rem]">Ocupan</TablaEncabezado>

@@ -624,7 +624,7 @@ export function MuroPublicaciones({
                   </Seleccion>
                 </GrupoCampo>
 
-                <GrupoCampo etiqueta="Área" htmlFor="proceso_id">
+                <GrupoCampo etiqueta="Departamento" htmlFor="proceso_id">
                   <Seleccion
                     id="proceso_id"
                     name="proceso_id"

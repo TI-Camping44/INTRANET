@@ -8,6 +8,7 @@ import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { responderNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
 import { CampoAcciones, type AccionInicial } from "@/app/(sgc)/acciones/campo-acciones";
+import { CampoAnalisisHorizontal } from "@/app/(sgc)/acciones/campo-analisis-horizontal";
 import { actualizarRespuesta } from "@/app/(sgc)/acciones/acciones";
 import { PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
 
@@ -42,6 +43,8 @@ export interface RespuestaInicial {
   descargo: string;
   porques: string[];
   acciones: AccionInicial[];
+  hayNcSimilares?: boolean | null;
+  analisisHorizontal?: string | null;
 }
 
 export function FormularioAccion({
@@ -203,6 +206,16 @@ export function FormularioAccion({
               personas={personas}
               usuarioActual={usuarioActual}
               iniciales={inicial?.acciones ?? []}
+            />
+          </div>
+
+          {/* Va despues de las acciones a proposito: primero se resuelve
+              lo que aparecio, despues se mira si puede estar pasando en
+              otro lado. */}
+          <div className="border-t border-borde pt-4">
+            <CampoAnalisisHorizontal
+              hayNcSimilares={inicial?.hayNcSimilares}
+              analisisHorizontal={inicial?.analisisHorizontal}
             />
           </div>
         </div>

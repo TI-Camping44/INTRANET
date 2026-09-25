@@ -36,7 +36,7 @@ export default async function PaginaEditarAccionCorrectiva({
     await Promise.all([
       supabase
         .from("no_conformidades")
-        .select("id, codigo, titulo")
+        .select("id, codigo, titulo, hay_nc_similares, analisis_horizontal")
         .eq("id", params.id)
         .maybeSingle(),
       supabase.from("nc_porques").select("*").eq("no_conformidad_id", params.id).order("orden"),
@@ -90,6 +90,8 @@ export default async function PaginaEditarAccionCorrectiva({
           noConformidadId: nc.id,
           descargo: acciones.find((accion) => accion.descargo)?.descargo ?? "",
           porques: ((porques as NcPorque[] | null) ?? []).map((porque) => porque.respuesta),
+          hayNcSimilares: (nc as { hay_nc_similares: boolean | null }).hay_nc_similares,
+          analisisHorizontal: (nc as { analisis_horizontal: string | null }).analisis_horizontal,
           acciones: acciones.map((accion) => ({
             id: accion.id,
             descripcion: accion.descripcion,

@@ -381,7 +381,7 @@ export default async function PaginaRecursosHumanos() {
                   <TablaFila>
                     <TablaEncabezado className="w-[7rem]">Código</TablaEncabezado>
                     <TablaEncabezado>Puesto</TablaEncabezado>
-                    <TablaEncabezado className="hidden md:table-cell">Área</TablaEncabezado>
+                    <TablaEncabezado className="hidden md:table-cell">Departamento</TablaEncabezado>
                     <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
                     <TablaEncabezado className="w-[6rem] text-right">Exigencias</TablaEncabezado>
                     <TablaEncabezado className="hidden xl:table-cell">Misión</TablaEncabezado>
