@@ -15,11 +15,12 @@ import {
 } from "@/components/ui/tabla";
 import { AvanceDelMes } from "@/app/(sgc)/mis-ventas/avance-del-mes";
 import { TablaEquipo } from "@/app/(sgc)/mis-ventas/tabla-equipo";
+import { BotonSincronizar } from "@/app/(sgc)/mis-ventas/boton-sincronizar";
 import { CANALES_DE_VENTA, canalesVisiblesPara, esJefeDeVentas } from "@/lib/permisos-ventas";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFechaHora, formatearGuaranies } from "@/lib/formato";
-import { leerResumenDeVentas } from "@/lib/ventas-servidor";
+import { leerResumenGuardado } from "@/lib/ventas-guardadas";
 import {
   alcance,
   CLASES_NIVEL_ALCANCE,
@@ -32,14 +33,6 @@ import {
 export const metadata: Metadata = { title: "Mis ventas" };
 export const dynamic = "force-dynamic";
 
-/**
- * Un minuto, que es lo maximo que permite la funcion.
- *
- * Sin esto la funcion se corta a los diez segundos por defecto y matarian
- * la lectura antes que el tope de veinte: Google tarda catorce en
- * entregar las hojas.
- */
-export const maxDuration = 60;
 
 /**
  * Como va el comercial contra su objetivo.
@@ -87,23 +80,26 @@ export default async function PaginaMisVentas() {
     );
   }
 
-  const lectura = await leerResumenDeVentas();
+  const lectura = await leerResumenGuardado(supabase);
 
   if (!lectura.ok) {
     return (
       <div className="mx-auto max-w-3xl">
-        <EncabezadoPagina titulo="Mis ventas" />
+        <EncabezadoPagina
+          titulo="Mis ventas"
+          acciones={usuario.rol === "administrador_sgc" ? <BotonSincronizar /> : null}
+        />
         <EstadoVacio
           icono={<TrendingUp className="size-6" />}
           titulo={
-            lectura.motivo === "sin_configurar"
-              ? "El informe de ventas todavía no está conectado"
-              : "No se pudo leer el informe de ventas"
+            lectura.motivo === "sin_datos"
+              ? "Todavía no se trajo ningún dato del informe"
+              : "No se pudieron leer las ventas"
           }
           descripcion={
-            lectura.motivo === "sin_configurar"
-              ? "Falta terminar la conexión con el informe comercial. Avise a TI."
-              : "El informe no respondió. Vuelva a intentar en unos minutos; si sigue igual, avise a TI."
+            lectura.motivo === "sin_datos"
+              ? "El trabajo que lee la planilla comercial todavía no corrió. Avise a TI."
+              : "Vuelva a intentar en unos minutos; si sigue igual, avise a TI."
           }
         />
       </div>
@@ -137,6 +133,7 @@ export default async function PaginaMisVentas() {
             ? "Su avance contra el objetivo, con los mismos números del informe comercial."
             : "Cómo va su equipo contra el objetivo, con los mismos números del informe comercial."
         }
+        acciones={usuario.rol === "administrador_sgc" ? <BotonSincronizar /> : null}
       />
 
       {!enCurso && nombreEnPlanilla ? (
