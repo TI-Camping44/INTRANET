@@ -624,7 +624,10 @@ export function MuroPublicaciones({
                   </Seleccion>
                 </GrupoCampo>
 
-                <GrupoCampo etiqueta="Departamento" htmlFor="proceso_id">
+                {/* Elige un PROCESO, no un departamento. Estuvo rotulado «Área»
+                    desde el principio, y al renombrar todo a «Departamento» el
+                    rotulo iba a seguir sin describir lo que hace. */}
+                <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">
                   <Seleccion
                     id="proceso_id"
                     name="proceso_id"
