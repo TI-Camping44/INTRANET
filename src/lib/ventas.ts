@@ -1,20 +1,22 @@
 /**
  * El avance de cada comercial contra su objetivo del mes.
  *
- * DE DONDE SALE EL NUMERO. No de Odoo, y no de un calculo propio. El
- * informe de ventas que la empresa ya usa tiene un Apps Script que arma
- * el resumen por vendedor —meta y venta, por mes y por canal— aplicando
- * reglas de negocio que no son triviales: anticipos, ventas completas,
- * pendientes del cliente. Ese script expone ese mismo resumen y la
- * intranet lo consume tal cual.
+ * DE DONDE SALE EL NUMERO. No de Odoo. El informe comercial que la
+ * empresa ya usa baja las facturas a una planilla y su Apps Script deja
+ * resuelta la columna `TOTAL GS` aplicando reglas que no son triviales:
+ * anticipos, notas de credito, tipo de cambio. La intranet lee esa misma
+ * planilla —las mismas dos hojas que lee el tablero de Comercial— y suma.
  *
- * Es deliberado. Si la intranet replicara esas reglas, el dia que se
+ * Es deliberado. Si la intranet recalculara esas reglas, el dia que se
  * cambie una en el informe los dos numeros se separarian y nadie sabria
  * cual creer. Un solo lugar donde se calcula, un solo numero.
  *
  * ESTE ARCHIVO NO HACE PEDIDOS DE RED. Define el contrato y las cuentas
- * que la pantalla necesita; el pedido lo hace `ventas-servidor.ts`.
+ * que la pantalla necesita; el pedido lo hace `ventas-servidor.ts` y las
+ * reglas de lectura estan en `planilla-ventas.ts`.
  */
+
+import { mismoVendedor } from "@/lib/planilla-ventas";
 
 /** Una fila del resumen: un vendedor, en un mes. */
 export interface VentaDelMes {
@@ -29,6 +31,13 @@ export interface VentaDelMes {
   /** En guaraníes. `null` cuando no hay meta cargada, que no es lo mismo que cero. */
   meta: number | null;
   venta: number | null;
+  /**
+   * Cuanto de lo anterior son notas de credito, en negativo.
+   *
+   * Va aparte porque explica una caida: un mes flojo por poca venta y un
+   * mes flojo por una devolucion grande se arreglan de maneras distintas.
+   */
+  devoluciones: number;
 }
 
 /** Lo que devuelve el informe de ventas cuando se le pide el resumen. */
@@ -44,6 +53,15 @@ export interface ResumenDeVentas {
    */
   mesEnCurso: number;
   anioEnCurso: number;
+  /**
+   * Dias habiles del mes de corte y cuantos van.
+   *
+   * Sirven para decir cuanto DEBERIA llevar facturado hoy, que a mitad de
+   * mes es la pregunta real: un 50% el dia 10 esta bien y el dia 25 esta
+   * mal, y el porcentaje solo no lo distingue.
+   */
+  diasMes: number;
+  diasTranscurridos: number;
   filas: VentaDelMes[];
 }
 
@@ -127,9 +145,50 @@ export const CLASES_NIVEL_ALCANCE: Record<NivelAlcance, string> = {
   cumplido: "text-semaforo-bajo",
 };
 
-/** Las filas de una persona, de la mas reciente a la mas vieja. */
-export function filasDelVendedor(resumen: ResumenDeVentas, cod: string): VentaDelMes[] {
+/**
+ * Las filas de una persona, de la mas reciente a la mas vieja.
+ *
+ * La union NO es una comparacion de texto: en la planilla la misma
+ * persona figura con mas o menos nombres segun la hoja, asi que se usa la
+ * regla compartida de `planilla-ventas`. Es la misma que evita que dos
+ * «Oscar David» distintos se mezclen.
+ */
+export function filasDelVendedor(resumen: ResumenDeVentas, nombre: string): VentaDelMes[] {
   return resumen.filas
-    .filter((f) => f.cod.trim().toLowerCase() === cod.trim().toLowerCase())
+    .filter((f) => mismoVendedor(f.cod, nombre))
     .sort((a, b) => b.anio - a.anio || b.mes - a.mes);
+}
+
+/**
+ * Cuanto deberia llevar facturado a hoy, repartiendo la meta por dia habil.
+ *
+ * `null` sin meta o sin dias cargados: la pantalla lo omite en vez de
+ * dibujar una referencia inventada.
+ */
+export function esperadoAHoy(
+  meta: number | null,
+  diasMes: number,
+  diasTranscurridos: number,
+): number | null {
+  if (meta === null || meta <= 0 || diasMes <= 0) return null;
+  return (meta / diasMes) * diasTranscurridos;
+}
+
+/**
+ * Cuanto hay que facturar por dia habil restante para llegar a la meta.
+ *
+ * `null` cuando ya la alcanzo o cuando no hay dias por delante: en el
+ * ultimo dia del mes no hay un ritmo que recomendar.
+ */
+export function ritmoNecesario(
+  meta: number | null,
+  venta: number | null,
+  diasMes: number,
+  diasTranscurridos: number,
+): number | null {
+  const falta = faltante(meta, venta);
+  if (falta === null || falta <= 0) return null;
+  const restantes = diasMes - diasTranscurridos;
+  if (restantes <= 0) return null;
+  return falta / restantes;
 }
