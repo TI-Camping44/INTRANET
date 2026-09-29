@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, ThumbsDown, X } from "lucide-react";
+import { PlayCircle, Plus, ThumbsDown, X } from "lucide-react";
 
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
@@ -11,14 +11,19 @@ import { Tarjeta } from "@/components/ui/tarjeta";
 import {
   cambiarEstadoReclamo,
   guardarAccionesDelPlan,
+  reanudarPlazoSuspendido,
   registrarRechazo,
+  registrarVerificacion,
 } from "@/app/(sgc)/reclamos/acciones";
 import {
   admiteRechazo,
+  casoCerrado,
   COMPENSACIONES_SUGERIDAS,
+  DIAS_VERIFICACION_PLAN_C,
   ESTADOS_CLIENTE_FINAL,
   ETIQUETAS_ESTADO_CLIENTE_RECLAMO,
   exigeAccionCorrectiva,
+  exigeNoConformidad,
   excedeTopePorcentual,
   tramoDeAutorizacion,
   TRANSICIONES_RECLAMO,
@@ -59,6 +64,8 @@ export function PanelCaso({
   gravedad,
   personas,
   acciones,
+  suspendido,
+  fechaVerificacion,
 }: {
   reclamoId: string;
   estado: EstadoReclamo;
@@ -66,6 +73,9 @@ export function PanelCaso({
   gravedad: GravedadReclamo;
   personas: Persona[];
   acciones: AccionDelPlan[];
+  /** Si hay un trámite ante la DIGEMABEL con el plazo detenido. */
+  suspendido: boolean;
+  fechaVerificacion: string | null;
 }) {
   const router = useRouter();
   const [destino, definirDestino] = React.useState<EstadoReclamo | null>(null);
@@ -130,6 +140,12 @@ export function PanelCaso({
         iniciales={acciones}
         exigeCorrectiva={exigeAccionCorrectiva(plan)}
       />
+
+      {suspendido ? <BotonReanudar reclamoId={reclamoId} /> : null}
+
+      {exigeNoConformidad(plan) && casoCerrado(estado) ? (
+        <Verificacion reclamoId={reclamoId} fechaVerificacion={fechaVerificacion} />
+      ) : null}
 
       {posibles.length === 0 ? null : (
         <Tarjeta className="p-4">
@@ -494,6 +510,122 @@ function AccionesDelPlan({
           </Boton>
           <Boton type="submit" tamano="pequeno" cargando={guardando}>
             Guardar acciones
+          </Boton>
+        </div>
+      </form>
+    </Tarjeta>
+  );
+}
+
+/**
+ * Reanudar el plazo cuando el trámite ante la DIGEMABEL terminó.
+ *
+ * Va suelto y arriba de todo porque mientras el caso está suspendido no
+ * corre ningún plazo: es lo primero que hay que resolver, no un paso más
+ * del ciclo.
+ */
+function BotonReanudar({ reclamoId }: { reclamoId: string }) {
+  const router = useRouter();
+  const [enviando, definirEnviando] = React.useState(false);
+
+  return (
+    <Tarjeta className="border-semaforo-medio/40 bg-semaforo-medio/5 p-4">
+      <p className="text-xs font-semibold">Plazo suspendido</p>
+      <p className="mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+        Mientras dure el trámite el caso no cuenta como fuera de plazo. Al reanudarlo, los días
+        hábiles que el trámite duró se le devuelven al plazo de resolución.
+      </p>
+      <Boton
+        tamano="pequeno"
+        variante="contorno"
+        className="mt-2"
+        cargando={enviando}
+        onClick={async () => {
+          definirEnviando(true);
+          const respuesta = await reanudarPlazoSuspendido(reclamoId);
+          definirEnviando(false);
+          if (respuesta.exito) {
+            toast.success(respuesta.mensaje ?? "Plazo reanudado.");
+            router.refresh();
+          } else {
+            toast.error(respuesta.error);
+          }
+        }}
+      >
+        <PlayCircle /> El trámite terminó, reanudar el plazo
+      </Boton>
+    </Tarjeta>
+  );
+}
+
+/**
+ * La verificación con el cliente a los 30 días de cerrar un Plan C.
+ *
+ * Es lo único que separa un caso cerrado de un caso resuelto: que alguien
+ * volvió a preguntarle al cliente si la solución sirvió.
+ */
+function Verificacion({
+  reclamoId,
+  fechaVerificacion,
+}: {
+  reclamoId: string;
+  fechaVerificacion: string | null;
+}) {
+  const router = useRouter();
+  const [enviando, definirEnviando] = React.useState(false);
+  const [error, definirError] = React.useState<string | null>(null);
+
+  async function guardar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    definirEnviando(true);
+    definirError(null);
+
+    const respuesta = await registrarVerificacion(reclamoId, new FormData(evento.currentTarget));
+    definirEnviando(false);
+
+    if (respuesta.exito) {
+      toast.success(respuesta.mensaje ?? "Verificación registrada.");
+      router.refresh();
+    } else {
+      definirError(respuesta.error);
+    }
+  }
+
+  return (
+    <Tarjeta className="p-4">
+      <p className="text-xs font-semibold">
+        Verificación con el cliente a los {DIAS_VERIFICACION_PLAN_C} días
+      </p>
+      <p className="mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+        {fechaVerificacion
+          ? "Ya está registrada. Si vuelve a hablar con el cliente, se puede corregir."
+          : "El Plan C la pide después del cierre: si la solución se sostuvo y qué dijo el cliente."}
+      </p>
+
+      <form onSubmit={guardar} className="mt-3 space-y-3">
+        <GrupoCampo etiqueta="Fecha de la verificación" htmlFor="fecha_verificacion">
+          <Entrada
+            id="fecha_verificacion"
+            name="fecha_verificacion"
+            type="date"
+            defaultValue={fechaVerificacion ?? hoyEnAsuncion()}
+          />
+        </GrupoCampo>
+        <GrupoCampo etiqueta="Qué dijo el cliente" htmlFor="verificacion_observacion" requerido>
+          <AreaTexto
+            id="verificacion_observacion"
+            name="verificacion_observacion"
+            rows={3}
+            required
+            minLength={10}
+          />
+        </GrupoCampo>
+
+        {error ? <p className="text-xs text-semaforo-critico">{error}</p> : null}
+
+        <div className="flex justify-end">
+          <Boton type="submit" tamano="pequeno" cargando={enviando}>
+            Guardar la verificación
           </Boton>
         </div>
       </form>

@@ -44,6 +44,43 @@ export const NOMBRE_SISTEMA = "Intranet";
 export const NOMBRE_EMPRESA = "Camping 44 S.A.";
 export const DOMINIO_AUTORIZADO = "camping44.com.py";
 
+/**
+ * El horario de la empresa.
+ *
+ * De lunes a viernes de 07:50 a 17:15, y los sabados de 07:50 a 12:30.
+ *
+ * NO ES DECORACION: de esto depende que el SABADO SEA DIA HABIL. Un plazo
+ * de tres dias habiles tomado un jueves vence el lunes, no el martes, y
+ * los plazos del procedimiento de reclamos se cuentan asi. Esta en un
+ * solo lugar para que el dia que la empresa cambie el horario se cambie
+ * aca y no en cinco archivos.
+ *
+ * Las horas de cada jornada quedan implicitas en los extremos: no se
+ * anota una duracion porque no hay dato del corte del mediodia, y un
+ * numero inventado seria peor que ninguno.
+ */
+export const HORARIO_LABORAL = {
+  lunesAViernes: { desde: "07:50", hasta: "17:15" },
+  sabado: { desde: "07:50", hasta: "12:30" },
+  domingo: null,
+} as const;
+
+/**
+ * Los dias de la semana que cuentan como habiles, en la numeracion de
+ * `Date.getUTCDay()`: 1 lunes a 6 sabado. El domingo (0) no cuenta.
+ *
+ * FALTA EL CALENDARIO DE FERIADOS. Paraguay tiene feriados moviles y la
+ * intranet todavia no los tiene cargados, asi que un plazo puede caer en
+ * feriado y contarse como habil. Es una limitacion conocida, no un
+ * olvido: se resuelve cargando los feriados del año, no cambiando la
+ * cuenta.
+ */
+export const DIAS_HABILES = [1, 2, 3, 4, 5, 6] as const;
+
+export function esDiaHabil(fecha: Date): boolean {
+  return fecha.getUTCDay() !== 0;
+}
+
 // ---------------------------------------------------------------------
 // Roles
 // ---------------------------------------------------------------------

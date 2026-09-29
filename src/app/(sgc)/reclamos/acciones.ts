@@ -6,6 +6,9 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import {
   admiteRechazo,
+  casoCerrado,
+  diasHabilesEntre,
+  DIAS_VERIFICACION_PLAN_C,
   ESTADOS_CLIENTE_FINAL,
   exigeAccionCorrectiva,
   exigeNoConformidad,
@@ -13,6 +16,7 @@ import {
   planDelCaso,
   planSiguiente,
   puedePasarA,
+  sumarDiasHabiles,
   vencimientosDelPlan,
   type EstadoClienteReclamo,
   type EstadoReclamo,
@@ -423,6 +427,9 @@ export async function cambiarEstadoReclamo(
       if (!parche.autorizado_por) {
         return { exito: false, error: "Indique quién autorizó la compensación." };
       }
+      // La autorizacion tiene fecha propia: es la que vale para la
+      // auditoria, no la de resolucion del caso.
+      parche.fecha_autorizacion = parche.fecha_resolucion;
 
       // Un mismo cliente no puede recibir mas de dos compensaciones
       // economicas por año; desde la tercera hay que evaluar si hay un
@@ -611,4 +618,147 @@ export async function eliminarReclamo(id: string): Promise<ResultadoAccion> {
 
   revalidatePath("/reclamos");
   return { exito: true, mensaje: "Reclamo eliminado." };
+}
+
+/**
+ * Reanuda el plazo que estaba suspendido por un trámite ante la DIGEMABEL.
+ *
+ * SUSPENDER SIN PODER REANUDAR NO ES SUSPENDER, ES CANCELAR. Mientras el
+ * trámite está en curso el caso no cuenta como fuera de plazo; cuando
+ * termina, los días hábiles que duró se le devuelven al plazo y el caso
+ * vuelve a correr. Sin esto un caso quedaba suspendido para siempre y el
+ * plazo dejaba de significar algo.
+ *
+ * No se guarda un acumulado de días suspendidos porque no hace falta: la
+ * bitácora registra cada suspensión y cada reanudación con su fecha, que
+ * es lo que una auditoría pide ver.
+ */
+export async function reanudarPlazoSuspendido(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+  const { data: actual } = await supabase
+    .from("reclamos")
+    .select(
+      "codigo, estado, tramite_digemabel, suspendido_desde, fecha_definicion_plan, " +
+        "fecha_limite_plan, fecha_limite_resolucion",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  const reclamo = actual as
+    | {
+        codigo: string;
+        estado: EstadoReclamo;
+        tramite_digemabel: boolean;
+        suspendido_desde: string | null;
+        fecha_definicion_plan: string | null;
+        fecha_limite_plan: string;
+        fecha_limite_resolucion: string;
+      }
+    | null;
+
+  if (!reclamo) return { exito: false, error: "No se encontró el reclamo." };
+  if (!reclamo.tramite_digemabel || !reclamo.suspendido_desde) {
+    return { exito: false, error: "Este caso no tiene el plazo suspendido." };
+  }
+  if (casoCerrado(reclamo.estado)) {
+    return { exito: false, error: "El caso ya está cerrado: no hay plazo que reanudar." };
+  }
+
+  const hoy = hoyEnAsuncion();
+  const dias = diasHabilesEntre(reclamo.suspendido_desde, hoy);
+
+  const parche: Record<string, unknown> = {
+    tramite_digemabel: false,
+    suspendido_desde: null,
+    fecha_limite_resolucion: sumarDiasHabiles(reclamo.fecha_limite_resolucion, dias),
+  };
+
+  // El plazo del plan solo se corre si el plan todavía no se definió: ya
+  // definido, moverlo sería reescribir algo que se cumplió.
+  if (!reclamo.fecha_definicion_plan) {
+    parche.fecha_limite_plan = sumarDiasHabiles(reclamo.fecha_limite_plan, dias);
+  }
+
+  const { error } = await supabase.from("reclamos").update(parche).eq("id", id);
+  if (error) return { exito: false, error: `No se pudo reanudar el plazo: ${error.message}` };
+
+  revalidatePath("/reclamos");
+  revalidatePath(`/reclamos/${id}`);
+
+  return {
+    exito: true,
+    mensaje:
+      dias === 0
+        ? `${reclamo.codigo}: plazo reanudado, sin días para devolver.`
+        : `${reclamo.codigo}: plazo reanudado. Se le devolvieron ${dias} ` +
+          `día${dias === 1 ? "" : "s"} hábil${dias === 1 ? "" : "es"}.`,
+  };
+}
+
+/**
+ * La verificación con el cliente a los 30 días de cerrar un Plan C.
+ *
+ * Es del procedimiento y es lo único que distingue un caso cerrado de un
+ * caso resuelto: que alguien volvió a preguntarle al cliente si la
+ * solución sirvió. Solo aplica al Plan C.
+ */
+export async function registrarVerificacion(
+  id: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const observacion = String(datos.get("verificacion_observacion") ?? "").trim();
+  if (observacion.length < 10) {
+    return {
+      exito: false,
+      error: "Deje qué dijo el cliente al verificar: al menos 10 caracteres.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+  const { data: actual } = await supabase
+    .from("reclamos")
+    .select("codigo, estado, plan")
+    .eq("id", id)
+    .maybeSingle();
+
+  const reclamo = actual as
+    | { codigo: string; estado: EstadoReclamo; plan: PlanReclamo }
+    | null;
+
+  if (!reclamo) return { exito: false, error: "No se encontró el reclamo." };
+  if (!exigeNoConformidad(reclamo.plan)) {
+    return {
+      exito: false,
+      error: `La verificación a los ${DIAS_VERIFICACION_PLAN_C} días es del Plan C.`,
+    };
+  }
+  if (!casoCerrado(reclamo.estado)) {
+    return { exito: false, error: "La verificación se hace después de cerrar el caso." };
+  }
+
+  const { error } = await supabase
+    .from("reclamos")
+    .update({
+      fecha_verificacion: String(datos.get("fecha_verificacion") ?? "") || hoyEnAsuncion(),
+      verificacion_observacion: observacion,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return { exito: false, error: `No se pudo guardar la verificación: ${error.message}` };
+  }
+
+  revalidatePath("/reclamos");
+  revalidatePath(`/reclamos/${id}`);
+  return { exito: true, mensaje: `${reclamo.codigo}: verificación registrada.` };
 }

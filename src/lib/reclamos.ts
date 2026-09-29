@@ -240,10 +240,14 @@ export const DIAS_VERIFICACION_PLAN_C = 30;
 /**
  * Suma días hábiles a una fecha.
  *
- * LUNES A SÁBADO CUENTAN, el domingo no, y no hay calendario de feriados:
- * la empresa abre los sábados y la intranet todavía no tiene los feriados
- * cargados. Es una decisión a confirmar con Calidad; está en un solo
- * lugar para que cambiarla sea cambiar esta función.
+ * LUNES A SÁBADO CUENTAN, el domingo no. No es una suposición: el horario
+ * de Camping 44 es de lunes a viernes de 07:50 a 17:15 y los sábados de
+ * 07:50 a 12:30 (`HORARIO_LABORAL` en `lib/constantes.ts`). El sábado es
+ * media jornada, pero es jornada: un plazo de tres días tomado un jueves
+ * vence el lunes, no el martes.
+ *
+ * LO QUE FALTA es el calendario de feriados. Un plazo que cae en feriado
+ * se cuenta hoy como hábil. Está anotado en `DIAS_HABILES`.
  *
  * Se cuenta en UTC a propósito: acá solo interesa el día de la semana, y
  * en hora local un cambio de horario puede correr un día.
@@ -260,6 +264,30 @@ export function sumarDiasHabiles(fecha: string, dias: number): string {
   }
 
   return new Date(actual).toISOString().slice(0, 10);
+}
+
+/**
+ * Cuántos días hábiles hay entre dos fechas, contando la primera.
+ *
+ * Es la inversa de `sumarDiasHabiles` y se usa para reanudar un plazo
+ * suspendido: los días que el trámite estuvo en curso son los que se le
+ * devuelven al plazo.
+ */
+export function diasHabilesEntre(desde: string, hasta: string): number {
+  if (hasta <= desde) return 0;
+
+  const inicio = desde.split("-").map(Number);
+  const fin = hasta.split("-").map(Number);
+  const limite = Date.UTC(fin[0], fin[1] - 1, fin[2]);
+  let actual = Date.UTC(inicio[0], inicio[1] - 1, inicio[2]);
+  let dias = 0;
+
+  while (actual < limite) {
+    if (new Date(actual).getUTCDay() !== 0) dias += 1;
+    actual += 86_400_000;
+  }
+
+  return dias;
 }
 
 /** Los tres vencimientos de un caso, a partir de una fecha de arranque. */
@@ -279,6 +307,41 @@ export function vencimientosDelPlan(
 export function vencido(limite: string, hecho: string | null, hoy: Date = new Date()): boolean {
   if (hecho) return false;
   return new Date(`${limite}T12:00:00`).getTime() < hoy.getTime();
+}
+
+/** Los campos de un caso que hacen falta para saber si está en plazo. */
+export interface PlazosDelCaso {
+  estado: EstadoReclamo;
+  tramite_digemabel: boolean;
+  fecha_limite_contacto: string;
+  fecha_contacto: string | null;
+  fecha_limite_resolucion: string;
+  fecha_resolucion: string | null;
+}
+
+/** Un caso cerrado ya no tiene plazos que correr. */
+export function casoCerrado(estado: EstadoReclamo): boolean {
+  return estado === "cerrado" || estado === "no_conciliado";
+}
+
+/**
+ * Si el caso está fuera de plazo.
+ *
+ * UNA SOLA DEFINICIÓN, y por una razón concreta: el listado la usaba por
+ * su cuenta y marcaba «fuera de plazo» un caso que la ficha mostraba como
+ * suspendido por trámite ante la DIGEMABEL. Dos pantallas contestando
+ * distinto sobre el mismo caso es peor que cualquiera de las dos
+ * respuestas.
+ *
+ * La suspensión alcanza a la resolución, no al primer contacto: cuando el
+ * trámite arranca, al cliente ya se le habló. Si no se le habló, ese
+ * plazo está vencido y el trámite no lo excusa.
+ */
+export function estaFueraDePlazo(caso: PlazosDelCaso, hoy: Date = new Date()): boolean {
+  if (casoCerrado(caso.estado)) return false;
+  if (vencido(caso.fecha_limite_contacto, caso.fecha_contacto, hoy)) return true;
+  if (caso.tramite_digemabel) return false;
+  return vencido(caso.fecha_limite_resolucion, caso.fecha_resolucion, hoy);
 }
 
 /* ------------------------------------------------------------------ */

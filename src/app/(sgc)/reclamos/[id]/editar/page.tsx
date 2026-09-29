@@ -24,8 +24,6 @@ export const dynamic = "force-dynamic";
  */
 export default async function PaginaEditarReclamo({ params }: { params: { id: string } }) {
   const usuario = await requerirUsuario();
-  if (!puedeGestionar(usuario)) redirect("/sin-acceso?motivo=permisos");
-
   const supabase = crearClienteServidor();
 
   const [{ data }, { data: personas }, { data: clientes }] = await Promise.all([
@@ -48,6 +46,16 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
 
   const reclamo = data as (ReclamoInicial & { codigo: string }) | null;
   if (!reclamo) notFound();
+
+  // La misma regla que la ficha, que es la de la política
+  // `reclamos_edicion`: Calidad, el gestor del caso o el responsable del
+  // área. Se comprueba después de leer el caso porque depende de él.
+  const puedeEditar =
+    puedeGestionar(usuario) ||
+    usuario.id === reclamo.gestor_id ||
+    usuario.id === reclamo.responsable_area_id;
+
+  if (!puedeEditar) redirect("/sin-acceso?motivo=permisos");
 
   return (
     <div className="mx-auto max-w-4xl">

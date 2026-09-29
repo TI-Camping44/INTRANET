@@ -76,6 +76,8 @@ interface Reclamo {
   monto_factura: number | null;
   conformidad_firmada: boolean;
   motivo_no_conciliado: string | null;
+  gestor_id: string | null;
+  responsable_area_id: string | null;
   cliente: { id: string; razon_social: string } | null;
   gestor: { nombre_completo: string } | null;
   responsable_area: { nombre_completo: string } | null;
@@ -90,6 +92,7 @@ const CAMPOS =
   "fecha_deteccion, fecha_limite_contacto, fecha_contacto, fecha_limite_plan, " +
   "fecha_definicion_plan, fecha_limite_resolucion, fecha_resolucion, fecha_cierre, " +
   "fecha_verificacion, verificacion_observacion, compensacion_detalle, compensacion_monto, " +
+  "gestor_id, responsable_area_id, " +
   "monto_factura, conformidad_firmada, motivo_no_conciliado, " +
   "cliente:cliente_id (id, razon_social), gestor:gestor_id (nombre_completo), " +
   "responsable_area:responsable_area_id (nombre_completo), " +
@@ -203,7 +206,16 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
   if (!reclamo) notFound();
 
   const acciones = (filasAcciones as AccionDelPlan[] | null) ?? [];
-  const gestionable = puedeGestionar(usuario);
+
+  // QUIEN PUEDE OPERAR EL CASO ES LO QUE DICE RLS, no el rol a secas: la
+  // política `reclamos_edicion` deja a Calidad, al gestor del caso y al
+  // responsable del área. Si acá se pidiera solo `puedeGestionar`, la
+  // persona a la que se le asignó el caso no vería el panel de un caso
+  // que la base sí la deja mover.
+  const gestionable =
+    puedeGestionar(usuario) ||
+    usuario.id === reclamo.gestor_id ||
+    usuario.id === reclamo.responsable_area_id;
 
   const monto = reclamo.compensacion_monto ?? 0;
   const tramo = monto > 0 ? tramoDeAutorizacion(monto) : null;
@@ -376,6 +388,8 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
               gravedad={reclamo.gravedad}
               personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
               acciones={acciones}
+              suspendido={reclamo.tramite_digemabel && reclamo.suspendido_desde !== null}
+              fechaVerificacion={reclamo.fecha_verificacion}
             />
           ) : acciones.length > 0 ? (
             <Tarjeta>

@@ -19,11 +19,12 @@ import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha } from "@/lib/formato";
 import {
+  casoCerrado,
   CLASES_ESTADO_RECLAMO,
+  estaFueraDePlazo,
   ETIQUETAS_ESTADO_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
   ETIQUETAS_PLAN_RECLAMO,
-  vencido,
   type EstadoReclamo,
   type GravedadReclamo,
   type PlanReclamo,
@@ -42,6 +43,7 @@ interface FilaReclamo {
   estado: EstadoReclamo;
   es_reincidencia: boolean;
   material_controlado: boolean;
+  tramite_digemabel: boolean;
   fecha_limite_contacto: string;
   fecha_contacto: string | null;
   fecha_limite_resolucion: string;
@@ -69,7 +71,7 @@ export default async function PaginaReclamos({
     .from("reclamos")
     .select(
       "id, codigo, titulo, cliente_nombre, gravedad, plan, estado, es_reincidencia, " +
-        "material_controlado, fecha_limite_contacto, fecha_contacto, " +
+        "material_controlado, tramite_digemabel, fecha_limite_contacto, fecha_contacto, " +
         "fecha_limite_resolucion, fecha_resolucion, gestor:gestor_id (nombre_completo)",
     )
     .order("creado_en", { ascending: false });
@@ -77,13 +79,11 @@ export default async function PaginaReclamos({
   const todos = (data as unknown as FilaReclamo[] | null) ?? [];
   const vista = searchParams.vista ?? "abiertos";
 
-  const estaCerrado = (r: FilaReclamo) =>
-    r.estado === "cerrado" || r.estado === "no_conciliado";
-
-  const fueraDePlazo = (r: FilaReclamo) =>
-    !estaCerrado(r) &&
-    (vencido(r.fecha_limite_contacto, r.fecha_contacto) ||
-      vencido(r.fecha_limite_resolucion, r.fecha_resolucion));
+  // La regla de «fuera de plazo» no se repite acá: es la misma que usa la
+  // ficha, y cuando el listado tenía la suya propia marcaba en rojo casos
+  // que la ficha mostraba como suspendidos por trámite ante la DIGEMABEL.
+  const estaCerrado = (r: FilaReclamo) => casoCerrado(r.estado);
+  const fueraDePlazo = (r: FilaReclamo) => estaFueraDePlazo(r);
 
   const reclamos =
     vista === "plazo"
@@ -203,6 +203,13 @@ export default async function PaginaReclamos({
                       }`}
                     >
                       {formatearFecha(reclamo.fecha_limite_resolucion)}
+                      {/* Un caso pasado de fecha y sin marcar en rojo
+                          necesita decir por que: el tramite lo detuvo. */}
+                      {reclamo.tramite_digemabel ? (
+                        <span className="ml-1 text-[10px] font-normal text-semaforo-medio">
+                          suspendido
+                        </span>
+                      ) : null}
                     </TablaCelda>
                     <TablaCelda>
                       <Insignia variante="contorno">
