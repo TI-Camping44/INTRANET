@@ -13,7 +13,8 @@ import {
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
 import { PanelCaso, type AccionDelPlan } from "@/app/(sgc)/reclamos/[id]/panel-caso";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { EliminarReclamo } from "@/app/(sgc)/reclamos/[id]/eliminar-reclamo";
+import { esAdministrador, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha, formatearGuaranies } from "@/lib/formato";
 import { DEPARTAMENTOS } from "@/lib/constantes";
@@ -239,6 +240,11 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
                   <Pencil /> Editar
                 </Link>
               </Boton>
+            ) : null}
+            {/* Borrar es atribución de Calidad, igual que en no
+                conformidades, y es lo que dice la política reclamos_baja. */}
+            {esAdministrador(usuario) ? (
+              <EliminarReclamo reclamoId={reclamo.id} codigo={reclamo.codigo} />
             ) : null}
           </div>
         }
