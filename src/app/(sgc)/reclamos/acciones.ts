@@ -25,7 +25,8 @@ import {
   type PlanReclamo,
   type TipoFallaReclamo,
 } from "@/lib/reclamos";
-import { hoyEnAsuncion } from "@/lib/formato";
+import { hoyEnAsuncion, formatearFecha } from "@/lib/formato";
+import { departe, notificar } from "@/lib/notificaciones";
 import type { ResultadoAccion } from "@/lib/tipos";
 
 /**
@@ -162,6 +163,18 @@ export async function crearReclamo(datos: FormData): Promise<ResultadoAccion> {
   revalidatePath("/reclamos");
   const fila = creado as { id: string; codigo: string };
 
+  // AL GESTOR SE LE AVISA, y en el mismo aviso va el plazo: el caso se le
+  // asigna con 24 horas hábiles para llamar al cliente, y enterarse al
+  // día siguiente ya es tarde.
+  await avisarAlGestor(supabase, usuario, {
+    id: fila.id,
+    codigo: fila.codigo,
+    titulo: campos.titulo,
+    clienteNombre: campos.clienteNombre,
+    gestorId: campos.gestorId,
+    limiteContacto: vencimientos.contacto,
+  });
+
   return {
     exito: true,
     id: fila.id,
@@ -185,18 +198,24 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
 
   const { data: actual } = await supabase
     .from("reclamos")
-    .select("estado, plan, gravedad, fecha_deteccion, fecha_contacto, rechazos")
+    .select(
+      "codigo, estado, plan, gravedad, fecha_deteccion, fecha_contacto, rechazos, " +
+        "gestor_id, fecha_limite_contacto",
+    )
     .eq("id", id)
     .maybeSingle();
 
   const previo = actual as
     | {
+        codigo: string;
         estado: EstadoReclamo;
         plan: PlanReclamo;
         gravedad: GravedadReclamo;
         fecha_deteccion: string;
         fecha_contacto: string | null;
         rechazos: number;
+        gestor_id: string | null;
+        fecha_limite_contacto: string;
       }
     | null;
 
@@ -248,6 +267,19 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
 
   const { error } = await supabase.from("reclamos").update(parche).eq("id", id);
   if (error) return { exito: false, error: `No se pudo guardar: ${error.message}` };
+
+  // Cambiar de gestor es reasignar el caso, no corregir un dato: al que
+  // entra hay que avisarle igual que en el alta.
+  if (campos.gestorId && campos.gestorId !== previo.gestor_id) {
+    await avisarAlGestor(supabase, usuario, {
+      id,
+      codigo: previo.codigo,
+      titulo: campos.titulo,
+      clienteNombre: campos.clienteNombre,
+      gestorId: campos.gestorId,
+      limiteContacto: String(parche.fecha_limite_contacto ?? previo.fecha_limite_contacto),
+    });
+  }
 
   revalidatePath("/reclamos");
   revalidatePath(`/reclamos/${id}`);
@@ -761,4 +793,54 @@ export async function registrarVerificacion(
   revalidatePath("/reclamos");
   revalidatePath(`/reclamos/${id}`);
   return { exito: true, mensaje: `${reclamo.codigo}: verificación registrada.` };
+}
+
+/**
+ * Le avisa al gestor que el caso es suyo.
+ *
+ * Sin esto la asignación no existe: queda un nombre en un campo que la
+ * persona se entera de mirar si abre el listado. El aviso lleva el plazo
+ * del primer contacto porque es lo que hay que hacer primero y es el más
+ * corto de todos.
+ *
+ * No avisa cuando alguien se asigna a sí mismo: ya lo sabe.
+ */
+async function avisarAlGestor(
+  supabase: ReturnType<typeof crearClienteServidor>,
+  usuario: { id: string; nombre_completo: string; correo: string },
+  caso: {
+    id: string;
+    codigo: string;
+    titulo: string;
+    clienteNombre: string;
+    gestorId: string | null;
+    limiteContacto: string;
+  },
+): Promise<void> {
+  if (!caso.gestorId || caso.gestorId === usuario.id) return;
+
+  const { data } = await supabase
+    .from("usuarios")
+    .select("id, correo")
+    .eq("id", caso.gestorId)
+    .maybeSingle();
+
+  const gestor = data as { id: string; correo: string } | null;
+  if (!gestor) return;
+
+  await notificar(supabase, {
+    deParteDe: departe(usuario),
+    usuarioId: gestor.id,
+    correoDestino: gestor.correo,
+    tipo: "reclamo_asignado",
+    titulo: `Reclamo asignado · ${caso.codigo}`,
+    mensaje:
+      `${usuario.nombre_completo} le asignó el reclamo de ${caso.clienteNombre}: ` +
+      `"${caso.titulo}". Tiene plazo para el primer contacto hasta el ` +
+      `${formatearFecha(caso.limiteContacto)}.`,
+    enlace: `/reclamos/${caso.id}`,
+    entidad: "reclamos",
+    entidadId: caso.id,
+    claveUnicidad: `reclamo-asignado:${caso.id}:${gestor.id}`,
+  });
 }

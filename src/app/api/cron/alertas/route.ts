@@ -10,6 +10,12 @@ import {
   DIAS_AVISO_REVISION_DOCUMENTO,
   ETIQUETAS_TIPO_AUDITORIA,
 } from "@/lib/constantes";
+import {
+  DIAS_AVISO_RECLAMO,
+  DIAS_VERIFICACION_PLAN_C,
+  ESTADOS_RECLAMO_ABIERTOS,
+  sumarDiasHabiles,
+} from "@/lib/reclamos";
 
 /**
  * Trabajo programado de alertas por vencimiento.
@@ -24,6 +30,8 @@ import {
  *   5. Mantenimientos preventivos programados para la semana.
  *   6. Reenvio de las notificaciones cuyo correo no salio en su momento.
  *   7. Aviso de auditoria a la lista de distribucion de la empresa.
+ *   8. Reclamos de clientes: contacto o resolucion vencidos, resolucion
+ *      por vencer y verificacion del Plan C pendiente.
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -41,6 +49,9 @@ interface Resumen {
   mantenimientosProximos: number;
   avisosDeAuditoria: number;
   correosReenviados: number;
+  reclamosPorVencer: number;
+  reclamosVencidos: number;
+  verificacionesPendientes: number;
 }
 
 export async function GET(peticion: NextRequest) {
@@ -75,6 +86,9 @@ export async function GET(peticion: NextRequest) {
     mantenimientosProximos: 0,
     avisosDeAuditoria: 0,
     correosReenviados: 0,
+    reclamosPorVencer: 0,
+    reclamosVencidos: 0,
+    verificacionesPendientes: 0,
   };
 
   // -------------------------------------------------------------------
@@ -311,6 +325,129 @@ export async function GET(peticion: NextRequest) {
       await supabase.from("auditorias").update({ aviso_enviado: true }).eq("id", auditoria.id);
       resumen.avisosDeAuditoria += 1;
     }
+  }
+
+  // ---------------------------------------------------------------
+  // 8 · Reclamos de clientes
+  // ---------------------------------------------------------------
+  // ES LO QUE HACE QUE EL PLAZO EXISTA. El procedimiento pone 24 horas
+  // habiles para el primer contacto y de 3 a 15 dias habiles para
+  // resolver; sin un aviso, el unico que mira el vencimiento es quien
+  // abre el listado, y el caso vencido es justamente el que nadie abrio.
+  //
+  // El aviso va al gestor del caso, con copia al responsable del area
+  // cuando esta cargado y es otra persona. No hay escalamiento al lider:
+  // el mismo criterio que Calidad fijo para las acciones correctivas.
+  const { data: reclamos } = await supabase
+    .from("reclamos")
+    .select(
+      "id, codigo, titulo, plan, estado, tramite_digemabel, cliente_nombre, " +
+        "fecha_limite_contacto, fecha_contacto, fecha_limite_resolucion, fecha_resolucion, " +
+        "gestor:gestor_id (id, correo), responsable_area:responsable_area_id (id, correo)",
+    )
+    .in("estado", ESTADOS_RECLAMO_ABIERTOS);
+
+  const limiteAviso = sumarDiasHabiles(hoy, DIAS_AVISO_RECLAMO);
+
+  for (const reclamo of (reclamos ?? []) as any[]) {
+    const destinatarios = [reclamo.gestor, reclamo.responsable_area].filter(
+      (persona, indice, todos) =>
+        persona && todos.findIndex((otra) => otra?.id === persona.id) === indice,
+    );
+    if (destinatarios.length === 0) continue;
+
+    const avisar = async (
+      tipo: "reclamo_vencido" | "reclamo_por_vencer",
+      titulo: string,
+      mensaje: string,
+      clave: string,
+    ) => {
+      for (const persona of destinatarios) {
+        await notificar(supabase, {
+          usuarioId: persona.id,
+          correoDestino: persona.correo,
+          tipo,
+          titulo,
+          mensaje,
+          enlace: `/reclamos/${reclamo.id}`,
+          entidad: "reclamos",
+          entidadId: reclamo.id,
+          claveUnicidad: `${clave}:${persona.id}`,
+        });
+      }
+    };
+
+    // El primer contacto no lo tapa nada: el tramite ante la DIGEMABEL
+    // suspende la resolucion, pero si al cliente todavia no se le hablo,
+    // ese plazo esta vencido igual.
+    if (!reclamo.fecha_contacto && reclamo.fecha_limite_contacto < hoy) {
+      await avisar(
+        "reclamo_vencido",
+        `Sin contactar al cliente · ${reclamo.codigo}`,
+        `El plazo para el primer contacto de "${reclamo.titulo}" (${reclamo.cliente_nombre}) ` +
+          `vencio el ${formatearFecha(reclamo.fecha_limite_contacto)} y el caso sigue sin contacto ` +
+          "registrado. Llame al cliente y deje la fecha cargada.",
+        `reclamo-contacto:${reclamo.id}:${reclamo.fecha_limite_contacto}`,
+      );
+      resumen.reclamosVencidos += 1;
+    }
+
+    // Un caso suspendido por tramite no tiene plazo corriendo: avisar de
+    // un vencimiento detenido seria pedir algo que no se puede hacer.
+    if (reclamo.fecha_resolucion || reclamo.tramite_digemabel) continue;
+
+    if (reclamo.fecha_limite_resolucion < hoy) {
+      await avisar(
+        "reclamo_vencido",
+        `Reclamo vencido · ${reclamo.codigo}`,
+        `"${reclamo.titulo}" (${reclamo.cliente_nombre}) tenia que estar resuelto el ` +
+          `${formatearFecha(reclamo.fecha_limite_resolucion)} y sigue abierto. ` +
+          "Resuelvalo o registre por que no se pudo.",
+        `reclamo-vencido:${reclamo.id}:${reclamo.fecha_limite_resolucion}`,
+      );
+      resumen.reclamosVencidos += 1;
+    } else if (reclamo.fecha_limite_resolucion <= limiteAviso) {
+      await avisar(
+        "reclamo_por_vencer",
+        `Reclamo por vencer · ${reclamo.codigo}`,
+        `"${reclamo.titulo}" (${reclamo.cliente_nombre}) vence el ` +
+          `${formatearFecha(reclamo.fecha_limite_resolucion)}.`,
+        `reclamo-por-vencer:${reclamo.id}:${reclamo.fecha_limite_resolucion}`,
+      );
+      resumen.reclamosPorVencer += 1;
+    }
+  }
+
+  // Verificacion con el cliente a los 30 dias de cerrar un Plan C. Son
+  // dias corridos y no habiles: el procedimiento habla de un mes despues,
+  // no de una carga de trabajo.
+  const { data: porVerificar } = await supabase
+    .from("reclamos")
+    .select("id, codigo, titulo, cliente_nombre, fecha_cierre, gestor:gestor_id (id, correo)")
+    .eq("plan", "c")
+    .eq("estado", "cerrado")
+    .is("fecha_verificacion", null)
+    .not("fecha_cierre", "is", null)
+    .lte("fecha_cierre", sumarDias(hoy, -DIAS_VERIFICACION_PLAN_C));
+
+  for (const reclamo of (porVerificar ?? []) as any[]) {
+    if (!reclamo.gestor) continue;
+
+    await notificar(supabase, {
+      usuarioId: reclamo.gestor.id,
+      correoDestino: reclamo.gestor.correo,
+      tipo: "reclamo_verificacion_pendiente",
+      titulo: `Verificacion pendiente · ${reclamo.codigo}`,
+      mensaje:
+        `Se cumplieron ${DIAS_VERIFICACION_PLAN_C} dias del cierre de "${reclamo.titulo}" ` +
+        `(${reclamo.cliente_nombre}). El Plan C pide volver a hablar con el cliente y dejar ` +
+        "registrado si la solucion se sostuvo.",
+      enlace: `/reclamos/${reclamo.id}`,
+      entidad: "reclamos",
+      entidadId: reclamo.id,
+      claveUnicidad: `reclamo-verificacion:${reclamo.id}`,
+    });
+    resumen.verificacionesPendientes += 1;
   }
 
   return NextResponse.json({ ejecutado: hoy, resumen });

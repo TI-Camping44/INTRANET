@@ -177,6 +177,10 @@ export type TipoNotificacion =
   | "auditoria_programada"
   | "indicador_fuera_de_meta"
   | "mantenimiento_programado"
+  | "reclamo_asignado"
+  | "reclamo_por_vencer"
+  | "reclamo_vencido"
+  | "reclamo_verificacion_pendiente"
   | "general";
 
 export type NivelRiesgo = "bajo" | "medio" | "alto" | "critico";

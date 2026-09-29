@@ -238,6 +238,16 @@ export const DIAS_ACCION_CORRECTIVA_RECLAMO = 10;
 export const DIAS_VERIFICACION_PLAN_C = 30;
 
 /**
+ * Cuántos días hábiles antes del vencimiento se avisa.
+ *
+ * UNO, y no los tres de las acciones correctivas: el plazo más corto es
+ * de tres días hábiles, así que un aviso a tres días saldría el mismo día
+ * en que se abrió el caso y no diría nada. Es reversible; si Calidad lo
+ * quiere más temprano se cambia acá.
+ */
+export const DIAS_AVISO_RECLAMO = 1;
+
+/**
  * Suma días hábiles a una fecha.
  *
  * LUNES A SÁBADO CUENTAN, el domingo no. No es una suposición: el horario
@@ -318,6 +328,17 @@ export interface PlazosDelCaso {
   fecha_limite_resolucion: string;
   fecha_resolucion: string | null;
 }
+
+/**
+ * Los estados con plazos corriendo. Es la lista que consulta el trabajo
+ * programado, complemento de `casoCerrado`.
+ */
+export const ESTADOS_RECLAMO_ABIERTOS: EstadoReclamo[] = [
+  "registrado",
+  "contactado",
+  "plan_definido",
+  "resuelto",
+];
 
 /** Un caso cerrado ya no tiene plazos que correr. */
 export function casoCerrado(estado: EstadoReclamo): boolean {
