@@ -385,7 +385,7 @@ export async function GET(peticion: NextRequest) {
         "reclamo_vencido",
         `Sin contactar al cliente · ${reclamo.codigo}`,
         `El plazo para el primer contacto de "${reclamo.titulo}" (${reclamo.cliente_nombre}) ` +
-          `vencio el ${formatearFecha(reclamo.fecha_limite_contacto)} y el caso sigue sin contacto ` +
+          `venció el ${formatearFecha(reclamo.fecha_limite_contacto)} y el caso sigue sin contacto ` +
           "registrado. Llame al cliente y deje la fecha cargada.",
         `reclamo-contacto:${reclamo.id}:${reclamo.fecha_limite_contacto}`,
       );
@@ -400,9 +400,9 @@ export async function GET(peticion: NextRequest) {
       await avisar(
         "reclamo_vencido",
         `Reclamo vencido · ${reclamo.codigo}`,
-        `"${reclamo.titulo}" (${reclamo.cliente_nombre}) tenia que estar resuelto el ` +
+        `"${reclamo.titulo}" (${reclamo.cliente_nombre}) tenía que estar resuelto el ` +
           `${formatearFecha(reclamo.fecha_limite_resolucion)} y sigue abierto. ` +
-          "Resuelvalo o registre por que no se pudo.",
+          "Resuélvalo o registre por qué no se pudo.",
         `reclamo-vencido:${reclamo.id}:${reclamo.fecha_limite_resolucion}`,
       );
       resumen.reclamosVencidos += 1;
@@ -437,11 +437,11 @@ export async function GET(peticion: NextRequest) {
       usuarioId: reclamo.gestor.id,
       correoDestino: reclamo.gestor.correo,
       tipo: "reclamo_verificacion_pendiente",
-      titulo: `Verificacion pendiente · ${reclamo.codigo}`,
+      titulo: `Verificación pendiente · ${reclamo.codigo}`,
       mensaje:
-        `Se cumplieron ${DIAS_VERIFICACION_PLAN_C} dias del cierre de "${reclamo.titulo}" ` +
+        `Se cumplieron ${DIAS_VERIFICACION_PLAN_C} días del cierre de "${reclamo.titulo}" ` +
         `(${reclamo.cliente_nombre}). El Plan C pide volver a hablar con el cliente y dejar ` +
-        "registrado si la solucion se sostuvo.",
+        "registrado si la solución se sostuvo.",
       enlace: `/reclamos/${reclamo.id}`,
       entidad: "reclamos",
       entidadId: reclamo.id,
