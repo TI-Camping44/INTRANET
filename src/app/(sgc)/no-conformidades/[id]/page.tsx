@@ -9,6 +9,10 @@ import {
 } from "@/components/comunes/insignias-estado";
 import { EliminarNoConformidad } from "@/app/(sgc)/no-conformidades/[id]/eliminar-no-conformidad";
 import { LineaEstados } from "@/app/(sgc)/no-conformidades/[id]/linea-estados";
+import {
+  PanelAdjuntos,
+  type AdjuntoDeNoConformidad,
+} from "@/app/(sgc)/no-conformidades/[id]/panel-adjuntos";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import {
@@ -118,12 +122,26 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   // Las acciones vinculadas: hace falta saber si hay alguna —sin eso no
   // se puede cerrar— y cuándo se cargó la primera, que es lo que decide
   // si el cierre es en plazo o fuera de plazo.
-  const { data: acciones } = await supabase
-    .from("nc_acciones")
-    .select("id, creado_en")
-    .eq("no_conformidad_id", params.id)
-    .order("creado_en");
+  const [{ data: acciones }, { data: archivos }] = await Promise.all([
+    supabase
+      .from("nc_acciones")
+      .select("id, creado_en")
+      .eq("no_conformidad_id", params.id)
+      .order("creado_en"),
+    // Los archivos de la desviacion. Lo que se lee es la fila, no el
+    // archivo: el enlace se firma en /adjuntos/[id], al hacer clic.
+    supabase
+      .from("adjuntos")
+      .select(
+        "id, nombre_archivo, tamano_bytes, descripcion, creado_en, " +
+          "autor:subido_por (nombre_completo)",
+      )
+      .eq("entidad", "no_conformidades")
+      .eq("entidad_id", params.id)
+      .order("creado_en"),
+  ]);
 
+  const adjuntos = (archivos as unknown as AdjuntoDeNoConformidad[] | null) ?? [];
   const vinculadas = (acciones as { id: string; creado_en: string }[] | null) ?? [];
   const primera = vinculadas[0]?.creado_en?.slice(0, 10) ?? null;
 
@@ -273,6 +291,12 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
             ) : null}
           </TarjetaContenido>
         </Tarjeta>
+
+        <PanelAdjuntos
+          noConformidadId={nc.id}
+          adjuntos={adjuntos}
+          puedeSubir={!esSoloLectura(usuario)}
+        />
 
         <Tarjeta>
           <TarjetaCabecera>

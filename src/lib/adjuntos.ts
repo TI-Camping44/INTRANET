@@ -163,7 +163,13 @@ export const EXTENSIONES_EVIDENCIA = [
 /** Lo que el selector de archivos ofrece filtrar. */
 export const ACEPTA_EVIDENCIA = EXTENSIONES_EVIDENCIA.join(",");
 
-/** Controla la evidencia. Devuelve el motivo del rechazo, o null. */
+/**
+ * Controla un archivo de evidencia. Devuelve el motivo del rechazo, o null.
+ *
+ * La misma regla para la evidencia de un hallazgo de auditoria y para los
+ * archivos de una no conformidad: es la misma clase de archivo —una foto,
+ * un PDF firmado, una planilla— y el mismo tope de 20 MB.
+ */
 export function motivoDeRechazoEvidencia(
   nombreArchivo: string,
   tamanoBytes: number,
@@ -188,9 +194,38 @@ export function motivoDeRechazoEvidencia(
   return null;
 }
 
-/** Ruta de la evidencia dentro del bucket. */
+/**
+ * Ruta de un archivo adjunto dentro del bucket.
+ *
+ * Se arma con la fecha y una cola al azar, no con el nombre original: un
+ * nombre con acentos, espacios o barras es una fuente de problemas en una
+ * ruta, y el nombre legible ya queda guardado en la fila de `adjuntos`.
+ *
+ * LA COLA AL AZAR NO ES ADORNO. Con solo la marca de tiempo, dos archivos
+ * subidos en el mismo milisegundo —dos fotos chicas del mismo formulario—
+ * daban la misma ruta, y como se sube con `upsert: false` el segundo
+ * fallaba y la persona veia «no se pudo adjuntar» sin motivo visible.
+ */
+export function rutaDeAdjunto(
+  carpeta: string,
+  entidadId: string,
+  nombreArchivo: string,
+): string {
+  const cola = Math.random().toString(36).slice(2, 8);
+  return `${carpeta}/${entidadId}/${Date.now()}-${cola}${extensionDe(nombreArchivo)}`;
+}
+
+/** Ruta de la evidencia de un hallazgo de auditoria. */
 export function rutaDeEvidencia(hallazgoId: string, nombreArchivo: string): string {
-  return `hallazgos/${hallazgoId}/${Date.now()}${extensionDe(nombreArchivo)}`;
+  return rutaDeAdjunto("hallazgos", hallazgoId, nombreArchivo);
+}
+
+/** Ruta de un archivo de una no conformidad. */
+export function rutaDeAdjuntoNoConformidad(
+  noConformidadId: string,
+  nombreArchivo: string,
+): string {
+  return rutaDeAdjunto("no-conformidades", noConformidadId, nombreArchivo);
 }
 
 /**
