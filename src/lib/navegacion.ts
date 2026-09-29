@@ -187,6 +187,27 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
+        titulo: "Satisfacción del cliente",
+        ruta: "/satisfaccion",
+        icono: "Smile",
+        fase: "operativo",
+      },
+      {
+        // Va pegado a Satisfaccion del cliente: la mala calificacion de
+        // una encuesta y el reclamo por mostrador son el mismo hecho
+        // visto de dos lados, y el caso es el que deja trazabilidad.
+        titulo: "Reclamos de Clientes",
+        ruta: "/reclamos",
+        icono: "MessageSquareWarning",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Abiertos", ruta: "/reclamos" },
+          { titulo: "Fuera de plazo", ruta: "/reclamos?vista=plazo" },
+          { titulo: "Cerrados", ruta: "/reclamos?vista=cerrados" },
+          { titulo: "+ Nuevo Reclamo", ruta: "/reclamos/nuevo", soloGestion: true },
+        ],
+      },
+      {
         titulo: "Recursos humanos",
         ruta: "/recursos-humanos",
         icono: "Users",
