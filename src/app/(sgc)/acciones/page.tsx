@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ListChecks, Plus } from "lucide-react";
+import { ListChecks, Paperclip, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { Boton } from "@/components/ui/boton";
@@ -180,6 +180,26 @@ export default async function PaginaAcciones({
   const miasSinPlan = sinPlan.filter((nc) => nc.responsable_id === usuario.id).length;
 
   const acciones = (data as FilaAccion[] | null) ?? [];
+
+  // CUANTA EVIDENCIA TIENE CADA TAREA. Es la pregunta de una auditoria:
+  // una tarea marcada «ejecutada» y sin un archivo que lo respalde es
+  // una afirmacion sin prueba. Se trae en una sola consulta, acotada a
+  // las tareas que quedaron en el listado, y se cuenta acá.
+  const { data: archivos } = acciones.length
+    ? await supabase
+        .from("adjuntos")
+        .select("entidad_id")
+        .eq("entidad", "nc_acciones")
+        .in(
+          "entidad_id",
+          acciones.map((accion) => accion.id),
+        )
+    : { data: null };
+
+  const evidencias = new Map<string, number>();
+  for (const adjunto of (archivos as { entidad_id: string }[] | null) ?? []) {
+    evidencias.set(adjunto.entidad_id, (evidencias.get(adjunto.entidad_id) ?? 0) + 1);
+  }
 
   // Los graficos se arman sobre lo que quedo en el listado, no sobre el
   // total: si se filtra por responsable, los porcentajes son de esa
@@ -404,6 +424,7 @@ export default async function PaginaAcciones({
               {acciones.map((accion) => {
                 const pendiente = ["pendiente", "en_curso"].includes(accion.estado);
                 const vencida = pendiente && accion.fecha_limite < hoy;
+                const evidencia = evidencias.get(accion.id) ?? 0;
 
                 return (
                   <TablaFila key={accion.id}>
@@ -430,6 +451,28 @@ export default async function PaginaAcciones({
                       {accion.nivel_escalamiento > 0 ? (
                         <span className="ml-2 text-[10px] text-semaforo-alto">
                           Escalada (nivel {accion.nivel_escalamiento})
+                        </span>
+                      ) : null}
+                      {evidencia > 0 ? (
+                        <span
+                          className="ml-2 inline-flex items-center gap-0.5 align-middle text-[10px]
+                                     text-atenuado-contraste"
+                          title={
+                            evidencia === 1
+                              ? "1 archivo de evidencia"
+                              : `${evidencia} archivos de evidencia`
+                          }
+                        >
+                          <Paperclip className="size-3" />
+                          {evidencia}
+                        </span>
+                      ) : null}
+                      {/* Cerrada y sin un archivo que lo respalde: es lo
+                          que pregunta una auditoria. En las abiertas no
+                          se marca nada, que todavia no corresponde. */}
+                      {evidencia === 0 && !pendiente ? (
+                        <span className="ml-2 text-[10px] text-semaforo-medio">
+                          sin evidencia
                         </span>
                       ) : null}
                     </TablaCelda>
