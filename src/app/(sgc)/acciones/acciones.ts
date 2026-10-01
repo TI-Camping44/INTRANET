@@ -6,6 +6,11 @@ import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import { PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
+import {
+  archivosDelFormulario,
+  quitarAdjunto,
+  subirAdjuntos,
+} from "@/lib/adjuntos-servidor";
 import type { ResultadoAccion } from "@/lib/tipos";
 
 /**
@@ -452,4 +457,105 @@ export async function recordarAccion(accionId: string): Promise<ResultadoAccion>
   });
 
   return { exito: true, mensaje: "Recordatorio enviado." };
+}
+
+// ---------------------------------------------------------------------
+// Evidencia de cada tarea del plan
+// ---------------------------------------------------------------------
+// VA POR TAREA Y NO POR ACCION CORRECTIVA, y es la diferencia que
+// importa: «ejecutada en plazo» lo marca una persona con un clic, y lo
+// que demuestra que la tarea se hizo es el archivo —la foto del
+// instructivo nuevo en la pared, la planilla de la capacitacion firmada,
+// el remito del proveedor cambiado—. Puesta en el conjunto, la evidencia
+// no dice cual de las cinco tareas sostiene.
+//
+// Se guarda con `entidad = 'nc_acciones'`, en la misma tabla generica que
+// el resto, y se entrega por /adjuntos/[id] con enlace firmado al clic.
+
+/** Sube evidencia a una tarea del plan. */
+export async function adjuntarEvidenciaAccion(
+  accionId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const archivos = archivosDelFormulario(datos, "archivos");
+  if (archivos.length === 0) {
+    return { exito: false, error: "Elija al menos un archivo." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // La tarea se lee antes de subir nada, y de ella sale la no
+  // conformidad para refrescar la pantalla: no se confia en un id que
+  // venga del navegador para eso.
+  const { data } = await supabase
+    .from("nc_acciones")
+    .select("id, no_conformidad_id")
+    .eq("id", accionId)
+    .maybeSingle();
+
+  const accion = data as { id: string; no_conformidad_id: string } | null;
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  const { subidos, fallidos } = await subirAdjuntos(supabase, {
+    entidad: "nc_acciones",
+    entidadId: accionId,
+    carpeta: "acciones",
+    archivos,
+    descripcion: String(datos.get("descripcion") ?? ""),
+    empresaId: usuario.empresa_id,
+    usuarioId: usuario.id,
+  });
+
+  revalidatePath(`/acciones/${accion.no_conformidad_id}`);
+
+  if (subidos === 0) {
+    return { exito: false, error: `No se pudo adjuntar: ${fallidos.join("; ")}.` };
+  }
+
+  if (fallidos.length > 0) {
+    return {
+      exito: true,
+      mensaje:
+        `Se adjuntaron ${subidos} de ${archivos.length}. No se pudieron subir: ` +
+        `${fallidos.join("; ")}.`,
+    };
+  }
+
+  return {
+    exito: true,
+    mensaje: subidos === 1 ? "Evidencia adjuntada." : `Se adjuntaron ${subidos} archivos.`,
+  };
+}
+
+/** Quita un archivo de evidencia de una tarea del plan. */
+export async function eliminarEvidenciaAccion(
+  adjuntoId: string,
+  accionId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data } = await supabase
+    .from("nc_acciones")
+    .select("no_conformidad_id")
+    .eq("id", accionId)
+    .maybeSingle();
+
+  const accion = data as { no_conformidad_id: string } | null;
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  const quitado = await quitarAdjunto(supabase, adjuntoId, "nc_acciones", accionId);
+  if (!quitado.ok) return { exito: false, error: quitado.error };
+
+  revalidatePath(`/acciones/${accion.no_conformidad_id}`);
+  return { exito: true, mensaje: `Se quitó «${quitado.nombre}».` };
 }

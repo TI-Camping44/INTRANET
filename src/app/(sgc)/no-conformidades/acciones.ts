@@ -11,11 +11,10 @@ import {
   PREGUNTAS_CINCO_PORQUES,
 } from "@/lib/constantes";
 import {
-  BUCKET_DOCUMENTOS,
-  motivoDeRechazoEvidencia,
-  nombreDeArchivoLegible,
-  rutaDeAdjuntoNoConformidad,
-} from "@/lib/adjuntos";
+  archivosDelFormulario,
+  quitarAdjunto,
+  subirAdjuntos,
+} from "@/lib/adjuntos-servidor";
 import type {
   Departamento,
   EstadoAccion,
@@ -895,10 +894,7 @@ export async function adjuntarArchivosNoConformidad(
     return { exito: false, error: "El perfil de Dirección es de solo lectura." };
   }
 
-  const archivos = datos
-    .getAll("archivos")
-    .filter((archivo): archivo is File => archivo instanceof File && archivo.size > 0);
-
+  const archivos = archivosDelFormulario(datos, "archivos");
   if (archivos.length === 0) {
     return { exito: false, error: "Elija al menos un archivo." };
   }
@@ -918,58 +914,20 @@ export async function adjuntarArchivosNoConformidad(
     return { exito: false, error: "La no conformidad no existe o no tiene acceso." };
   }
 
-  const fallidos: string[] = [];
-  let subidos = 0;
-
-  for (const archivo of archivos) {
-    const motivo = motivoDeRechazoEvidencia(archivo.name, archivo.size);
-    if (motivo) {
-      fallidos.push(`${archivo.name}: ${motivo}`);
-      continue;
-    }
-
-    const ruta = rutaDeAdjuntoNoConformidad(noConformidadId, archivo.name);
-
-    const { error: errorCarga } = await supabase.storage
-      .from(BUCKET_DOCUMENTOS)
-      .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
-
-    if (errorCarga) {
-      fallidos.push(`${archivo.name}: ${errorCarga.message}`);
-      continue;
-    }
-
-    const { error: errorRegistro } = await supabase.from("adjuntos").insert({
-      empresa_id: usuario.empresa_id,
-      entidad: "no_conformidades",
-      entidad_id: noConformidadId,
-      nombre_archivo: nombreDeArchivoLegible(archivo.name),
-      ruta,
-      bucket: BUCKET_DOCUMENTOS,
-      tamano_bytes: archivo.size,
-      tipo_mime: archivo.type || null,
-      descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      subido_por: usuario.id,
-    });
-
-    if (errorRegistro) {
-      // El archivo ya esta arriba: si no se pudo registrar, se retira
-      // para no dejar un huerfano que nadie sabe de quien es.
-      await supabase.storage.from(BUCKET_DOCUMENTOS).remove([ruta]);
-      fallidos.push(`${archivo.name}: ${errorRegistro.message}`);
-      continue;
-    }
-
-    subidos += 1;
-  }
+  const { subidos, fallidos } = await subirAdjuntos(supabase, {
+    entidad: "no_conformidades",
+    entidadId: noConformidadId,
+    carpeta: "no-conformidades",
+    archivos,
+    descripcion: String(datos.get("descripcion") ?? ""),
+    empresaId: usuario.empresa_id,
+    usuarioId: usuario.id,
+  });
 
   revalidatePath(`/no-conformidades/${noConformidadId}`);
 
   if (subidos === 0) {
-    return {
-      exito: false,
-      error: `No se pudo adjuntar: ${fallidos.join("; ")}.`,
-    };
+    return { exito: false, error: `No se pudo adjuntar: ${fallidos.join("; ")}.` };
   }
 
   if (fallidos.length > 0) {
@@ -987,14 +945,7 @@ export async function adjuntarArchivosNoConformidad(
   };
 }
 
-/**
- * Quita un archivo de la no conformidad.
- *
- * Primero la fila y despues el objeto: si se hiciera al reves y fallara
- * el borrado de la fila, quedaria un adjunto listado que al abrirlo da
- * error. Quien puede borrar lo decide RLS (`adjuntos_baja`): quien lo
- * subio, o Calidad.
- */
+/** Quita un archivo de la no conformidad. */
 export async function eliminarAdjuntoNoConformidad(
   adjuntoId: string,
   noConformidadId: string,
@@ -1005,30 +956,15 @@ export async function eliminarAdjuntoNoConformidad(
   }
 
   const supabase = crearClienteServidor();
+  const quitado = await quitarAdjunto(
+    supabase,
+    adjuntoId,
+    "no_conformidades",
+    noConformidadId,
+  );
 
-  const { data: consulta } = await supabase
-    .from("adjuntos")
-    .select("bucket, ruta, nombre_archivo")
-    .eq("id", adjuntoId)
-    .eq("entidad", "no_conformidades")
-    .eq("entidad_id", noConformidadId)
-    .maybeSingle();
-
-  const adjunto = consulta as { bucket: string; ruta: string; nombre_archivo: string } | null;
-  if (!adjunto) return { exito: false, error: "El archivo no existe o no tiene acceso." };
-
-  const { error } = await supabase.from("adjuntos").delete().eq("id", adjuntoId);
-  if (error) {
-    return {
-      exito: false,
-      error:
-        "No se pudo eliminar el archivo. Solo puede quitarlo quien lo subió o el " +
-        "Administrador SGC.",
-    };
-  }
-
-  await supabase.storage.from(adjunto.bucket).remove([adjunto.ruta]);
+  if (!quitado.ok) return { exito: false, error: quitado.error };
 
   revalidatePath(`/no-conformidades/${noConformidadId}`);
-  return { exito: true, mensaje: `Se quitó «${adjunto.nombre_archivo}».` };
+  return { exito: true, mensaje: `Se quitó «${quitado.nombre}».` };
 }

@@ -7,6 +7,7 @@ import { EliminarRespuesta } from "@/app/(sgc)/acciones/[id]/eliminar-respuesta"
 import {
   CierreEficacia,
   PanelAcciones,
+  type EvidenciaDeTarea,
   type TareaPlan,
 } from "@/app/(sgc)/acciones/[id]/panel-acciones";
 import { Boton } from "@/components/ui/boton";
@@ -96,7 +97,34 @@ export default async function PaginaAccionCorrectiva({ params }: { params: { id:
   const nc = consulta as Cabecera | null;
   if (!nc) notFound();
 
-  const tareas = (filas as unknown as (TareaPlan & { descargo: string | null })[] | null) ?? [];
+  const filasDelPlan = (filas as unknown as (TareaPlan & { descargo: string | null })[] | null) ?? [];
+
+  // La evidencia de cada tarea. Una sola consulta para todas, acotada a
+  // las tareas de este plan, y se reparte por `entidad_id`. Va despues y
+  // no en el lote de arriba porque necesita los ids que ese lote trae.
+  const { data: archivos } = filasDelPlan.length
+    ? await supabase
+        .from("adjuntos")
+        .select("id, entidad_id, nombre_archivo, tamano_bytes, descripcion")
+        .eq("entidad", "nc_acciones")
+        .in(
+          "entidad_id",
+          filasDelPlan.map((tarea) => tarea.id),
+        )
+        .order("creado_en")
+    : { data: null };
+
+  const porTarea = new Map<string, EvidenciaDeTarea[]>();
+  for (const adjunto of (archivos as (EvidenciaDeTarea & { entidad_id: string })[] | null) ?? []) {
+    const lista = porTarea.get(adjunto.entidad_id) ?? [];
+    lista.push(adjunto);
+    porTarea.set(adjunto.entidad_id, lista);
+  }
+
+  const tareas = filasDelPlan.map((tarea) => ({
+    ...tarea,
+    adjuntos: porTarea.get(tarea.id) ?? [],
+  }));
   // El descargo es el mismo en todas las filas: se escribe en todas
   // porque es de la persona y de la desviacion, no de cada tarea.
   const descargo = tareas.find((tarea) => tarea.descargo)?.descargo ?? null;

@@ -220,13 +220,6 @@ export function rutaDeEvidencia(hallazgoId: string, nombreArchivo: string): stri
   return rutaDeAdjunto("hallazgos", hallazgoId, nombreArchivo);
 }
 
-/** Ruta de un archivo de una no conformidad. */
-export function rutaDeAdjuntoNoConformidad(
-  noConformidadId: string,
-  nombreArchivo: string,
-): string {
-  return rutaDeAdjunto("no-conformidades", noConformidadId, nombreArchivo);
-}
 
 /**
  * Repara el nombre de un archivo que llegó mal decodificado.

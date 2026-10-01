@@ -3,15 +3,19 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Paperclip, Trash2, Upload } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto } from "@/components/ui/campo";
+import { AreaTexto, Entrada } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import {
+  adjuntarEvidenciaAccion,
   ejecutarAccion,
+  eliminarEvidenciaAccion,
   reabrirAccion,
   reabrirEficacia,
   verificarEficacia,
 } from "@/app/(sgc)/acciones/acciones";
+import { ACEPTA_EVIDENCIA, describirTamano, TAMANO_MAXIMO_ADJUNTO } from "@/lib/adjuntos";
 import {
   CLASES_PASO_ACCION,
   ejecucionSugerida,
@@ -24,6 +28,13 @@ import { describirVencimiento, formatearFecha } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
 import type { EstadoAccion, ResultadoEficacia } from "@/lib/tipos";
 
+export interface EvidenciaDeTarea {
+  id: string;
+  nombre_archivo: string;
+  tamano_bytes: number;
+  descripcion: string | null;
+}
+
 export interface TareaPlan {
   id: string;
   descripcion: string;
@@ -33,6 +44,8 @@ export interface TareaPlan {
   fecha_ejecucion: string | null;
   creado_en: string;
   responsable: { nombre_completo: string } | null;
+  /** La evidencia de ESTA tarea. */
+  adjuntos?: EvidenciaDeTarea[];
 }
 
 /**
@@ -132,6 +145,12 @@ export function PanelAcciones({
                 {textoDePlazoAccion(tarea.creado_en, tarea.fecha_ejecucion, cerrada)}
               </span>
             </div>
+
+            <EvidenciaDeLaTarea
+              tareaId={tarea.id}
+              adjuntos={tarea.adjuntos ?? []}
+              puedeGestionar={puedeGestionar}
+            />
 
             {puedeGestionar ? (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -321,6 +340,167 @@ export function CierreEficacia({
           No eficaz
         </Boton>
       </div>
+    </div>
+  );
+}
+
+/**
+ * La evidencia de UNA tarea del plan.
+ *
+ * «Ejecutada en plazo» lo marca una persona con un clic. Lo que demuestra
+ * que la tarea se hizo es el archivo: la foto del instructivo nuevo en la
+ * pared, la planilla de la capacitación firmada, el remito del proveedor
+ * cambiado. Por eso va acá, pegada a la tarea, y no en el conjunto de la
+ * acción correctiva: puesta arriba, la evidencia no dice a cuál de las
+ * cinco tareas corresponde.
+ *
+ * El formulario aparece recién al pedirlo. Con cinco tareas, cinco
+ * selectores de archivo abiertos convierten el plan en un formulario.
+ */
+function EvidenciaDeLaTarea({
+  tareaId,
+  adjuntos,
+  puedeGestionar,
+}: {
+  tareaId: string;
+  adjuntos: EvidenciaDeTarea[];
+  puedeGestionar: boolean;
+}) {
+  const router = useRouter();
+  const formulario = React.useRef<HTMLFormElement>(null);
+  const [abierto, definirAbierto] = React.useState(false);
+  const [subiendo, definirSubiendo] = React.useState(false);
+  const [borrando, definirBorrando] = React.useState<string | null>(null);
+
+  async function subir(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    definirSubiendo(true);
+
+    const resultado = await adjuntarEvidenciaAccion(
+      tareaId,
+      new FormData(evento.currentTarget),
+    );
+    definirSubiendo(false);
+
+    if (resultado.exito) {
+      toast.success(resultado.mensaje ?? "Evidencia adjuntada.");
+      formulario.current?.reset();
+      definirAbierto(false);
+      router.refresh();
+    } else {
+      toast.error(resultado.error);
+    }
+  }
+
+  async function quitar(adjunto: EvidenciaDeTarea) {
+    if (!confirm(`¿Quitar «${adjunto.nombre_archivo}»? No se puede deshacer.`)) return;
+
+    definirBorrando(adjunto.id);
+    const resultado = await eliminarEvidenciaAccion(adjunto.id, tareaId);
+    definirBorrando(null);
+
+    if (resultado.exito) {
+      toast.success(resultado.mensaje ?? "Archivo eliminado.");
+      router.refresh();
+    } else {
+      toast.error(resultado.error);
+    }
+  }
+
+  if (!puedeGestionar && adjuntos.length === 0) return null;
+
+  return (
+    <div className="mt-2">
+      {adjuntos.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5">
+          {adjuntos.map((adjunto) => (
+            <li key={adjunto.id} className="flex items-center">
+              {/* El enlace firmado se genera en el clic, en /adjuntos/[id]. */}
+              <a
+                href={`/adjuntos/${adjunto.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={adjunto.descripcion ?? adjunto.nombre_archivo}
+                className="flex items-center gap-1.5 rounded border border-borde px-2 py-1
+                           text-[11px] transition-colors hover:bg-acento/60"
+              >
+                <Paperclip className="size-3 shrink-0 text-atenuado-contraste" />
+                <span className="max-w-[16rem] truncate">{adjunto.nombre_archivo}</span>
+                <span className="text-atenuado-contraste">
+                  {describirTamano(adjunto.tamano_bytes)}
+                </span>
+              </a>
+              {puedeGestionar ? (
+                <button
+                  type="button"
+                  onClick={() => quitar(adjunto)}
+                  disabled={borrando === adjunto.id}
+                  aria-label={`Quitar ${adjunto.nombre_archivo}`}
+                  className="ml-1 text-atenuado-contraste transition-colors
+                             hover:text-semaforo-critico disabled:opacity-50"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {puedeGestionar && !abierto ? (
+        <button
+          type="button"
+          onClick={() => definirAbierto(true)}
+          className="mt-1.5 flex items-center gap-1 text-[11px] text-primario hover:underline"
+        >
+          <Upload className="size-3" />
+          {adjuntos.length === 0 ? "Adjuntar evidencia" : "Adjuntar otra evidencia"}
+        </button>
+      ) : null}
+
+      {puedeGestionar && abierto ? (
+        <form
+          ref={formulario}
+          onSubmit={subir}
+          className="mt-2 space-y-2 rounded-md border border-borde bg-acento/30 p-2.5"
+        >
+          <input
+            name="archivos"
+            type="file"
+            multiple
+            accept={ACEPTA_EVIDENCIA}
+            aria-label="Archivos de evidencia"
+            className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
+                       text-[11px] text-texto file:mr-3 file:cursor-pointer file:border-0
+                       file:bg-acento file:px-2.5 file:py-1.5 file:text-[11px]
+                       file:font-medium file:text-texto"
+          />
+          <Entrada
+            name="descripcion"
+            maxLength={200}
+            placeholder="Qué es: planilla de la capacitación firmada"
+            className="text-[11px]"
+            aria-label="Qué es la evidencia"
+          />
+          <p className="text-[10px] leading-relaxed text-atenuado-contraste">
+            PDF, imágenes y archivos de Office. Hasta {describirTamano(TAMANO_MAXIMO_ADJUNTO)} por
+            archivo.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Boton
+              type="button"
+              variante="fantasma"
+              tamano="pequeno"
+              onClick={() => definirAbierto(false)}
+            >
+              Cancelar
+            </Boton>
+            <Boton type="submit" tamano="pequeno" cargando={subiendo}>
+              Subir
+            </Boton>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }
