@@ -338,6 +338,17 @@ export async function GET(peticion: NextRequest) {
   // El aviso va al gestor del caso, con copia al responsable del area
   // cuando esta cargado y es otra persona. No hay escalamiento al lider:
   // el mismo criterio que Calidad fijo para las acciones correctivas.
+  //
+  // LO VENCIDO SE AVISA TODOS LOS DIAS, no una sola vez: por eso la clave
+  // de unicidad de esos dos avisos lleva la fecha de hoy y no la del
+  // vencimiento. Es la convencion que ya tiene «accion vencida», y la
+  // razon es la misma: un plazo incumplido que avisa una vez y despues se
+  // calla vuelve a ser un plazo que nadie mira. Se comprobo en la corrida
+  // real del 30 de septiembre: REC-2026-901 estaba vencido desde el 26,
+  // aviso ese dia y al dia siguiente ya no aviso nada.
+  //
+  // «Por vencer» sigue atado al vencimiento, que es lo correcto: es un
+  // adelanto, y un adelanto repetido todos los dias no adelanta nada.
   const { data: reclamos } = await supabase
     .from("reclamos")
     .select(
@@ -387,7 +398,7 @@ export async function GET(peticion: NextRequest) {
         `El plazo para el primer contacto de "${reclamo.titulo}" (${reclamo.cliente_nombre}) ` +
           `venció el ${formatearFecha(reclamo.fecha_limite_contacto)} y el caso sigue sin contacto ` +
           "registrado. Llame al cliente y deje la fecha cargada.",
-        `reclamo-contacto:${reclamo.id}:${reclamo.fecha_limite_contacto}`,
+        `reclamo-contacto:${reclamo.id}:${hoy}`,
       );
       resumen.reclamosVencidos += 1;
     }
@@ -403,7 +414,7 @@ export async function GET(peticion: NextRequest) {
         `"${reclamo.titulo}" (${reclamo.cliente_nombre}) tenía que estar resuelto el ` +
           `${formatearFecha(reclamo.fecha_limite_resolucion)} y sigue abierto. ` +
           "Resuélvalo o registre por qué no se pudo.",
-        `reclamo-vencido:${reclamo.id}:${reclamo.fecha_limite_resolucion}`,
+        `reclamo-vencido:${reclamo.id}:${hoy}`,
       );
       resumen.reclamosVencidos += 1;
     } else if (reclamo.fecha_limite_resolucion <= limiteAviso) {
