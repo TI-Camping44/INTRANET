@@ -183,8 +183,17 @@ export async function obtenerReportes(): Promise<Reporte[]> {
       .filter((fila) => fila.cantidad > 0);
   }
 
+  // LAS TRES CATEGORIAS SON EXCLUYENTES y suman el total. Antes no lo
+  // eran: «En curso» era «todo lo que no esta cumplido», asi que un
+  // objetivo con cero por ciento de avance se contaba en «En curso» y
+  // otra vez en «Sin avance cargado». Con los 30 objetivos del PE 2026
+  // sin medir, el panel mostraba 28 objetivos en dos categorias a la vez
+  // y el total no cerraba.
   const cumplidos = obj.filter((fila) => fila.estado === "cumplido").length;
-  const sinAvance = obj.filter((fila) => Number(fila.avance_porcentaje) === 0).length;
+  const sinAvance = obj.filter(
+    (fila) => fila.estado !== "cumplido" && Number(fila.avance_porcentaje) === 0,
+  ).length;
+  const enCurso = obj.length - cumplidos - sinAvance;
 
   return [
     {
@@ -306,7 +315,7 @@ export async function obtenerReportes(): Promise<Reporte[]> {
       modulo: "/indicadores",
       filas: [
         { etiqueta: "Cumplidos", cantidad: cumplidos },
-        { etiqueta: "En curso", cantidad: obj.length - cumplidos },
+        { etiqueta: "En curso", cantidad: enCurso },
         ...(sinAvance > 0
           ? [{ etiqueta: "Sin avance cargado", cantidad: sinAvance, alerta: true }]
           : []),

@@ -47,7 +47,13 @@ export default async function PaginaProveedores({
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
   if (searchParams.reevaluacion === "vencida") {
-    consulta = consulta.lte("fecha_proxima_evaluacion", hoyEnAsuncion());
+    // Solo los que siguen en el padron activo. Un proveedor rechazado o
+    // inactivo con fecha pasada no esta «por reevaluar»: ya no se le
+    // compra. Sin esta linea el numero de la tarjeta del panel no
+    // coincidia con la cantidad de filas de este listado.
+    consulta = consulta
+      .lte("fecha_proxima_evaluacion", hoyEnAsuncion())
+      .in("estado", ["aprobado", "condicional"]);
   }
   if (searchParams.q) {
     const texto = `%${searchParams.q}%`;

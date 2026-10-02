@@ -247,11 +247,15 @@ export default async function PaginaAuditorias({
                     <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
                       {auditoria.auditor?.nombre_completo ?? "—"}
                     </TablaCelda>
+                    {/* El total y el aviso van en RENGLONES DISTINTOS. Pegados
+                        con un margen, «1» seguido de «1 sin NC» se leia «11 sin
+                        NC»: los conteos estaban bien y la pantalla mentia. Lo
+                        reporto Calidad leyendo once hallazgos donde habia uno. */}
                     <TablaCelda className="text-center">
-                      <span className="text-xs tabular">{propios.length}</span>
+                      <span className="block text-xs tabular">{propios.length}</span>
                       {pendientes > 0 ? (
-                        <Insignia variante="peligro" className="ml-1.5">
-                          {pendientes} sin NC
+                        <Insignia variante="peligro" className="mt-1">
+                          {pendientes === 1 ? "1 sin NC" : `${pendientes} sin NC`}
                         </Insignia>
                       ) : null}
                     </TablaCelda>

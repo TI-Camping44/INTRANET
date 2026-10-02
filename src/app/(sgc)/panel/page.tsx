@@ -4,9 +4,12 @@ import {
   CalendarClock,
   ClipboardCheck,
   FileText,
+  GitBranch,
+  MessageSquareWarning,
   ShieldAlert,
   TrendingUp,
   TriangleAlert,
+  Truck,
 } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
@@ -93,7 +96,7 @@ export default async function PaginaPanel() {
       />
 
       {/* Tarjetas de estado general */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
         <TarjetaIndicador
           titulo="NC abiertas"
           valor={resumen.ncAbiertas}
@@ -151,6 +154,38 @@ export default async function PaginaPanel() {
           tono={resumen.indicadoresFueraDeMeta > 0 ? "atencion" : "exito"}
           enlace="/indicadores"
           icono={<TrendingUp className="size-4" />}
+        />
+        <TarjetaIndicador
+          titulo="Reclamos abiertos"
+          valor={resumen.reclamosAbiertos}
+          contexto={
+            resumen.reclamosFueraDePlazo > 0
+              ? `${resumen.reclamosFueraDePlazo} fuera de plazo`
+              : "Ninguno fuera de plazo"
+          }
+          tono={resumen.reclamosFueraDePlazo > 0 ? "peligro" : "exito"}
+          enlace="/reclamos"
+          icono={<MessageSquareWarning className="size-4" />}
+        />
+        <TarjetaIndicador
+          titulo="Cambios en aprobación"
+          valor={resumen.cambiosEnAprobacion}
+          contexto={
+            resumen.cambiosEnAprobacion > 0
+              ? "Esperan a Dirección o a Calidad"
+              : "Nada esperando aprobación"
+          }
+          tono={resumen.cambiosEnAprobacion > 0 ? "advertencia" : "exito"}
+          enlace="/cambios?vista=aprobacion"
+          icono={<GitBranch className="size-4" />}
+        />
+        <TarjetaIndicador
+          titulo="Proveedores por reevaluar"
+          valor={resumen.proveedoresPorReevaluar}
+          contexto={`De ${resumen.proveedoresActivos} en el padrón`}
+          tono={resumen.proveedoresPorReevaluar > 0 ? "advertencia" : "exito"}
+          enlace="/proveedores?reevaluacion=vencida"
+          icono={<Truck className="size-4" />}
         />
       </div>
 

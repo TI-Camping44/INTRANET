@@ -2,6 +2,11 @@ import "server-only";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { DIAS_AVISO_REVISION_DOCUMENTO, ESTADOS_NC_ABIERTOS } from "@/lib/constantes";
+import {
+  estaFueraDePlazo,
+  ESTADOS_RECLAMO_ABIERTOS,
+  type PlazosDelCaso,
+} from "@/lib/reclamos";
 import type { Usuario } from "@/lib/tipos";
 
 /**
@@ -22,6 +27,11 @@ export interface ResumenPanel {
   indicadoresMedidos: number;
   accionesVencidas: number;
   misAccionesPendientes: number;
+  reclamosAbiertos: number;
+  reclamosFueraDePlazo: number;
+  cambiosEnAprobacion: number;
+  proveedoresPorReevaluar: number;
+  proveedoresActivos: number;
 }
 
 export async function obtenerResumenPanel(usuario: Usuario): Promise<ResumenPanel> {
@@ -42,6 +52,10 @@ export async function obtenerResumenPanel(usuario: Usuario): Promise<ResumenPane
     accionesVencidas,
     misAcciones,
     mediciones,
+    reclamos,
+    cambiosEnAprobacion,
+    proveedoresPorReevaluar,
+    proveedoresActivos,
   ] = await Promise.all([
     supabase
       .from("no_conformidades")
@@ -96,9 +110,36 @@ export async function obtenerResumenPanel(usuario: Usuario): Promise<ResumenPane
       .select("cumple_meta")
       .not("cumple_meta", "is", null)
       .gte("periodo", `${anioActual}-01-01`),
+    // LOS RECLAMOS SE TRAEN EN FILAS Y NO EN UN CONTEO. Es a proposito:
+    // «fuera de plazo» tiene una sola definicion, `estaFueraDePlazo`, que
+    // contempla la suspension por tramite ante la DIGEMABEL. Escribirla
+    // otra vez como filtro de la consulta seria tenerla en dos lugares, y
+    // el dia que cambie una el panel y el listado van a decir distinto.
+    // Son pocas filas y solo las abiertas.
+    supabase
+      .from("reclamos")
+      .select(
+        "estado, tramite_digemabel, fecha_limite_contacto, fecha_contacto, " +
+          "fecha_limite_resolucion, fecha_resolucion",
+      )
+      .in("estado", ESTADOS_RECLAMO_ABIERTOS),
+    supabase
+      .from("cambios")
+      .select("id", { count: "exact", head: true })
+      .eq("estado", "en_aprobacion"),
+    supabase
+      .from("proveedores")
+      .select("id", { count: "exact", head: true })
+      .lte("fecha_proxima_evaluacion", hoy)
+      .in("estado", ["aprobado", "condicional"]),
+    supabase
+      .from("proveedores")
+      .select("id", { count: "exact", head: true })
+      .in("estado", ["aprobado", "condicional", "en_evaluacion"]),
   ]);
 
   const filasMediciones = (mediciones.data as { cumple_meta: boolean }[] | null) ?? [];
+  const filasReclamos = (reclamos.data as PlazosDelCaso[] | null) ?? [];
 
   return {
     ncAbiertas: ncAbiertas.count ?? 0,
@@ -113,5 +154,10 @@ export async function obtenerResumenPanel(usuario: Usuario): Promise<ResumenPane
     indicadoresMedidos: filasMediciones.length,
     accionesVencidas: accionesVencidas.count ?? 0,
     misAccionesPendientes: misAcciones.count ?? 0,
+    reclamosAbiertos: filasReclamos.length,
+    reclamosFueraDePlazo: filasReclamos.filter((caso) => estaFueraDePlazo(caso)).length,
+    cambiosEnAprobacion: cambiosEnAprobacion.count ?? 0,
+    proveedoresPorReevaluar: proveedoresPorReevaluar.count ?? 0,
+    proveedoresActivos: proveedoresActivos.count ?? 0,
   };
 }
