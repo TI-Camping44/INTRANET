@@ -91,7 +91,7 @@ export default async function PaginaOportunidades({
   const { data: procesos } = await supabase
     .from("procesos")
     .select("id, nombre")
-    .eq("activo", true)
+    .eq("activo", true).eq("version", "01")
     .order("nombre");
 
   let consulta = supabase

@@ -15,7 +15,7 @@ export default async function PaginaNuevoCambio() {
 
   const supabase = crearClienteServidor();
   const [{ data: procesos }, { data: personas }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("nombre"),
     supabase.from("usuarios").select("id, nombre_completo").eq("activo", true).order("nombre_completo"),
   ]);
 

@@ -43,7 +43,7 @@ export default async function PaginaEditarNoConformidad({
         )
         .eq("id", params.id)
         .maybeSingle(),
-      supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+      supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("nombre"),
       supabase.rpc("empresas_del_grupo"),
       supabase
         .from("usuarios")

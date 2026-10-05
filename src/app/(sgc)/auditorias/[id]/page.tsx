@@ -104,7 +104,7 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
         .select("id, nombre_completo")
         .eq("activo", true)
         .order("nombre_completo"),
-      supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+      supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
     ]);
 
   // Cada hallazgo con sus evidencias adjuntas.

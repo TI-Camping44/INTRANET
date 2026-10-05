@@ -55,7 +55,7 @@ export default async function PaginaEditarDocumento({
         .eq("id", params.id)
         .maybeSingle(),
       supabase.from("documentos").select("categoria").not("categoria", "is", null),
-      supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("codigo"),
+      supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "00").order("codigo"),
       supabase
         .from("usuarios")
         .select("id, nombre_completo")

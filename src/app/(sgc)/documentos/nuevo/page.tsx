@@ -16,7 +16,7 @@ export default async function PaginaNuevoDocumento() {
   // terminan cargando «Compras» y «compras» como dos carpetas distintas.
   const [{ data: usadas }, { data: procesos }] = await Promise.all([
     supabase.from("documentos").select("categoria").not("categoria", "is", null),
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("codigo"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "00").order("codigo"),
   ]);
 
   const categorias = Array.from(

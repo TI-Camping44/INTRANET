@@ -17,7 +17,7 @@ export default async function PaginaNuevoIndicador() {
 
   const [{ data: procesos }, { data: usuarios }, { data: objetivos }, { data: existentes }] =
     await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("nombre"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")

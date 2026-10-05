@@ -23,7 +23,7 @@ export default async function PaginaNuevaNoConformidad() {
   // selector mostraba Camping 44 y nada mas. La funcion devuelve id y
   // razon social, sin RUC ni el resto de la ficha.
   const [{ data: procesos }, { data: empresas }, { data: usuarios }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("nombre"),
     supabase.rpc("empresas_del_grupo"),
     supabase
       .from("usuarios")

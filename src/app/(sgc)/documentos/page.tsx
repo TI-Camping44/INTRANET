@@ -116,7 +116,7 @@ export default async function PaginaDocumentos({
   const { estados } = VISTAS[vista];
 
   const [{ data: procesos }, { data: responsables }, { data: todos }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "00").order("nombre"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")

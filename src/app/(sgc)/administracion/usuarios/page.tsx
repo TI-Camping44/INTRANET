@@ -30,7 +30,7 @@ export default async function PaginaUsuarios() {
         + "vendedor_planilla, ventas_canales, activo, ultimo_ingreso",
       )
       .order("nombre_completo"),
-    supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
     supabase.from("puestos").select("id, nombre").eq("activo", true).order("nombre"),
   ]);
 

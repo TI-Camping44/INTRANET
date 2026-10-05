@@ -91,7 +91,7 @@ export default async function PaginaIndicadores({
         .select("*, procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)")
         .eq("anio", anio)
         .order("codigo"),
-      supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+      supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
     ]);
 
   const indicadores = (indicadoresDatos as any[] | null) ?? [];

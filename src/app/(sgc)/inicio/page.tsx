@@ -60,7 +60,14 @@ export default async function PaginaInicio() {
         .select("id, nombre_completo")
         .eq("activo", true)
         .order("nombre_completo"),
-      supabase.from("procesos").select("id, nombre").order("nombre"),
+      // El mapa vigente, el 01. La publicacion dirigida a un proceso se
+      // dirige a los de hoy, no a los del mapa que se esta retirando.
+      supabase
+        .from("procesos")
+        .select("id, nombre")
+        .eq("activo", true)
+        .eq("version", "01")
+        .order("nombre"),
     ]);
 
   const hoy = hoyEnAsuncion();

@@ -113,7 +113,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
       .order("creado_en"),
     supabase.from("documento_difusion").select("usuario_id, proceso_id").eq("documento_id", params.id),
     supabase.from("usuarios").select("id, nombre_completo").eq("activo", true).order("nombre_completo"),
-    supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "00").order("nombre"),
     supabase
       .from("adjuntos")
       .select("id, nombre_archivo, tamano_bytes, creado_en, subido:subido_por (nombre_completo)")

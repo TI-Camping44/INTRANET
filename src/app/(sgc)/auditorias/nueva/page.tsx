@@ -18,7 +18,7 @@ export default async function PaginaNuevaAuditoria() {
   // referencia: los tres se completaban siempre igual o se dejaban
   // vacios. Las columnas siguen en la tabla y se editan en la ficha.
   const [{ data: procesos }, { data: usuarios }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("codigo"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("codigo"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")

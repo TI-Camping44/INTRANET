@@ -44,7 +44,7 @@ export default async function PaginaEditarOportunidad({
       )
       .eq("id", params.id)
       .maybeSingle(),
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("nombre"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")

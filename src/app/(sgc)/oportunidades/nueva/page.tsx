@@ -15,7 +15,7 @@ export default async function PaginaNuevaOportunidad() {
   const supabase = crearClienteServidor();
 
   const [{ data: procesos }, { data: usuarios }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("codigo"),
+    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("codigo"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")

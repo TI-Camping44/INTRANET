@@ -1,23 +1,24 @@
 /**
- * Los procesos tal como los nombra la informacion documentada.
+ * El mapa de procesos vigente, para los desplegables.
  *
- * Calidad pidio que el formulario de riesgos no ofrezca una lista de
- * procesos propia, sino la de los documentos cargados en Informacion
- * Documentada. En Camping 44 son la misma cosa: cada uno de los
- * diecinueve procesos del mapa tiene su manual —MP-EST-01 a MP-SOP-08—,
- * con el mismo nombre.
+ * HAY DOS MAPAS CONVIVIENDO Y ES A PROPOSITO. Calidad aprobo una version
+ * nueva el 5 de octubre de 2026 —la 01, de veintiun procesos— y la
+ * intranet tenia cargada la anterior —la 00, de diecinueve—. Los codigos
+ * no significan lo mismo en las dos: `EST-01` es «Informacion
+ * Documentada» en la 00 y `MP-SOP-01` es ese mismo proceso en la 01,
+ * mientras que `MP-EST-01` es «Planificacion y Control del SGC».
  *
- * Asi la lista no se mantiene en dos lugares. Si Calidad carga el manual
- * de un proceso nuevo, aparece en el desplegable sin tocar codigo; si da
- * de baja un manual, deja de ofrecerse.
+ * Carlos pidio expresamente mantener la 00 intacta e independiente: los
+ * veintiun documentos de la Lista Maestra cuelgan de ella y recodificarlos
+ * es una decision aparte, documento por documento.
  *
- * SE DEVUELVE EL ID DEL PROCESO, no el del documento: `riesgos.proceso_id`
- * apunta a `procesos` y ahi se queda. Lo que cambia es de donde sale la
- * lista y como se la ordena y agrupa, que es lo que la persona ve.
+ * Entonces: lo nuevo se carga contra la 01 y los documentos siguen contra
+ * la 00. Cuando la migracion termine, se da de baja la 00.
  *
- * El orden y las categorias son los del modulo de documentos —Procesos
- * Estrategicos, Misionales, de Soporte—, para que el desplegable se lea
- * igual que la lista maestra.
+ * DOS PROCESOS DE LA 01 NO ESTAN CARGADOS: «MP-EST-05 Marketing» y
+ * «MP-SOP-05 Cobranzas» venian marcados en amarillo —en elaboracion— y
+ * Carlos indico ignorarlos. Cuando los apruebe, se agregan y los dos
+ * indicadores que hoy los nombran en texto se vinculan solos.
  *
  * NO TIENE "use server": recibe el cliente ya creado, con la sesion de la
  * persona, para que RLS se aplique.
@@ -25,61 +26,62 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/** La version del mapa que se ofrece al cargar algo nuevo. */
+export const VERSION_VIGENTE_DEL_MAPA = "01";
+
 export interface ProcesoDocumentado {
-  /** El id de `procesos`, que es lo que se guarda. */
   id: string;
   codigo: string;
   nombre: string;
-  /** La categoria del manual: con que se agrupa el desplegable. */
+  /** Con qué se agrupa el desplegable: la banda del mapa. */
   categoria: string;
 }
 
-interface FilaManual {
-  categoria: string | null;
-  procesos: { id: string; codigo: string | null; nombre: string } | null;
-}
+/** Las tres bandas del mapa, en el orden en que se dibuja. */
+const CATEGORIA_POR_TIPO: Record<string, string> = {
+  estrategico: "Procesos Estratégicos",
+  operativo: "Procesos Misionales",
+  apoyo: "Procesos de Soporte",
+};
 
-const SIN_CATEGORIA = "Otros procesos";
+const ORDEN_DE_BANDA: Record<string, number> = {
+  estrategico: 1,
+  operativo: 2,
+  apoyo: 3,
+};
 
 /**
- * Los procesos que tienen manual cargado y vigente, en el orden del
- * modulo de documentos.
+ * Los procesos del mapa vigente, en el orden del mapa.
  *
- * Se excluyen los anulados: un proceso cuyo manual se anulo no deberia
- * seguir ofreciendose para cargar riesgos nuevos.
+ * Estratégicos, misionales y de soporte, y dentro de cada banda por
+ * código: es como está dibujado el mapa que aprobó Calidad, y la gente
+ * lo busca en ese orden.
  */
 export async function procesosDocumentados(
   supabase: SupabaseClient,
 ): Promise<ProcesoDocumentado[]> {
   const { data } = await supabase
-    .from("documentos")
-    .select("categoria, orden, orden_categoria, procesos:proceso_id (id, codigo, nombre)")
-    .not("proceso_id", "is", null)
-    .neq("estado", "anulado")
-    .order("orden_categoria", { nullsFirst: true })
-    .order("orden", { nullsFirst: true })
+    .from("procesos")
+    .select("id, codigo, nombre, tipo")
+    .eq("version", VERSION_VIGENTE_DEL_MAPA)
+    .eq("activo", true)
     .order("codigo");
 
-  const filas = (data as FilaManual[] | null) ?? [];
-  const vistos = new Set<string>();
-  const lista: ProcesoDocumentado[] = [];
+  const filas =
+    (data as { id: string; codigo: string | null; nombre: string; tipo: string }[] | null) ?? [];
 
-  for (const fila of filas) {
-    const proceso = fila.procesos;
-    // Un proceso puede tener mas de un documento. Se toma el primero que
-    // aparece, que por el orden de la consulta es el de mas arriba en la
-    // lista maestra.
-    if (!proceso || vistos.has(proceso.id)) continue;
-    vistos.add(proceso.id);
-    lista.push({
-      id: proceso.id,
-      codigo: proceso.codigo ?? "",
-      nombre: proceso.nombre,
-      categoria: fila.categoria?.trim() || SIN_CATEGORIA,
-    });
-  }
-
-  return lista;
+  return filas
+    .map((fila) => ({
+      id: fila.id,
+      codigo: fila.codigo ?? "",
+      nombre: fila.nombre,
+      categoria: CATEGORIA_POR_TIPO[fila.tipo] ?? "Otros procesos",
+      orden: ORDEN_DE_BANDA[fila.tipo] ?? 9,
+    }))
+    .sort((uno, otro) =>
+      uno.orden !== otro.orden ? uno.orden - otro.orden : uno.codigo.localeCompare(otro.codigo),
+    )
+    .map(({ id, codigo, nombre, categoria }) => ({ id, codigo, nombre, categoria }));
 }
 
 /** Las categorias en el orden en que vienen, con sus procesos. */
@@ -93,9 +95,7 @@ export function agruparPorCategoria(
     if (ultimo && ultimo.categoria === proceso.categoria) {
       ultimo.procesos.push(proceso);
     } else {
-      const existente = grupos.find((grupo) => grupo.categoria === proceso.categoria);
-      if (existente) existente.procesos.push(proceso);
-      else grupos.push({ categoria: proceso.categoria, procesos: [proceso] });
+      grupos.push({ categoria: proceso.categoria, procesos: [proceso] });
     }
   }
 
