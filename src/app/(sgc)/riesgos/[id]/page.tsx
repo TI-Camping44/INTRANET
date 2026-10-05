@@ -9,7 +9,12 @@ import {
   InsigniaEstadoRiesgo,
   InsigniaNivelRiesgo,
 } from "@/components/comunes/insignias-estado";
-import { AccionesTratamiento } from "@/app/(sgc)/riesgos/[id]/acciones-tratamiento";
+import { MedicionDelRiesgo } from "@/app/(sgc)/riesgos/[id]/medicion-del-riesgo";
+import {
+  AccionesTratamiento,
+  type AccionTratamiento,
+  type EvidenciaDeAccion,
+} from "@/app/(sgc)/riesgos/[id]/acciones-tratamiento";
 import { PanelReevaluacion } from "@/app/(sgc)/riesgos/[id]/panel-reevaluacion";
 import { EliminarRiesgo } from "@/app/(sgc)/riesgos/[id]/eliminar-riesgo";
 import { Boton } from "@/components/ui/boton";
@@ -62,6 +67,7 @@ interface RiesgoDetalle {
   probabilidad_residual: number | null;
   severidad_residual: number | null;
   nivel_residual: number | null;
+  fecha_evaluacion_eficacia: string | null;
   fecha_identificacion: string;
   fecha_ultima_evaluacion: string;
   fecha_proxima_revision: string | null;
@@ -106,7 +112,10 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
     await Promise.all([
       supabase
         .from("riesgo_acciones")
-        .select("*, responsable:responsable_id (nombre_completo)")
+        .select(
+          "*, responsable:responsable_id (nombre_completo), " +
+            "evaluador:evaluado_por (nombre_completo)",
+        )
         .eq("riesgo_id", params.id)
         .order("creado_en"),
       supabase
@@ -125,6 +134,36 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
         .select("id, codigo, titulo, estado")
         .eq("riesgo_id", params.id),
     ]);
+
+  // La evidencia de las acciones vive en `adjuntos` (`entidad` +
+  // `entidad_id`). Se pide de una sola vez para todas las acciones y se
+  // reparte acá: una consulta por accion serian N consultas para armar
+  // una tarjeta.
+  const listaAcciones = (acciones as AccionTratamiento[] | null) ?? [];
+  const { data: archivos } =
+    listaAcciones.length > 0
+      ? await supabase
+          .from("adjuntos")
+          .select("id, entidad_id, nombre_archivo, tamano_bytes, creado_en")
+          .eq("entidad", "riesgo_acciones")
+          .in(
+            "entidad_id",
+            listaAcciones.map((accion) => accion.id),
+          )
+          .order("creado_en")
+      : { data: [] };
+
+  const evidenciaPorAccion = new Map<string, EvidenciaDeAccion[]>();
+  for (const archivo of (archivos as (EvidenciaDeAccion & { entidad_id: string })[] | null) ?? []) {
+    const lista = evidenciaPorAccion.get(archivo.entidad_id) ?? [];
+    lista.push(archivo);
+    evidenciaPorAccion.set(archivo.entidad_id, lista);
+  }
+
+  const accionesConEvidencia: AccionTratamiento[] = listaAcciones.map((accion) => ({
+    ...accion,
+    adjuntos: evidenciaPorAccion.get(accion.id) ?? [],
+  }));
 
   const gestiona =
     usuario.rol === "administrador_sgc" ||
@@ -289,6 +328,19 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
           </div>
           )}
 
+          {/* La fecha de medicion y, cuando llega, la evaluacion del
+              residual. Solo para riesgos: una oportunidad no tiene
+              residual, tiene resultado obtenido. */}
+          {riesgo.tipo === "oportunidad" ? null : (
+            <MedicionDelRiesgo
+              riesgoId={riesgo.id}
+              fechaMedicion={riesgo.fecha_evaluacion_eficacia}
+              probabilidadResidual={riesgo.probabilidad_residual}
+              severidadResidual={riesgo.severidad_residual}
+              puedeEditar={gestiona}
+            />
+          )}
+
           <Tarjeta>
             <TarjetaCabecera>
               <TarjetaTitulo>Análisis</TarjetaTitulo>
@@ -307,8 +359,9 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
             <TarjetaContenido>
               <AccionesTratamiento
                 riesgoId={riesgo.id}
-                acciones={(acciones as any[] | null) ?? []}
+                acciones={accionesConEvidencia}
                 personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
+                tratamientoDelRiesgo={riesgo.tratamiento}
                 puedeEditar={gestiona}
               />
             </TarjetaContenido>

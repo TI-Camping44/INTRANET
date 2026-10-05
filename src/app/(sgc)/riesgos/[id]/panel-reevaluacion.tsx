@@ -18,9 +18,14 @@ import { cn } from "@/lib/utilidades";
 import type { EstadoRiesgo } from "@/lib/tipos";
 
 /**
- * Reevaluacion del riesgo. Permite ajustar la evaluacion inherente o
- * cargar la residual, que es la que queda despues de aplicar las acciones
- * de tratamiento.
+ * Reevaluacion del riesgo inherente, y su estado.
+ *
+ * EL RESIDUAL NO SE CARGA DESDE ACA. Tiene su propia tarjeta,
+ * «Medicion del riesgo», que lo habilita recien cuando llega la fecha en
+ * que se acordo medirlo. Estaba acá como una casilla —«registrar como
+ * riesgo residual»— y eso permitia cargarlo el mismo dia que se
+ * planifico la accion, que es justo lo que Calidad hizo cerrar el 5 de
+ * octubre.
  */
 export function PanelReevaluacion({
   riesgoId,
@@ -39,7 +44,6 @@ export function PanelReevaluacion({
   const [probabilidad, definirProbabilidad] = React.useState(probabilidadActual);
   const [severidad, definirSeveridad] = React.useState(severidadActual);
   const [comentario, definirComentario] = React.useState("");
-  const [esResidual, definirEsResidual] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
 
   const nivel = probabilidad * severidad;
@@ -47,13 +51,7 @@ export function PanelReevaluacion({
 
   async function reevaluar() {
     definirProcesando(true);
-    const resultado = await reevaluarRiesgo(
-      riesgoId,
-      probabilidad,
-      severidad,
-      comentario,
-      esResidual,
-    );
+    const resultado = await reevaluarRiesgo(riesgoId, probabilidad, severidad, comentario, false);
     definirProcesando(false);
 
     if (resultado.exito) {
@@ -98,17 +96,11 @@ export function PanelReevaluacion({
       </GrupoCampo>
 
       <div className="border-t border-borde pt-4">
-        <p className="mb-3 text-xs font-semibold">Reevaluar</p>
-
-        <label className="mb-3 flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            className="size-3.5 accent-[#E01E37]"
-            checked={esResidual}
-            onChange={(evento) => definirEsResidual(evento.target.checked)}
-          />
-          Registrar como riesgo residual (posterior al tratamiento)
-        </label>
+        <p className="text-xs font-semibold">Reevaluar</p>
+        <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+          Corrige la valoración inherente, la del riesgo sin considerar el tratamiento. El riesgo
+          residual se evalúa en «Medición del riesgo».
+        </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <GrupoCampo etiqueta="Probabilidad" htmlFor="probabilidad-reev">

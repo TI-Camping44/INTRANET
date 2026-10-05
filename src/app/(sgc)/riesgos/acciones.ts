@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
+import { archivosDelFormulario, quitarAdjunto, subirAdjuntos } from "@/lib/adjuntos-servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
@@ -346,6 +347,38 @@ export async function reevaluarRiesgo(
     return { exito: false, error: "La probabilidad y la severidad deben estar entre 1 y 5." };
   }
 
+  // EL RESIDUAL NO SE EVALUA ANTES DE LA FECHA DE MEDICION. Lo pidio
+  // Calidad el 5 de octubre: el residual es lo que queda despues de que
+  // las acciones hayan tenido tiempo de actuar, y cargarlo el mismo dia
+  // que se definio el tratamiento es declarar un resultado que todavia
+  // no existe. La interfaz tambien lo deshabilita, pero eso es
+  // comodidad: el control es este.
+  if (esResidual) {
+    const { data } = await supabase
+      .from("riesgos")
+      .select("fecha_evaluacion_eficacia")
+      .eq("id", id)
+      .maybeSingle();
+
+    const fecha = (data as { fecha_evaluacion_eficacia: string | null } | null)
+      ?.fecha_evaluacion_eficacia;
+
+    if (!fecha) {
+      return {
+        exito: false,
+        error:
+          "Primero indique la fecha en que se va a medir el riesgo. El residual se evalúa " +
+          "recién cuando esa fecha llega.",
+      };
+    }
+    if (hoyEnAsuncion() < fecha) {
+      return {
+        exito: false,
+        error: `Todavía no se puede evaluar el riesgo residual: la medición está prevista para el ${fecha.split("-").reverse().join("/")}.`,
+      };
+    }
+  }
+
   const cambios = esResidual
     ? { probabilidad_residual: probabilidad, severidad_residual: severidad }
     : { probabilidad, severidad };
@@ -384,7 +417,20 @@ export async function cambiarEstadoRiesgo(
   return { exito: true, mensaje: "Estado actualizado." };
 }
 
-/** Alta de una accion de tratamiento del riesgo. */
+/**
+ * Alta de una accion de tratamiento del riesgo.
+ *
+ * Es el equivalente de una tarea de accion correctiva, pero dentro del
+ * riesgo: lo pidio Calidad el 5 de octubre. Lleva su responsable, su
+ * plazo con dos fechas y, mas adelante, su propia evaluacion de
+ * eficacia.
+ *
+ * EL PLAZO PUEDE SER «PERMANENTE». Varias acciones de la matriz son
+ * controles que no terminan —el arqueo diario de caja, la verificacion
+ * del permiso antes de cada despacho—. Esas no llevan vencimiento, y
+ * forzarles uno seria inventarle una fecha de cierre a algo que no
+ * cierra.
+ */
 export async function crearAccionRiesgo(
   riesgoId: string,
   datos: FormData,
@@ -392,24 +438,45 @@ export async function crearAccionRiesgo(
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
+  const problema = revisarCamposDeAccion(datos);
+  if (problema) return { exito: false, error: problema };
+
   const descripcion = String(datos.get("descripcion") ?? "").trim();
-  if (descripcion.length < 10) {
-    return { exito: false, error: "Describa la acción con al menos 10 caracteres." };
-  }
-
   const responsableId = String(datos.get("responsable_id") ?? "") || null;
-  const fechaLimite = String(datos.get("fecha_limite") ?? "") || null;
+  const permanente = datos.get("plazo_permanente") === "si";
 
-  const { error } = await supabase.from("riesgo_acciones").insert({
-    riesgo_id: riesgoId,
-    descripcion,
-    tratamiento: String(datos.get("tratamiento") ?? "mitigar"),
-    responsable_id: responsableId,
-    fecha_limite: fechaLimite,
-    estado: "pendiente",
-  });
+  const { data: creada, error } = await supabase
+    .from("riesgo_acciones")
+    .insert({
+      riesgo_id: riesgoId,
+      descripcion,
+      tratamiento: String(datos.get("tratamiento") ?? "cambiar_probabilidad"),
+      responsable_id: responsableId,
+      fecha_inicio: String(datos.get("fecha_inicio") ?? "") || null,
+      fecha_limite: permanente ? null : String(datos.get("fecha_limite") ?? "") || null,
+      plazo_permanente: permanente,
+      estado: "pendiente",
+      eficacia: "pendiente",
+    })
+    .select("id")
+    .single();
 
   if (error) return { exito: false, error: `No se pudo crear la acción: ${error.message}` };
+
+  // La evidencia que ya tenga a mano se sube en el mismo paso. Guardar
+  // primero y volver a entrar a adjuntar es la pantalla intermedia que
+  // Calidad hizo sacar del alta de no conformidades.
+  const archivos = archivosDelFormulario(datos, "evidencia");
+  if (archivos.length > 0) {
+    await subirAdjuntos(supabase, {
+      entidad: "riesgo_acciones",
+      entidadId: creada.id,
+      carpeta: "riesgos",
+      archivos,
+      empresaId: usuario.empresa_id,
+      usuarioId: usuario.id,
+    });
+  }
 
   if (responsableId && responsableId !== usuario.id) {
     const [{ data: responsable }, { data: riesgo }] = await Promise.all([
@@ -433,25 +500,271 @@ export async function crearAccionRiesgo(
   }
 
   revalidatePath(`/riesgos/${riesgoId}`);
-  return { exito: true, mensaje: "Acción de tratamiento agregada." };
+  revalidatePath("/riesgos");
+  return { exito: true, id: creada.id, mensaje: "Acción de tratamiento agregada." };
 }
 
-export async function actualizarAccionRiesgo(
+/** Los campos que se piden al cargar o corregir una accion. */
+function revisarCamposDeAccion(datos: FormData): string | null {
+  if (String(datos.get("descripcion") ?? "").trim().length < 10) {
+    return "Describa la acción con al menos 10 caracteres.";
+  }
+  if (!String(datos.get("responsable_id") ?? "").trim()) {
+    return "Elija el responsable de la acción.";
+  }
+
+  const desde = String(datos.get("fecha_inicio") ?? "").trim();
+  if (!desde) return "Indique desde cuándo corre el plazo.";
+
+  const permanente = datos.get("plazo_permanente") === "si";
+  const hasta = String(datos.get("fecha_limite") ?? "").trim();
+
+  if (!permanente && !hasta) {
+    return "Indique hasta cuándo corre el plazo, o marque la acción como permanente.";
+  }
+  if (!permanente && hasta < desde) {
+    return "El plazo no puede terminar antes de empezar.";
+  }
+
+  return null;
+}
+
+/** Correccion de los datos de una accion ya cargada. */
+export async function editarAccionRiesgo(
   accionId: string,
   riesgoId: string,
-  estado: EstadoAccion,
+  datos: FormData,
 ): Promise<ResultadoAccion> {
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const cambios: Record<string, unknown> = { estado };
-  if (estado === "ejecutada") cambios.fecha_ejecucion = hoyEnAsuncion();
+  const problema = revisarCamposDeAccion(datos);
+  if (problema) return { exito: false, error: problema };
 
-  const { error } = await supabase.from("riesgo_acciones").update(cambios).eq("id", accionId);
-  if (error) return { exito: false, error: `No se pudo actualizar la acción: ${error.message}` };
+  const permanente = datos.get("plazo_permanente") === "si";
+
+  const { data: actualizada, error } = await supabase
+    .from("riesgo_acciones")
+    .update({
+      descripcion: String(datos.get("descripcion") ?? "").trim(),
+      tratamiento: String(datos.get("tratamiento") ?? "cambiar_probabilidad"),
+      responsable_id: String(datos.get("responsable_id") ?? "") || null,
+      fecha_inicio: String(datos.get("fecha_inicio") ?? "") || null,
+      fecha_limite: permanente ? null : String(datos.get("fecha_limite") ?? "") || null,
+      plazo_permanente: permanente,
+    })
+    .eq("id", accionId)
+    .eq("riesgo_id", riesgoId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo guardar la acción: ${error.message}` };
+  if (!actualizada) {
+    return {
+      exito: false,
+      error: "No se pudo guardar: la acción no existe o su rol no puede editarla.",
+    };
+  }
+
+  // Los archivos nuevos se suman; los que ya estaban no se tocan.
+  const archivos = archivosDelFormulario(datos, "evidencia");
+  if (archivos.length > 0) {
+    const usuario = await requerirUsuario();
+    await subirAdjuntos(supabase, {
+      entidad: "riesgo_acciones",
+      entidadId: accionId,
+      carpeta: "riesgos",
+      archivos,
+      empresaId: usuario.empresa_id,
+      usuarioId: usuario.id,
+    });
+  }
 
   revalidatePath(`/riesgos/${riesgoId}`);
   return { exito: true, mensaje: "Acción actualizada." };
+}
+
+/**
+ * Ejecucion de la accion, con su comentario de cierre.
+ *
+ * SE GUARDA SI FUE EN PLAZO y no se recalcula despues: la fecha limite
+ * puede cambiar y el dato tiene que quedar como fue. Mismo criterio que
+ * en las tareas de una accion correctiva.
+ *
+ * Una accion permanente no tiene vencimiento, asi que se ejecuta siempre
+ * «en plazo»: no hay fecha contra la que compararla.
+ */
+export async function ejecutarAccionRiesgo(
+  accionId: string,
+  riesgoId: string,
+  comentario: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data } = await supabase
+    .from("riesgo_acciones")
+    .select("fecha_limite, plazo_permanente")
+    .eq("id", accionId)
+    .eq("riesgo_id", riesgoId)
+    .maybeSingle();
+
+  const accion = data as { fecha_limite: string | null; plazo_permanente: boolean } | null;
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  const hoy = hoyEnAsuncion();
+  const enPlazo = accion.plazo_permanente || !accion.fecha_limite || hoy <= accion.fecha_limite;
+
+  const { data: actualizada, error } = await supabase
+    .from("riesgo_acciones")
+    .update({
+      estado: "ejecutada",
+      fecha_ejecucion: hoy,
+      ejecucion_en_plazo: enPlazo,
+      evidencia: comentario.trim() || null,
+    })
+    .eq("id", accionId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo actualizar la acción: ${error.message}` };
+  if (!actualizada) {
+    return { exito: false, error: "No se pudo guardar: su rol no puede ejecutar esta acción." };
+  }
+
+  revalidatePath(`/riesgos/${riesgoId}`);
+  revalidatePath("/riesgos");
+  return {
+    exito: true,
+    mensaje: enPlazo ? "Acción ejecutada en plazo." : "Acción ejecutada fuera de plazo.",
+  };
+}
+
+/**
+ * Evaluacion de la eficacia de una accion.
+ *
+ * Por accion y no por riesgo: una de tres acciones puede no haber
+ * servido, y promediarlas esconde cual. Es el mismo criterio con el que
+ * la eficacia de una capacitacion se verifica por persona.
+ *
+ * Solo se puede evaluar una accion ya ejecutada; la base lo exige
+ * tambien, en `riesgo_acciones_eficacia_tras_ejecucion`.
+ */
+export async function evaluarEficaciaAccionRiesgo(
+  accionId: string,
+  riesgoId: string,
+  eficaz: boolean,
+  comentario: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data } = await supabase
+    .from("riesgo_acciones")
+    .select("fecha_ejecucion")
+    .eq("id", accionId)
+    .eq("riesgo_id", riesgoId)
+    .maybeSingle();
+
+  const accion = data as { fecha_ejecucion: string | null } | null;
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+  if (!accion.fecha_ejecucion) {
+    return {
+      exito: false,
+      error: "Primero registre la ejecución de la acción. La eficacia se evalúa sobre lo hecho.",
+    };
+  }
+
+  const { data: actualizada, error } = await supabase
+    .from("riesgo_acciones")
+    .update({
+      eficacia: eficaz ? "eficaz" : "no_eficaz",
+      // Verificada es el estado que sigue a ejecutada: alguien la
+      // controlo. Una accion que no sirvio tambien queda verificada, lo
+      // que cambia es el resultado.
+      estado: "verificada",
+      fecha_evaluacion_eficacia: hoyEnAsuncion(),
+      evaluado_por: usuario.id,
+      comentario_eficacia: comentario.trim() || null,
+    })
+    .eq("id", accionId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo registrar la eficacia: ${error.message}` };
+  if (!actualizada) {
+    return { exito: false, error: "No se pudo guardar: su rol no puede evaluar esta acción." };
+  }
+
+  revalidatePath(`/riesgos/${riesgoId}`);
+  revalidatePath("/riesgos");
+  return {
+    exito: true,
+    mensaje: eficaz ? "Acción registrada como eficaz." : "Acción registrada como no eficaz.",
+  };
+}
+
+/** Evidencia de una accion, subida desde la ficha del riesgo. */
+export async function adjuntarEvidenciaAccionRiesgo(
+  accionId: string,
+  riesgoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const archivos = archivosDelFormulario(datos, "evidencia");
+  if (archivos.length === 0) return { exito: false, error: "Elija al menos un archivo." };
+
+  // Que la accion exista y sea de este riesgo. Quien puede subir lo
+  // decide RLS sobre `adjuntos`.
+  const { data: accion } = await supabase
+    .from("riesgo_acciones")
+    .select("id")
+    .eq("id", accionId)
+    .eq("riesgo_id", riesgoId)
+    .maybeSingle();
+
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  const { subidos, fallidos } = await subirAdjuntos(supabase, {
+    entidad: "riesgo_acciones",
+    entidadId: accionId,
+    carpeta: "riesgos",
+    archivos,
+    descripcion: String(datos.get("descripcion") ?? "") || null,
+    empresaId: usuario.empresa_id,
+    usuarioId: usuario.id,
+  });
+
+  revalidatePath(`/riesgos/${riesgoId}`);
+
+  if (subidos === 0) {
+    return { exito: false, error: `No se pudo subir: ${fallidos.join(" · ")}` };
+  }
+
+  return {
+    exito: true,
+    mensaje:
+      fallidos.length > 0
+        ? `${subidos} archivo(s) subido(s). No entraron: ${fallidos.join(" · ")}`
+        : `${subidos} archivo(s) subido(s).`,
+  };
+}
+
+export async function eliminarEvidenciaAccionRiesgo(
+  adjuntoId: string,
+  accionId: string,
+  riesgoId: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const resultado = await quitarAdjunto(supabase, adjuntoId, "riesgo_acciones", accionId);
+  if (!resultado.ok) return { exito: false, error: resultado.error };
+
+  revalidatePath(`/riesgos/${riesgoId}`);
+  return { exito: true, mensaje: `«${resultado.nombre}» eliminado.` };
 }
 
 export async function eliminarAccionRiesgo(
@@ -461,11 +774,63 @@ export async function eliminarAccionRiesgo(
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const { error } = await supabase.from("riesgo_acciones").delete().eq("id", accionId);
+  // Los archivos de la accion primero: si se borra la fila y falla el
+  // borrado de los adjuntos, quedan archivos apuntando a una accion que
+  // ya no existe y nadie los va a encontrar para limpiarlos.
+  const { data: adjuntos } = await supabase
+    .from("adjuntos")
+    .select("id")
+    .eq("entidad", "riesgo_acciones")
+    .eq("entidad_id", accionId);
+
+  for (const adjunto of (adjuntos as { id: string }[] | null) ?? []) {
+    await quitarAdjunto(supabase, adjunto.id, "riesgo_acciones", accionId);
+  }
+
+  const { error } = await supabase
+    .from("riesgo_acciones")
+    .delete()
+    .eq("id", accionId)
+    .eq("riesgo_id", riesgoId);
+
   if (error) return { exito: false, error: `No se pudo eliminar la acción: ${error.message}` };
 
   revalidatePath(`/riesgos/${riesgoId}`);
+  revalidatePath("/riesgos");
   return { exito: true, mensaje: "Acción eliminada." };
+}
+
+/**
+ * La fecha en que se va a medir el riesgo.
+ *
+ * De ella depende cuando se habilita la evaluacion del riesgo residual:
+ * antes de esa fecha no hay nada que medir, y dejar el campo abierto
+ * invita a cargar un numero inventado. Lo pidio Calidad el 5 de octubre.
+ */
+export async function definirFechaMedicionRiesgo(
+  id: string,
+  fecha: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  if (!fecha) return { exito: false, error: "Elija la fecha en que se va a medir el riesgo." };
+
+  const { data: actualizado, error } = await supabase
+    .from("riesgos")
+    .update({ fecha_evaluacion_eficacia: fecha })
+    .eq("id", id)
+    .select("codigo")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo guardar la fecha: ${error.message}` };
+  if (!actualizado) {
+    return { exito: false, error: "No se pudo guardar: su rol no puede editar este riesgo." };
+  }
+
+  revalidatePath(`/riesgos/${id}`);
+  revalidatePath("/riesgos");
+  return { exito: true, mensaje: "Fecha de medición guardada." };
 }
 
 
