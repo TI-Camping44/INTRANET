@@ -25,10 +25,17 @@ export function FormularioAuditoria({
   procesos,
   usuarios,
   usuarioActual,
+  programaId,
 }: {
   procesos: Opcion[];
   usuarios: Opcion[];
   usuarioActual: string;
+  /**
+   * El programa anual al que entra la auditoría, cuando el alta se abre
+   * desde su ficha. Sin esto, la acción la liga al programa del año de
+   * la fecha planificada, que es el caso normal.
+   */
+  programaId?: string | null;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
@@ -64,6 +71,7 @@ export function FormularioAuditoria({
 
   return (
     <form onSubmit={enviar}>
+      {programaId ? <input type="hidden" name="programa_id" value={programaId} /> : null}
       <Tarjeta className="p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <GrupoCampo etiqueta="Tipo" htmlFor="tipo" requerido className="sm:col-span-2">

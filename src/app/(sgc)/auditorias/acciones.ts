@@ -8,6 +8,7 @@ import {
   nombreDeArchivoLegible,
   rutaDeEvidencia,
 } from "@/lib/adjuntos";
+import { quitarAdjunto } from "@/lib/adjuntos-servidor";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar, notificarAVarios } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
@@ -101,6 +102,25 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   const auditorLiderId = String(datos.get("auditor_lider_id") ?? "") || usuario.id;
 
+  // EL PROGRAMA SE RESUELVE SOLO POR EL AÑO DE LA FECHA PLANIFICADA.
+  //
+  // Calidad saco el programa del formulario de alta porque se completaba
+  // siempre igual, y el campo quedo leyendose de un `programa_id` que
+  // nadie enviaba: todas las auditorias quedaban sueltas y el programa
+  // anual era una carpeta vacia. Si el formulario lo manda —el alta
+  // desde la ficha del programa lo hace— se respeta; si no, se busca el
+  // del año que corresponde.
+  let programaId = String(datos.get("programa_id") ?? "") || null;
+  if (!programaId) {
+    const { data: delAnio } = await supabase
+      .from("programas_auditoria")
+      .select("id")
+      .eq("anio", Number(fechaPlanificada.slice(0, 4)))
+      .maybeSingle();
+
+    programaId = (delAnio as { id: string } | null)?.id ?? null;
+  }
+
   // Una auditoria puede abarcar varios procesos. Llegan como varias
   // casillas con el mismo nombre.
   const procesos = datos
@@ -112,7 +132,7 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
     .from("auditorias")
     .insert({
       empresa_id: usuario.empresa_id,
-      programa_id: String(datos.get("programa_id") ?? "") || null,
+      programa_id: programaId,
       codigo,
       tipo: String(datos.get("tipo") ?? "por_proceso"),
       // El primero de los elegidos queda tambien en `proceso_id`, que es
@@ -175,6 +195,7 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
   }
 
   revalidatePath("/auditorias");
+  if (programaId) revalidatePath(`/auditorias/programas/${programaId}`);
   return { exito: true, id: auditoria.id, mensaje: `Auditoría ${auditoria.codigo} planificada.` };
 }
 
@@ -189,24 +210,198 @@ export async function actualizarAuditoria(
 
   const supabase = crearClienteServidor();
 
+  const objetivo = String(datos.get("objetivo") ?? "").trim();
+  if (objetivo.length < 10) {
+    return { exito: false, error: "Describa el objetivo con al menos 10 caracteres." };
+  }
+
+  const fechaPlanificada = String(datos.get("fecha_planificada") ?? "");
+  if (!fechaPlanificada) {
+    return { exito: false, error: "La auditoría necesita una fecha planificada." };
+  }
+
+  // Al mover la fecha a otro año, la auditoría pasa al programa de ese
+  // año. Si no hay programa para el año nuevo queda suelta, que es
+  // preferible a dejarla contada en un programa que no le corresponde.
+  const { data: delAnio } = await supabase
+    .from("programas_auditoria")
+    .select("id")
+    .eq("anio", Number(fechaPlanificada.slice(0, 4)))
+    .maybeSingle();
+
+  const { data: antes } = await supabase
+    .from("auditorias")
+    .select("programa_id")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("auditorias")
     .update({
-      objetivo: String(datos.get("objetivo") ?? "").trim(),
+      programa_id: (delAnio as { id: string } | null)?.id ?? null,
+      objetivo,
       alcance: String(datos.get("alcance") ?? "").trim() || null,
       criterios: String(datos.get("criterios") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: String(datos.get("auditor_lider_id") ?? "") || null,
-      fecha_planificada: String(datos.get("fecha_planificada") ?? "") || null,
+      fecha_planificada: fechaPlanificada,
+      fecha_aviso: String(datos.get("fecha_aviso") ?? "") || null,
     })
     .eq("id", id);
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
+  revalidatePath("/auditorias");
   revalidatePath(`/auditorias/${id}`);
-  return { exito: true, mensaje: "Auditoría actualizada." };
+  for (const programa of [(antes as { programa_id: string | null } | null)?.programa_id,
+                          (delAnio as { id: string } | null)?.id]) {
+    if (programa) revalidatePath(`/auditorias/programas/${programa}`);
+  }
+
+  return { exito: true, mensaje: "Plan de auditoría guardado." };
+}
+
+/**
+ * Baja de una auditoria.
+ *
+ * NO SE BORRA UNA AUDITORIA CON HALLAZGOS QUE YA GENERARON UNA NO
+ * CONFORMIDAD. La NC es el registro que la auditoría exige para cerrar,
+ * y borrar de dónde salió la deja sin origen: la trazabilidad se corta
+ * justo donde ISO pide que exista. Primero se resuelve la NC.
+ *
+ * Los hallazgos sin NC sí se van con ella, y antes sus evidencias: si se
+ * borrara la fila y después fallara el borrado de los archivos,
+ * quedarían adjuntos apuntando a un hallazgo inexistente que nadie va a
+ * encontrar para limpiar.
+ */
+export async function eliminarAuditoria(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite eliminar auditorías." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: auditoria } = await supabase
+    .from("auditorias")
+    .select("codigo, programa_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!auditoria) {
+    return { exito: false, error: "La auditoría no existe o no tiene acceso." };
+  }
+
+  const { data: hallazgos } = await supabase
+    .from("auditoria_hallazgos")
+    .select("id, codigo, no_conformidad_id")
+    .eq("auditoria_id", id);
+
+  const lista = (hallazgos as { id: string; codigo: string; no_conformidad_id: string | null }[] | null) ?? [];
+  const conNc = lista.filter((hallazgo) => hallazgo.no_conformidad_id);
+
+  if (conNc.length > 0) {
+    return {
+      exito: false,
+      error:
+        `No se puede eliminar: ${conNc.length} hallazgo(s) ya generaron una no conformidad ` +
+        `(${conNc.map((hallazgo) => hallazgo.codigo).join(", ")}). ` +
+        "Borrar la auditoría dejaría esas NC sin origen.",
+    };
+  }
+
+  for (const hallazgo of lista) {
+    await eliminarHallazgo(hallazgo.id, id);
+  }
+
+  const { error } = await supabase.from("auditorias").delete().eq("id", id);
+  if (error) return { exito: false, error: `No se pudo eliminar la auditoría: ${error.message}` };
+
+  revalidatePath("/auditorias");
+  const programa = (auditoria as { programa_id: string | null }).programa_id;
+  if (programa) revalidatePath(`/auditorias/programas/${programa}`);
+
+  return {
+    exito: true,
+    mensaje: `Auditoría ${(auditoria as { codigo: string }).codigo} eliminada.`,
+  };
+}
+
+/** Edicion del programa anual: el nombre y el objetivo. */
+export async function actualizarProgramaAuditoria(
+  programaId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite editar el programa de auditorías." };
+  }
+
+  const nombre = String(datos.get("nombre") ?? "").trim();
+  if (nombre.length < 3) {
+    return { exito: false, error: "El nombre del programa debe tener al menos 3 caracteres." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // EL AÑO NO SE EDITA. Es lo que ata las auditorías a su programa, y
+  // cambiarlo las dejaría a todas en el año equivocado de una sola vez.
+  // Un programa de otro año es otro programa.
+  const { error } = await supabase
+    .from("programas_auditoria")
+    .update({
+      nombre,
+      objetivo: String(datos.get("objetivo") ?? "").trim() || null,
+    })
+    .eq("id", programaId);
+
+  if (error) return { exito: false, error: `No se pudo guardar el programa: ${error.message}` };
+
+  revalidatePath("/auditorias");
+  revalidatePath(`/auditorias/programas/${programaId}`);
+  return { exito: true, mensaje: "Programa actualizado." };
+}
+
+/**
+ * Baja del programa anual.
+ *
+ * NO SE BORRA UN PROGRAMA CON AUDITORIAS ADENTRO. Quedarían sueltas, sin
+ * año y fuera de todo avance, y nadie se enteraría hasta que el reporte
+ * del ejercicio apareciera incompleto.
+ */
+export async function eliminarProgramaAuditoria(programaId: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite eliminar el programa de auditorías." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { count } = await supabase
+    .from("auditorias")
+    .select("id", { count: "exact", head: true })
+    .eq("programa_id", programaId);
+
+  if ((count ?? 0) > 0) {
+    return {
+      exito: false,
+      error:
+        `No se puede eliminar: el programa tiene ${count} auditoría(s). ` +
+        "Elimínelas o muévalas de año antes.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("programas_auditoria")
+    .delete()
+    .eq("id", programaId);
+
+  if (error) return { exito: false, error: `No se pudo eliminar el programa: ${error.message}` };
+
+  revalidatePath("/auditorias");
+  return { exito: true, mensaje: "Programa eliminado." };
 }
 
 /**
@@ -443,6 +638,72 @@ export async function crearHallazgo(
   return { exito: true, mensaje: `Hallazgo ${codigo ?? ""} registrado.` };
 }
 
+/**
+ * Edicion de un hallazgo ya registrado.
+ *
+ * EL TIPO NO SE CAMBIA DESPUES DE GENERADA LA NO CONFORMIDAD. La NC
+ * nacio con la severidad que dice el tipo del hallazgo; moverlo despues
+ * dejaria a las dos diciendo cosas distintas sobre el mismo hecho. El
+ * texto si se corrige: una redaccion mejor del hallazgo no contradice
+ * nada.
+ */
+export async function actualizarHallazgo(
+  hallazgoId: string,
+  auditoriaId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite editar hallazgos." };
+  }
+
+  const descripcion = String(datos.get("descripcion") ?? "").trim();
+  if (descripcion.length < 15) {
+    return {
+      exito: false,
+      error: "Describa el hallazgo con al menos 15 caracteres: es la evidencia del informe.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: actual } = await supabase
+    .from("auditoria_hallazgos")
+    .select("no_conformidad_id, tipo")
+    .eq("id", hallazgoId)
+    .maybeSingle();
+
+  if (!actual) return { exito: false, error: "El hallazgo no existe o no tiene acceso." };
+
+  const yaTieneNc = Boolean((actual as { no_conformidad_id: string | null }).no_conformidad_id);
+  const tipoPedido = String(datos.get("tipo") ?? "");
+  const tipoActual = (actual as { tipo: string }).tipo;
+
+  if (yaTieneNc && tipoPedido && tipoPedido !== tipoActual) {
+    return {
+      exito: false,
+      error:
+        "El hallazgo ya generó una no conformidad: no se puede cambiar su tipo. " +
+        "El texto y la evidencia sí se pueden corregir.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("auditoria_hallazgos")
+    .update({
+      tipo: yaTieneNc ? tipoActual : tipoPedido || tipoActual,
+      descripcion,
+      evidencia: String(datos.get("evidencia") ?? "").trim() || null,
+      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+    })
+    .eq("id", hallazgoId);
+
+  if (error) return { exito: false, error: `No se pudo guardar el hallazgo: ${error.message}` };
+
+  revalidatePath(`/auditorias/${auditoriaId}`);
+  return { exito: true, mensaje: "Hallazgo actualizado." };
+}
+
 export async function eliminarHallazgo(
   hallazgoId: string,
   auditoriaId: string,
@@ -467,6 +728,21 @@ export async function eliminarHallazgo(
         "El hallazgo ya generó una no conformidad y no se puede eliminar. " +
         "Si corresponde, anule la no conformidad desde su ficha.",
     };
+  }
+
+  // LAS EVIDENCIAS PRIMERO. `adjuntos` es una tabla generica —`entidad`
+  // mas `entidad_id`—, asi que no hay clave foranea que las arrastre:
+  // borrando solo la fila del hallazgo quedaban los registros apuntando
+  // a un hallazgo inexistente y los archivos ocupando el bucket, sin
+  // ninguna pantalla desde donde encontrarlos para limpiarlos.
+  const { data: evidencias } = await supabase
+    .from("adjuntos")
+    .select("id")
+    .eq("entidad", "auditoria_hallazgos")
+    .eq("entidad_id", hallazgoId);
+
+  for (const evidencia of (evidencias as { id: string }[] | null) ?? []) {
+    await quitarAdjunto(supabase, evidencia.id, "auditoria_hallazgos", hallazgoId);
   }
 
   const { error } = await supabase.from("auditoria_hallazgos").delete().eq("id", hallazgoId);

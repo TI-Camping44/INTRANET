@@ -290,6 +290,20 @@ export const DECISION_POR_PRIORIDAD: Record<PrioridadOportunidad, string> = {
   baja: "Se registra y se revisa el período siguiente. Normalmente no se aborda.",
 };
 
+/**
+ * Relleno de las celdas en la matriz de oportunidades.
+ *
+ * AL REVES QUE EN LA DE RIESGOS: ahi el verde es la esquina tranquila y
+ * el rojo la que exige acción. Acá el índice alto es la oportunidad que
+ * conviene tomar, así que el verde va arriba a la derecha. Usar la misma
+ * escala en las dos matrices haría leer «peligro» donde dice «tómela».
+ */
+export const RELLENO_PRIORIDAD_OPORTUNIDAD: Record<PrioridadOportunidad, string> = {
+  alta: "bg-semaforo-bajo/25 hover:bg-semaforo-bajo/40",
+  media: "bg-semaforo-medio/25 hover:bg-semaforo-medio/40",
+  baja: "bg-atenuado hover:bg-acento",
+};
+
 export const CLASES_PRIORIDAD: Record<PrioridadOportunidad, string> = {
   alta: "bg-semaforo-bajo/15 text-semaforo-bajo border-semaforo-bajo/30",
   media: "bg-semaforo-medio/15 text-semaforo-medio border-semaforo-medio/30",

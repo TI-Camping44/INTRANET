@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardCheck, Plus } from "lucide-react";
+import { ChevronRight, ClipboardCheck, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
@@ -144,31 +144,60 @@ export default async function PaginaAuditorias({
         />
       </div>
 
-      {programaVigente ? (
-        <Tarjeta className="mb-4 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="flex items-center gap-2 text-xs font-semibold">
-                {programaVigente.nombre}
-                <InsigniaEstadoAuditoria estado={programaVigente.estado as EstadoAuditoria} />
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
-                {programaVigente.objetivo ?? "Sin objetivo declarado."}
-              </p>
-              {programaVigente.fecha_aprobacion ? (
-                <p className="mt-1 text-[11px] text-atenuado-contraste">
-                  Aprobado el {formatearFecha(programaVigente.fecha_aprobacion)}
-                </p>
-              ) : (
-                <p className="mt-1 text-[11px] text-semaforo-medio">
-                  Pendiente de aprobación del Administrador SGC
-                </p>
-              )}
-            </div>
-            <span className="text-2xl font-semibold tabular">{avance}%</span>
-          </div>
-          <Progreso value={avance} className="mt-3" />
-        </Tarjeta>
+      {/* Los programas anuales. Cada uno se abre: adentro está el
+          calendario del año con los días agendados, y de cada día se
+          llega a la auditoría para completar su plan. */}
+      {listaProgramas.length > 0 ? (
+        <div className="mb-4 space-y-2">
+          {listaProgramas.map((programa) => {
+            const suyas = auditorias.filter(
+              (auditoria) => (auditoria.fecha_planificada ?? "").slice(0, 4) === String(programa.anio),
+            );
+            const suyasCerradas = suyas.filter(
+              (auditoria) => auditoria.estado === "cerrada",
+            ).length;
+            const suAvance =
+              suyas.length > 0 ? Math.round((suyasCerradas / suyas.length) * 100) : 0;
+
+            return (
+              <Link
+                key={programa.id}
+                href={`/auditorias/programas/${programa.id}`}
+                className="block"
+              >
+                <Tarjeta className="p-4 transition-colors hover:border-primario/40">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                        {programa.nombre}
+                        <InsigniaEstadoAuditoria estado={programa.estado as EstadoAuditoria} />
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+                        {programa.objetivo ?? "Sin objetivo declarado."}
+                      </p>
+                      {programa.fecha_aprobacion ? (
+                        <p className="mt-1 text-[11px] text-atenuado-contraste">
+                          Aprobado el {formatearFecha(programa.fecha_aprobacion)} ·{" "}
+                          {suyas.length} auditoría{suyas.length === 1 ? "" : "s"}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-semaforo-medio">
+                          Pendiente de aprobación del Administrador SGC ·{" "}
+                          {suyas.length} auditoría{suyas.length === 1 ? "" : "s"}
+                        </p>
+                      )}
+                    </div>
+                    <span className="flex items-center gap-2">
+                      <span className="text-2xl font-semibold tabular">{suAvance}%</span>
+                      <ChevronRight className="size-4 text-atenuado-contraste" />
+                    </span>
+                  </div>
+                  <Progreso value={suAvance} className="mt-3" />
+                </Tarjeta>
+              </Link>
+            );
+          })}
+        </div>
       ) : null}
 
       <FiltrosListado

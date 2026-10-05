@@ -16,6 +16,9 @@ export interface Persona {
   superior_id: string | null;
   puesto_id: string | null;
   puestos: { nombre: string; area: string | null } | null;
+  /** El segundo puesto, cuando la persona ocupa dos. */
+  puesto_secundario_id: string | null;
+  segundo: { nombre: string; area: string | null } | null;
   procesos: { nombre: string } | null;
 }
 

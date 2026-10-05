@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { Entrada, GrupoCampo } from "@/components/ui/campo";
+import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import {
   Dialogo,
   DialogoCabecera,
@@ -24,16 +24,24 @@ import type { FilaPuesto } from "@/app/(sgc)/recursos-humanos/puestos/page";
 /**
  * Alta, edición y baja de un puesto.
  *
- * DOS CAMPOS Y NADA MÁS: nombre del puesto y departamento. Lo pidió
- * Dirección el 5 de octubre. Salieron el código —los P-101 los definió
- * el proyecto y Calidad nunca los confirmó—, el proceso y la misión del
- * puesto: lo que describe el puesto es el perfil firmado, que se adjunta
- * en PDF, no un campo de texto que nadie mantiene.
+ * TRES CAMPOS: nombre del puesto, departamento y a qué empresa del
+ * grupo corresponde. Los dos primeros los pidió Dirección el 5 de
+ * octubre; la empresa se sumó después, porque el grupo son dos.
+ * Salieron el código —los P-101 los definió el proyecto y Calidad nunca
+ * los confirmó—, el proceso y la misión del puesto: lo que describe el
+ * puesto es el perfil firmado, que se adjunta en PDF, no un campo de
+ * texto que nadie mantiene.
  *
  * Al dar de alta se puede subir el perfil en el mismo paso, para no
  * obligar a guardar y volver a entrar.
  */
-export function FormularioPuesto({ puesto }: { puesto?: FilaPuesto }) {
+export function FormularioPuesto({
+  puesto,
+  empresas,
+}: {
+  puesto?: FilaPuesto;
+  empresas: { id: string; nombre: string }[];
+}) {
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
@@ -106,6 +114,29 @@ export function FormularioPuesto({ puesto }: { puesto?: FilaPuesto }) {
                   placeholder="Vendedor de salón"
                   defaultValue={puesto?.nombre ?? ""}
                 />
+              </GrupoCampo>
+
+              <GrupoCampo
+                etiqueta="Empresa"
+                htmlFor="empresa_del_puesto_id"
+                requerido
+                ayuda="A cuál de las dos empresas del grupo corresponde el puesto."
+              >
+                <Seleccion
+                  id="empresa_del_puesto_id"
+                  name="empresa_del_puesto_id"
+                  required
+                  defaultValue={puesto?.empresa_del_puesto_id ?? empresas[0]?.id ?? ""}
+                >
+                  <option value="" disabled>
+                    Elija la empresa…
+                  </option>
+                  {empresas.map((empresa) => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nombre}
+                    </option>
+                  ))}
+                </Seleccion>
               </GrupoCampo>
 
               <GrupoCampo etiqueta="Departamento" htmlFor="area">

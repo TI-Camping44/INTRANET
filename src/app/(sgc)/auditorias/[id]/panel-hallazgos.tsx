@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Paperclip, Plus, TriangleAlert, Trash2 } from "lucide-react";
+import { Paperclip, Pencil, Plus, TriangleAlert, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Aviso, AvisoDescripcion } from "@/components/ui/aviso";
@@ -20,6 +20,7 @@ import {
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import {
+  actualizarHallazgo,
   crearHallazgo,
   eliminarHallazgo,
   generarNoConformidad,
@@ -36,6 +37,7 @@ interface Hallazgo {
   requisito: string | null;
   descripcion: string;
   evidencia: string | null;
+  proceso_id: string | null;
   no_conformidad_id: string | null;
   procesos: { nombre: string } | null;
   no_conformidad: { codigo: string; estado: string } | null;
@@ -79,6 +81,7 @@ export function PanelHallazgos({
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
   const [generando, definirGenerando] = React.useState<Hallazgo | null>(null);
+  const [editando, definirEditando] = React.useState<Hallazgo | null>(null);
   const [procesando, definirProcesando] = React.useState(false);
   const [responsable, definirResponsable] = React.useState("");
   const [fechaLimite, definirFechaLimite] = React.useState(sumarDias(hoyEnAsuncion(), 30));
@@ -117,6 +120,27 @@ export function PanelHallazgos({
       toast.success(resultado.mensaje ?? "No conformidad generada.");
       definirGenerando(null);
       definirResponsable("");
+      router.refresh();
+    } else {
+      toast.error(resultado.error);
+    }
+  }
+
+  async function guardarEdicion(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (!editando) return;
+
+    definirProcesando(true);
+    const resultado = await actualizarHallazgo(
+      editando.id,
+      auditoriaId,
+      new FormData(evento.currentTarget),
+    );
+    definirProcesando(false);
+
+    if (resultado.exito) {
+      toast.success(resultado.mensaje ?? "Hallazgo actualizado.");
+      definirEditando(null);
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -207,15 +231,27 @@ export function PanelHallazgos({
                   ) : null}
                 </div>
 
-                {puedeEditar && !hallazgo.no_conformidad_id ? (
-                  <button
-                    type="button"
-                    onClick={() => borrar(hallazgo)}
-                    className="text-atenuado-contraste transition-colors hover:text-semaforo-critico"
-                    aria-label="Eliminar hallazgo"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                {puedeEditar ? (
+                  <span className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => definirEditando(hallazgo)}
+                      className="text-atenuado-contraste transition-colors hover:text-primario"
+                      aria-label="Editar hallazgo"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    {hallazgo.no_conformidad_id ? null : (
+                      <button
+                        type="button"
+                        onClick={() => borrar(hallazgo)}
+                        className="text-atenuado-contraste transition-colors hover:text-semaforo-critico"
+                        aria-label="Eliminar hallazgo"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
+                  </span>
                 ) : null}
               </div>
 
@@ -263,6 +299,96 @@ export function PanelHallazgos({
           </Boton>
         </div>
       ) : null}
+
+      {/* Edición de un hallazgo ya registrado. Los archivos de evidencia
+          no se tocan acá: se suman al registrarlo y se quitan desde su
+          propia lista. */}
+      <Dialogo
+        open={editando !== null}
+        onOpenChange={(abre) => (abre ? null : definirEditando(null))}
+      >
+        <DialogoContenido>
+          {editando ? (
+            <form onSubmit={guardarEdicion}>
+              <DialogoCabecera>
+                <DialogoTitulo>Editar el hallazgo {editando.codigo ?? ""}</DialogoTitulo>
+                <DialogoDescripcion>
+                  {editando.no_conformidad_id
+                    ? "Ya generó una no conformidad: el tipo queda fijo para que las dos digan lo mismo. El texto sí se corrige."
+                    : "El tipo decide si el hallazgo deriva en una no conformidad."}
+                </DialogoDescripcion>
+              </DialogoCabecera>
+
+              <div className="mt-4 space-y-3">
+                <GrupoCampo etiqueta="Tipo de hallazgo" htmlFor="tipo-editar" requerido>
+                  <Seleccion
+                    id="tipo-editar"
+                    name="tipo"
+                    defaultValue={editando.tipo}
+                    disabled={Boolean(editando.no_conformidad_id)}
+                  >
+                    {TIPOS_HALLAZGO_VIGENTES.map((valor) => (
+                      <option key={valor} value={valor}>
+                        {ETIQUETAS_TIPO_HALLAZGO[valor]}
+                      </option>
+                    ))}
+                  </Seleccion>
+                </GrupoCampo>
+
+                <GrupoCampo etiqueta="Descripción" htmlFor="descripcion-editar" requerido>
+                  <AreaTexto
+                    id="descripcion-editar"
+                    name="descripcion"
+                    rows={3}
+                    required
+                    minLength={15}
+                    defaultValue={editando.descripcion}
+                  />
+                </GrupoCampo>
+
+                <GrupoCampo
+                  etiqueta="Evidencia objetiva"
+                  htmlFor="evidencia-editar"
+                  ayuda="Qué se verificó y cómo. Sostiene el hallazgo ante una auditoría externa."
+                >
+                  <AreaTexto
+                    id="evidencia-editar"
+                    name="evidencia"
+                    rows={2}
+                    defaultValue={editando.evidencia ?? ""}
+                  />
+                </GrupoCampo>
+
+                <GrupoCampo etiqueta="Proceso" htmlFor="proceso-editar">
+                  <Seleccion
+                    id="proceso-editar"
+                    name="proceso_id"
+                    defaultValue={editando.proceso_id ?? ""}
+                  >
+                    <option value="">El de la auditoría</option>
+                    {procesos.map((proceso) => (
+                      <option key={proceso.id} value={proceso.id}>
+                        {proceso.nombre}
+                      </option>
+                    ))}
+                  </Seleccion>
+                </GrupoCampo>
+              </div>
+
+              <DialogoPie className="mt-5">
+                <DialogoCierre asChild>
+                  <Boton type="button" variante="contorno">
+                    Cancelar
+                  </Boton>
+                </DialogoCierre>
+                <Boton type="submit" cargando={procesando}>
+                  Guardar cambios
+                </Boton>
+              </DialogoPie>
+            </form>
+          ) : null}
+      </DialogoContenido>
+      </Dialogo>
 
       {/* Alta de hallazgo */}
       <Dialogo open={abierto} onOpenChange={definirAbierto}>

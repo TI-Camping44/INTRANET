@@ -8,7 +8,11 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 export const metadata: Metadata = { title: "Nueva auditoría" };
 export const dynamic = "force-dynamic";
 
-export default async function PaginaNuevaAuditoria() {
+export default async function PaginaNuevaAuditoria({
+  searchParams,
+}: {
+  searchParams: { programa?: string };
+}) {
   const usuario = await requerirUsuario();
   if (!puedeGestionarAuditorias(usuario)) redirect("/sin-acceso?motivo=permisos");
 
@@ -17,6 +21,11 @@ export default async function PaginaNuevaAuditoria() {
   // Calidad saco del alta el programa anual, la sede y la norma de
   // referencia: los tres se completaban siempre igual o se dejaban
   // vacios. Las columnas siguen en la tabla y se editan en la ficha.
+  //
+  // El programa igual se liga solo: al guardar, la auditoria entra al
+  // programa del ano de su fecha planificada. Cuando el alta se abre
+  // desde la ficha de un programa, ese id viaja por la direccion y manda
+  // sobre el calculo por ano.
   const [{ data: procesos }, { data: usuarios }] = await Promise.all([
     supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("codigo"),
     supabase
@@ -36,6 +45,7 @@ export default async function PaginaNuevaAuditoria() {
         procesos={procesos ?? []}
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}
+        programaId={searchParams.programa ?? null}
       />
     </div>
   );

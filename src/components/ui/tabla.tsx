@@ -1,15 +1,29 @@
 import * as React from "react";
 import { cn } from "@/lib/utilidades";
+import { DesplazamientoDoble } from "@/components/ui/desplazamiento-doble";
+
+interface PropiedadesTabla extends React.HTMLAttributes<HTMLTableElement> {
+  /**
+   * Agrega una segunda barra de desplazamiento horizontal arriba de la
+   * tabla. Se usa en los listados anchos —riesgos, oportunidades—, donde
+   * llegar a la barra de abajo obliga a recorrer todas las filas.
+   */
+  barraSuperior?: boolean;
+}
 
 /** Tabla densa: la interfaz se mira en pantalla grande y prioriza el dato. */
-const Tabla = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
+const Tabla = React.forwardRef<HTMLTableElement, PropiedadesTabla>(
+  ({ className, barraSuperior, ...props }, ref) => {
+    const tabla = (
+      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+    );
+
+    if (barraSuperior) return <DesplazamientoDoble className="w-full">{tabla}</DesplazamientoDoble>;
+
     // `desplazable-x` pone la sombra del borde cuando la tabla sigue mas
     // alla de la pantalla. Ver la utilidad en `globals.css`.
-    <div className="desplazable-x w-full overflow-x-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
+    return <div className="desplazable-x w-full overflow-x-auto">{tabla}</div>;
+  },
 );
 Tabla.displayName = "Tabla";
 

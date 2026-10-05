@@ -7,6 +7,7 @@ import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import { InsigniaEstadoAuditoria } from "@/components/comunes/insignias-estado";
 import { PanelEjecucion } from "@/app/(sgc)/auditorias/[id]/panel-ejecucion";
 import { PanelHallazgos } from "@/app/(sgc)/auditorias/[id]/panel-hallazgos";
+import { PanelPlan } from "@/app/(sgc)/auditorias/[id]/panel-plan";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import {
@@ -36,6 +37,9 @@ interface AuditoriaDetalle {
   fecha_fin: string | null;
   estado: EstadoAuditoria;
   auditor_lider_id: string | null;
+  proceso_id: string | null;
+  fecha_aviso: string | null;
+  programa_id: string | null;
   procesos: { nombre: string } | null;
   normas: { codigo: string } | null;
   sedes: { nombre: string } | null;
@@ -159,18 +163,30 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
         <Insignia variante="contorno">
           {ETIQUETAS_TIPO_AUDITORIA[auditoria.tipo] ?? auditoria.tipo}
         </Insignia>
-        {auditoria.programas_auditoria ? (
-          <Insignia variante="neutra">
-            {auditoria.programas_auditoria.nombre} ({auditoria.programas_auditoria.anio})
+        {auditoria.programas_auditoria && auditoria.programa_id ? (
+          <Link href={`/auditorias/programas/${auditoria.programa_id}`}>
+            <Insignia variante="neutra" className="hover:border-primario/50">
+              {auditoria.programas_auditoria.nombre} ({auditoria.programas_auditoria.anio})
+            </Insignia>
+          </Link>
+        ) : (
+          <Insignia variante="contorno" className="text-semaforo-medio">
+            Sin programa anual
           </Insignia>
-        ) : null}
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <Tarjeta>
-            <TarjetaCabecera>
+            <TarjetaCabecera className="flex-row items-center justify-between">
               <TarjetaTitulo>Plan de auditoría</TarjetaTitulo>
+              <PanelPlan
+                auditoria={auditoria}
+                procesos={(procesos as { id: string; nombre: string }[] | null) ?? []}
+                personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
+                puedeEditar={gestiona}
+              />
             </TarjetaCabecera>
             <TarjetaContenido className="space-y-3 text-xs leading-relaxed">
               <Bloque titulo="Objetivo" texto={auditoria.objetivo} />

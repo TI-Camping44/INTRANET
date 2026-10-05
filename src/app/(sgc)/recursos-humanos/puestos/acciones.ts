@@ -17,6 +17,13 @@ import type { ResultadoAccion } from "@/lib/tipos";
  * EL PUESTO NO LLEVA CODIGO. Los P-101 en adelante los definio el
  * proyecto y Calidad nunca los confirmo; la columna sigue existiendo
  * para los diecisiete ya cargados, pero el formulario dejo de pedirla.
+ *
+ * LA EMPRESA DEL PUESTO VA EN `empresa_del_puesto_id`, NO EN
+ * `empresa_id`. Esta ultima es la llave de inquilino que mira RLS: un
+ * puesto guardado con el id de Vitalica ahi dentro no pasaria el
+ * `with check` de la politica, y si pasara desapareceria de la pantalla.
+ * La empresa del grupo es un dato del puesto y se guarda aparte, igual
+ * que `empresa_afectada_id` en la no conformidad.
  */
 
 /** Devuelve el mensaje del primer problema, o null si esta todo bien. */
@@ -24,6 +31,9 @@ function revisarCampos(datos: FormData): string | null {
   const nombre = String(datos.get("nombre") ?? "").trim();
   if (nombre.length < 3) {
     return "El nombre del puesto debe tener al menos 3 caracteres.";
+  }
+  if (!String(datos.get("empresa_del_puesto_id") ?? "").trim()) {
+    return "Indique a qué empresa del grupo corresponde el puesto.";
   }
   return null;
 }
@@ -43,6 +53,7 @@ export async function crearPuestoDePerfil(datos: FormData): Promise<ResultadoAcc
     .from("puestos")
     .insert({
       empresa_id: usuario.empresa_id,
+      empresa_del_puesto_id: String(datos.get("empresa_del_puesto_id") ?? "").trim() || null,
       nombre: String(datos.get("nombre") ?? "").trim(),
       area: String(datos.get("area") ?? "").trim() || null,
       activo: true,
@@ -83,6 +94,7 @@ export async function actualizarPuesto(id: string, datos: FormData): Promise<Res
   const { data: actualizado, error } = await supabase
     .from("puestos")
     .update({
+      empresa_del_puesto_id: String(datos.get("empresa_del_puesto_id") ?? "").trim() || null,
       nombre: String(datos.get("nombre") ?? "").trim(),
       area: String(datos.get("area") ?? "").trim() || null,
     })
@@ -116,10 +128,12 @@ export async function eliminarPuesto(id: string): Promise<ResultadoAccion> {
 
   const supabase = crearClienteServidor();
 
+  // Las DOS columnas: una persona puede tener este puesto como segundo.
+  // Mirando solo `puesto_id` se borraria un puesto que alguien ocupa.
   const { count } = await supabase
     .from("usuarios")
     .select("id", { count: "exact", head: true })
-    .eq("puesto_id", id)
+    .or(`puesto_id.eq.${id},puesto_secundario_id.eq.${id}`)
     .eq("activo", true);
 
   if ((count ?? 0) > 0) {
@@ -233,7 +247,7 @@ export async function eliminarPerfilDePuesto(
  * `usuarios_proteger_perfil` lo impide del otro lado aunque alguien lo
  * intente contra la API.
  *
- * Con el puesto vacio se la saca del puesto y vuelve a la lista. Es la
+ * Con el puesto vacio se la saca de los dos y vuelve a la lista. Es la
  * forma de liberar un puesto antes de eliminarlo.
  */
 export async function asignarPuestoAPersona(
@@ -247,9 +261,15 @@ export async function asignarPuestoAPersona(
 
   const supabase = crearClienteServidor();
 
+  // Sin puesto principal no puede quedar un segundo colgado: lo impide el
+  // CHECK de la tabla, asi que los dos se limpian juntos.
+  const cambios = puestoId
+    ? { puesto_id: puestoId }
+    : { puesto_id: null, puesto_secundario_id: null };
+
   const { data: actualizado, error } = await supabase
     .from("usuarios")
-    .update({ puesto_id: puestoId })
+    .update(cambios)
     .eq("id", usuarioId)
     .select("nombre_completo")
     .maybeSingle();
@@ -267,4 +287,119 @@ export async function asignarPuestoAPersona(
       ? `Puesto asignado a ${actualizado.nombre_completo}.`
       : `${actualizado.nombre_completo} quedó sin puesto.`,
   };
+}
+
+/**
+ * Sumar una persona a un puesto, desde la ficha del puesto.
+ *
+ * HASTA DOS PUESTOS POR PERSONA. El tercero no entra, y no por una
+ * validación de pantalla: la tabla tiene dos columnas y no hay dónde
+ * escribirlo. Acá se decide en cuál de las dos va —la principal si está
+ * libre, la segunda si no— y se explica el rechazo cuando ya tiene las
+ * dos ocupadas, que es lo único que la persona necesita saber.
+ */
+export async function sumarPersonaAPuesto(
+  usuarioId: string,
+  puestoId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!esAdministrador(usuario)) {
+    return { exito: false, error: "Solo el Administrador SGC puede asignar puestos." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: persona } = await supabase
+    .from("usuarios")
+    .select("nombre_completo, puesto_id, puesto_secundario_id")
+    .eq("id", usuarioId)
+    .maybeSingle();
+
+  if (!persona) return { exito: false, error: "La persona no existe o no tiene acceso." };
+
+  const actual = persona as {
+    nombre_completo: string;
+    puesto_id: string | null;
+    puesto_secundario_id: string | null;
+  };
+
+  if (actual.puesto_id === puestoId || actual.puesto_secundario_id === puestoId) {
+    return { exito: false, error: `${actual.nombre_completo} ya está en este puesto.` };
+  }
+
+  if (actual.puesto_id && actual.puesto_secundario_id) {
+    return {
+      exito: false,
+      error:
+        `${actual.nombre_completo} ya ocupa dos puestos, que es el máximo. ` +
+        "Quítele uno antes de asignarle este.",
+    };
+  }
+
+  const cambios = actual.puesto_id
+    ? { puesto_secundario_id: puestoId }
+    : { puesto_id: puestoId };
+
+  const { error } = await supabase.from("usuarios").update(cambios).eq("id", usuarioId);
+  if (error) return { exito: false, error: `No se pudo asignar el puesto: ${error.message}` };
+
+  revalidatePath("/recursos-humanos/puestos");
+  revalidatePath(`/recursos-humanos/puestos/${puestoId}`);
+  revalidatePath("/directorio");
+
+  return {
+    exito: true,
+    mensaje: `${actual.nombre_completo} quedó asignado a este puesto.`,
+  };
+}
+
+/**
+ * Sacar a una persona de un puesto, desde la ficha del puesto.
+ *
+ * Si sale del principal y tenía un segundo, el segundo pasa a ser el
+ * principal: la tabla no admite un segundo puesto sin el primero, y
+ * dejarla sin puesto cuando todavía ocupa uno seria perder el dato.
+ */
+export async function quitarPersonaDePuesto(
+  usuarioId: string,
+  puestoId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!esAdministrador(usuario)) {
+    return { exito: false, error: "Solo el Administrador SGC puede quitar puestos." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: persona } = await supabase
+    .from("usuarios")
+    .select("nombre_completo, puesto_id, puesto_secundario_id")
+    .eq("id", usuarioId)
+    .maybeSingle();
+
+  if (!persona) return { exito: false, error: "La persona no existe o no tiene acceso." };
+
+  const actual = persona as {
+    nombre_completo: string;
+    puesto_id: string | null;
+    puesto_secundario_id: string | null;
+  };
+
+  let cambios: Record<string, string | null>;
+  if (actual.puesto_id === puestoId) {
+    cambios = { puesto_id: actual.puesto_secundario_id, puesto_secundario_id: null };
+  } else if (actual.puesto_secundario_id === puestoId) {
+    cambios = { puesto_secundario_id: null };
+  } else {
+    return { exito: false, error: `${actual.nombre_completo} no está en este puesto.` };
+  }
+
+  const { error } = await supabase.from("usuarios").update(cambios).eq("id", usuarioId);
+  if (error) return { exito: false, error: `No se pudo quitar el puesto: ${error.message}` };
+
+  revalidatePath("/recursos-humanos/puestos");
+  revalidatePath(`/recursos-humanos/puestos/${puestoId}`);
+  revalidatePath("/directorio");
+
+  return { exito: true, mensaje: `${actual.nombre_completo} salió de este puesto.` };
 }

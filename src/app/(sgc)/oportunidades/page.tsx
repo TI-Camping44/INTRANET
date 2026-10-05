@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Lightbulb, Plus } from "lucide-react";
+import { Grid3x3, Lightbulb, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import {
@@ -136,6 +136,13 @@ export default async function PaginaOportunidades({
             <Boton variante="fantasma" comoHijo>
               <Link href="/riesgos">Riesgos</Link>
             </Boton>
+            {/* La matriz es la misma pantalla que la de riesgos: ahí
+                están las dos, una debajo de la otra. */}
+            <Boton variante="contorno" comoHijo>
+              <Link href="/riesgos/matriz">
+                <Grid3x3 /> Ver matriz
+              </Link>
+            </Boton>
             {puedeGestionar(usuario) ? (
               <Boton comoHijo>
                 <Link href="/oportunidades/nueva">
@@ -199,7 +206,7 @@ export default async function PaginaOportunidades({
               tabla se desplaza en horizontal por su cuenta y el código
               queda fijo a la izquierda. Las columnas de párrafo van
               recortadas a una línea, con el texto entero al señalar. */}
-          <Tabla>
+          <Tabla barraSuperior>
             <TablaCabecera>
               <TablaFila>
                 <TablaEncabezado className="sticky left-0 z-10 w-[7.5rem] bg-fondo">

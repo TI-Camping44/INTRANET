@@ -292,7 +292,7 @@ export default async function PaginaRiesgos({
               texto entero al señalar: una tabla donde cada fila mide
               cuatro renglones deja de servir para comparar filas, que es
               para lo que existe. El texto completo está en la ficha. */}
-          <Tabla>
+          <Tabla barraSuperior>
             <TablaCabecera>
               <TablaFila>
                 <TablaEncabezado className="sticky left-0 z-10 w-[7.5rem] bg-fondo">
