@@ -5,7 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
-import { esOrigenDeOportunidadValido, esOrigenValido } from "@/lib/riesgos";
+import { esOrigenDeOportunidadValido, esOrigenValido, requiereAcciones } from "@/lib/riesgos";
 import type { EstadoAccion, EstadoRiesgo, ResultadoAccion } from "@/lib/tipos";
 
 function validarEscala(valor: number): boolean {
@@ -19,13 +19,24 @@ function validarEscala(valor: number): boolean {
  * corregir, la obligatoriedad del alta seria decorativa.
  */
 const OBLIGATORIOS: { campo: string; nombre: string }[] = [
+  { campo: "proceso_id", nombre: "el proceso donde se identifica el riesgo" },
   { campo: "descripcion", nombre: "la descripción" },
-  { campo: "proceso_id", nombre: "el proceso afectado" },
-  { campo: "responsable_id", nombre: "el responsable" },
-  { campo: "causas", nombre: "las causas potenciales" },
-  { campo: "consecuencias", nombre: "las consecuencias potenciales" },
-  { campo: "controles_existentes", nombre: "los controles existentes" },
+  { campo: "causas", nombre: "la causa potencial" },
+  { campo: "consecuencias", nombre: "la consecuencia potencial" },
+  { campo: "asociado_disrupcion", nombre: "si está asociado a una disrupción" },
   { campo: "tratamiento", nombre: "la opción de tratamiento" },
+  { campo: "responsable_id", nombre: "el responsable" },
+];
+
+/**
+ * El plan, que se exige solo cuando el nivel lo exige.
+ *
+ * Medio para arriba requiere acciones —misma regla que
+ * `requiereAcciones` y que la columna generada de la base—. Para un
+ * riesgo bajo, pedir accion y plazo seria pedir que se invente un plan
+ * que nadie va a ejecutar: se asume y se vigila.
+ */
+const OBLIGATORIOS_PLAN_RIESGO: { campo: string; nombre: string }[] = [
   { campo: "accion_planificada", nombre: "la acción planificada" },
   { campo: "plazo_accion", nombre: "el plazo de la acción" },
 ];
@@ -88,13 +99,36 @@ function revisarCamposDeOportunidad(datos: FormData): string | null {
   return faltante ? `Falta completar ${faltante.nombre}.` : null;
 }
 
-/** Devuelve el mensaje del primer problema, o null si esta todo bien. */
+/**
+ * Devuelve el mensaje del primer problema, o null si esta todo bien.
+ *
+ * Calidad pidio la ficha completa el 5 de octubre: todos los campos de
+ * identificacion son obligatorios. El navegador ya los pide, pero eso es
+ * comodidad; el control es este.
+ *
+ * `asociado_disrupcion` se revisa como los demas y no como un booleano:
+ * el desplegable arranca vacio a proposito, y leerlo con
+ * `=== "si"` convertiria «no contestado» en «no» sin que nadie lo haya
+ * dicho.
+ */
 function revisarCamposDeRiesgo(datos: FormData): string | null {
   if (!esOrigenValido(String(datos.get("origen") ?? "").trim())) {
     return "Elija un origen de la lista.";
   }
 
-  const faltante = OBLIGATORIOS.find(
+  const disrupcion = String(datos.get("asociado_disrupcion") ?? "").trim();
+  if (disrupcion !== "si" && disrupcion !== "no") {
+    return "Indique si el riesgo está asociado a una disrupción.";
+  }
+
+  const probabilidad = Number(datos.get("probabilidad") ?? 0);
+  const severidad = Number(datos.get("severidad") ?? 0);
+  const pedidos =
+    validarEscala(probabilidad) && validarEscala(severidad) && requiereAcciones(probabilidad * severidad)
+      ? [...OBLIGATORIOS, ...OBLIGATORIOS_PLAN_RIESGO]
+      : OBLIGATORIOS;
+
+  const faltante = pedidos.find(
     (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
   );
   return faltante ? `Falta completar ${faltante.nombre}.` : null;

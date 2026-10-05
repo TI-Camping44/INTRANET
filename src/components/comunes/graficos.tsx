@@ -181,10 +181,13 @@ export function BarrasPorcentaje({
   titulo,
   filas,
   vacio = "Sin datos",
+  className,
 }: {
   titulo: string;
   filas: { etiqueta: string; valor: number }[];
   vacio?: string;
+  /** Para que un grafico de etiquetas largas ocupe las dos columnas. */
+  className?: string;
 }) {
   const total = filas.reduce((suma, fila) => suma + fila.valor, 0);
   const conDatos = filas
@@ -193,7 +196,7 @@ export function BarrasPorcentaje({
   const mayor = conDatos[0]?.valor ?? 0;
 
   return (
-    <div className="rounded-lg border border-borde bg-fondo p-4">
+    <div className={cn("rounded-lg border border-borde bg-fondo p-4", className)}>
       <p className="mb-3 text-xs font-semibold">{titulo}</p>
 
       {conDatos.length === 0 ? (

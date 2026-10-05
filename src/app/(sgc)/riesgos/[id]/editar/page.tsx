@@ -10,6 +10,7 @@ import {
 } from "@/app/(sgc)/riesgos/formulario-riesgo";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
+import { procesosDocumentados } from "@/lib/procesos-documentados";
 
 export const metadata: Metadata = { title: "Editar riesgo" };
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function PaginaEditarRiesgo({ params }: { params: { id: str
 
   const supabase = crearClienteServidor();
 
-  const [{ data: consulta }, { data: procesos }, { data: usuarios }] = await Promise.all([
+  const [{ data: consulta }, procesos, { data: usuarios }] = await Promise.all([
     supabase
       .from("riesgos")
       .select(
@@ -41,7 +42,7 @@ export default async function PaginaEditarRiesgo({ params }: { params: { id: str
       )
       .eq("id", params.id)
       .maybeSingle(),
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).order("nombre"),
+    procesosDocumentados(supabase),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
@@ -67,7 +68,7 @@ export default async function PaginaEditarRiesgo({ params }: { params: { id: str
       />
 
       <FormularioRiesgo
-        procesos={procesos ?? []}
+        procesos={procesos}
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}
         inicial={riesgo}

@@ -40,9 +40,19 @@ export const DECISION_POR_NIVEL: Record<NivelRiesgo, string> = {
     "Requiere acción inmediata y aprobación de la alta dirección. Se revisa en la primera reunión disponible.",
 };
 
-/** De nivel 4 para arriba hace falta plan. Igual que en la base. */
-export function requiereAccion(nivel: number | null | undefined): boolean {
-  return nivel !== null && nivel !== undefined && nivel >= 4;
+/**
+ * ¿Requiere acciones? Medio, alto y critico si; bajo no.
+ *
+ * El corte es el del semaforo del proyecto: 1-4 es bajo. Lo fijo Calidad
+ * el 5 de octubre de 2026, y cambio lo que el instructivo decia antes
+ * —«de nivel 4 para arriba hace falta plan»—, que dejaba un riesgo de
+ * nivel 4, bajo, pidiendo plan.
+ *
+ * LA MISMA REGLA ESTA EN LA BASE, en la columna generada
+ * `riesgos.requiere_accion`. Si cambia, cambia en los dos lados.
+ */
+export function requiereAcciones(nivel: number | null | undefined): boolean {
+  return nivel !== null && nivel !== undefined && nivel >= 5;
 }
 
 /** Clases de Tailwind para el semaforo, con contraste suficiente en ambos temas. */
@@ -51,6 +61,38 @@ export const CLASES_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
   medio: "bg-semaforo-medio/15 text-semaforo-medio border-semaforo-medio/30",
   alto: "bg-semaforo-alto/15 text-semaforo-alto border-semaforo-alto/30",
   critico: "bg-semaforo-critico/15 text-semaforo-critico border-semaforo-critico/30",
+};
+
+/** Los cuatro niveles del semaforo, de menor a mayor. */
+export const NIVELES_RIESGO: NivelRiesgo[] = ["bajo", "medio", "alto", "critico"];
+
+/**
+ * Colores del semaforo ya resueltos, para los graficos.
+ *
+ * Salen de las variables del tema y no de un hexadecimal: asi el grafico
+ * funciona igual en modo claro y oscuro, que es regla del proyecto.
+ */
+export const COLOR_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
+  bajo: "hsl(var(--semaforo-bajo))",
+  medio: "hsl(var(--semaforo-medio))",
+  alto: "hsl(var(--semaforo-alto))",
+  critico: "hsl(var(--semaforo-critico))",
+};
+
+/**
+ * Colores del estado del riesgo.
+ *
+ * No es un semaforo: es el recorrido del riesgo. «Materializado» va en
+ * rojo porque es el unico estado que significa que algo salio mal;
+ * «controlado» en verde porque es donde se lo quiere; los demas en
+ * neutro, que es lo que son.
+ */
+export const COLOR_ESTADO_RIESGO: Record<string, string> = {
+  identificado: "hsl(var(--primario))",
+  en_tratamiento: "hsl(var(--semaforo-medio))",
+  controlado: "hsl(var(--semaforo-bajo))",
+  materializado: "hsl(var(--semaforo-critico))",
+  cerrado: "hsl(var(--atenuado-contraste))",
 };
 
 /** Relleno solido para las celdas de la matriz. */
@@ -128,9 +170,13 @@ export const EFECTO_DEL_TRATAMIENTO: Record<
     explicacion:
       "El residual es igual al inherente. Debe registrarse quién tomó la decisión y con qué fundamento.",
   },
-  mitigar: { baja: "ambas", explicacion: "Opción retirada. Reemplácela por una de las seis vigentes." },
+  mitigar: { baja: "ambas", explicacion: "Opción retirada. Reemplácela por una de las siete vigentes." },
   transferir: { baja: "ambas", explicacion: "Opción retirada. Reemplácela por «Compartir el riesgo»." },
-  aceptar: { baja: "ninguna", explicacion: "Opción retirada. Reemplácela por «Asumir por decisión informada»." },
+  aceptar: {
+    baja: "ninguna",
+    explicacion:
+      "Mantener el riesgo es no actuar sobre él: el residual tiene que quedar igual que el inherente. Lo que cambia es que la decisión queda escrita.",
+  },
   explotar: { baja: "ambas", explicacion: "Opción retirada. Era para oportunidades, que ya no usan tratamiento." },
 };
 

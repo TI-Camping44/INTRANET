@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Grid3x3, Plus, ShieldAlert } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
+import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import {
   InsigniaDemostracion,
   InsigniaEstadoRiesgo,
@@ -21,7 +22,19 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_ESTADO_RIESGO, ETIQUETAS_TRATAMIENTO_RIESGO } from "@/lib/constantes";
+import {
+  ETIQUETAS_ESTADO_RIESGO,
+  ETIQUETAS_NIVEL_RIESGO,
+  ETIQUETAS_TRATAMIENTO_RIESGO,
+  TRATAMIENTOS_VIGENTES,
+} from "@/lib/constantes";
+import {
+  COLOR_ESTADO_RIESGO,
+  COLOR_NIVEL_RIESGO,
+  etiquetaNivelRiesgo,
+  NIVELES_RIESGO,
+  ORIGENES_RIESGO,
+} from "@/lib/riesgos";
 import { describirVencimiento, diasHasta, formatearFecha } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoRiesgo, TipoRiesgo, TratamientoRiesgo } from "@/lib/tipos";
@@ -83,9 +96,10 @@ export default async function PaginaRiesgos({
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
   if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
-  // Los cortes son los del instructivo: 4 ya exige accion planificada, 9
-  // es alto y 15 critico. Antes «altos» empezaba en 10.
-  if (searchParams.nivel === "requieren") consulta = consulta.gte("nivel", 4);
+  // «Requieren accion» arranca en medio (5): el bajo llega hasta 4 y se
+  // asume. Misma regla que `requiereAcciones` y que la columna generada
+  // de la base. 9 es alto y 15 critico, como en el instructivo.
+  if (searchParams.nivel === "requieren") consulta = consulta.gte("nivel", 5);
   if (searchParams.nivel === "altos") consulta = consulta.gte("nivel", 9);
   if (searchParams.nivel === "criticos") consulta = consulta.gte("nivel", 15);
   if (searchParams.q) {
@@ -95,6 +109,74 @@ export default async function PaginaRiesgos({
 
   const { data } = await consulta;
   const riesgos = (data as FilaRiesgo[] | null) ?? [];
+
+  // Los graficos se arman sobre lo que quedo en el listado y no sobre el
+  // total: si alguien filtra por proceso, los porcentajes son de ese
+  // proceso, que es lo que esta mirando.
+  //
+  // El nivel es un semaforo y va en torta, igual que el estado: son
+  // cuatro y cinco porciones, que se comparan de un vistazo. El proceso,
+  // el origen y el tratamiento van en barras: son diecinueve, ocho y
+  // siete, y un circulo de diecinueve porciones no se puede leer.
+  //
+  // Cada uno lleva su tabla de datos al lado, que la ponen los propios
+  // componentes: el color nunca es lo unico que identifica una porcion.
+  const porNivel = NIVELES_RIESGO.map((nivel) => ({
+    etiqueta: ETIQUETAS_NIVEL_RIESGO[nivel],
+    valor: riesgos.filter((riesgo) => etiquetaNivelRiesgo(riesgo.nivel) === nivel).length,
+    color: COLOR_NIVEL_RIESGO[nivel],
+  }));
+
+  const porEstado = Object.entries(ETIQUETAS_ESTADO_RIESGO).map(([valor, etiqueta]) => ({
+    etiqueta,
+    valor: riesgos.filter((riesgo) => riesgo.estado === valor).length,
+    color: COLOR_ESTADO_RIESGO[valor] ?? "hsl(var(--primario))",
+  }));
+
+  // Los que no tienen proceso entran como una fila mas. Sin eso, con uno
+  // solo clasificado el grafico diria «100%» al lado de un total de
+  // siete: el porcentaje tiene que ser sobre lo que se esta mirando.
+  const nombresDeProceso = Array.from(
+    new Set(
+      riesgos
+        .map((riesgo) => riesgo.procesos?.nombre)
+        .filter((nombre): nombre is string => Boolean(nombre)),
+    ),
+  );
+  const porProceso = [
+    ...nombresDeProceso.map((nombre) => ({
+      etiqueta: nombre,
+      valor: riesgos.filter((riesgo) => riesgo.procesos?.nombre === nombre).length,
+    })),
+    {
+      etiqueta: "Sin proceso asignado",
+      valor: riesgos.filter((riesgo) => !riesgo.procesos?.nombre).length,
+    },
+  ];
+
+  const porOrigen = [
+    ...ORIGENES_RIESGO.map((origen) => ({
+      etiqueta: origen,
+      valor: riesgos.filter((riesgo) => riesgo.origen === origen).length,
+    })),
+    {
+      etiqueta: "Sin origen declarado",
+      valor: riesgos.filter(
+        (riesgo) => !riesgo.origen || !ORIGENES_RIESGO.includes(riesgo.origen as never),
+      ).length,
+    },
+  ];
+
+  const porTratamiento = [
+    ...TRATAMIENTOS_VIGENTES.map((valor) => ({
+      etiqueta: ETIQUETAS_TRATAMIENTO_RIESGO[valor],
+      valor: riesgos.filter((riesgo) => riesgo.tratamiento === valor).length,
+    })),
+    {
+      etiqueta: "Sin tratamiento definido",
+      valor: riesgos.filter((riesgo) => !riesgo.tratamiento).length,
+    },
+  ];
 
   return (
     <>
@@ -127,7 +209,7 @@ export default async function PaginaRiesgos({
             nombre: "nivel",
             etiqueta: "Nivel",
             opciones: [
-              { valor: "requieren", etiqueta: "Requieren acción (4 o más)" },
+              { valor: "requieren", etiqueta: "Requieren acción (5 o más)" },
               { valor: "altos", etiqueta: "Altos y críticos (9 o más)" },
               { valor: "criticos", etiqueta: "Solo críticos (15 o más)" },
             ],
@@ -150,6 +232,24 @@ export default async function PaginaRiesgos({
           },
         ]}
       />
+
+      {riesgos.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por nivel" porciones={porNivel} />
+          <Torta titulo="Por estado" porciones={porEstado} />
+          <BarrasPorcentaje
+            titulo="Por proceso"
+            filas={porProceso}
+            vacio="Ninguno tiene proceso asignado."
+          />
+          <BarrasPorcentaje titulo="Por origen" filas={porOrigen} />
+          <BarrasPorcentaje
+            titulo="Por opción de tratamiento"
+            filas={porTratamiento}
+            className="lg:col-span-2"
+          />
+        </div>
+      ) : null}
 
       {riesgos.length === 0 ? (
         <EstadoVacio

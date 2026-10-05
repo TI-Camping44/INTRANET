@@ -474,21 +474,24 @@ export const ETIQUETAS_ESTADO_RIESGO: Record<EstadoRiesgo, string> = {
 };
 
 export const ETIQUETAS_TRATAMIENTO_RIESGO: Record<TratamientoRiesgo, string> = {
-  eliminar_fuente: "Eliminar la fuente",
+  evitar: "Evitar el riesgo",
+  asumir: "Asumir el riesgo por una oportunidad",
+  eliminar_fuente: "Eliminar la fuente del riesgo",
   cambiar_probabilidad: "Cambiar la probabilidad",
   cambiar_consecuencia: "Cambiar la consecuencia",
   compartir: "Compartir el riesgo",
-  evitar: "Evitar el riesgo",
-  asumir: "Asumir por decisión informada",
+  // La septima de la lista de Calidad. Reusa el valor «aceptar», que ya
+  // estaba en el enumerado: es la misma decision —retener el riesgo— y
+  // asi no hay que migrar nada.
+  aceptar: "Mantener el riesgo por información documentada",
   // Retirados: quedan por los riesgos ya cargados con ellos.
   mitigar: "Mitigar",
   transferir: "Transferir",
-  aceptar: "Aceptar",
   explotar: "Explotar",
 };
 
 /**
- * Las seis opciones del instructivo, en su orden.
+ * Las siete opciones del instructivo, en el orden de Calidad.
  *
  * Lo que las distingue no es el nombre: cada una dice QUE FACTOR puede
  * bajar en el residual. Si el residual muestra una baja en el factor que
@@ -497,12 +500,13 @@ export const ETIQUETAS_TRATAMIENTO_RIESGO: Record<TratamientoRiesgo, string> = {
  * severidad, no la probabilidad.
  */
 export const TRATAMIENTOS_VIGENTES: TratamientoRiesgo[] = [
+  "evitar",
+  "asumir",
   "eliminar_fuente",
   "cambiar_probabilidad",
   "cambiar_consecuencia",
   "compartir",
-  "evitar",
-  "asumir",
+  "aceptar",
 ];
 
 export const ETIQUETAS_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
