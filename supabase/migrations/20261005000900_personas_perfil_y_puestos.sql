@@ -43,6 +43,9 @@ comment on column public.usuarios.apellidos is
 create or replace function public.armar_nombre_completo()
 returns trigger
 language plpgsql
+-- `search_path` fijo: sin eso, quien pueda crear objetos en otro esquema
+-- del camino de busqueda podria cambiar que resuelve esta funcion.
+set search_path = public
 as $fn$
 begin
   if new.nombres is not null and new.apellidos is not null
@@ -71,26 +74,34 @@ comment on column public.puestos.codigo is
   'Los puestos ya cargados conservan el suyo.';
 
 -- ---------------------------------------------------------------------
--- 4 · Que nadie se ascienda a si mismo
+-- 4 · Los campos del perfil que tampoco se eligen solos
 --
--- `usuarios_actualiza_propio` permite a cada persona escribir su propia
--- fila, y es necesaria: el perfil del primer ingreso, el telefono y el
--- avatar los carga uno mismo. Pero la politica no distingue columnas, y
--- `authenticated` tiene `update` sobre todas: hasta hoy cualquiera podia
--- hacer, contra la API y sin pasar por la interfaz,
+-- CORRECCION DE LO QUE DECIA ESTA MIGRACION. La primera version afirmaba
+-- que cualquiera podia ascenderse a Administrador SGC contra la API.
+-- Era falso: `proteger_campos_criticos_usuario`, que ya existia desde
+-- antes, bloquea `rol`, `empresa_id`, `superior_id` y `activo`. Se
+-- verifico apagando este disparador y dejando solo aquel: el cambio de
+-- rol queda rechazado. El rol nunca estuvo expuesto.
 --
---   update usuarios set rol = 'administrador_sgc' where id = auth.uid();
+-- Lo que SI estaba abierto, y es lo que cierra este disparador, son tres
+-- campos que aquel no mira:
 --
--- y quedar de Administrador SGC. Lo mismo con `activo`, `puesto_id` o
--- `empresa_id`, que saltaria el aislamiento entre empresas.
+--   · `puesto_id`. Es el que importa para este cambio: con «Personas sin
+--     Puesto» alimentandose del primer ingreso, una persona podia
+--     asignarse cualquier puesto a si misma contra la API. El puesto lo
+--     asigna el Administrador SGC.
+--   · `proceso_id`, que decide a que proceso pertenece y con eso que
+--     documentos puede gestionar: `es_responsable_de_proceso()` lo usa
+--     en varias politicas.
+--   · `correo`, que es sobre lo que corre la validacion de dominio.
 --
--- La correccion va en un disparador y no en la politica porque RLS
--- decide sobre la fila, no sobre la columna. Deja pasar:
---   · al Administrador SGC, que para eso tiene su politica;
---   · a los trabajos del servidor, que corren sin `auth.uid()`.
+-- Va en un disparador y no en la politica porque RLS decide sobre la
+-- fila, no sobre la columna, y `usuarios_actualiza_propio` necesita
+-- seguir dejando a cada persona escribir la suya: el perfil del primer
+-- ingreso, el telefono y el avatar los carga uno mismo.
 --
--- Al resto le permite escribir solo lo suyo: nombres, apellidos, fecha
--- de nacimiento, telefono y avatar. El puesto lo asigna Calidad.
+-- Deja pasar al Administrador SGC, que para eso tiene su politica, y a
+-- los trabajos del servidor, que corren sin `auth.uid()`.
 -- ---------------------------------------------------------------------
 
 create or replace function public.proteger_campos_del_perfil()
