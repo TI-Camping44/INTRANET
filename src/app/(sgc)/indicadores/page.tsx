@@ -38,24 +38,33 @@ export default async function PaginaIndicadores({
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  // EL AÑO NO ES EL DE HOY. Lo era, y con eso la hoja de Calidad salía
-  // vacía: los objetivos del F-EST-01-05 son de 2027 —la línea base se
-  // mide de octubre a diciembre de 2026 y las metas se confirman en
-  // enero— y la pantalla buscaba los de 2026. Se elige, y por defecto se
-  // muestra el año más reciente que tenga objetivos cargados.
+  // EL AÑO SE ELIGE, y los que se ofrecen son el de hoy y los que tengan
+  // objetivos declarados.
+  //
+  // El de hoy va siempre, aunque no haya objetivos declarados ese año:
+  // Calidad registra los objetivos una vez, con el año de la línea base,
+  // y los sigue midiendo los años siguientes. Los ocho del F-EST-01-05
+  // tienen su base en 2026 y se miden igual en 2027, así que en enero de
+  // 2027 el año tiene que estar en la lista aunque no haya un juego
+  // nuevo. Cuáles rigen en cada año lo resuelve `obtenerHoja`.
   const { data: anios } = await supabase
     .from("objetivos")
     .select("anio")
     .order("anio", { ascending: false });
 
+  const anioDeHoy = Number(hoyEnAsuncion().slice(0, 4));
   const aniosConObjetivos = Array.from(
-    new Set(((anios as { anio: number }[] | null) ?? []).map((fila) => fila.anio)),
-  );
+    new Set([
+      anioDeHoy,
+      ...((anios as { anio: number }[] | null) ?? []).map((fila) => fila.anio),
+    ]),
+  ).sort((uno, otro) => otro - uno);
+
   const anioPedido = Number(searchParams.anio);
   const anio =
     Number.isInteger(anioPedido) && aniosConObjetivos.includes(anioPedido)
       ? anioPedido
-      : (aniosConObjetivos[0] ?? Number(hoyEnAsuncion().slice(0, 4)));
+      : (aniosConObjetivos[0] ?? anioDeHoy);
 
   let consulta = supabase
     .from("indicadores")

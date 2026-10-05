@@ -361,6 +361,10 @@ export const ORIGENES_RIESGO = [
   "Queja de Cliente",
   "Indicador fuera de meta",
   "Revisión por la Dirección",
+  // Lo agrego Calidad el 5 de octubre: su matriz lo usa en dos riesgos
+  // —la mora de creditos y los faltantes de caja— y no estaba en la
+  // lista. Sin el, esos dos no se podian editar desde el formulario.
+  "Análisis de proceso",
   "Otro",
 ] as const;
 

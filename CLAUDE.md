@@ -314,6 +314,34 @@ Quedaron así por falta de definición explícita. Son reversibles:
 > codificación real usa otra forma (`R-02-01` para el perfil de puesto),
 > así que la de Calidad es la que debe quedar.
 
+### El mapa de procesos tiene dos versiones conviviendo
+
+La tabla `procesos` lleva una columna `version`:
+
+| Versión | Qué es | Quién la usa |
+| --- | --- | --- |
+| `00` | 19 procesos, `EST-01`, `MIS-01`, `SOP-01` | Información Documentada: sus 21 documentos cuelgan de ella |
+| `01` | 21 procesos, `MP-EST-01` en adelante | Todo lo demás: riesgos, oportunidades, NC, auditorías, indicadores, cambios, publicaciones, alta de usuarios |
+
+**Los códigos no significan lo mismo en las dos.** `EST-01` es
+«Información Documentada» en la 00; en la 01 ese proceso es `MP-SOP-01`,
+y `MP-EST-01` pasa a ser «Planificación y Control del SGC».
+
+**La 01 todavía está en proceso de aprobación.** Carlos la pasó el 5 de
+octubre para tener base cargada en el sistema, no como definitiva. Hasta
+que se apruebe, la 00 no se toca: recodificar los 21 documentos es una
+decisión aparte que se toma documento por documento.
+
+**Faltan dos procesos de la 01**: `MP-EST-05 Marketing` y
+`MP-SOP-05 Cobranzas` venían marcados en amarillo —en elaboración— y
+Calidad indicó ignorarlos. Dos indicadores los nombran en texto y quedan
+sin vínculo hasta que se aprueben.
+
+> El año del objetivo de la calidad es **el de su línea base**, no el de
+> la medición. Los ocho del F-EST-01-05 son de 2026 y se siguen midiendo
+> en 2027: `obtenerHoja` muestra los del año más reciente que no pase del
+> elegido, para que en enero de 2027 la pantalla no aparezca vacía.
+
 ---
 
 ## 7. Seguridad

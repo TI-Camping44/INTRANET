@@ -65,6 +65,26 @@ export async function obtenerHoja(anio: number): Promise<Hoja> {
   const desde = `${anio}-01-01`;
   const hasta = `${anio}-12-31`;
 
+  // LOS OBJETIVOS VIGENTES EN EL AÑO, no los declarados en el año.
+  //
+  // Calidad los registra una vez, con el año de la línea base, y los
+  // sigue midiendo en los años siguientes: los ocho objetivos de la
+  // calidad tienen su base en 2026 y se miden igual en 2027. Con un
+  // `anio = ` exacto, en enero de 2027 esta pantalla aparecía vacía.
+  //
+  // Entonces se toman los del año más reciente que no pase del elegido.
+  // El día que Calidad declare un juego nuevo, ese reemplaza al anterior
+  // desde su año y los viejos siguen visibles en los suyos.
+  const { data: anioVigente } = await supabase
+    .from("objetivos")
+    .select("anio")
+    .lte("anio", anio)
+    .order("anio", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const anioDeLosObjetivos = (anioVigente as { anio: number } | null)?.anio ?? anio;
+
   const [{ data: objetivos }, { data: indicadores }, { data: mediciones }] = await Promise.all([
     supabase
       .from("objetivos")
@@ -72,7 +92,7 @@ export async function obtenerHoja(anio: number): Promise<Hoja> {
         "id, codigo, nombre, nivel, observaciones, " +
           "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
       )
-      .eq("anio", anio)
+      .eq("anio", anioDeLosObjetivos)
       .order("codigo"),
     supabase
       .from("indicadores")
