@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2, X } from "lucide-react";
+import { Ban, X } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { eliminarDocumentos } from "@/app/(sgc)/documentos/acciones";
+import { anularDocumentos } from "@/app/(sgc)/documentos/acciones";
 
 /**
  * Selección múltiple del listado documental.
@@ -81,26 +81,29 @@ export function BarraSeleccion() {
 
   if (elegidos.length === 0) return null;
 
-  async function eliminar() {
+  // ANULAR, NO ELIMINAR. Un documento que estuvo vigente no se borra:
+  // queda fuera de uso, con el motivo escrito, y se sigue pudiendo
+  // consultar. El motivo se pide una vez para toda la selección, porque
+  // quien anula cinco documentos de una vez lo hace por la misma razón.
+  async function anular() {
     const cuantos = elegidos.length;
-    const aviso =
-      `Se eliminan ${cuantos} documento${cuantos === 1 ? "" : "s"}, con sus versiones, su ` +
-      "lista de difusión y sus archivos. No se puede deshacer.\n\n" +
-      "Si alguno estuvo en uso, lo correcto es marcarlo obsoleto: así se conserva con su " +
-      "historial, que es lo que pide la norma.\n\n¿Eliminar igual?";
+    const motivo = prompt(
+      `Se anulan ${cuantos} documento${cuantos === 1 ? "" : "s"}: quedan fuera de uso y se ` +
+        "siguen pudiendo consultar.\n\n¿Por qué se anulan?",
+      "",
+    );
 
-    if (!confirm(aviso)) return;
+    if (motivo === null) return;
 
     definirBorrando(true);
-    const resultado = await eliminarDocumentos(elegidos);
+    const resultado = await anularDocumentos(elegidos, motivo);
 
     if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Documentos eliminados.");
+      toast.success(resultado.mensaje ?? "Documentos anulados.");
       limpiar();
       router.refresh();
     } else {
       toast.error(resultado.error);
-      router.refresh();
     }
     definirBorrando(false);
   }
@@ -108,7 +111,7 @@ export function BarraSeleccion() {
   return (
     <div
       className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border
-                 border-semaforo-critico/40 bg-semaforo-critico/5 px-3 py-2"
+                 border-semaforo-alto/40 bg-semaforo-alto/5 px-3 py-2"
     >
       <p className="text-xs">
         <span className="font-medium tabular">{elegidos.length}</span>{" "}
@@ -122,10 +125,10 @@ export function BarraSeleccion() {
           variante="contorno"
           tamano="pequeno"
           cargando={borrando}
-          onClick={eliminar}
-          className="border-semaforo-critico/40 text-semaforo-critico hover:bg-semaforo-critico/10"
+          onClick={anular}
+          className="border-semaforo-alto/40 text-semaforo-alto hover:bg-semaforo-alto/10"
         >
-          <Trash2 /> Eliminar
+          <Ban /> Anular
         </Boton>
       </div>
     </div>

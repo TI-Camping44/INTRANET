@@ -1023,6 +1023,34 @@ export async function eliminarDocumento(documentoId: string): Promise<ResultadoA
 
   const supabase = crearClienteServidor();
 
+  // UN DOCUMENTO QUE ESTUVO VIGENTE NO SE BORRA NUNCA: se anula, con
+  // motivo, y queda consultable. Lo fijo Calidad el 5 de octubre y es lo
+  // que pide la norma: la trazabilidad de la informacion documentada no
+  // admite que una version que estuvo en uso desaparezca del registro.
+  //
+  // Borrar sigue existiendo para lo que nunca llego a regir: un borrador
+  // cargado por error, un duplicado. Nada mas.
+  const { data: previo } = await supabase
+    .from("documentos")
+    .select("codigo, titulo, estado, fecha_vigencia")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  const regido = previo as
+    | { codigo: string | null; titulo: string; estado: string; fecha_vigencia: string | null }
+    | null;
+
+  if (!regido) return { exito: false, error: "El documento no existe o no tiene acceso." };
+
+  if (regido.fecha_vigencia !== null || ["vigente", "obsoleto", "anulado"].includes(regido.estado)) {
+    return {
+      exito: false,
+      error:
+        `«${regido.codigo ?? regido.titulo}» estuvo vigente y no se puede borrar. ` +
+        "Anúlelo con su motivo: queda fuera de uso y se conserva consultable.",
+    };
+  }
+
   const { data: documento } = await supabase
     .from("documentos")
     .select("id, codigo, titulo")
@@ -1521,4 +1549,78 @@ export async function reindexarDocumentos(): Promise<ResultadoAccion> {
       error: `No se pudo reindexar: ${error instanceof Error ? error.message : "error desconocido"}`,
     };
   }
+}
+
+// ---------------------------------------------------------------------
+// Anular
+// ---------------------------------------------------------------------
+// UN DOCUMENTO QUE ESTUVO VIGENTE NUNCA SE BORRA. Se anula: queda fuera
+// de uso, con el motivo escrito y la fecha, y se sigue pudiendo abrir.
+// Es lo que pide la trazabilidad de la informacion documentada —una
+// version que estuvo en uso no puede desaparecer del registro— y es lo
+// que reemplaza al borrado en el listado.
+//
+// Distinto de «obsoleto»: obsoleto es el que quedo atras porque salio una
+// version nueva, y sigue siendo parte de la cadena. Anulado es el que se
+// saca de circulacion sin reemplazo: se discontinuo el proceso, se
+// cargo por error, cambio la ley que lo exigia.
+
+/** Anula uno o varios documentos, con un motivo comun. */
+export async function anularDocumentos(
+  ids: string[],
+  motivo: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  if (usuario.rol !== "administrador_sgc") {
+    return { exito: false, error: "Solo el Administrador SGC puede anular un documento." };
+  }
+  if (ids.length === 0) {
+    return { exito: false, error: "No seleccionó ningún documento." };
+  }
+
+  const texto = motivo.trim();
+  if (texto.length < 10) {
+    return {
+      exito: false,
+      error:
+        "Escriba el motivo de la anulación, con al menos 10 caracteres: es lo que explica, " +
+        "dentro de un año, por qué ese documento ya no está.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data, error } = await supabase
+    .from("documentos")
+    .update({
+      estado: "anulado",
+      motivo_anulacion: texto,
+      anulado_por: usuario.id,
+      fecha_anulacion: hoyEnAsuncion(),
+    })
+    .in("id", ids)
+    .select("id");
+
+  if (error) {
+    return { exito: false, error: `No se pudo anular: ${error.message}` };
+  }
+
+  const cuantos = (data as { id: string }[] | null)?.length ?? 0;
+  revalidatePath("/documentos");
+
+  if (cuantos === 0) {
+    return {
+      exito: false,
+      error: "No se anuló ninguno: puede que no tenga permiso sobre los que eligió.",
+    };
+  }
+
+  return {
+    exito: true,
+    mensaje:
+      cuantos === 1
+        ? "Documento anulado. Queda fuera de uso y se sigue pudiendo consultar."
+        : `Se anularon ${cuantos} documentos. Quedan fuera de uso y se siguen pudiendo consultar.`,
+  };
 }

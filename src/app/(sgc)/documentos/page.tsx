@@ -42,7 +42,7 @@ import {
   TIPOS_DOCUMENTO_VIGENTES,
 } from "@/lib/constantes";
 import { armarJerarquia } from "@/lib/documentos";
-import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoDocumento, TipoDocumento } from "@/lib/tipos";
 
@@ -56,7 +56,10 @@ interface FilaDocumento {
   tipo: TipoDocumento;
   estado: EstadoDocumento;
   version_actual: number;
+  fecha_vigencia: string | null;
   fecha_proxima_revision: string | null;
+  procesos: { nombre: string } | null;
+  responsable: { nombre_completo: string } | null;
   es_demostracion: boolean;
   categoria: string | null;
   orden: number | null;
@@ -76,6 +79,10 @@ const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> =
   vigentes: { etiqueta: "Vigentes", estados: ["vigente"] },
   "en-proceso": { etiqueta: "En elaboración", estados: ["borrador", "en_revision"] },
   obsoletos: { etiqueta: "Obsoletos", estados: ["obsoleto"] },
+  // Calidad nombra tres listas. Los anulados llevan la suya porque un
+  // documento anulado se conserva para poder consultarlo, y un estado que
+  // existe y no aparece en ninguna pestaña es un registro escondido.
+  anulados: { etiqueta: "Anulados", estados: ["anulado"] },
 };
 
 export default async function PaginaDocumentos({
@@ -86,6 +93,7 @@ export default async function PaginaDocumentos({
     vista?: string;
     tipo?: string;
     proceso?: string;
+    responsable?: string;
     filtro?: string;
     orden?: string;
     dir?: string;
@@ -99,10 +107,16 @@ export default async function PaginaDocumentos({
   const supabase = crearClienteServidor();
 
   const vista = searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "vigentes";
+  const limiteRevision = sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO);
   const { estados } = VISTAS[vista];
 
-  const [{ data: procesos }, { data: todos }] = await Promise.all([
+  const [{ data: procesos }, { data: responsables }, { data: todos }] = await Promise.all([
     supabase.from("procesos").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase
+      .from("usuarios")
+      .select("id, nombre_completo")
+      .eq("activo", true)
+      .order("nombre_completo"),
     // Para rotular cada pestaña con su cantidad hace falta el estado de
     // todos los documentos, no solo el de los de la vista actual. Con la
     // misma consulta se arma el panel de categorías, que agrupa la lista
@@ -137,8 +151,9 @@ export default async function PaginaDocumentos({
   let consulta = supabase
     .from("documentos")
     .select(
-      "id, codigo, titulo, tipo, estado, version_actual, fecha_proxima_revision, " +
-        "es_demostracion, categoria, orden, orden_categoria",
+      "id, codigo, titulo, tipo, estado, version_actual, fecha_vigencia, " +
+        "fecha_proxima_revision, es_demostracion, categoria, orden, orden_categoria, " +
+        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
     )
     .in("estado", estados);
 
@@ -176,6 +191,9 @@ export default async function PaginaDocumentos({
 
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
   if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
+  if (searchParams.responsable) {
+    consulta = consulta.eq("responsable_id", searchParams.responsable);
+  }
   if (searchParams.q) {
     const texto = `%${searchParams.q}%`;
     consulta = consulta.or(`codigo.ilike.${texto},titulo.ilike.${texto}`);
@@ -183,12 +201,12 @@ export default async function PaginaDocumentos({
   if (searchParams.filtro === "por-revisar") {
     consulta = consulta.lte(
       "fecha_proxima_revision",
-      sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO),
+      limiteRevision,
     );
   }
 
   const { data, error } = await consulta;
-  const documentos = (data as FilaDocumento[] | null) ?? [];
+  const documentos = (data as unknown as FilaDocumento[] | null) ?? [];
 
   // Que documentos tienen archivo cargado. Una sola consulta con los ids
   // de la pagina, no una por fila. Hace falta para decidir a donde lleva
@@ -330,6 +348,26 @@ export default async function PaginaDocumentos({
               etiqueta: proceso.nombre,
             })),
           },
+          {
+            nombre: "responsable",
+            etiqueta: "Responsable",
+            opciones: (responsables ?? []).map(
+              (persona: { id: string; nombre_completo: string }) => ({
+                valor: persona.id,
+                etiqueta: persona.nombre_completo,
+              }),
+            ),
+          },
+          {
+            // Era alcanzable solo escribiendo la direccion a mano. Es el
+            // corte que Calidad mira todas las semanas: lo que hay que
+            // revisar antes de que se venza.
+            nombre: "filtro",
+            etiqueta: "Revisión",
+            opciones: [
+              { valor: "por-revisar", etiqueta: `Vence en ${DIAS_AVISO_REVISION_DOCUMENTO} días` },
+            ],
+          },
         ]}
       />
 
@@ -381,9 +419,17 @@ export default async function PaginaDocumentos({
                 <EncabezadoOrdenable campo="tipo" className="hidden md:table-cell">
                   Tipo
                 </EncabezadoOrdenable>
+                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
                 <EncabezadoOrdenable campo="version" className="w-[5rem]">
                   Versión
                 </EncabezadoOrdenable>
+                <TablaEncabezado className="hidden w-[7rem] xl:table-cell">
+                  Vigencia
+                </TablaEncabezado>
+                <TablaEncabezado className="hidden w-[8rem] lg:table-cell">
+                  Próxima revisión
+                </TablaEncabezado>
+                <TablaEncabezado className="hidden xl:table-cell">Responsable</TablaEncabezado>
                 {/* En «Vigentes» la columna de estado diría lo mismo en
                     todas las filas: la pestaña ya lo dice. */}
                 {vista === "vigentes" ? null : (
@@ -401,6 +447,12 @@ export default async function PaginaDocumentos({
                 // quien entra al control documental viene a leer el
                 // procedimiento. La ficha queda en su propia columna.
                 const abre = tieneArchivo.has(documento.id);
+                // La proxima revision se resalta cuando entra en la
+                // ventana de aviso: es la columna que Calidad mira.
+                const porRevisar =
+                  documento.estado === "vigente" &&
+                  documento.fecha_proxima_revision !== null &&
+                  documento.fecha_proxima_revision <= limiteRevision;
                 const destino = abre
                   ? `/documentos/${documento.id}/archivo`
                   : `/documentos/${documento.id}`;
@@ -473,8 +525,30 @@ export default async function PaginaDocumentos({
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                       {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo]}
                     </TablaCelda>
+                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
+                      {documento.procesos?.nombre ?? "—"}
+                    </TablaCelda>
                     <TablaCelda className="tabular text-xs">
                       v{String(documento.version_actual).padStart(2, "0")}
+                    </TablaCelda>
+                    <TablaCelda className="hidden whitespace-nowrap text-xs xl:table-cell">
+                      {documento.fecha_vigencia ? (
+                        formatearFecha(documento.fecha_vigencia)
+                      ) : (
+                        <span className="text-atenuado-contraste">—</span>
+                      )}
+                    </TablaCelda>
+                    <TablaCelda className="hidden whitespace-nowrap text-xs lg:table-cell">
+                      {documento.fecha_proxima_revision ? (
+                        <span className={porRevisar ? "font-medium text-semaforo-medio" : ""}>
+                          {formatearFecha(documento.fecha_proxima_revision)}
+                        </span>
+                      ) : (
+                        <span className="text-atenuado-contraste">—</span>
+                      )}
+                    </TablaCelda>
+                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
+                      {documento.responsable?.nombre_completo ?? "—"}
                     </TablaCelda>
                     {vista === "vigentes" ? null : (
                       <TablaCelda>
@@ -511,7 +585,8 @@ export default async function PaginaDocumentos({
           ? "Es lo que está en vigencia hoy; las versiones reemplazadas están en «Obsoletos»."
           : null}{" "}
         Tocar el código o el título abre el archivo; «Ver» lleva a la ficha con el historial de
-        versiones.{puedeEliminar ? " Marque las casillas para eliminar varios de una vez." : ""}
+        versiones.
+        {puedeEliminar ? " Marque las casillas para anular varios de una vez." : ""}
         {seArrastra
           ? " Para reordenar, arrastre la fila a donde va. El renglón de la categoría se " +
             "arrastra igual y se lleva sus documentos, y sus flechas la mueven de a un lugar. " +

@@ -145,7 +145,11 @@ export const ETIQUETAS_ESTADO_DOCUMENTO: Record<EstadoDocumento, string> = {
   borrador: "Borrador",
   en_revision: "En revisión",
   vigente: "Vigente",
+  // Obsoleto es el que quedo atras porque salio una version nueva, y
+  // sigue siendo parte de la cadena. Anulado es el que se saca de
+  // circulacion sin reemplazo, con su motivo escrito.
   obsoleto: "Obsoleto",
+  anulado: "Anulado",
 };
 
 export const ETIQUETAS_ESTADO_REVISION: Record<EstadoRevision, string> = {

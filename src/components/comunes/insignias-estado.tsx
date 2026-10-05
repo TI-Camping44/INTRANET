@@ -30,6 +30,7 @@ const VARIANTE_ESTADO_DOCUMENTO: Record<EstadoDocumento, Variante> = {
   en_revision: "advertencia",
   vigente: "exito",
   obsoleto: "contorno",
+  anulado: "atencion",
 };
 
 export function InsigniaEstadoDocumento({ estado }: { estado: EstadoDocumento }) {

@@ -24,7 +24,12 @@ export type TipoDocumento =
   | "plan"
   | "externo";
 
-export type EstadoDocumento = "borrador" | "en_revision" | "vigente" | "obsoleto";
+export type EstadoDocumento =
+  | "borrador"
+  | "en_revision"
+  | "vigente"
+  | "obsoleto"
+  | "anulado";
 export type EstadoRevision = "pendiente" | "aprobado" | "rechazado";
 
 export type OrigenNoConformidad =
