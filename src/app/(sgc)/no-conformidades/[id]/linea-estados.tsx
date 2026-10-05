@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { cerrarNoConformidad, reabrirNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
+import { reabrirNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
 import {
   CLASES_PASO_NC,
   ETIQUETAS_PASO_NC,
@@ -37,7 +37,6 @@ export function LineaEstados({
   paso,
   puedeCerrar,
   tieneAccion,
-  sugerencia,
   fechaCierre,
 }: {
   noConformidadId: string;
@@ -45,7 +44,6 @@ export function LineaEstados({
   puedeCerrar: boolean;
   tieneAccion: boolean;
   /** Qué cierre corresponde según las fechas, y en cuántos días llegó la AC. */
-  sugerencia: { enPlazo: boolean; dias: number } | null;
   fechaCierre: string | null;
 }) {
   const router = useRouter();
@@ -55,35 +53,6 @@ export function LineaEstados({
 
   const indiceActual = PASOS_NO_CONFORMIDAD.indexOf(paso);
   const cerrada = paso === "cerrado_en_plazo" || paso === "cerrado_fuera_de_plazo";
-
-  async function cerrar(enPlazo: boolean) {
-    const aviso = enPlazo
-      ? "Se cierra la no conformidad como CERRADA EN PLAZO."
-      : "Se cierra la no conformidad como CERRADA FUERA DE PLAZO.";
-
-    if (sugerencia && sugerencia.enPlazo !== enPlazo) {
-      const contrario = sugerencia.enPlazo ? "en plazo" : "fuera de plazo";
-      if (
-        !confirm(
-          `${aviso}\n\nPor las fechas correspondería «${contrario}»: la acción correctiva ` +
-            `se cargó a los ${sugerencia.dias} días de la detección.\n\n¿Cerrar igual?`,
-        )
-      ) {
-        return;
-      }
-    }
-
-    definirProcesando(enPlazo ? "cerrado_en_plazo" : "cerrado_fuera_de_plazo");
-    const resultado = await cerrarNoConformidad(noConformidadId, enPlazo);
-
-    if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "No conformidad cerrada.");
-      router.refresh();
-    } else {
-      toast.error(resultado.error);
-    }
-    definirProcesando(null);
-  }
 
   async function reabrir() {
     if (
@@ -156,46 +125,18 @@ export function LineaEstados({
             </Boton>
           ) : null}
         </div>
-      ) : puedeCerrar ? (
-        <div className="mt-3">
-          <p className="mb-2 text-[11px] text-atenuado-contraste">
-            {tieneAccion
-              ? sugerencia
-                ? `La acción correctiva se cargó a los ${sugerencia.dias} ${
-                    sugerencia.dias === 1 ? "día" : "días"
-                  } de la detección: correspondería cerrar ${
-                    sugerencia.enPlazo ? "en plazo" : "fuera de plazo"
-                  }.`
-                : "Elija cómo se cierra."
-              : "Para cerrarla hace falta al menos una acción correctiva cargada."}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Boton
-              tamano="pequeno"
-              variante="contorno"
-              disabled={!tieneAccion || procesando !== null}
-              cargando={procesando === "cerrado_en_plazo"}
-              onClick={() => cerrar(true)}
-              className={cn(
-                "border-semaforo-bajo/40 text-semaforo-bajo hover:bg-semaforo-bajo/10",
-                sugerencia?.enPlazo === true && "ring-1 ring-semaforo-bajo",
-              )}
-            >
-              Cerrar en plazo
-            </Boton>
-            <Boton
-              tamano="pequeno"
-              variante="contorno"
-              disabled={!tieneAccion || procesando !== null}
-              cargando={procesando === "cerrado_fuera_de_plazo"}
-              onClick={() => cerrar(false)}
-              className={cn(sugerencia?.enPlazo === false && "ring-1 ring-atenuado-contraste")}
-            >
-              Cerrar fuera de plazo
-            </Boton>
-          </div>
-        </div>
-      ) : null}
+      ) : (
+        /* EL CIERRE YA NO SE ELIGE. La desviación se cierra sola cuando
+           todas sus acciones correctivas están ejecutadas, y queda «en
+           plazo» o «fuera de plazo» según se hayan ejecutado dentro de su
+           fecha o no. Lo decide un disparador de la base, así que vale
+           igual se cierre la acción desde donde se cierre. */
+        <p className="mt-3 text-[11px] leading-relaxed text-atenuado-contraste">
+          {tieneAccion
+            ? "Se cierra sola cuando todas las acciones correctivas estén ejecutadas: en plazo si todas se ejecutaron dentro de su fecha, fuera de plazo si alguna se pasó."
+            : "Todavía no tiene acciones correctivas. Se cierra sola cuando todas las que se carguen estén ejecutadas."}
+        </p>
+      )}
     </div>
   );
 }

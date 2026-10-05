@@ -26,7 +26,6 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { DEPARTAMENTOS, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
 import {
-  cierreSugerido,
   CLASES_TEXTO_PASO_NC,
   estaCerrada,
   estaVencida,
@@ -119,9 +118,10 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   const nc = consulta as unknown as ResumenNoConformidad | null;
   if (!nc) notFound();
 
-  // Las acciones vinculadas: hace falta saber si hay alguna —sin eso no
-  // se puede cerrar— y cuándo se cargó la primera, que es lo que decide
-  // si el cierre es en plazo o fuera de plazo.
+  // Las acciones vinculadas: hace falta saber si hay alguna. El cierre y
+  // su plazo ya no se deciden acá —los deriva la base de cómo se
+  // ejecutaron las acciones—, pero la ficha dice si todavía no hay
+  // ninguna cargada.
   const [{ data: acciones }, { data: archivos }] = await Promise.all([
     supabase
       .from("nc_acciones")
@@ -143,13 +143,11 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
 
   const adjuntos = (archivos as unknown as AdjuntoDeNoConformidad[] | null) ?? [];
   const vinculadas = (acciones as { id: string; creado_en: string }[] | null) ?? [];
-  const primera = vinculadas[0]?.creado_en?.slice(0, 10) ?? null;
 
   const paso = pasoDeNoConformidad(nc.estado, nc.cierre_en_plazo);
   const cerrada = estaCerrada(nc.estado);
   const plazo = textoDePlazo(nc.fecha_deteccion, nc.fecha_cierre, cerrada);
   const vencida = estaVencida(nc.fecha_deteccion, cerrada);
-  const sugerencia = cierreSugerido(nc.fecha_deteccion, primera);
 
   const esCalidad = usuario.rol === "administrador_sgc";
   const gestiona =
@@ -216,7 +214,6 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
               paso={paso}
               puedeCerrar={puedeEditar}
               tieneAccion={vinculadas.length > 0}
-              sugerencia={sugerencia}
               fechaCierre={nc.fecha_cierre}
             />
           </TarjetaContenido>
