@@ -130,7 +130,22 @@ export type ResultadoEficacia = "eficaz" | "parcialmente_eficaz" | "no_eficaz" |
 
 export type TipoCapacitacion = "interna" | "externa" | "en_linea" | "induccion";
 
-export type EstadoCapacitacion = "planificada" | "en_curso" | "finalizada" | "cancelada";
+/**
+ * El ciclo de una accion formativa.
+ *
+ * Los tres primeros valores viejos —`en_curso`, `finalizada`,
+ * `cancelada`— siguen en el enumerado de la base porque en PostgreSQL un
+ * valor de enumerado no se puede quitar. Los que se ofrecen hoy estan en
+ * `ESTADOS_FORMACION_VIGENTES`, en `lib/formacion.ts`.
+ */
+export type EstadoCapacitacion =
+  | "planificada"
+  | "ejecutada"
+  | "no_ejecutada"
+  | "pospuesta"
+  | "en_curso"
+  | "finalizada"
+  | "cancelada";
 
 export type TipoCompetencia = "tecnica" | "conductual" | "legal";
 

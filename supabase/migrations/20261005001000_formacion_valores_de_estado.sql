@@ -1,0 +1,21 @@
+-- ---------------------------------------------------------------------
+-- Formacion: los estados que pidio Capital Humano
+--
+-- El enumerado `estado_capacitacion` tenia planificada, en_curso,
+-- finalizada y cancelada. Direccion pidio otro ciclo el 5 de octubre:
+-- una accion nace Planificada y despues pasa, a mano y segun la fecha
+-- del calendario, a Ejecutada, No ejecutada o Pospuesta.
+--
+-- SE AGREGAN TRES VALORES Y NO SE SACA NINGUNO. En PostgreSQL un valor
+-- de enumerado no se puede quitar, y tampoco haria falta: los tres
+-- viejos quedan en el tipo y fuera de la lista vigente, que es
+-- `ESTADOS_FORMACION_VIGENTES` en `lib/formacion.ts`. Es el mismo
+-- criterio con el que se reordenaron los origenes de las no
+-- conformidades.
+--
+-- CADA `ADD VALUE` VA EN SU PROPIA MIGRACION-SENTENCIA: PostgreSQL no
+-- deja usar un valor de enumerado en la misma transaccion en que se lo
+-- agrega.
+-- ---------------------------------------------------------------------
+
+alter type public.estado_capacitacion add value if not exists 'ejecutada';

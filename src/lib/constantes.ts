@@ -352,8 +352,18 @@ export const ETIQUETAS_TIPO_CAPACITACION: Record<TipoCapacitacion, string> = {
   induccion: "Inducción",
 };
 
+/**
+ * Las etiquetas del estado de una accion formativa.
+ *
+ * Las que se ofrecen hoy estan en `ESTADOS_FORMACION_VIGENTES`, en
+ * `lib/formacion.ts`, junto con sus colores. Acá estan todas, incluidas
+ * las tres viejas, porque el enumerado de la base las conserva.
+ */
 export const ETIQUETAS_ESTADO_CAPACITACION: Record<EstadoCapacitacion, string> = {
   planificada: "Planificada",
+  ejecutada: "Ejecutada",
+  no_ejecutada: "No ejecutada",
+  pospuesta: "Pospuesta",
   en_curso: "En curso",
   finalizada: "Finalizada",
   cancelada: "Cancelada",
