@@ -213,6 +213,14 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/recursos-humanos",
         icono: "Users",
         fase: "operativo",
+        // Dos submodulos, como lo pidio Direccion el 5 de octubre. El
+        // perfil de puesto es documental —el puesto y su PDF firmado— y
+        // la formacion es un plan anual con su calendario: no comparten
+        // ni una pantalla ni un criterio.
+        subentradas: [
+          { titulo: "Perfil de Resultados de Puesto", ruta: "/recursos-humanos/puestos" },
+          { titulo: "Formación y Competencia", ruta: "/recursos-humanos/formacion" },
+        ],
       },
       {
         titulo: "Asociados de Negocio",
