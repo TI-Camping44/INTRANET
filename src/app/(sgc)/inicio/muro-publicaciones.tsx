@@ -52,6 +52,7 @@ import {
   editarPublicacion,
   eliminarPublicacion,
   fijarPublicacion,
+  quitarAnexoDePublicacion,
 } from "@/app/(sgc)/inicio/acciones";
 import { formatearFechaHora, hoyEnAsuncion } from "@/lib/formato";
 import { describirTamano } from "@/lib/adjuntos";
@@ -130,18 +131,35 @@ export function MuroPublicaciones({
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
   const [abierto, definirAbierto] = React.useState(false);
-  const entradaImagen = React.useRef<HTMLInputElement>(null);
-  const [nombreImagen, definirNombreImagen] = React.useState<string | null>(null);
+  const entradaArchivos = React.useRef<HTMLInputElement>(null);
+  const [nombresElegidos, definirNombresElegidos] = React.useState<string[]>([]);
   // null = alta. Con una publicacion adentro, el mismo dialogo edita.
   const [editando, definirEditando] = React.useState<Publicacion | null>(null);
   const [quitarImagen, definirQuitarImagen] = React.useState(false);
 
   function abrirDialogo(publicacion: Publicacion | null) {
     definirEditando(publicacion);
-    definirNombreImagen(null);
+    definirNombresElegidos([]);
     definirQuitarImagen(false);
-    if (entradaImagen.current) entradaImagen.current.value = "";
+    if (entradaArchivos.current) entradaArchivos.current.value = "";
     definirAbierto(true);
+  }
+
+  async function quitarAnexo(
+    publicacion: Publicacion,
+    anexo: { id: string; nombre: string },
+  ) {
+    if (!window.confirm(`¿Quitar «${anexo.nombre}» de esta publicación?`)) return;
+
+    if (await ejecutar(() => quitarAnexoDePublicacion(anexo.id, publicacion.id))) {
+      // El diálogo sigue abierto con la publicación vieja en memoria: se
+      // saca el anexo de la copia para que la lista no muestre algo que
+      // ya no existe hasta la próxima recarga.
+      definirEditando({
+        ...publicacion,
+        anexos: publicacion.anexos.filter((otro) => otro.id !== anexo.id),
+      });
+    }
   }
 
   async function borrar(publicacion: Publicacion) {
@@ -544,13 +562,19 @@ export function MuroPublicaciones({
                 />
               </GrupoCampo>
 
+              {/* VARIOS ARCHIVOS, en cualquier tipo de publicación. La
+                  tarjeta dibuja una sola imagen —`url_imagen` es una
+                  columna, no una lista—, así que la primera imagen de la
+                  tanda es la que se ve y el resto queda como anexo para
+                  descargar. */}
               <GrupoCampo
-                etiqueta="Imagen o archivo"
-                htmlFor="imagen"
+                etiqueta="Imágenes y archivos"
+                htmlFor="archivos"
                 ayuda={
-                  `Opcional. Una imagen —PNG, JPG o WebP, hasta ` +
-                  `${TAMANO_MAXIMO_IMAGEN / (1024 * 1024)} MB— se ve en la tarjeta. ` +
-                  "Un documento —PDF, Word, Excel o PowerPoint— se lista para descargar."
+                  `Opcional, y puede elegir varios. La primera imagen —PNG, JPG o WebP, ` +
+                  `hasta ${TAMANO_MAXIMO_IMAGEN / (1024 * 1024)} MB— se ve en la tarjeta. ` +
+                  "Los documentos —PDF, Word, Excel o PowerPoint— y las demás imágenes se " +
+                  "listan para descargar."
                 }
               >
                 <div className="flex items-center gap-2">
@@ -558,15 +582,32 @@ export function MuroPublicaciones({
                     type="button"
                     variante="contorno"
                     tamano="pequeno"
-                    onClick={() => entradaImagen.current?.click()}
+                    onClick={() => entradaArchivos.current?.click()}
                   >
-                    <ImagePlus /> Elegir archivo
+                    <ImagePlus /> Elegir archivos
                   </Boton>
                   <span className="min-w-0 truncate text-[11px] text-atenuado-contraste">
-                    {nombreImagen ??
-                      (editando?.imagen ? "Tiene una imagen cargada" : "Ninguna elegida")}
+                    {nombresElegidos.length > 0
+                      ? `${nombresElegidos.length} elegido${nombresElegidos.length === 1 ? "" : "s"}`
+                      : editando?.imagen
+                        ? "Tiene una imagen cargada"
+                        : "Ninguno elegido"}
                   </span>
                 </div>
+
+                {nombresElegidos.length > 0 ? (
+                  <ul className="mt-2 space-y-0.5">
+                    {nombresElegidos.map((nombre, indice) => (
+                      <li
+                        key={`${nombre}-${indice}`}
+                        className="truncate text-[11px] text-atenuado-contraste"
+                      >
+                        {nombre}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
                 {editando?.imagen ? (
                   <label className="mt-2 flex items-center gap-2 text-[11px]">
                     <input
@@ -578,28 +619,64 @@ export function MuroPublicaciones({
                     Quitar la imagen que tiene
                   </label>
                 ) : null}
+
+                {/* Los anexos ya cargados, con su baja. Hace falta desde
+                    que se pueden subir varios: sin esto, un archivo subido
+                    por error solo se sacaba borrando la publicación. */}
+                {editando && editando.anexos.length > 0 ? (
+                  <ul className="mt-2 space-y-1 border-t border-borde pt-2">
+                    {editando.anexos.map((anexo) => (
+                      <li key={anexo.id} className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[11px]">
+                          {anexo.nombre}
+                          <span className="ml-1.5 text-atenuado-contraste">
+                            {describirTamano(anexo.tamano)}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => quitarAnexo(editando, anexo)}
+                          className="shrink-0 text-atenuado-contraste transition-colors
+                                     hover:text-semaforo-critico"
+                          aria-label={`Quitar ${anexo.nombre}`}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
                 <input
-                  ref={entradaImagen}
-                  id="imagen"
-                  name="imagen"
+                  ref={entradaArchivos}
+                  id="archivos"
+                  name="archivos"
                   type="file"
+                  multiple
                   accept={ACEPTA_ADJUNTO_PUBLICACION}
                   className="sr-only"
                   onChange={(evento) => {
-                    const elegida = evento.target.files?.[0];
-                    if (!elegida) return definirNombreImagen(null);
+                    const elegidos = Array.from(evento.target.files ?? []);
+                    if (elegidos.length === 0) return definirNombresElegidos([]);
 
                     // El control de verdad esta en la accion de servidor.
                     // Este evita que alguien espere una subida de 20 MB
                     // para que despues se la rechacen.
-                    const motivo = motivoDeRechazoAdjunto(elegida.name, elegida.size);
-                    if (motivo) {
-                      toast.error(motivo);
+                    const rechazados = elegidos
+                      .map((archivo) => {
+                        const motivo = motivoDeRechazoAdjunto(archivo.name, archivo.size);
+                        return motivo ? `${archivo.name}: ${motivo}` : null;
+                      })
+                      .filter((motivo): motivo is string => motivo !== null);
+
+                    if (rechazados.length > 0) {
+                      toast.error(rechazados.join(" · "));
                       evento.target.value = "";
-                      definirNombreImagen(null);
+                      definirNombresElegidos([]);
                       return;
                     }
-                    definirNombreImagen(elegida.name);
+
+                    definirNombresElegidos(elegidos.map((archivo) => archivo.name));
                   }}
                 />
               </GrupoCampo>

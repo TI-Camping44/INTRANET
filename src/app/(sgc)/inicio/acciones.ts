@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { nombreDeArchivoLegible } from "@/lib/adjuntos";
+import { quitarAdjunto } from "@/lib/adjuntos-servidor";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import {
@@ -57,10 +58,13 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
     return { exito: false, error: `No se pudo crear la publicación: ${error.message}` };
   }
 
-  // La imagen se sube despues de tener la fila: asi la ruta lleva el id de
-  // la publicacion y no queda ningun archivo suelto en el bucket si el
-  // insert hubiera fallado.
-  const avisoDeImagen = await adjuntarImagen(publicacion.id, datos.get("imagen"));
+  // Los archivos se suben despues de tener la fila: asi la ruta lleva el
+  // id de la publicacion y no queda ningun archivo suelto en el bucket si
+  // el insert hubiera fallado.
+  const { aviso: avisoDeImagen } = await adjuntarArchivos(
+    publicacion.id,
+    datos.getAll("archivos"),
+  );
 
   revalidatePath("/inicio");
   return {
@@ -73,59 +77,114 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
 }
 
 /**
- * Sube el adjunto de una publicacion: una imagen o un documento.
+ * Sube los archivos de una publicacion: la imagen de la tarjeta y los
+ * anexos.
  *
- * Se separan por destino y no por capricho. La imagen es contenido: se
- * dibuja en la tarjeta, y por eso vive en `url_imagen`. El documento es
- * un anexo: se lista con su nombre y se abre al tocarlo, y por eso va a
- * `adjuntos`, la tabla que ya existe para eso y que guarda el nombre
- * original, el tamano y quien lo subio.
+ * SE ADMITEN VARIOS, de cualquier tipo de publicacion. Lo pidio Direccion
+ * el 5 de octubre. Antes entraba uno solo, que es lo que hacia falta para
+ * un anuncio con su foto, pero no para un evento con el programa, el
+ * formulario de inscripcion y el mapa.
  *
- * No devuelve error sino un aviso: si el archivo falla, la publicacion ya
- * existe y perderla por un adjunto seria peor. Se avisa y se sigue.
+ * Imagen y documento se separan por destino y no por capricho. La imagen
+ * es contenido: se dibuja en la tarjeta, y por eso vive en `url_imagen`.
+ * El documento es un anexo: se lista con su nombre y se abre al tocarlo,
+ * y por eso va a `adjuntos`, la tabla que ya existe para eso y que guarda
+ * el nombre original, el tamano y quien lo subio.
+ *
+ * LA TARJETA TIENE UNA SOLA IMAGEN —`url_imagen` es una columna, no una
+ * lista—, asi que la primera imagen de la tanda es la que se dibuja y las
+ * demas quedan como anexos descargables. Rechazar la segunda seria perder
+ * un archivo que la persona quiso subir.
+ *
+ * No devuelve error sino avisos: si un archivo falla, la publicacion ya
+ * existe y perderla por un adjunto seria peor. Se avisa y se sigue con
+ * los demas.
  */
-async function adjuntarImagen(
+async function adjuntarArchivos(
   publicacionId: string,
-  archivo: FormDataEntryValue | null,
-): Promise<string | null> {
-  if (!(archivo instanceof File) || archivo.size === 0) return null;
+  archivos: FormDataEntryValue[],
+): Promise<{ aviso: string | null; imagenNueva: boolean }> {
+  const elegidos = archivos.filter(
+    (archivo): archivo is File => archivo instanceof File && archivo.size > 0,
+  );
+
+  if (elegidos.length === 0) return { aviso: null, imagenNueva: false };
 
   const usuario = await requerirUsuario();
-  const motivo = motivoDeRechazoAdjunto(archivo.name, archivo.size);
-  if (motivo) return `El archivo no se cargó: ${motivo}`;
-
   const supabase = crearClienteServidor();
-  const imagen = esImagen(archivo.name);
-  const ruta = imagen
-    ? rutaDeImagen(publicacionId, archivo.name)
-    : rutaDeAdjuntoPublicacion(publicacionId, archivo.name);
 
-  const { error: errorCarga } = await supabase.storage
-    .from(BUCKET_IMAGENES)
-    .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+  const avisos: string[] = [];
+  let imagenNueva = false;
 
-  if (errorCarga) return `El archivo no se cargó: ${errorCarga.message}`;
+  for (const archivo of elegidos) {
+    const motivo = motivoDeRechazoAdjunto(archivo.name, archivo.size);
+    if (motivo) {
+      avisos.push(`${archivo.name}: ${motivo}`);
+      continue;
+    }
 
-  const { error } = imagen
-    ? await supabase.from("publicaciones").update({ url_imagen: ruta }).eq("id", publicacionId)
-    : await supabase.from("adjuntos").insert({
-        empresa_id: usuario.empresa_id,
-        entidad: "publicaciones",
-        entidad_id: publicacionId,
-        nombre_archivo: nombreDeArchivoLegible(archivo.name),
-        ruta,
-        bucket: BUCKET_IMAGENES,
-        tamano_bytes: archivo.size,
-        tipo_mime: archivo.type || null,
-        subido_por: usuario.id,
-      });
+    // La primera imagen va a la tarjeta; de ahi en mas, todo es anexo.
+    const comoImagen = esImagen(archivo.name) && !imagenNueva;
+    const ruta = comoImagen
+      ? rutaDeImagen(publicacionId, archivo.name)
+      : rutaDeAdjuntoPublicacion(publicacionId, archivo.name);
 
-  if (error) {
-    await supabase.storage.from(BUCKET_IMAGENES).remove([ruta]);
-    return "El archivo no se pudo asociar a la publicación.";
+    const { error: errorCarga } = await supabase.storage
+      .from(BUCKET_IMAGENES)
+      .upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
+
+    if (errorCarga) {
+      avisos.push(`${archivo.name}: ${errorCarga.message}`);
+      continue;
+    }
+
+    const { error } = comoImagen
+      ? await supabase.from("publicaciones").update({ url_imagen: ruta }).eq("id", publicacionId)
+      : await supabase.from("adjuntos").insert({
+          empresa_id: usuario.empresa_id,
+          entidad: "publicaciones",
+          entidad_id: publicacionId,
+          nombre_archivo: nombreDeArchivoLegible(archivo.name),
+          ruta,
+          bucket: BUCKET_IMAGENES,
+          tamano_bytes: archivo.size,
+          tipo_mime: archivo.type || null,
+          subido_por: usuario.id,
+        });
+
+    if (error) {
+      await supabase.storage.from(BUCKET_IMAGENES).remove([ruta]);
+      avisos.push(`${archivo.name}: no se pudo asociar a la publicación.`);
+      continue;
+    }
+
+    if (comoImagen) imagenNueva = true;
   }
 
-  return null;
+  return {
+    aviso: avisos.length > 0 ? `No entraron: ${avisos.join(" · ")}` : null,
+    imagenNueva,
+  };
+}
+
+/**
+ * Quita un anexo de una publicacion.
+ *
+ * Hace falta desde que se pueden subir varios: sin esto, un archivo
+ * subido por error solo se sacaba borrando la publicacion entera.
+ */
+export async function quitarAnexoDePublicacion(
+  adjuntoId: string,
+  publicacionId: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const resultado = await quitarAdjunto(supabase, adjuntoId, "publicaciones", publicacionId);
+  if (!resultado.ok) return { exito: false, error: resultado.error };
+
+  revalidatePath("/inicio");
+  return { exito: true, mensaje: `«${resultado.nombre}» eliminado.` };
 }
 
 export async function cambiarEstadoPublicacion(
@@ -259,11 +318,12 @@ export async function editarPublicacion(
     await borrarImagenDelBucket(actual.url_imagen);
   }
 
-  const aviso = await adjuntarImagen(id, datos.get("imagen"));
-  if (!aviso && actual.url_imagen && datos.get("imagen") instanceof File) {
-    const nueva = datos.get("imagen") as File;
-    if (nueva.size > 0) await borrarImagenDelBucket(actual.url_imagen);
-  }
+  const { aviso, imagenNueva } = await adjuntarArchivos(id, datos.getAll("archivos"));
+
+  // La imagen vieja se borra solo si entro una nueva que la reemplazo.
+  // Antes alcanzaba con que viniera un archivo; con varios, uno podia ser
+  // un PDF y la imagen quedaba borrada del bucket sin reemplazo.
+  if (imagenNueva && actual.url_imagen) await borrarImagenDelBucket(actual.url_imagen);
 
   revalidatePath("/inicio");
   return { exito: true, mensaje: `Publicación actualizada.${aviso ? ` ${aviso}` : ""}` };

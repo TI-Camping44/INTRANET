@@ -61,9 +61,21 @@ export function motivoDeRechazoImagen(
   return null;
 }
 
+/**
+ * Pieza unica para el nombre del archivo en el bucket.
+ *
+ * `Date.now()` solo no alcanza desde que una publicacion admite varios
+ * archivos: subidos en la misma tanda, dos pueden caer en el mismo
+ * milisegundo y con la misma extension, y la carga va con `upsert: false`
+ * —a proposito, para no pisar nada—, asi que el segundo se rechazaba.
+ */
+function piezaUnica(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /** Ruta de la imagen dentro del bucket. */
 export function rutaDeImagen(publicacionId: string, nombreArchivo: string): string {
-  return `publicaciones/${publicacionId}/${Date.now()}${extensionDe(nombreArchivo)}`;
+  return `publicaciones/${publicacionId}/${piezaUnica()}${extensionDe(nombreArchivo)}`;
 }
 
 /**
@@ -158,5 +170,5 @@ export function rutaDeAdjuntoPublicacion(
   publicacionId: string,
   nombreArchivo: string,
 ): string {
-  return `publicaciones/${publicacionId}/adjuntos/${Date.now()}${extensionDe(nombreArchivo)}`;
+  return `publicaciones/${publicacionId}/adjuntos/${piezaUnica()}${extensionDe(nombreArchivo)}`;
 }
