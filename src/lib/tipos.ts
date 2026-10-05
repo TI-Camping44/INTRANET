@@ -147,7 +147,6 @@ export type EstadoCapacitacion =
   | "finalizada"
   | "cancelada";
 
-export type TipoCompetencia = "tecnica" | "conductual" | "legal";
 
 export type EstadoProveedor =
   | "en_evaluacion"

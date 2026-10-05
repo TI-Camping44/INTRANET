@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
  * documental —el puesto y su PDF firmado— y la formación es un plan
  * anual con su calendario: no comparten ni una pantalla ni un criterio,
  * y el tablero que mezclaba las dos cosas más la matriz de competencias
+ * —que Calidad retiró—
  * no servía para ninguna.
  *
  * La ruta vieja sigue andando y lleva al primero, que es el que se mira

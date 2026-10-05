@@ -39,7 +39,8 @@ export interface FilaPuesto {
  * El primero de los dos submódulos de Personas. Quedó reducido a lo que
  * Dirección pidió el 5 de octubre: los puestos con su departamento, el
  * perfil en PDF adjunto a cada uno, y quién está en cada puesto. La
- * matriz de competencias salió de acá y vive en el otro submódulo.
+ * matriz de competencias se retiró: Calidad definió el 5 de octubre que
+ * no la van a usar.
  *
  * LOS CUATRO NÚMEROS DEL ENCABEZADO son la foto de la dotación:
  * cuántos puestos hay definidos, cuántos tienen a alguien, cuántos están

@@ -6,7 +6,8 @@ import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { archivosDelFormulario, quitarAdjunto, subirAdjuntos } from "@/lib/adjuntos-servidor";
 import { exigeMotivo, ESTADOS_FORMACION_VIGENTES, MODALIDADES } from "@/lib/formacion";
-import type { EstadoCapacitacion, ResultadoAccion } from "@/lib/tipos";
+import { hoyEnAsuncion } from "@/lib/formato";
+import type { EstadoCapacitacion, ResultadoAccion, ResultadoEficacia } from "@/lib/tipos";
 
 /**
  * Formacion y Competencia.
@@ -445,4 +446,85 @@ async function avisarALosConvocados(
       entidadId: formacion.id,
     });
   }
+}
+
+/**
+ * La Evaluacion de Eficacia de la Formacion, persona por persona.
+ *
+ * ES POR PERSONA Y NO POR CURSO. Es una regla del proyecto y no una
+ * decision de pantalla: un curso donde la mitad aprovecho y la otra
+ * mitad no, promediado, no dice nada, y lo que Calidad necesita saber es
+ * quien quedo con la brecha abierta.
+ *
+ * SOLO SE EXIGE EN LAS DE MAS DE DOS HORAS. El corte lo calcula la base,
+ * en `capacitaciones.requiere_eficacia`, y se controla acá: dejar
+ * evaluar una formacion corta llenaria el registro de evaluaciones que
+ * nadie pidio y que despues hay que explicar.
+ *
+ * Y SOLO SOBRE LO EJECUTADO. Evaluar la eficacia de algo que no se dicto
+ * es afirmar sobre lo que no paso.
+ */
+export async function verificarEficacia(
+  participanteId: string,
+  formacionId: string,
+  eficacia: ResultadoEficacia,
+  observacion: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite verificar la eficacia." };
+  }
+
+  if (eficacia !== "pendiente" && observacion.trim().length < 10) {
+    return {
+      exito: false,
+      error: "Indique cómo se verificó la eficacia, con al menos 10 caracteres.",
+    };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data } = await supabase
+    .from("capacitaciones")
+    .select("estado, requiere_eficacia")
+    .eq("id", formacionId)
+    .maybeSingle();
+
+  const formacion = data as { estado: string; requiere_eficacia: boolean } | null;
+  if (!formacion) return { exito: false, error: "La formación no existe o no tiene acceso." };
+
+  if (formacion.estado !== "ejecutada") {
+    return {
+      exito: false,
+      error: "Primero registre la ejecución: la eficacia se evalúa sobre lo que se dictó.",
+    };
+  }
+
+  if (!formacion.requiere_eficacia) {
+    return {
+      exito: false,
+      error:
+        "Esta formación no supera las 2 horas, así que no exige Evaluación de Eficacia de la " +
+        "Formación.",
+    };
+  }
+
+  const { data: actualizado, error } = await supabase
+    .from("capacitacion_participantes")
+    .update({
+      eficacia,
+      fecha_evaluacion_eficacia: eficacia === "pendiente" ? null : hoyEnAsuncion(),
+      observacion: observacion.trim() || null,
+    })
+    .eq("id", participanteId)
+    .eq("capacitacion_id", formacionId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo registrar: ${error.message}` };
+  if (!actualizado) return { exito: false, error: "La persona no está en esta formación." };
+
+  revalidatePath(`/recursos-humanos/formacion/${formacionId}`);
+  revalidatePath("/recursos-humanos/formacion");
+  return { exito: true, mensaje: "Eficacia verificada." };
 }

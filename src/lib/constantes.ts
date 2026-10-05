@@ -24,7 +24,6 @@ import type {
   SeveridadNoConformidad,
   TipoAccion,
   TipoCapacitacion,
-  TipoCompetencia,
   TipoDocumento,
   TipoHallazgo,
   TipoProceso,
@@ -369,45 +368,6 @@ export const ETIQUETAS_ESTADO_CAPACITACION: Record<EstadoCapacitacion, string> =
   cancelada: "Cancelada",
 };
 
-export const ETIQUETAS_TIPO_COMPETENCIA: Record<TipoCompetencia, string> = {
-  tecnica: "Técnica",
-  conductual: "Conductual",
-  legal: "Legal",
-};
-
-/**
- * Escala de dominio de una competencia. La usa la matriz por puesto y la
- * evaluacion de cada persona, para que ambas hablen de lo mismo.
- */
-export const NIVELES_COMPETENCIA: Record<number, string> = {
-  0: "Sin dominio",
-  1: "Básico",
-  2: "En desarrollo",
-  3: "Competente",
-  4: "Avanzado",
-  5: "Referente",
-};
-
-/** Estados en los que una no conformidad se considera abierta. */
-/**
- * Las cinco preguntas del analisis de causa raiz, con la redaccion de
- * Calidad. La primera nombra la desviacion y la ultima dice
- * explicitamente que ahi termina la cadena: quien completa el formulario
- * tiene que saber que ese renglon es la causa raiz y no un sintoma mas.
- *
- * Viven aca y no en el componente porque las usan dos pantallas: el
- * analisis de la ficha y el formulario con el que se responde la accion
- * correctiva.
- */
-/**
- * Lista de distribucion interna de la empresa.
- *
- * Se usa para los avisos que van a todo el personal y no a una persona
- * —hoy, el aviso de auditoria—. Es una direccion de la empresa, no una
- * credencial: vive aca y no en una variable de entorno porque si cambia
- * tiene que cambiar a la vista, en una revision, y no en el panel de
- * Vercel donde nadie la encuentra.
- */
 export const CORREO_TODOS = "todos@camping44.com.py";
 
 /**

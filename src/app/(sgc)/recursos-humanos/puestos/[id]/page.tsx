@@ -46,14 +46,16 @@ export async function generateMetadata({
  *
  * TRES COSAS Y NADA MÁS, como pidió Dirección el 5 de octubre: el
  * nombre, el departamento y el perfil en PDF. Salieron de acá el código,
- * el proceso, la misión, las funciones, los requisitos y la matriz de
- * competencias exigidas.
+ * el proceso, la misión, las funciones y los requisitos.
  *
  * La razón es la misma para todo lo que salió: el perfil de puesto es un
  * documento firmado y revisado, y transcribirlo a campos de la base
  * creaba una segunda versión que nadie mantenía y que a los seis meses
  * ya no decía lo mismo que el papel. El documento es la fuente; acá se
  * guarda y se abre.
+ *
+ * La matriz de competencias exigidas no se movió a otra pantalla: Calidad
+ * resolvió que no la va a usar, así que se retiró del sistema.
  *
  * Quién está en el puesto sí se muestra: es lo que hace que los números
  * del listado —ocupados, vacantes— signifiquen algo, y acá se ve a quién

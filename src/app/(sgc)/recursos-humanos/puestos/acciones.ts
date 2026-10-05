@@ -11,7 +11,8 @@ import type { ResultadoAccion } from "@/lib/tipos";
  *
  * El submodulo quedo reducido a lo que Direccion pidio el 5 de octubre:
  * el puesto con su nombre y su departamento, y el perfil en PDF
- * adjunto. Nada mas. La matriz de competencias salio de acá.
+ * adjunto. Nada mas. La matriz de competencias se retiro: Calidad
+ * definio que no la van a usar.
  *
  * EL PUESTO NO LLEVA CODIGO. Los P-101 en adelante los definio el
  * proyecto y Calidad nunca los confirmo; la columna sigue existiendo

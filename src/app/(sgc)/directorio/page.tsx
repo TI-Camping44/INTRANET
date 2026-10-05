@@ -37,11 +37,12 @@ export default async function PaginaDirectorio({
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  // El directorio pasa a ser también la puerta de Recursos Humanos: de
-  // cada persona se llega a su perfil de puesto —el R-02-01— y los
-  // perfiles completos tienen su propia pestaña. Es donde la gente los
-  // busca: se entra por el nombre de la persona, no por el código del
-  // puesto.
+  // El directorio es también la puerta de Personas: de cada persona se
+  // llega a la ficha de su puesto, donde está el perfil en PDF, y la
+  // lista completa de puestos tiene su propia pestaña. Es donde la gente
+  // los busca: se entra por el nombre de la persona, no por el código
+  // del puesto —que además ya no se muestra, porque los códigos los puso
+  // el proyecto y Calidad todavía no los confirmó.
   const [{ data }, { data: puestosCargados }] = await Promise.all([
     supabase
       .from("usuarios")
@@ -53,21 +54,17 @@ export default async function PaginaDirectorio({
       .order("nombre_completo"),
     supabase
       .from("puestos")
-      .select("id, codigo, nombre, area, codigo_formulario, revision, procesos:proceso_id (nombre)")
+      .select("id, nombre, area")
       .eq("activo", true)
-      .order("codigo"),
+      .order("nombre"),
   ]);
 
   const personas = (data ?? []) as unknown as Persona[];
 
   const puestos = (puestosCargados ?? []) as unknown as {
     id: string;
-    codigo: string;
     nombre: string;
     area: string | null;
-    codigo_formulario: string;
-    revision: number;
-    procesos: { nombre: string } | null;
   }[];
 
   // Cuántas personas ocupan cada puesto. Un puesto sin nadie es un dato:
@@ -206,18 +203,15 @@ export default async function PaginaDirectorio({
             <EstadoVacio
               icono={<Users className="size-6" />}
               titulo="Sin puestos cargados"
-              descripcion="Los perfiles de puesto se cargan desde Recursos humanos."
+              descripcion="Los puestos se crean en Personas · Perfil de Resultados de Puesto."
             />
           ) : (
             <Tarjeta>
               <Tabla>
                 <TablaCabecera>
                   <TablaFila>
-                    <TablaEncabezado className="w-[6rem]">Código</TablaEncabezado>
                     <TablaEncabezado>Puesto</TablaEncabezado>
                     <TablaEncabezado className="hidden md:table-cell">Departamento</TablaEncabezado>
-                    <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
-                    <TablaEncabezado className="w-[7rem]">Formulario</TablaEncabezado>
                     <TablaEncabezado className="w-[7rem]">Ocupan</TablaEncabezado>
                   </TablaFila>
                 </TablaCabecera>
@@ -227,15 +221,7 @@ export default async function PaginaDirectorio({
 
                     return (
                       <TablaFila key={puesto.id}>
-                        <TablaCelda className="font-medium tabular text-xs">
-                          <Link
-                            href={`/recursos-humanos/puestos/${puesto.id}`}
-                            className="hover:text-primario"
-                          >
-                            {puesto.codigo}
-                          </Link>
-                        </TablaCelda>
-                        <TablaCelda className="text-xs">
+                        <TablaCelda className="text-xs font-medium">
                           <Link
                             href={`/recursos-humanos/puestos/${puesto.id}`}
                             className="hover:text-primario"
@@ -245,12 +231,6 @@ export default async function PaginaDirectorio({
                         </TablaCelda>
                         <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                           {puesto.area ?? "—"}
-                        </TablaCelda>
-                        <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                          {puesto.procesos?.nombre ?? "—"}
-                        </TablaCelda>
-                        <TablaCelda className="text-xs tabular text-atenuado-contraste">
-                          {puesto.codigo_formulario} · rev. {puesto.revision}
                         </TablaCelda>
                         <TablaCelda className="text-xs">
                           {cuantos === 0 ? (
@@ -270,9 +250,8 @@ export default async function PaginaDirectorio({
           )}
 
           <p className="mt-3 text-[11px] text-atenuado-contraste">
-            El perfil de cada puesto es el formulario R-02-01: misión, funciones, formación y
-            experiencia exigidas. La matriz de competencias y las capacitaciones están en
-            Recursos humanos.
+            El perfil de cada puesto se adjunta en PDF, en Personas · Perfil de Resultados de
+            Puesto. Las acciones formativas están en Personas · Formación y Competencia.
           </p>
         </PestanaContenido>
       </Pestanas>
