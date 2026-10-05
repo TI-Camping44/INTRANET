@@ -77,7 +77,12 @@ interface FilaDocumento {
  */
 const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> = {
   vigentes: { etiqueta: "Vigentes", estados: ["vigente"] },
-  "en-proceso": { etiqueta: "En elaboración", estados: ["borrador", "en_revision"] },
+  // «En elaboración» junta todo lo que todavía no rige: el borrador, lo
+  // que está con los revisores y lo que espera la firma del aprobador.
+  "en-proceso": {
+    etiqueta: "En elaboración",
+    estados: ["borrador", "en_revision", "en_aprobacion"],
+  },
   obsoletos: { etiqueta: "Obsoletos", estados: ["obsoleto"] },
   // Calidad nombra tres listas. Los anulados llevan la suya porque un
   // documento anulado se conserva para poder consultarlo, y un estado que

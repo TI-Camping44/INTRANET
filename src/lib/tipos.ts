@@ -27,6 +27,7 @@ export type TipoDocumento =
 export type EstadoDocumento =
   | "borrador"
   | "en_revision"
+  | "en_aprobacion"
   | "vigente"
   | "obsoleto"
   | "anulado";

@@ -144,6 +144,9 @@ export const TIPOS_DOCUMENTO_VIGENTES: TipoDocumento[] = [
 export const ETIQUETAS_ESTADO_DOCUMENTO: Record<EstadoDocumento, string> = {
   borrador: "Borrador",
   en_revision: "En revisión",
+  // Los revisores ya aprobaron y falta la firma del aprobador. Sin este
+  // estado, un documento revisado y uno sin revisar se veian igual.
+  en_aprobacion: "En aprobación",
   vigente: "Vigente",
   // Obsoleto es el que quedo atras porque salio una version nueva, y
   // sigue siendo parte de la cadena. Anulado es el que se saca de

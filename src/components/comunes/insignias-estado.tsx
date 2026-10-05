@@ -28,6 +28,7 @@ type Variante = React.ComponentProps<typeof Insignia>["variante"];
 const VARIANTE_ESTADO_DOCUMENTO: Record<EstadoDocumento, Variante> = {
   borrador: "neutra",
   en_revision: "advertencia",
+  en_aprobacion: "atencion",
   vigente: "exito",
   obsoleto: "contorno",
   anulado: "atencion",

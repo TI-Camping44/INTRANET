@@ -574,12 +574,82 @@ export async function responderRevision(
     .eq("id", revision.version_id)
     .maybeSingle();
 
+  // CUANDO NO QUEDA NINGUNA REVISION PENDIENTE, EL DOCUMENTO PASA A «EN
+  // APROBACION». Es el paso que faltaba: antes seguia diciendo «en
+  // revision» hasta que alguien lo publicaba, asi que el aprobador no
+  // tenia donde ver que le tocaba firmar, y un documento ya revisado se
+  // veia igual que uno que nadie miro.
+  if (aprueba && version) {
+    const { data: todas } = await supabase
+      .from("documento_revisores")
+      .select("estado")
+      .eq("version_id", revision.version_id);
+
+    const faltan = (todas ?? []).filter(
+      (otra: { estado: string }) => otra.estado !== "aprobado",
+    ).length;
+
+    if (faltan === 0) {
+      // La version vigente no se toca: sigue siendo la aplicable hasta
+      // que la nueva se apruebe.
+      await supabase
+        .from("documentos")
+        .update({ estado: "en_aprobacion" })
+        .eq("id", version.documento_id)
+        .neq("estado", "vigente");
+
+      // Y se le avisa a quien tiene que firmar.
+      const { data: cabecera } = await supabase
+        .from("documentos")
+        .select("codigo, titulo, aprobador_id")
+        .eq("id", version.documento_id)
+        .maybeSingle();
+
+      const encabezado = cabecera as
+        | { codigo: string | null; titulo: string; aprobador_id: string | null }
+        | null;
+
+      if (encabezado?.aprobador_id && encabezado.aprobador_id !== usuario.id) {
+        const { data: aprobador } = await supabase
+          .from("usuarios")
+          .select("id, correo")
+          .eq("id", encabezado.aprobador_id)
+          .maybeSingle();
+
+        if (aprobador) {
+          await notificar(supabase, {
+            deParteDe: departe(usuario),
+            usuarioId: aprobador.id,
+            correoDestino: aprobador.correo,
+            tipo: "revision_solicitada",
+            titulo: `Listo para aprobar · ${encabezado.codigo ?? encabezado.titulo}`,
+            mensaje:
+              `"${encabezado.titulo}" terminó la revisión y espera su aprobación. ` +
+              "Al aprobarlo queda vigente y la versión anterior pasa a obsoleta.",
+            enlace: `/documentos/${version.documento_id}`,
+            entidad: "documentos",
+            entidadId: version.documento_id,
+            claveUnicidad: `doc-por-aprobar:${revision.version_id}`,
+          });
+        }
+      }
+    }
+  }
+
   // Un rechazo devuelve la versión a borrador para su corrección.
   if (!aprueba && version) {
     await supabase
       .from("documento_versiones")
       .update({ estado: "borrador" })
       .eq("id", revision.version_id);
+
+    // Y la cabecera vuelve a «borrador», salvo que haya una version
+    // vigente: esa sigue rigiendo mientras se corrige la nueva.
+    await supabase
+      .from("documentos")
+      .update({ estado: "borrador" })
+      .eq("id", version.documento_id)
+      .neq("estado", "vigente");
 
     if (version.elaborado_por) {
       const { data: elaborador } = await supabase
