@@ -20,7 +20,8 @@ export const obtenerUsuarioActual = cache(async (): Promise<Usuario | null> => {
   const { data: perfil } = await supabase
     .from("usuarios")
     .select(
-      "id, empresa_id, correo, nombre_completo, rol, puesto_id, proceso_id, superior_id, telefono, url_avatar, activo, ultimo_ingreso",
+      "id, empresa_id, correo, nombre_completo, nombres, apellidos, fecha_nacimiento, " +
+        "rol, puesto_id, proceso_id, superior_id, telefono, url_avatar, activo, ultimo_ingreso",
     )
     .eq("id", cuenta.id)
     .maybeSingle();
@@ -28,8 +29,47 @@ export const obtenerUsuarioActual = cache(async (): Promise<Usuario | null> => {
   return (perfil as Usuario | null) ?? null;
 });
 
-/** Igual que la anterior, pero redirige si no hay sesion valida. */
+/**
+ * El perfil esta completo cuando tiene nombres, apellidos y fecha de
+ * nacimiento.
+ *
+ * Los tres se piden en el primer ingreso. Google devuelve un
+ * `nombre_completo` en una sola pieza y no devuelve el cumpleaños, asi
+ * que sin este paso el legajo nace incompleto y los cumpleaños del mes
+ * de la portada quedan vacios para siempre: nadie vuelve a entrar a un
+ * perfil que ya anda.
+ */
+export function perfilCompleto(usuario: Usuario | null): boolean {
+  return Boolean(
+    usuario?.nombres?.trim() && usuario?.apellidos?.trim() && usuario?.fecha_nacimiento,
+  );
+}
+
+/**
+ * Igual que la anterior, pero redirige si no hay sesion valida.
+ *
+ * Y MANDA A COMPLETAR EL PERFIL si falta. Es la unica pantalla que
+ * queda accesible con el perfil incompleto, ademas de la propia de
+ * completarlo y la de salir: lo pidio Direccion el 5 de octubre para que
+ * «Personas sin Puesto» y los cumpleaños se alimenten solos.
+ */
 export async function requerirUsuario(): Promise<Usuario> {
+  const usuario = await obtenerUsuarioActual();
+
+  if (!usuario) redirect("/ingresar");
+  if (!usuario.activo) redirect("/sin-acceso?motivo=inactivo");
+  if (!perfilCompleto(usuario)) redirect("/completar-perfil");
+
+  return usuario;
+}
+
+/**
+ * Como `requerirUsuario`, pero sin exigir el perfil completo.
+ *
+ * La usa la pantalla de completarlo: si usara la otra, se mandaria a si
+ * misma en un bucle.
+ */
+export async function requerirUsuarioSinPerfil(): Promise<Usuario> {
   const usuario = await obtenerUsuarioActual();
 
   if (!usuario) redirect("/ingresar");

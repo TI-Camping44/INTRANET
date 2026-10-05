@@ -201,6 +201,10 @@ export interface Usuario {
   empresa_id: string;
   correo: string;
   nombre_completo: string;
+  /** Los dos por separado. Se piden en el primer ingreso. */
+  nombres: string | null;
+  apellidos: string | null;
+  fecha_nacimiento: string | null;
   rol: RolUsuario;
   puesto_id: string | null;
   proceso_id: string | null;
