@@ -289,6 +289,120 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             </Tarjeta>
           ) : null}
 
+          {/* VERSIONES Y FIRMAS. El historial de la informacion
+              documentada es lo que una auditoria pide ver: que version
+              rigio, que cambio respecto de la anterior, quien la elaboro,
+              quien la reviso y quien la aprobo, cada uno con su fecha.
+              Estaba guardado y no se mostraba en ningun lado. */}
+          <Tarjeta>
+            <TarjetaCabecera>
+              <TarjetaTitulo>
+                Versiones y aprobaciones{" "}
+                <span className="font-normal text-atenuado-contraste">
+                  ({listaVersiones.length})
+                </span>
+              </TarjetaTitulo>
+            </TarjetaCabecera>
+            <TarjetaContenido>
+              {listaVersiones.length === 0 ? (
+                <p className="text-xs text-atenuado-contraste">
+                  Todavía no hay versiones cargadas.
+                </p>
+              ) : (
+                <ol className="divide-y divide-borde">
+                  {listaVersiones.map((version: any) => {
+                    const firmas = revisionesDelDocumento.filter(
+                      (revision: { version_id: string }) => revision.version_id === version.id,
+                    );
+
+                    return (
+                      <li key={version.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="tabular text-xs font-semibold">
+                            v{String(version.version).padStart(2, "0")}
+                          </span>
+                          <InsigniaEstadoDocumento estado={version.estado} />
+                          {version.etiqueta ? (
+                            <span className="text-[11px] text-atenuado-contraste">
+                              {version.etiqueta}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {version.resumen_cambios ? (
+                          <p className="mt-1 whitespace-pre-line text-xs leading-relaxed">
+                            {version.resumen_cambios}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-[11px] italic text-atenuado-contraste">
+                            Sin motivo del cambio cargado.
+                          </p>
+                        )}
+
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-atenuado-contraste">
+                          <span>
+                            Elaboró:{" "}
+                            <span className="text-texto">
+                              {version.elaborador?.nombre_completo ?? "—"}
+                            </span>
+                            {version.creado_en ? ` · ${formatearFecha(version.creado_en)}` : ""}
+                          </span>
+                          {version.aprobado_por ? (
+                            <span>
+                              Aprobó:{" "}
+                              <span className="text-texto">
+                                {version.aprobador?.nombre_completo ?? "—"}
+                              </span>
+                              {version.fecha_aprobacion
+                                ? ` · ${formatearFechaHora(version.fecha_aprobacion)}`
+                                : ""}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {/* Las firmas de los revisores de esa version: es
+                            lo que prueba que paso por donde tenia que pasar. */}
+                        {firmas.length > 0 ? (
+                          <ul className="mt-1.5 space-y-1">
+                            {firmas.map((firma: any) => (
+                              <li
+                                key={firma.id}
+                                className="flex flex-wrap items-baseline gap-x-2 text-[11px]"
+                              >
+                                <span
+                                  className={
+                                    firma.estado === "aprobado"
+                                      ? "text-semaforo-bajo"
+                                      : firma.estado === "rechazado"
+                                        ? "text-semaforo-critico"
+                                        : "text-semaforo-medio"
+                                  }
+                                >
+                                  {ETIQUETAS_ESTADO_REVISION[firma.estado as "pendiente"]}
+                                </span>
+                                <span>{firma.usuario?.nombre_completo ?? "—"}</span>
+                                {firma.fecha_respuesta ? (
+                                  <span className="text-atenuado-contraste">
+                                    {formatearFechaHora(firma.fecha_respuesta)}
+                                  </span>
+                                ) : null}
+                                {firma.comentario ? (
+                                  <span className="w-full text-atenuado-contraste">
+                                    «{firma.comentario}»
+                                  </span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </TarjetaContenido>
+          </Tarjeta>
+
           <Tarjeta>
             <TarjetaCabecera>
               <TarjetaTitulo>Archivos</TarjetaTitulo>
