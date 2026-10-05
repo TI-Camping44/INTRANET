@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_ESTADO_RIESGO } from "@/lib/constantes";
+import { CeldaTexto } from "@/components/comunes/celda-texto";
+import { ETIQUETAS_EFICACIA, ETIQUETAS_ESTADO_RIESGO } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
 import {
   CLASES_PRIORIDAD,
@@ -28,8 +29,8 @@ import {
   ETIQUETAS_PRIORIDAD,
   prioridadOportunidad,
 } from "@/lib/riesgos";
-import { cn, recortar } from "@/lib/utilidades";
-import type { EstadoRiesgo } from "@/lib/tipos";
+import { cn } from "@/lib/utilidades";
+import type { EstadoRiesgo, ResultadoEficacia } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Oportunidades" };
 export const dynamic = "force-dynamic";
@@ -52,7 +53,9 @@ interface FilaOportunidad {
   id: string;
   codigo: string;
   titulo: string;
+  descripcion: string | null;
   estado: EstadoRiesgo;
+  fecha_identificacion: string;
   origen: string | null;
   efecto_deseado: string | null;
   beneficio: number | null;
@@ -60,9 +63,19 @@ interface FilaOportunidad {
   indice: number | null;
   alineacion_estrategica: string | null;
   se_decide_abordar: boolean | null;
+  /** La palabra exacta de la planilla: Sí, No o Diferida. */
+  decision_declarada: string | null;
   accion_planificada: string | null;
+  recursos_necesarios: string | null;
   plazo_accion: string | null;
+  plazo_accion_permanente: boolean;
+  resultado_obtenido: string | null;
+  fecha_evaluacion_eficacia: string | null;
+  eficacia_accion: ResultadoEficacia | null;
   es_demostracion: boolean;
+  proceso_declarado: string | null;
+  proceso_accion_declarado: string | null;
+  responsable_declarado: string | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
 }
@@ -84,9 +97,13 @@ export default async function PaginaOportunidades({
   let consulta = supabase
     .from("riesgos")
     .select(
-      "id, codigo, titulo, estado, origen, efecto_deseado, beneficio, factibilidad, indice, " +
-        "alineacion_estrategica, se_decide_abordar, accion_planificada, plazo_accion, " +
-        "es_demostracion, procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
+      "id, codigo, titulo, descripcion, estado, fecha_identificacion, origen, " +
+        "efecto_deseado, beneficio, factibilidad, indice, alineacion_estrategica, " +
+        "se_decide_abordar, decision_declarada, accion_planificada, recursos_necesarios, " +
+        "plazo_accion, plazo_accion_permanente, resultado_obtenido, " +
+        "fecha_evaluacion_eficacia, eficacia_accion, es_demostracion, " +
+        "proceso_declarado, proceso_accion_declarado, responsable_declarado, " +
+        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
     )
     .eq("tipo", "oportunidad")
     // Por índice descendente: lo que más conviene hacer va arriba. Es el
@@ -178,18 +195,37 @@ export default async function PaginaOportunidades({
         />
       ) : (
         <Tarjeta>
+          {/* LAS COLUMNAS DE LA HOJA 6.1.3, EN SU ORDEN. Son veintiuna: la
+              tabla se desplaza en horizontal por su cuenta y el código
+              queda fijo a la izquierda. Las columnas de párrafo van
+              recortadas a una línea, con el texto entero al señalar. */}
           <Tabla>
             <TablaCabecera>
               <TablaFila>
-                <TablaEncabezado className="w-[7.5rem]">Código</TablaEncabezado>
-                <TablaEncabezado>Oportunidad</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Origen</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
-                <TablaEncabezado className="w-[4.5rem] text-center">B × F</TablaEncabezado>
-                <TablaEncabezado className="w-[4rem] text-right">Índice</TablaEncabezado>
+                <TablaEncabezado className="sticky left-0 z-10 w-[7.5rem] bg-fondo">
+                  Código
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[6rem]">Fecha</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Proceso</TablaEncabezado>
+                <TablaEncabezado className="w-[11rem]">Origen</TablaEncabezado>
+                <TablaEncabezado className="w-[16rem]">
+                  Descripción de la oportunidad
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">Efecto deseado esperado</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Benef.</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Factib.</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Índice</TablaEncabezado>
                 <TablaEncabezado className="w-[6rem]">Prioridad</TablaEncabezado>
-                <TablaEncabezado className="w-[6rem]">Alineación</TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">¿Se aborda?</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Alineación</TablaEncabezado>
+                <TablaEncabezado className="w-[9rem]">¿Se decide abordar?</TablaEncabezado>
+                <TablaEncabezado className="w-[16rem]">Acción planificada</TablaEncabezado>
+                <TablaEncabezado className="w-[13rem]">Recursos necesarios</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Proceso de la acción</TablaEncabezado>
+                <TablaEncabezado className="w-[13rem]">Resultado obtenido</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Se mide el</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">¿Acción eficaz?</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
@@ -205,41 +241,48 @@ export default async function PaginaOportunidades({
 
                 return (
                   <TablaFila key={fila.id}>
-                    <TablaCelda className="font-medium tabular">
+                    <TablaCelda className="sticky left-0 z-10 bg-fondo font-medium tabular">
                       <Link href={`/riesgos/${fila.id}`} className="hover:text-primario">
                         {fila.codigo}
                       </Link>
-                    </TablaCelda>
-                    <TablaCelda>
-                      <Link
-                        href={`/riesgos/${fila.id}`}
-                        className="flex flex-wrap items-center gap-2 hover:text-primario"
-                      >
-                        <span>{recortar(fila.titulo, 65)}</span>
-                        {fila.es_demostracion ? <InsigniaDemostracion /> : null}
-                      </Link>
-                      {fila.efecto_deseado ? (
-                        <p className="mt-0.5 text-[11px] text-atenuado-contraste">
-                          {recortar(fila.efecto_deseado, 90)}
-                        </p>
+                      {fila.es_demostracion ? (
+                        <span className="ml-1 align-middle">
+                          <InsigniaDemostracion />
+                        </span>
                       ) : null}
                     </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
-                      {fila.origen ?? "—"}
+
+                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                      {formatearFecha(fila.fecha_identificacion)}
                     </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {fila.procesos?.nombre ?? "—"}
+
+                    <CeldaTexto ancho="12rem">
+                      {fila.proceso_declarado ?? fila.procesos?.nombre}
+                    </CeldaTexto>
+                    <CeldaTexto ancho="11rem">{fila.origen}</CeldaTexto>
+
+                    <TablaCelda className="text-xs" style={{ maxWidth: "16rem" }}>
+                      <Link
+                        href={`/riesgos/${fila.id}`}
+                        className="block truncate hover:text-primario"
+                        title={fila.descripcion ?? fila.titulo}
+                      >
+                        {fila.descripcion ?? fila.titulo}
+                      </Link>
+                    </TablaCelda>
+
+                    <CeldaTexto ancho="14rem">{fila.efecto_deseado}</CeldaTexto>
+
+                    <TablaCelda className="text-center text-xs tabular">
+                      {fila.beneficio ?? "—"}
                     </TablaCelda>
                     <TablaCelda className="text-center text-xs tabular">
-                      {fila.beneficio !== null && fila.factibilidad !== null ? (
-                        `${fila.beneficio} × ${fila.factibilidad}`
-                      ) : (
-                        <span className="text-semaforo-alto">Sin valorar</span>
-                      )}
+                      {fila.factibilidad ?? "—"}
                     </TablaCelda>
-                    <TablaCelda className="text-right text-xs font-medium tabular">
+                    <TablaCelda className="text-center text-xs font-medium tabular">
                       {fila.indice ?? "—"}
                     </TablaCelda>
+
                     <TablaCelda>
                       {prioridad ? (
                         <span
@@ -254,13 +297,32 @@ export default async function PaginaOportunidades({
                         <span className="text-xs text-atenuado-contraste">—</span>
                       )}
                     </TablaCelda>
+
                     <TablaCelda className="text-xs text-atenuado-contraste">
                       {fila.alineacion_estrategica
                         ? ETIQUETAS_ALINEACION[fila.alineacion_estrategica]
                         : "—"}
                     </TablaCelda>
+
+                    {/* La palabra de la planilla, no un Sí/No: la columna
+                        admite «Diferida», que no es lo mismo que «No».
+                        Una diferida espera la Revisión por la Dirección. */}
                     <TablaCelda className="text-xs">
-                      {fila.se_decide_abordar === null ? (
+                      {fila.decision_declarada ? (
+                        <span
+                          className={
+                            contradice
+                              ? "text-semaforo-alto"
+                              : fila.decision_declarada === "Diferida"
+                                ? "text-semaforo-medio"
+                                : undefined
+                          }
+                        >
+                          {contradice
+                            ? "Sí, pese a la alineación"
+                            : fila.decision_declarada}
+                        </span>
+                      ) : fila.se_decide_abordar === null ? (
                         <span className="text-atenuado-contraste">Sin decidir</span>
                       ) : fila.se_decide_abordar ? (
                         <span className={contradice ? "text-semaforo-alto" : undefined}>
@@ -269,12 +331,35 @@ export default async function PaginaOportunidades({
                       ) : (
                         <span className="text-atenuado-contraste">No</span>
                       )}
-                      {fila.se_decide_abordar && fila.plazo_accion ? (
-                        <span className="block text-[10px] text-atenuado-contraste">
-                          {formatearFecha(fila.plazo_accion)}
-                        </span>
-                      ) : null}
                     </TablaCelda>
+
+                    <CeldaTexto ancho="16rem">{fila.accion_planificada}</CeldaTexto>
+                    <CeldaTexto ancho="13rem">{fila.recursos_necesarios}</CeldaTexto>
+                    <CeldaTexto ancho="12rem">
+                      {fila.responsable_declarado ?? fila.responsable?.nombre_completo}
+                    </CeldaTexto>
+
+                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                      {fila.plazo_accion_permanente
+                        ? "Permanente"
+                        : fila.plazo_accion
+                          ? formatearFecha(fila.plazo_accion)
+                          : "—"}
+                    </TablaCelda>
+
+                    <CeldaTexto ancho="12rem">{fila.proceso_accion_declarado}</CeldaTexto>
+                    <CeldaTexto ancho="13rem">{fila.resultado_obtenido}</CeldaTexto>
+
+                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                      {fila.fecha_evaluacion_eficacia
+                        ? formatearFecha(fila.fecha_evaluacion_eficacia)
+                        : "—"}
+                    </TablaCelda>
+
+                    <TablaCelda className="text-xs text-atenuado-contraste">
+                      {fila.eficacia_accion ? ETIQUETAS_EFICACIA[fila.eficacia_accion] : "—"}
+                    </TablaCelda>
+
                     <TablaCelda>
                       <InsigniaEstadoRiesgo estado={fila.estado} />
                     </TablaCelda>

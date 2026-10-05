@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Grid3x3, Plus, ShieldAlert } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
+import { CeldaSiNo, CeldaTexto } from "@/components/comunes/celda-texto";
 import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import {
   InsigniaDemostracion,
@@ -23,6 +24,7 @@ import {
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
+  ETIQUETAS_EFICACIA,
   ETIQUETAS_ESTADO_RIESGO,
   ETIQUETAS_NIVEL_RIESGO,
   ETIQUETAS_TRATAMIENTO_RIESGO,
@@ -35,9 +37,13 @@ import {
   NIVELES_RIESGO,
   ORIGENES_RIESGO,
 } from "@/lib/riesgos";
-import { describirVencimiento, diasHasta, formatearFecha } from "@/lib/formato";
-import { recortar } from "@/lib/utilidades";
-import type { EstadoRiesgo, TipoRiesgo, TratamientoRiesgo } from "@/lib/tipos";
+import { formatearFecha } from "@/lib/formato";
+import type {
+  EstadoRiesgo,
+  ResultadoEficacia,
+  TipoRiesgo,
+  TratamientoRiesgo,
+} from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Riesgos y Oportunidades" };
 export const dynamic = "force-dynamic";
@@ -46,20 +52,34 @@ interface FilaRiesgo {
   id: string;
   codigo: string;
   titulo: string;
+  descripcion: string | null;
   tipo: TipoRiesgo;
   categoria: string | null;
   estado: EstadoRiesgo;
   tratamiento: TratamientoRiesgo | null;
   origen: string | null;
+  fecha_identificacion: string;
+  causas: string | null;
+  consecuencias: string | null;
+  asociado_disrupcion: boolean | null;
   probabilidad: number | null;
   severidad: number | null;
   nivel: number | null;
   requiere_accion: boolean;
   accion_planificada: string | null;
   plazo_accion: string | null;
+  plazo_accion_permanente: boolean;
+  probabilidad_residual: number | null;
+  severidad_residual: number | null;
   nivel_residual: number | null;
-  fecha_proxima_revision: string | null;
+  fecha_evaluacion_eficacia: string | null;
+  eficacia_accion: ResultadoEficacia | null;
   es_demostracion: boolean;
+  /** El proceso tal como lo nombra la matriz de Calidad. */
+  proceso_declarado: string | null;
+  proceso_accion_declarado: string | null;
+  /** El responsable tal como lo nombra la matriz: un cargo. */
+  responsable_declarado: string | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
 }
@@ -81,9 +101,12 @@ export default async function PaginaRiesgos({
   let consulta = supabase
     .from("riesgos")
     .select(
-      "id, codigo, titulo, tipo, categoria, estado, tratamiento, origen, " +
+      "id, codigo, titulo, descripcion, tipo, categoria, estado, tratamiento, origen, " +
+        "fecha_identificacion, causas, consecuencias, asociado_disrupcion, " +
         "probabilidad, severidad, nivel, requiere_accion, accion_planificada, plazo_accion, " +
-        "nivel_residual, fecha_proxima_revision, es_demostracion, " +
+        "plazo_accion_permanente, probabilidad_residual, severidad_residual, nivel_residual, " +
+        "fecha_evaluacion_eficacia, eficacia_accion, es_demostracion, " +
+        "proceso_declarado, proceso_accion_declarado, responsable_declarado, " +
         "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
     )
     .order("nivel", { ascending: false });
@@ -259,102 +282,170 @@ export default async function PaginaRiesgos({
         />
       ) : (
         <Tarjeta>
+          {/* LAS COLUMNAS DE LA HOJA 6.1.2, EN SU ORDEN. Son veinticuatro
+              y no caben en una pantalla: la tabla se desplaza en
+              horizontal por su cuenta —lo hace `Tabla`— y el código queda
+              fijo a la izquierda para no perder de vista de qué fila se
+              está leyendo.
+
+              Las columnas de párrafo van recortadas a una línea, con el
+              texto entero al señalar: una tabla donde cada fila mide
+              cuatro renglones deja de servir para comparar filas, que es
+              para lo que existe. El texto completo está en la ficha. */}
           <Tabla>
             <TablaCabecera>
               <TablaFila>
-                <TablaEncabezado className="w-[7.5rem]">Código</TablaEncabezado>
-                <TablaEncabezado>Título</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Origen</TablaEncabezado>
-                <TablaEncabezado className="w-[4.5rem] text-center">P × S</TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">Nivel</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Residual</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">Tratamiento</TablaEncabezado>
-                <TablaEncabezado className="w-[9rem]">Acción</TablaEncabezado>
+                <TablaEncabezado className="sticky left-0 z-10 w-[7.5rem] bg-fondo">
+                  Código
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[6rem]">Fecha</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Proceso</TablaEncabezado>
+                <TablaEncabezado className="w-[11rem]">Origen</TablaEncabezado>
+                <TablaEncabezado className="w-[16rem]">Descripción del riesgo</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">Causa potencial</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">Consecuencia potencial</TablaEncabezado>
+                <TablaEncabezado className="w-[5rem] text-center">Disrupción</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Prob.</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Sev.</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Nivel</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">Clasificación</TablaEncabezado>
+                <TablaEncabezado className="w-[6rem] text-center">
+                  ¿Requiere acción?
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Opción de tratamiento</TablaEncabezado>
+                <TablaEncabezado className="w-[16rem]">Acción planificada</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Proceso de la acción</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Prob. res.</TablaEncabezado>
+                <TablaEncabezado className="w-[4rem] text-center">Sev. res.</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">Nivel residual</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Se mide el</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">¿Acción eficaz?</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Reevaluación</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
-              {riesgos.map((riesgo) => {
-                const dias = diasHasta(riesgo.fecha_proxima_revision);
-                const vencida = dias !== null && dias <= 0;
+              {riesgos.map((riesgo) => (
+                <TablaFila key={riesgo.id}>
+                  <TablaCelda className="sticky left-0 z-10 bg-fondo font-medium tabular">
+                    <Link href={`/riesgos/${riesgo.id}`} className="hover:text-primario">
+                      {riesgo.codigo}
+                    </Link>
+                    {riesgo.es_demostracion ? (
+                      <span className="ml-1 align-middle">
+                        <InsigniaDemostracion />
+                      </span>
+                    ) : null}
+                  </TablaCelda>
 
-                return (
-                  <TablaFila key={riesgo.id}>
-                    <TablaCelda className="font-medium tabular">
-                      <Link href={`/riesgos/${riesgo.id}`} className="hover:text-primario">
-                        {riesgo.codigo}
-                      </Link>
-                    </TablaCelda>
-                    <TablaCelda>
-                      <Link
-                        href={`/riesgos/${riesgo.id}`}
-                        className="flex flex-wrap items-center gap-2 hover:text-primario"
-                      >
-                        <span>{recortar(riesgo.titulo, 65)}</span>
-                        {riesgo.es_demostracion ? <InsigniaDemostracion /> : null}
-                      </Link>
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {riesgo.procesos?.nombre ?? "—"}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
-                      {riesgo.origen ?? "—"}
-                    </TablaCelda>
-                    <TablaCelda className="text-center text-xs tabular">
-                      {riesgo.probabilidad !== null && riesgo.severidad !== null ? (
-                        `${riesgo.probabilidad} × ${riesgo.severidad}`
-                      ) : (
-                        <span className="text-semaforo-alto">Sin valorar</span>
-                      )}
-                    </TablaCelda>
-                    <TablaCelda>
-                      <InsigniaNivelRiesgo nivel={riesgo.nivel} />
-                    </TablaCelda>
-                    <TablaCelda className="hidden xl:table-cell">
-                      {riesgo.nivel_residual !== null ? (
-                        <InsigniaNivelRiesgo nivel={riesgo.nivel_residual} />
-                      ) : (
-                        <span className="text-xs text-atenuado-contraste">Sin evaluar</span>
-                      )}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
-                      {riesgo.tratamiento ? ETIQUETAS_TRATAMIENTO_RIESGO[riesgo.tratamiento] : "—"}
-                    </TablaCelda>
-                    {/* Un riesgo que exige plan y no lo tiene es lo
-                        primero que mira una auditoría: el instructivo
-                        dice que de nivel 4 para arriba hace falta acción
-                        con responsable y plazo. */}
+                  <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                    {formatearFecha(riesgo.fecha_identificacion)}
+                  </TablaCelda>
+
+                  {/* El proceso de la matriz de Calidad va primero: el de
+                      `procesos` es el del mapa de la intranet, que todavía
+                      no coincide. */}
+                  <CeldaTexto ancho="12rem">
+                    {riesgo.proceso_declarado ?? riesgo.procesos?.nombre}
+                  </CeldaTexto>
+
+                  <CeldaTexto ancho="11rem">{riesgo.origen}</CeldaTexto>
+
+                  <TablaCelda className="text-xs" style={{ maxWidth: "16rem" }}>
+                    <Link
+                      href={`/riesgos/${riesgo.id}`}
+                      className="block truncate hover:text-primario"
+                      title={riesgo.descripcion ?? riesgo.titulo}
+                    >
+                      {riesgo.descripcion ?? riesgo.titulo}
+                    </Link>
+                  </TablaCelda>
+
+                  <CeldaTexto ancho="14rem">{riesgo.causas}</CeldaTexto>
+                  <CeldaTexto ancho="14rem">{riesgo.consecuencias}</CeldaTexto>
+                  <CeldaSiNo valor={riesgo.asociado_disrupcion} />
+
+                  <TablaCelda className="text-center text-xs tabular">
+                    {riesgo.probabilidad ?? "—"}
+                  </TablaCelda>
+                  <TablaCelda className="text-center text-xs tabular">
+                    {riesgo.severidad ?? "—"}
+                  </TablaCelda>
+                  <TablaCelda className="text-center text-xs font-medium tabular">
+                    {riesgo.nivel ?? "—"}
+                  </TablaCelda>
+                  <TablaCelda>
+                    <InsigniaNivelRiesgo nivel={riesgo.nivel} mostrarValor={false} />
+                  </TablaCelda>
+
+                  {/* No se escribe: sale del semáforo. Medio para arriba
+                      requiere acciones; el bajo se asume y se vigila. */}
+                  <CeldaSiNo valor={riesgo.requiere_accion} />
+
+                  <CeldaTexto ancho="12rem">
+                    {riesgo.tratamiento ? ETIQUETAS_TRATAMIENTO_RIESGO[riesgo.tratamiento] : null}
+                  </CeldaTexto>
+
+                  {/* Un riesgo que exige plan y no lo tiene es lo primero
+                      que mira una auditoría. */}
+                  {riesgo.accion_planificada ? (
+                    <CeldaTexto ancho="16rem">{riesgo.accion_planificada}</CeldaTexto>
+                  ) : (
                     <TablaCelda className="text-xs">
-                      {riesgo.accion_planificada ? (
-                        <span className="text-atenuado-contraste">
-                          {riesgo.plazo_accion ? formatearFecha(riesgo.plazo_accion) : "Sin plazo"}
-                        </span>
-                      ) : riesgo.requiere_accion ? (
+                      {riesgo.requiere_accion ? (
                         <span className="font-medium text-semaforo-critico">Falta el plan</span>
                       ) : (
                         <span className="text-atenuado-contraste">Se asume</span>
                       )}
                     </TablaCelda>
-                    <TablaCelda>
-                      <InsigniaEstadoRiesgo estado={riesgo.estado} />
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs xl:table-cell">
-                      {riesgo.fecha_proxima_revision ? (
-                        <span className={vencida ? "font-medium text-semaforo-alto" : ""}>
-                          {formatearFecha(riesgo.fecha_proxima_revision)}
-                          <span className="block text-[10px] opacity-80">
-                            {describirVencimiento(riesgo.fecha_proxima_revision)}
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="text-atenuado-contraste">—</span>
-                      )}
-                    </TablaCelda>
-                  </TablaFila>
-                );
-              })}
+                  )}
+
+                  <CeldaTexto ancho="12rem">
+                    {riesgo.responsable_declarado ?? riesgo.responsable?.nombre_completo}
+                  </CeldaTexto>
+
+                  {/* «Permanente» es la palabra de la matriz para los
+                      controles que no terminan: no es una fecha. */}
+                  <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                    {riesgo.plazo_accion_permanente
+                      ? "Permanente"
+                      : riesgo.plazo_accion
+                        ? formatearFecha(riesgo.plazo_accion)
+                        : "—"}
+                  </TablaCelda>
+
+                  <CeldaTexto ancho="12rem">{riesgo.proceso_accion_declarado}</CeldaTexto>
+
+                  <TablaCelda className="text-center text-xs tabular">
+                    {riesgo.probabilidad_residual ?? "—"}
+                  </TablaCelda>
+                  <TablaCelda className="text-center text-xs tabular">
+                    {riesgo.severidad_residual ?? "—"}
+                  </TablaCelda>
+                  <TablaCelda>
+                    {riesgo.nivel_residual !== null ? (
+                      <InsigniaNivelRiesgo nivel={riesgo.nivel_residual} />
+                    ) : (
+                      <span className="text-xs text-atenuado-contraste">Sin evaluar</span>
+                    )}
+                  </TablaCelda>
+
+                  <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                    {riesgo.fecha_evaluacion_eficacia
+                      ? formatearFecha(riesgo.fecha_evaluacion_eficacia)
+                      : "—"}
+                  </TablaCelda>
+
+                  <TablaCelda className="text-xs text-atenuado-contraste">
+                    {riesgo.eficacia_accion ? ETIQUETAS_EFICACIA[riesgo.eficacia_accion] : "—"}
+                  </TablaCelda>
+
+                  <TablaCelda>
+                    <InsigniaEstadoRiesgo estado={riesgo.estado} />
+                  </TablaCelda>
+                </TablaFila>
+              ))}
             </TablaCuerpo>
           </Tabla>
         </Tarjeta>
