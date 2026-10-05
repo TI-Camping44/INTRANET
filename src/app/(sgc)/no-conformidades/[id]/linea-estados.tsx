@@ -130,7 +130,9 @@ export function LineaEstados({
                 )}
               >
                 {alcanzado ? <Check className="size-3 shrink-0" /> : null}
-                <span className="tabular opacity-70">{indice + 1}</span>
+                {/* Sin numerar: el «4» de «Cerrado fuera de plazo» se leia
+                    como un cuarto paso que hay que recorrer, y los dos
+                    cierres son alternativos, no consecutivos. */}
                 <span className="truncate">{ETIQUETAS_PASO_NC[suyo]}</span>
               </div>
             </li>

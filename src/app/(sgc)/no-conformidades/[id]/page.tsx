@@ -295,7 +295,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
         <PanelAdjuntos
           noConformidadId={nc.id}
           adjuntos={adjuntos}
-          puedeSubir={!esSoloLectura(usuario)}
+          puedeQuitar={puedeEditar}
         />
 
         <Tarjeta>

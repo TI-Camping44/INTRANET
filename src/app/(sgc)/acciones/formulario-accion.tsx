@@ -42,6 +42,7 @@ export interface RespuestaInicial {
   noConformidadId: string;
   descargo: string;
   porques: string[];
+  causaRaiz: string | null;
   acciones: AccionInicial[];
   hayNcSimilares?: boolean | null;
   analisisHorizontal?: string | null;
@@ -152,8 +153,8 @@ export function FormularioAccion({
               Análisis de causa raíz <span className="text-primario">*</span>
             </p>
             <p className="mt-0.5 text-[11px] text-atenuado-contraste">
-              Cada respuesta encadena con la siguiente pregunta. Los cinco son obligatorios: el
-              quinto es la causa raíz, y si la cadena se corta antes la acción ataca un síntoma.
+              Cada respuesta encadena con la siguiente pregunta. Los cinco son obligatorios: si
+              la cadena se corta antes, la acción ataca un síntoma.
             </p>
             <div className="mt-2 space-y-2">
               {PREGUNTAS_CINCO_PORQUES.map((pregunta, indice) => (
@@ -167,11 +168,7 @@ export function FormularioAccion({
                   <div className="min-w-0 flex-1">
                     <label
                       htmlFor={`porque-${indice}`}
-                      className={`text-[11px] ${
-                        indice === PREGUNTAS_CINCO_PORQUES.length - 1
-                          ? "font-medium text-texto"
-                          : "text-atenuado-contraste"
-                      }`}
+                      className="text-[11px] text-atenuado-contraste"
                     >
                       {pregunta} <span className="text-primario">*</span>
                     </label>
@@ -185,6 +182,30 @@ export function FormularioAccion({
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* LA CAUSA RAIZ VA APARTE Y DEBAJO DEL QUINTO. No es la
+                quinta respuesta: el quinto porqué es el último eslabón de
+                la cadena, redactado como respuesta a una pregunta, y la
+                causa raíz es la conclusión, redactada como enunciado.
+                Copiar una en la otra hacía que la ficha mostrara dos
+                veces el mismo párrafo. */}
+            <div className="mt-3 rounded-md border border-borde bg-acento/30 p-3">
+              <label htmlFor="causa_raiz" className="text-xs font-medium">
+                Causa raíz <span className="text-primario">*</span>
+              </label>
+              <p className="mb-1.5 mt-0.5 text-[11px] text-atenuado-contraste">
+                La conclusión del análisis, en una frase: qué es lo que falta o falla y que, si se
+                corrige, evita que vuelva a pasar.
+              </p>
+              <AreaTexto
+                id="causa_raiz"
+                name="causa_raiz"
+                defaultValue={inicial?.causaRaiz ?? ""}
+                rows={2}
+                required
+                minLength={10}
+              />
             </div>
           </div>
 

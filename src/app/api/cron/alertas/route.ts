@@ -8,6 +8,8 @@ import {
   CORREO_TODOS,
   DIAS_AVISO_ACCION,
   DIAS_AVISO_REVISION_DOCUMENTO,
+  DIAS_LIMITE_CIERRE_NC,
+  ESTADOS_NC_ABIERTOS,
   ETIQUETAS_TIPO_AUDITORIA,
 } from "@/lib/constantes";
 import {
@@ -32,6 +34,8 @@ import {
  *   7. Aviso de auditoria a la lista de distribucion de la empresa.
  *   8. Reclamos de clientes: contacto o resolucion vencidos, resolucion
  *      por vencer y verificacion del Plan C pendiente.
+ *   9. No conformidades sin responder: aviso diario al responsable
+ *      mientras la desviacion no tenga ninguna accion correctiva.
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -52,6 +56,7 @@ interface Resumen {
   reclamosPorVencer: number;
   reclamosVencidos: number;
   verificacionesPendientes: number;
+  ncSinResponder: number;
 }
 
 export async function GET(peticion: NextRequest) {
@@ -89,6 +94,7 @@ export async function GET(peticion: NextRequest) {
     reclamosPorVencer: 0,
     reclamosVencidos: 0,
     verificacionesPendientes: 0,
+    ncSinResponder: 0,
   };
 
   // -------------------------------------------------------------------
@@ -459,6 +465,68 @@ export async function GET(peticion: NextRequest) {
       claveUnicidad: `reclamo-verificacion:${reclamo.id}`,
     });
     resumen.verificacionesPendientes += 1;
+  }
+
+  // ---------------------------------------------------------------
+  // 9 · No conformidades sin responder
+  // ---------------------------------------------------------------
+  // RESPONDER ES CARGAR LA ACCION CORRECTIVA, y para eso el plazo es de
+  // DIAS_LIMITE_CIERRE_NC dias corridos desde la deteccion. Cerrarla no
+  // tiene plazo: las acciones pueden necesitar el tiempo que necesiten.
+  //
+  // El aviso sale TODOS LOS DIAS mientras no haya ni una accion cargada,
+  // por eso la clave de unicidad lleva la fecha de hoy. Hasta ahora el
+  // responsable recibia un correo el dia que se le asignaba la desviacion
+  // y despues nada: el plazo mas corto del sistema era el unico sin
+  // recordatorio.
+  const { data: sinResponder } = await supabase
+    .from("no_conformidades")
+    .select(
+      "id, codigo, titulo, fecha_deteccion, fecha_limite_cierre, " +
+        "responsable:responsable_id (id, correo), nc_acciones (id)",
+    )
+    .in("estado", ESTADOS_NC_ABIERTOS);
+
+  for (const nc of (sinResponder ?? []) as any[]) {
+    if (!nc.responsable) continue;
+    if ((nc.nc_acciones ?? []).length > 0) continue;
+
+    const limite = nc.fecha_limite_cierre;
+    const dias =
+      limite === null
+        ? null
+        : Math.round(
+            (new Date(`${limite}T12:00:00`).getTime() - new Date(`${hoy}T12:00:00`).getTime()) /
+              86_400_000,
+          );
+
+    const cuanto =
+      dias === null
+        ? `Tiene ${DIAS_LIMITE_CIERRE_NC} días corridos desde la detección para responderla.`
+        : dias > 1
+          ? `Vence en ${dias} días, el ${formatearFecha(limite)}.`
+          : dias === 1
+            ? `Vence mañana, ${formatearFecha(limite)}.`
+            : dias === 0
+              ? `Vence hoy, ${formatearFecha(limite)}.`
+              : `Venció el ${formatearFecha(limite)}, hace ${Math.abs(dias)} ` +
+                `${Math.abs(dias) === 1 ? "día" : "días"}.`;
+
+    await notificar(supabase, {
+      usuarioId: nc.responsable.id,
+      correoDestino: nc.responsable.correo,
+      tipo: "no_conformidad_por_responder",
+      titulo: `Sin responder · ${nc.codigo}`,
+      mensaje:
+        `"${nc.titulo}" sigue sin ninguna acción correctiva cargada. ${cuanto} ` +
+        "Responder es cargar el análisis de causa raíz y al menos una acción; el cierre " +
+        "puede llevar el tiempo que las acciones necesiten.",
+      enlace: `/acciones/nueva?nc=${nc.id}`,
+      entidad: "no_conformidades",
+      entidadId: nc.id,
+      claveUnicidad: `nc-sin-responder:${nc.id}:${hoy}`,
+    });
+    resumen.ncSinResponder += 1;
   }
 
   return NextResponse.json({ ejecutado: hoy, resumen });

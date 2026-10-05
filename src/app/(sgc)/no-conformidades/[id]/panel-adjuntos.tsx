@@ -3,21 +3,17 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Paperclip, Trash2, Upload } from "lucide-react";
+import { Paperclip, Trash2 } from "lucide-react";
 
 import { Boton } from "@/components/ui/boton";
-import { Entrada, GrupoCampo } from "@/components/ui/campo";
 import {
   Tarjeta,
   TarjetaCabecera,
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import {
-  adjuntarArchivosNoConformidad,
-  eliminarAdjuntoNoConformidad,
-} from "@/app/(sgc)/no-conformidades/acciones";
-import { ACEPTA_EVIDENCIA, describirTamano, TAMANO_MAXIMO_ADJUNTO } from "@/lib/adjuntos";
+import { eliminarAdjuntoNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
+import { describirTamano } from "@/lib/adjuntos";
 import { formatearFecha } from "@/lib/formato";
 
 export interface AdjuntoDeNoConformidad {
@@ -34,7 +30,11 @@ export interface AdjuntoDeNoConformidad {
  *
  * Lo que sostiene una desviación ante una auditoría suele ser un archivo:
  * la foto del producto fallado, el remito firmado, el correo del cliente.
- * Acá se suben y acá se abren.
+ * Acá se abren. SUBIR NO SE SUBE DESDE ACA: la evidencia se adjunta en
+ * el formulario, al registrar la desviación o al editarla, que es cuando
+ * la persona tiene el archivo en la mano. Lo pidió Calidad el 5 de
+ * octubre y evita la pantalla intermedia de antes: guardar primero y
+ * volver a entrar a cargar los archivos.
  *
  * EL ENLACE NO SE DIBUJA EN LA PÁGINA. Cada archivo apunta a
  * `/adjuntos/<id>`, y esa ruta firma el enlace recién en el clic, con la
@@ -45,37 +45,14 @@ export interface AdjuntoDeNoConformidad {
 export function PanelAdjuntos({
   noConformidadId,
   adjuntos,
-  puedeSubir,
+  puedeQuitar,
 }: {
   noConformidadId: string;
   adjuntos: AdjuntoDeNoConformidad[];
-  puedeSubir: boolean;
+  puedeQuitar: boolean;
 }) {
   const router = useRouter();
-  const formulario = React.useRef<HTMLFormElement>(null);
-  const [subiendo, definirSubiendo] = React.useState(false);
   const [borrando, definirBorrando] = React.useState<string | null>(null);
-  const [elegidos, definirElegidos] = React.useState(0);
-
-  async function subir(evento: React.FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    definirSubiendo(true);
-
-    const respuesta = await adjuntarArchivosNoConformidad(
-      noConformidadId,
-      new FormData(evento.currentTarget),
-    );
-    definirSubiendo(false);
-
-    if (respuesta.exito) {
-      toast.success(respuesta.mensaje ?? "Archivo adjuntado.");
-      formulario.current?.reset();
-      definirElegidos(0);
-      router.refresh();
-    } else {
-      toast.error(respuesta.error);
-    }
-  }
 
   async function quitar(adjunto: AdjuntoDeNoConformidad) {
     if (!confirm(`¿Quitar «${adjunto.nombre_archivo}»? No se puede deshacer.`)) return;
@@ -100,8 +77,8 @@ export function PanelAdjuntos({
       <TarjetaContenido className="space-y-3">
         {adjuntos.length === 0 ? (
           <p className="text-xs leading-relaxed text-atenuado-contraste">
-            Todavía no hay archivos. Acá va la evidencia: la foto del producto, el remito, la
-            captura del sistema, el correo del cliente.
+            Todavía no hay archivos. La evidencia se adjunta al registrar la desviación, o
+            después desde «Editar No Conformidad».
           </p>
         ) : (
           <ul className="divide-y divide-borde">
@@ -132,7 +109,7 @@ export function PanelAdjuntos({
                   </span>
                 </a>
 
-                {puedeSubir ? (
+                {puedeQuitar ? (
                   <Boton
                     tamano="iconoPequeno"
                     variante="fantasma"
@@ -149,50 +126,6 @@ export function PanelAdjuntos({
           </ul>
         )}
 
-        {puedeSubir ? (
-          <form ref={formulario} onSubmit={subir} className="space-y-3 border-t border-borde pt-3">
-            <GrupoCampo
-              etiqueta="Agregar archivos"
-              htmlFor="archivos"
-              ayuda={`PDF, imágenes y archivos de Office. Hasta ${describirTamano(
-                TAMANO_MAXIMO_ADJUNTO,
-              )} por archivo. Se pueden elegir varios a la vez.`}
-            >
-              <input
-                id="archivos"
-                name="archivos"
-                type="file"
-                multiple
-                accept={ACEPTA_EVIDENCIA}
-                onChange={(evento) => definirElegidos(evento.target.files?.length ?? 0)}
-                className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
-                           text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
-                           file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
-                           file:text-texto"
-              />
-            </GrupoCampo>
-
-            <GrupoCampo
-              etiqueta="Qué es (opcional)"
-              htmlFor="descripcion"
-              ayuda="Sirve para que dentro de un año se sepa qué mira uno al abrirlo."
-            >
-              <Entrada
-                id="descripcion"
-                name="descripcion"
-                maxLength={200}
-                placeholder="Foto del lote con la etiqueta cambiada"
-              />
-            </GrupoCampo>
-
-            <div className="flex justify-end">
-              <Boton type="submit" tamano="pequeno" cargando={subiendo}>
-                <Upload />
-                {elegidos > 1 ? `Subir ${elegidos} archivos` : "Subir"}
-              </Boton>
-            </div>
-          </form>
-        ) : null}
       </TarjetaContenido>
     </Tarjeta>
   );

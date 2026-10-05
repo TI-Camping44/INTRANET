@@ -1,0 +1,22 @@
+-- =====================================================================
+-- Intranet - Camping 44 S.A.
+-- Aviso diario de la no conformidad sin responder
+-- =====================================================================
+-- El plazo de la no conformidad —DIAS_LIMITE_CIERRE_NC, hoy cinco dias
+-- corridos desde la deteccion— es para RESPONDERLA, no para cerrarla:
+-- las acciones correctivas pueden necesitar mas tiempo y eso no es un
+-- incumplimiento. Lo que se exige dentro de esos cinco dias es que la
+-- desviacion tenga su analisis y al menos una accion cargada.
+--
+-- Hasta ahora nadie avisaba de eso. El responsable recibia un correo el
+-- dia que se le asignaba la NC y despues silencio hasta que alguien
+-- abriera el listado. Ahora el trabajo programado le escribe TODOS LOS
+-- DIAS mientras la desviacion siga sin una sola accion, diciendo cuantos
+-- dias quedan; cuando carga la primera, el aviso para solo.
+--
+-- Tipo propio y no «general» por lo mismo que los de reclamos: la campana
+-- se filtra por tipo, y un aviso mezclado con todo lo demas no se
+-- encuentra.
+-- ---------------------------------------------------------------------
+
+alter type public.tipo_notificacion add value if not exists 'no_conformidad_por_responder';

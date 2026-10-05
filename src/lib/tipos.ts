@@ -170,6 +170,7 @@ export type TipoNotificacion =
   | "documento_por_revisar"
   | "revision_solicitada"
   | "no_conformidad_asignada"
+  | "no_conformidad_por_responder"
   | "accion_por_vencer"
   | "accion_vencida"
   | "escalamiento"

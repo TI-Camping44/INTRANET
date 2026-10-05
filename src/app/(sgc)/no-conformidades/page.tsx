@@ -170,9 +170,14 @@ export default async function PaginaNoConformidades({
     valor: noConformidades.filter((nc) => nc.origen === origen).length,
   }));
 
+  // «Fuera de plazo» es no haber RESPONDIDO a tiempo: sin ninguna accion
+  // correctiva cargada y con la fecha pasada. Una desviacion respondida
+  // puede tardar en cerrarse todo lo que las acciones necesiten, y eso no
+  // es un incumplimiento.
   const vencidas = noConformidades.filter(
     (nc) =>
       ESTADOS_NC_ABIERTOS.includes(nc.estado) &&
+      (nc.nc_acciones ?? []).length === 0 &&
       nc.fecha_limite_cierre !== null &&
       nc.fecha_limite_cierre < hoy,
   ).length;
@@ -279,14 +284,25 @@ export default async function PaginaNoConformidades({
                 <TablaEncabezado className="w-[8rem] hidden lg:table-cell">
                   Acción correctiva
                 </TablaEncabezado>
-                <TablaEncabezado className="w-[9rem]">Límite</TablaEncabezado>
+                {/* EL PLAZO ES PARA RESPONDER, NO PARA CERRAR. Las acciones
+                    pueden necesitar mas tiempo y eso no es un incumplimiento;
+                    lo que se exige dentro de los cinco dias es que la
+                    desviacion tenga su accion correctiva cargada. */}
+                <TablaEncabezado className="w-[11rem]">
+                  Límite para responder la NC
+                </TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
               {noConformidades.map((nc) => {
                 const dias = diasHasta(nc.fecha_limite_cierre);
+                // Responder es cargar al menos una accion correctiva.
+                const respondida = (nc.nc_acciones ?? []).length > 0;
                 const vencida =
-                  ESTADOS_NC_ABIERTOS.includes(nc.estado) && dias !== null && dias < 0;
+                  !respondida &&
+                  ESTADOS_NC_ABIERTOS.includes(nc.estado) &&
+                  dias !== null &&
+                  dias < 0;
 
                 return (
                   <TablaFila key={nc.id}>
@@ -346,7 +362,19 @@ export default async function PaginaNoConformidades({
                       )}
                     </TablaCelda>
                     <TablaCelda className="text-xs">
-                      {nc.fecha_limite_cierre ? (
+                      {respondida ? (
+                        // Respondida: el plazo dejo de correr. Sigue la
+                        // fecha a la vista porque es parte del registro,
+                        // pero ya no cuenta dias ni se pinta de rojo.
+                        <span className="font-medium text-semaforo-bajo">
+                          Se ha respondido la NC
+                          {nc.fecha_limite_cierre ? (
+                            <span className="block text-[10px] font-normal text-atenuado-contraste">
+                              Vencía el {formatearFecha(nc.fecha_limite_cierre)}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : nc.fecha_limite_cierre ? (
                         <span className={vencida ? "font-medium text-semaforo-critico" : ""}>
                           {formatearFecha(nc.fecha_limite_cierre)}
                           <span className="block text-[10px] opacity-80">

@@ -38,6 +38,7 @@ import type { ResultadoAccion } from "@/lib/tipos";
 export async function ejecutarAccion(
   accionId: string,
   enPlazo: boolean,
+  comentario: string,
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (esSoloLectura(usuario)) {
@@ -54,12 +55,24 @@ export async function ejecutarAccion(
 
   if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
 
+  const texto = comentario.trim();
+  if (texto.length < 5) {
+    return {
+      exito: false,
+      error: "Deje un comentario de cierre: qué se hizo, con al menos 5 caracteres.",
+    };
+  }
+
   const { error } = await supabase
     .from("nc_acciones")
     .update({
       estado: "ejecutada",
       fecha_ejecucion: hoyEnAsuncion(),
       ejecucion_en_plazo: enPlazo,
+      // El comentario del cierre va en `evidencia`, que es la columna que
+      // la tabla ya tenia para eso. Es lo que el auditor lee despues para
+      // saber en que se baso quien la dio por hecha.
+      evidencia: texto,
     })
     .eq("id", accionId);
 

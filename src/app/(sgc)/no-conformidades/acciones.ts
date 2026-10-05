@@ -133,7 +133,10 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
       responsable_id: responsableId,
       fecha_deteccion: String(datos.get("fecha_deteccion") ?? hoyEnAsuncion()),
       // fecha_limite_cierre no se manda: la fija el disparador
-      // fijar_limite_cierre_nc() a diez dias de la deteccion.
+      // fijar_limite_cierre_nc(). Son DIAS_LIMITE_CIERRE_NC dias corridos
+      // desde la deteccion, y es el plazo para RESPONDER la desviacion
+      // —cargar la accion correctiva—, no para cerrarla: las acciones
+      // pueden necesitar mas tiempo y eso no es un incumplimiento.
       creado_por: usuario.id,
     })
     .select("id, codigo, titulo")
@@ -141,6 +144,26 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
 
   if (error) {
     return { exito: false, error: `No se pudo registrar la no conformidad: ${error.message}` };
+  }
+
+  // La evidencia elegida en el formulario. Se sube recien aca porque la
+  // ruta del archivo lleva el id de la desviacion, que no existe hasta
+  // despues del insert. Si alguna falla, la NC igual quedo registrada: el
+  // mensaje lo dice y se vuelve a intentar desde Editar, que es mejor que
+  // perder lo que la persona acaba de escribir.
+  const archivos = archivosDelFormulario(datos, "archivos");
+  let fallidosAlSubir: string[] = [];
+
+  if (archivos.length > 0) {
+    const carga = await subirAdjuntos(supabase, {
+      entidad: "no_conformidades",
+      entidadId: noConformidad.id,
+      carpeta: "no-conformidades",
+      archivos,
+      empresaId: usuario.empresa_id,
+      usuarioId: usuario.id,
+    });
+    fallidosAlSubir = carga.fallidos;
   }
 
   if (responsableId && responsableId !== usuario.id) {
@@ -169,6 +192,16 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
   }
 
   revalidatePath("/no-conformidades");
+  if (fallidosAlSubir.length > 0) {
+    return {
+      exito: true,
+      id: noConformidad.id,
+      mensaje:
+        `${noConformidad.codigo} registrada, pero no se pudo adjuntar: ` +
+        `${fallidosAlSubir.join("; ")}. Agregue los archivos desde Editar.`,
+    };
+  }
+
   return { exito: true, id: noConformidad.id, mensaje: `${noConformidad.codigo} registrada.` };
 }
 
@@ -248,7 +281,33 @@ export async function actualizarNoConformidad(
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
+  // La evidencia que se sume al editar. Es el camino que queda para
+  // agregar un archivo despues del alta, porque la ficha ahora solo los
+  // muestra. Los que ya estaban no se tocan.
+  const archivos = archivosDelFormulario(datos, "archivos");
+  const fallidos =
+    archivos.length > 0
+      ? (
+          await subirAdjuntos(supabase, {
+            entidad: "no_conformidades",
+            entidadId: id,
+            carpeta: "no-conformidades",
+            archivos,
+            empresaId: usuario.empresa_id,
+            usuarioId: usuario.id,
+          })
+        ).fallidos
+      : [];
+
   revalidatePath(`/no-conformidades/${id}`);
+
+  if (fallidos.length > 0) {
+    return {
+      exito: true,
+      mensaje: `No conformidad actualizada, pero no se pudo adjuntar: ${fallidos.join("; ")}.`,
+    };
+  }
+
   return { exito: true, mensaje: "No conformidad actualizada." };
 }
 
@@ -498,6 +557,7 @@ export async function responderNoConformidad(
 
   const descargo = String(datos.get("descargo") ?? "").trim();
   const porques = datos.getAll("porque").map((valor) => String(valor).trim());
+  const causaRaiz = String(datos.get("causa_raiz") ?? "").trim();
 
   // Las acciones llegan como tres listas paralelas y se arman por
   // posicion: la primera descripcion va con el primer responsable y el
@@ -537,8 +597,15 @@ export async function responderNoConformidad(
     return {
       exito: false,
       error:
-        "Complete los cinco porqués. El quinto es la causa raíz: si la cadena se corta antes, " +
-        "la acción ataca un síntoma.",
+        "Complete los cinco porqués: si la cadena se corta antes, la acción ataca un síntoma.",
+    };
+  }
+  if (causaRaiz.length < 10) {
+    return {
+      exito: false,
+      error:
+        "Escriba la causa raíz debajo del quinto porqué, con al menos 10 caracteres. " +
+        "Es la conclusión del análisis, no la última respuesta de la cadena.",
     };
   }
 
@@ -583,12 +650,16 @@ export async function responderNoConformidad(
     return { exito: false, error: `No se pudo cargar ${cuantas}: ${errorAccion.message}` };
   }
 
-  // 3 · La causa raiz queda como conclusion del analisis, que es donde la
-  // busca quien lee la ficha. Este update si pasa por RLS, y esta bien
-  // que asi sea: lo escribe quien puede editar la desviacion.
+  // 3 · LA CAUSA RAIZ SE DECLARA APARTE, no es el quinto porque.
+  //
+  // Antes se copiaba la quinta respuesta y la ficha mostraba dos veces el
+  // mismo parrafo. Son dos cosas distintas: el quinto porque es el ultimo
+  // eslabon de la cadena, redactado como respuesta a una pregunta, y la
+  // causa raiz es la conclusion, redactada como enunciado. Quien analiza
+  // escribe las dos.
   await supabase
     .from("no_conformidades")
-    .update({ conclusion_causa_raiz: porques[porques.length - 1] })
+    .update({ conclusion_causa_raiz: causaRaiz })
     .eq("id", noConformidadId);
 
   // 4 · El estado NO se toca aca. La desviacion pasa a «En proceso»

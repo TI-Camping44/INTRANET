@@ -70,6 +70,14 @@ export function PanelAcciones({
 }) {
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState<string | null>(null);
+  // EL CIERRE NO ES UN CLIC SUELTO. Elegir «en plazo» o «fuera de plazo»
+  // abre el comentario; el estado cambia recien al guardar. Lo pidio
+  // Calidad: quien cierra deja escrito en que se basa, y un boton que
+  // cambia el estado de una tarea sin pedir nada se aprieta sin querer.
+  const [cerrando, definirCerrando] = React.useState<{ id: string; enPlazo: boolean } | null>(
+    null,
+  );
+  const [comentario, definirComentario] = React.useState("");
 
   async function cerrar(tarea: TareaPlan, enPlazo: boolean) {
     const sugerido = ejecucionSugerida(tarea.fecha_limite);
@@ -86,9 +94,11 @@ export function PanelAcciones({
     }
 
     definirProcesando(tarea.id);
-    const resultado = await ejecutarAccion(tarea.id, enPlazo);
+    const resultado = await ejecutarAccion(tarea.id, enPlazo, comentario);
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Acción cerrada.");
+      definirCerrando(null);
+      definirComentario("");
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -170,7 +180,10 @@ export function PanelAcciones({
                       tamano="pequeno"
                       disabled={procesando !== null}
                       cargando={procesando === tarea.id}
-                      onClick={() => cerrar(tarea, true)}
+                      onClick={() => {
+                        definirComentario("");
+                        definirCerrando({ id: tarea.id, enPlazo: true });
+                      }}
                       className={cn(
                         "border-semaforo-bajo/40 text-semaforo-bajo hover:bg-semaforo-bajo/10",
                         sugerido && "ring-1 ring-semaforo-bajo",
@@ -182,7 +195,10 @@ export function PanelAcciones({
                       variante="contorno"
                       tamano="pequeno"
                       disabled={procesando !== null}
-                      onClick={() => cerrar(tarea, false)}
+                      onClick={() => {
+                        definirComentario("");
+                        definirCerrando({ id: tarea.id, enPlazo: false });
+                      }}
                       className={cn(!sugerido && "ring-1 ring-atenuado-contraste")}
                     >
                       Ejecutada fuera de plazo
@@ -190,6 +206,49 @@ export function PanelAcciones({
                   </>
                 )}
               </div>
+            ) : null}
+
+            {cerrando?.id === tarea.id ? (
+              <form
+                onSubmit={(evento) => {
+                  evento.preventDefault();
+                  cerrar(tarea, cerrando.enPlazo);
+                }}
+                className="mt-2 rounded-md border border-borde bg-acento/30 p-2.5"
+              >
+                <label
+                  htmlFor={`comentario-${tarea.id}`}
+                  className="text-[11px] font-medium"
+                >
+                  Comentario del cierre{" "}
+                  <span className="font-normal text-atenuado-contraste">
+                    · se guarda como «{cerrando.enPlazo ? "ejecutada en plazo" : "ejecutada fuera de plazo"}»
+                  </span>
+                </label>
+                <AreaTexto
+                  id={`comentario-${tarea.id}`}
+                  value={comentario}
+                  onChange={(evento) => definirComentario(evento.target.value)}
+                  rows={2}
+                  required
+                  minLength={5}
+                  className="mt-1"
+                  placeholder="Qué se hizo, cómo se comprobó, qué quedó pendiente."
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <Boton
+                    type="button"
+                    variante="fantasma"
+                    tamano="pequeno"
+                    onClick={() => definirCerrando(null)}
+                  >
+                    Cancelar
+                  </Boton>
+                  <Boton type="submit" tamano="pequeno" cargando={procesando === tarea.id}>
+                    Guardar y cerrar la acción
+                  </Boton>
+                </div>
+              </form>
             ) : null}
           </li>
         );

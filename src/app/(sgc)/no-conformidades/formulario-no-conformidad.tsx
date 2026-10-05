@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
+import { ACEPTA_EVIDENCIA, describirTamano, TAMANO_MAXIMO_ADJUNTO } from "@/lib/adjuntos";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { CampoPropuestas } from "@/app/(sgc)/no-conformidades/campo-propuestas";
 import {
@@ -267,6 +268,31 @@ export function FormularioNoConformidad({
             ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una."
           >
             <CampoPropuestas iniciales={inicial?.propuestas_mejora ?? []} requerido />
+          </GrupoCampo>
+
+          {/* LA EVIDENCIA SE ADJUNTA ACA, antes de guardar. Antes habia que
+              crear la desviacion primero y volver a entrar a la ficha a
+              subir los archivos; quien la levanta tiene la foto y el
+              correo del cliente en la mano en este momento, no despues. */}
+          <GrupoCampo
+            etiqueta="Evidencia"
+            htmlFor="archivos"
+            className="sm:col-span-2"
+            ayuda={`La foto, el remito, la captura, el correo del cliente. PDF, imágenes y archivos de Office, hasta ${describirTamano(
+              TAMANO_MAXIMO_ADJUNTO,
+            )} por archivo. Se pueden elegir varios a la vez.`}
+          >
+            <input
+              id="archivos"
+              name="archivos"
+              type="file"
+              multiple
+              accept={ACEPTA_EVIDENCIA}
+              className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
+                         text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
+                         file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
+                         file:text-texto"
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Fecha de detección" htmlFor="fecha_deteccion" requerido>
