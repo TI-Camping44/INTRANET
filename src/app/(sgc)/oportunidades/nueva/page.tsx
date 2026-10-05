@@ -26,7 +26,7 @@ export default async function PaginaNuevaOportunidad() {
   return (
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
-        titulo="Nueva oportunidad"
+        titulo="Nueva Oportunidad"
         descripcion="Una oportunidad no se valora con probabilidad y severidad: se valora por el beneficio que podría aportar y por la facilidad real de concretarla."
       />
       <FormularioOportunidad

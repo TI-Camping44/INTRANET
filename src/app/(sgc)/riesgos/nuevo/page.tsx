@@ -24,8 +24,7 @@ export default async function PaginaNuevoRiesgo() {
   return (
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
-        titulo="Nuevo riesgo u oportunidad"
-        descripcion="El nivel se calcula automáticamente como Probabilidad × Severidad y determina la periodicidad de reevaluación."
+        titulo="Nuevo Riesgo"
       />
       <FormularioRiesgo
         procesos={procesos ?? []}

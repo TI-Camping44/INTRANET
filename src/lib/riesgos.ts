@@ -297,23 +297,24 @@ export function advertenciaAlineacion(
  * y «Reclamo» son tres orígenes distintos para la base y uno solo para
  * la realidad, y cualquier conteo por origen queda inservible.
  *
- * Los dos primeros llevan el número de la cláusula de la norma porque
- * así los nombra el instructivo, y así los busca Calidad.
+ * Las etiquetas son las que fijó Calidad el 5 de octubre. Antes los dos
+ * primeros llevaban el número de la cláusula —«Contexto (4.1)»—; se los
+ * sacó porque dentro del sistema nadie los busca por el número.
  *
  * La columna es de texto, así que acá se guarda la etiqueta tal cual.
  * Los riesgos ya cargados con otro texto se siguen leyendo; la lista
  * ordena de acá en adelante.
  */
 export const ORIGENES_RIESGO = [
-  "Contexto (4.1)",
-  "Partes interesadas (4.2)",
-  "Auditoría interna",
-  "Auditoría externa",
-  "No conformidad",
-  "Queja de cliente",
+  "Contexto de la Organización",
+  "Partes Interesadas",
+  // Las dos auditorías van juntas: a Calidad le importa que el riesgo
+  // salió de una auditoría, no de cuál de las dos.
+  "Auditoría Interna/Externa",
+  "No Conformidad",
+  "Queja de Cliente",
   "Indicador fuera de meta",
-  "Revisión por la dirección",
-  "Análisis de proceso",
+  "Revisión por la Dirección",
   "Otro",
 ] as const;
 
@@ -332,21 +333,20 @@ export function esOrigenValido(valor: string): valor is OrigenRiesgo {
  * sola lista obligaría a ofrecer en cada pantalla la mitad de las
  * opciones que ahí no aplican.
  *
- * Los dos primeros llevan el número de la cláusula porque así los nombra
- * el instructivo, y coinciden con los de riesgos: el contexto y las
+ * Los dos primeros coinciden con los de riesgos: el contexto y las
  * partes interesadas dan las dos cosas.
  */
 export const ORIGENES_OPORTUNIDAD = [
-  "Contexto (4.1)",
-  "Partes interesadas (4.2)",
+  "Contexto de la Organización",
+  "Partes Interesadas",
   "Tecnología emergente",
   "Condiciones del mercado",
   "Requisito reglamentario",
-  "Sugerencia del personal",
-  "Retroalimentación del cliente",
-  "Auditoría interna",
-  "Revisión por la dirección",
-  "Nueva asociación",
+  "Sugerencia de un Colaborador",
+  "Retroalimentación de Clientes",
+  "Auditoría Interna/Externa",
+  "Revisión por la Dirección",
+  "Nueva Alianza/Asociación",
   "Otro",
 ] as const;
 

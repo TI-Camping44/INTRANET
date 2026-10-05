@@ -40,7 +40,6 @@ interface Opcion {
 /** Lo que trae una oportunidad ya cargada cuando se la abre para corregir. */
 export interface OportunidadInicial {
   id: string;
-  titulo: string;
   descripcion: string | null;
   origen: string | null;
   efecto_deseado: string | null;
@@ -123,17 +122,6 @@ export function FormularioOportunidad({
                 </option>
               ))}
             </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Título" htmlFor="titulo" requerido className="sm:col-span-2">
-            <Entrada
-              id="titulo"
-              name="titulo"
-              required
-              minLength={5}
-              defaultValue={inicial?.titulo}
-              placeholder="Venta con retiro programado desde el depósito"
-            />
           </GrupoCampo>
 
           <GrupoCampo

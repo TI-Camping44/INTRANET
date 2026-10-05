@@ -19,7 +19,6 @@ function validarEscala(valor: number): boolean {
  * corregir, la obligatoriedad del alta seria decorativa.
  */
 const OBLIGATORIOS: { campo: string; nombre: string }[] = [
-  { campo: "titulo", nombre: "el título" },
   { campo: "descripcion", nombre: "la descripción" },
   { campo: "proceso_id", nombre: "el proceso afectado" },
   { campo: "responsable_id", nombre: "el responsable" },
@@ -39,7 +38,6 @@ const OBLIGATORIOS: { campo: string; nombre: string }[] = [
  * abordar seria pedir que se invente un plan que nadie va a ejecutar.
  */
 const OBLIGATORIOS_OPORTUNIDAD: { campo: string; nombre: string }[] = [
-  { campo: "titulo", nombre: "el título" },
   { campo: "descripcion", nombre: "la descripción" },
   { campo: "efecto_deseado", nombre: "el efecto deseado esperado" },
   { campo: "proceso_id", nombre: "el proceso" },
@@ -54,11 +52,27 @@ const OBLIGATORIOS_PLAN_OPORTUNIDAD: { campo: string; nombre: string }[] = [
   { campo: "plazo_accion", nombre: "el plazo" },
 ];
 
+/**
+ * El titulo con el que se nombra el registro en el listado y en la matriz.
+ *
+ * YA NO SE PIDE: Calidad lo saco del formulario el 5 de octubre porque
+ * era escribir dos veces lo mismo —el titulo y la primera linea de la
+ * descripcion decian siempre lo mismo—. Se arma con la primera oracion
+ * de la descripcion, recortada, para que las pantallas que listan sigan
+ * teniendo con que nombrarlo.
+ *
+ * La columna sigue existiendo y los registros ya cargados conservan el
+ * suyo tal cual.
+ */
+function tituloDesdeLaDescripcion(descripcion: string): string {
+  const limpia = descripcion.trim().replace(/\s+/g, " ");
+  const corte = limpia.search(/[.;\n]/);
+  const primera = corte > 10 ? limpia.slice(0, corte) : limpia;
+  return primera.length > 120 ? `${primera.slice(0, 117)}…` : primera;
+}
+
 /** Devuelve el mensaje del primer problema, o null si esta todo bien. */
 function revisarCamposDeOportunidad(datos: FormData): string | null {
-  if (String(datos.get("titulo") ?? "").trim().length < 5) {
-    return "El título debe tener al menos 5 caracteres.";
-  }
   if (!esOrigenDeOportunidadValido(String(datos.get("origen") ?? "").trim())) {
     return "Elija un origen de la lista.";
   }
@@ -76,9 +90,6 @@ function revisarCamposDeOportunidad(datos: FormData): string | null {
 
 /** Devuelve el mensaje del primer problema, o null si esta todo bien. */
 function revisarCamposDeRiesgo(datos: FormData): string | null {
-  if (String(datos.get("titulo") ?? "").trim().length < 5) {
-    return "El título debe tener al menos 5 caracteres.";
-  }
   if (!esOrigenValido(String(datos.get("origen") ?? "").trim())) {
     return "Elija un origen de la lista.";
   }
@@ -98,7 +109,7 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
 
   const supabase = crearClienteServidor();
 
-  const titulo = String(datos.get("titulo") ?? "").trim();
+  const titulo = tituloDesdeLaDescripcion(String(datos.get("descripcion") ?? ""));
   const probabilidad = Number(datos.get("probabilidad") ?? 1);
   const severidad = Number(datos.get("severidad") ?? 1);
   const origen = String(datos.get("origen") ?? "").trim();
@@ -192,7 +203,7 @@ export async function actualizarRiesgo(id: string, datos: FormData): Promise<Res
   const { data: actualizado, error } = await supabase
     .from("riesgos")
     .update({
-      titulo: String(datos.get("titulo") ?? "").trim(),
+      titulo: tituloDesdeLaDescripcion(String(datos.get("descripcion") ?? "")),
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
@@ -448,7 +459,7 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
 
   const supabase = crearClienteServidor();
 
-  const titulo = String(datos.get("titulo") ?? "").trim();
+  const titulo = tituloDesdeLaDescripcion(String(datos.get("descripcion") ?? ""));
   const beneficio = validarEscalaOpcional(datos.get("beneficio"));
   const factibilidad = validarEscalaOpcional(datos.get("factibilidad"));
 
@@ -548,7 +559,7 @@ export async function actualizarOportunidad(
   const { data: actualizada, error } = await supabase
     .from("riesgos")
     .update({
-      titulo: String(datos.get("titulo") ?? "").trim(),
+      titulo: tituloDesdeLaDescripcion(String(datos.get("descripcion") ?? "")),
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,

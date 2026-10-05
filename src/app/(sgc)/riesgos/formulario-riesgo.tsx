@@ -35,7 +35,6 @@ interface Opcion {
 /** Lo que trae un riesgo ya cargado cuando se lo abre para corregir. */
 export interface RiesgoInicial {
   id: string;
-  titulo: string;
   descripcion: string | null;
   origen: string | null;
   proceso_id: string | null;
@@ -136,17 +135,6 @@ export function FormularioRiesgo({
                 </option>
               ))}
             </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Título" htmlFor="titulo" requerido className="sm:col-span-2">
-            <Entrada
-              id="titulo"
-              name="titulo"
-              required
-              minLength={5}
-              defaultValue={inicial?.titulo}
-              placeholder="Incumplimiento del registro de armas ante la DIMABEL"
-            />
           </GrupoCampo>
 
           <GrupoCampo
