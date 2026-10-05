@@ -26,7 +26,7 @@ import { ETIQUETAS_FRECUENCIA, ETIQUETAS_SENTIDO } from "@/lib/constantes";
 import { formatearMes, formatearNumero, hoyEnAsuncion } from "@/lib/formato";
 import type { FrecuenciaMedicion, SentidoIndicador } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Indicadores y objetivos" };
+export const metadata: Metadata = { title: "Objetivos e Indicadores" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaIndicadores({
@@ -102,7 +102,7 @@ export default async function PaginaIndicadores({
   return (
     <>
       <EncabezadoPagina
-        titulo="Indicadores y objetivos"
+        titulo="Objetivos e Indicadores"
         descripcion="Medición de desempeño por proceso, con meta contra real y tendencia. Las mediciones se exponen a Looker Studio sin duplicar la lógica del semáforo."
         acciones={
           gestiona ? (

@@ -74,17 +74,23 @@ export const NAVEGACION: GrupoNavegacion[] = [
   },
   {
     titulo: "Calidad · SGC",
+    // EL ORDEN LO FIJO CALIDAD y no es alfabetico ni historico: baja por
+    // el ciclo del sistema de gestion. Primero donde se mira el estado
+    // (Panel), despues lo que lo sostiene (informacion documentada,
+    // riesgos, objetivos), despues como se controla (auditoria, cambios)
+    // y por ultimo lo que sale mal y como se trata (no conformidades,
+    // acciones, reclamos). Al final los modulos de soporte.
+    //
+    // Satisfaccion del cliente salio de aca: es el NPS, lo lleva
+    // Marketing, y ya esta publicado en Aplicaciones como «Panel de NPS».
+    // La pantalla /satisfaccion sigue existiendo y se llega por ahi.
     entradas: [
       { titulo: "Panel de calidad", ruta: "/panel", icono: "LayoutDashboard", fase: "operativo" },
       {
-        titulo: "Documentación",
+        titulo: "Información documentada",
         ruta: "/documentos",
         icono: "FileText",
         fase: "operativo",
-        // Cuatro atajos, con la misma forma que los demas modulos: el
-        // listado entero, los dos cortes que la gente pide, y el alta.
-        // «En elaboracion» y «Por revisar» son vistas de trabajo de
-        // Calidad, que las tiene igual dentro del modulo.
         subentradas: [
           { titulo: "Todos", ruta: "/documentos" },
           { titulo: "Vigentes", ruta: "/documentos?vista=vigentes" },
@@ -97,7 +103,52 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
-        titulo: "No conformidades",
+        titulo: "Riesgos y Oportunidades",
+        ruta: "/riesgos",
+        icono: "ShieldAlert",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Riesgos", ruta: "/riesgos" },
+          { titulo: "Oportunidades", ruta: "/oportunidades" },
+          { titulo: "Matriz 5×5", ruta: "/riesgos/matriz" },
+          { titulo: "+ Nuevo riesgo", ruta: "/riesgos/nuevo", soloGestion: true },
+          { titulo: "+ Nueva oportunidad", ruta: "/oportunidades/nueva", soloGestion: true },
+        ],
+      },
+      {
+        titulo: "Objetivos e Indicadores",
+        ruta: "/indicadores",
+        icono: "TrendingUp",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Listado", ruta: "/indicadores" },
+          { titulo: "Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
+        ],
+      },
+      {
+        titulo: "Auditoría",
+        ruta: "/auditorias",
+        icono: "ClipboardCheck",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Listado", ruta: "/auditorias" },
+          { titulo: "Nueva auditoría", ruta: "/auditorias/nueva", soloGestion: true },
+        ],
+      },
+      {
+        titulo: "Planificación y Gestión de Cambios",
+        ruta: "/cambios",
+        icono: "GitBranch",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Todos", ruta: "/cambios" },
+          { titulo: "En aprobación", ruta: "/cambios?vista=aprobacion" },
+          { titulo: "Seguimiento vencido", ruta: "/cambios?vista=vencidos" },
+          { titulo: "+ Nuevo Cambio", ruta: "/cambios/nuevo", soloGestion: true },
+        ],
+      },
+      {
+        titulo: "No Conformidades",
         ruta: "/no-conformidades",
         icono: "TriangleAlert",
         fase: "operativo",
@@ -113,32 +164,13 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
-        // Va pegado a No conformidades a proposito: un cambio que sale
-        // mal termina en una accion correctiva, y una accion correctiva
-        // eficaz suele terminar en un cambio. Se leen juntos.
-        titulo: "Planificación y Gestión de Cambios",
-        ruta: "/cambios",
-        icono: "GitBranch",
-        fase: "operativo",
-        subentradas: [
-          { titulo: "Todos", ruta: "/cambios" },
-          { titulo: "En aprobación", ruta: "/cambios?vista=aprobacion" },
-          { titulo: "Seguimiento vencido", ruta: "/cambios?vista=vencidos" },
-          { titulo: "+ Nuevo Cambio", ruta: "/cambios/nuevo", soloGestion: true },
-        ],
-      },
-      {
-        // Las acciones viven dentro de su no conformidad, pero la
-        // pregunta «que esta pendiente y quien lo debe» no se contesta
-        // abriendo quince fichas. Por eso tienen listado propio.
-        titulo: "Acciones correctivas",
+        // Va pegada a No Conformidades: las acciones viven dentro de su
+        // desviacion, pero la pregunta «que esta pendiente y quien lo
+        // debe» no se contesta abriendo quince fichas.
+        titulo: "Acciones Correctivas",
         ruta: "/acciones",
         icono: "ListChecks",
         fase: "operativo",
-        // Los mismos cuatro atajos que no conformidades, y por la misma
-        // razon: el menu contesta «donde esta el listado» y «como cargo
-        // una». «Vencidas» y «A mi cargo» son cortes de trabajo, y estan
-        // igual en los filtros del listado.
         subentradas: [
           { titulo: "Todas", ruta: "/acciones" },
           { titulo: "Abiertas", ruta: "/acciones?estado=abierta" },
@@ -151,51 +183,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
-        // Riesgos y oportunidades se separan porque no se valoran igual:
-        // unos por Probabilidad x Severidad, las otras por Beneficio x
-        // Factibilidad. Es lo que fija el instructivo de Calidad.
-        titulo: "Riesgos y oportunidades",
-        ruta: "/riesgos",
-        icono: "ShieldAlert",
-        fase: "operativo",
-        subentradas: [
-          { titulo: "Riesgos", ruta: "/riesgos" },
-          { titulo: "Oportunidades", ruta: "/oportunidades" },
-          { titulo: "Matriz 5×5", ruta: "/riesgos/matriz" },
-          { titulo: "+ Nuevo riesgo", ruta: "/riesgos/nuevo", soloGestion: true },
-          { titulo: "+ Nueva oportunidad", ruta: "/oportunidades/nueva", soloGestion: true },
-        ],
-      },
-      {
-        titulo: "Auditorías internas",
-        ruta: "/auditorias",
-        icono: "ClipboardCheck",
-        fase: "operativo",
-        subentradas: [
-          { titulo: "Listado", ruta: "/auditorias" },
-          { titulo: "Nueva auditoría", ruta: "/auditorias/nueva", soloGestion: true },
-        ],
-      },
-      {
-        titulo: "Indicadores y objetivos",
-        ruta: "/indicadores",
-        icono: "TrendingUp",
-        fase: "operativo",
-        subentradas: [
-          { titulo: "Listado", ruta: "/indicadores" },
-          { titulo: "Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
-        ],
-      },
-      {
-        titulo: "Satisfacción del cliente",
-        ruta: "/satisfaccion",
-        icono: "Smile",
-        fase: "operativo",
-      },
-      {
-        // Va pegado a Satisfaccion del cliente: la mala calificacion de
-        // una encuesta y el reclamo por mostrador son el mismo hecho
-        // visto de dos lados, y el caso es el que deja trazabilidad.
         titulo: "Reclamos de Clientes",
         ruta: "/reclamos",
         icono: "MessageSquareWarning",
@@ -208,29 +195,29 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
-        titulo: "Recursos humanos",
-        ruta: "/recursos-humanos",
-        icono: "Users",
-        fase: "operativo",
-      },
-      {
-        titulo: "Proveedores",
-        ruta: "/proveedores",
-        icono: "Truck",
-        fase: "operativo",
-        subentradas: [
-          { titulo: "Listado", ruta: "/proveedores" },
-          { titulo: "Nuevo proveedor", ruta: "/proveedores/nuevo", soloGestion: true },
-        ],
-      },
-      {
-        titulo: "Infraestructura",
+        titulo: "Infraestructura y Tecnología",
         ruta: "/activos",
         icono: "Wrench",
         fase: "operativo",
         subentradas: [
           { titulo: "Listado", ruta: "/activos" },
           { titulo: "Nuevo activo", ruta: "/activos/nuevo", soloGestion: true },
+        ],
+      },
+      {
+        titulo: "Personas",
+        ruta: "/recursos-humanos",
+        icono: "Users",
+        fase: "operativo",
+      },
+      {
+        titulo: "Asociados de Negocio",
+        ruta: "/proveedores",
+        icono: "Truck",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Listado", ruta: "/proveedores" },
+          { titulo: "Nuevo proveedor", ruta: "/proveedores/nuevo", soloGestion: true },
         ],
       },
     ],

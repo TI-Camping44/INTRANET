@@ -46,7 +46,7 @@ import type {
   SeveridadNoConformidad,
 } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "No conformidades" };
+export const metadata: Metadata = { title: "No Conformidades" };
 export const dynamic = "force-dynamic";
 
 interface FilaNoConformidad {
@@ -180,8 +180,7 @@ export default async function PaginaNoConformidades({
   return (
     <>
       <EncabezadoPagina
-        titulo="No conformidades y acciones correctivas"
-        descripcion="Registro de desviaciones, análisis de causa raíz y plan de acción con seguimiento de vencimientos."
+        titulo="No Conformidades"
         acciones={
           !soloLectura ? (
             <Boton comoHijo>

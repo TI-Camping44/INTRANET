@@ -46,7 +46,7 @@ import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoDocumento, TipoDocumento } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Información documentada" };
+export const metadata: Metadata = { title: "Lista Maestra de la Información documentada" };
 export const dynamic = "force-dynamic";
 
 interface FilaDocumento {
@@ -274,8 +274,7 @@ export default async function PaginaDocumentos({
   return (
     <>
       <EncabezadoPagina
-        titulo="Control de información documentada"
-        descripcion="Manuales, procedimientos, políticas y formularios con código controlado, versionado y flujo de aprobación."
+        titulo="Lista Maestra de la Información documentada"
         acciones={
           puedeGestionar(usuario) ? (
             <>

@@ -26,7 +26,7 @@ import { describirVencimiento, diasHasta, formatearFecha, hoyEnAsuncion } from "
 import { recortar } from "@/lib/utilidades";
 import type { EstadoAuditoria } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Auditorías internas" };
+export const metadata: Metadata = { title: "Auditoría" };
 export const dynamic = "force-dynamic";
 
 interface FilaAuditoria {
@@ -94,7 +94,7 @@ export default async function PaginaAuditorias({
   return (
     <>
       <EncabezadoPagina
-        titulo="Auditorías internas"
+        titulo="Auditoría"
         descripcion="Programa anual, planes de auditoría, hallazgos e informes. Los hallazgos de no conformidad generan la NC correspondiente en un paso."
         acciones={
           gestiona ? (

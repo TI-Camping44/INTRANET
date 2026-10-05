@@ -38,7 +38,7 @@ import { AltaCapacitacion, AltaCompetencia, AltaPuesto } from "./dialogos-alta";
 import { MatrizCompetencias, type Requisito } from "./matriz-competencias";
 import { PanelBrechas } from "./panel-brechas";
 
-export const metadata: Metadata = { title: "Recursos humanos" };
+export const metadata: Metadata = { title: "Personas" };
 export const dynamic = "force-dynamic";
 
 interface FilaPuesto {
@@ -179,7 +179,7 @@ export default async function PaginaRecursosHumanos() {
   return (
     <>
       <EncabezadoPagina
-        titulo="Recursos humanos"
+        titulo="Personas"
         descripcion="Puestos y perfiles, matriz de competencias, capacitaciones y verificación de su eficacia."
         acciones={
           gestiona ? (

@@ -26,7 +26,7 @@ import { describirVencimiento, diasHasta, formatearFecha } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoRiesgo, TipoRiesgo, TratamientoRiesgo } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Riesgos" };
+export const metadata: Metadata = { title: "Riesgos y Oportunidades" };
 export const dynamic = "force-dynamic";
 
 interface FilaRiesgo {

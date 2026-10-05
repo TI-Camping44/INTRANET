@@ -187,20 +187,31 @@ export const PREFIJO_CODIGO_DOCUMENTO: Record<TipoDocumento, string> = {
  * que es la unica auditoria externa que recibe la empresa.
  */
 export const ETIQUETAS_ORIGEN_NC: Record<OrigenNoConformidad, string> = {
-  auditoria_interna: "Hallazgo de auditoría interna",
-  auditoria_externa: "Hallazgo de auditoría de certificación",
-  reclamo_cliente: "Reclamo de cliente",
-  proceso_interno: "Incumplimiento de procesos",
-  proveedor: "Evaluación de asociados de negocio",
-  requisito_legal: "Incumplimiento de requisitos legales",
+  // Las etiquetas son las de Calidad; los valores del enumerado conservan
+  // su nombre viejo a proposito, para no tener que migrar las NC ya
+  // cargadas cada vez que cambia una redaccion.
+  //
+  // «auditoria_interna» cubre la auditoria interna Y la externa que no es
+  // de certificacion: asi lo pidio Calidad el 5 de octubre. La de
+  // certificacion sigue aparte porque es la que tiene consecuencias
+  // distintas.
+  auditoria_interna: "Hallazgo de Auditoría (Interna/Externa)",
+  auditoria_externa: "Hallazgo de Auditoría de Certificación",
+  reclamo_cliente: "Reclamo de Clientes",
+  proceso_interno: "Incumplimiento de Procesos",
+  proveedor: "Evaluación de Terceros",
+  requisito_legal: "Incumplimiento de Requisitos Legales",
+  otro: "Otros",
+  // Retirado: queda para poder mostrar lo cargado antes del cambio.
   inspeccion: "Inspección",
-  otro: "Otro",
 };
 
 /**
- * Los seis origenes que Calidad ofrece hoy. "inspeccion" y "otro" siguen
- * en el enumerado porque de un tipo de PostgreSQL no se saca un valor,
- * pero no se ofrecen ni en el alta ni en los filtros.
+ * Los siete origenes que Calidad ofrece hoy, en el orden del formulario.
+ * «Otros» entro el 5 de octubre y va ultimo, que es donde se busca.
+ *
+ * "inspeccion" sigue en el enumerado porque de un tipo de PostgreSQL no
+ * se saca un valor, pero no se ofrece ni en el alta ni en los filtros.
  */
 export const ORIGENES_NC_VIGENTES: OrigenNoConformidad[] = [
   "auditoria_interna",
@@ -209,6 +220,7 @@ export const ORIGENES_NC_VIGENTES: OrigenNoConformidad[] = [
   "proceso_interno",
   "proveedor",
   "requisito_legal",
+  "otro",
 ];
 
 /**

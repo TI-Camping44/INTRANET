@@ -32,7 +32,7 @@ import {
 } from "@/lib/formato";
 import type { EstadoProveedor } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Proveedores" };
+export const metadata: Metadata = { title: "Asociados de Negocio" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaProveedores({
@@ -79,7 +79,7 @@ export default async function PaginaProveedores({
   return (
     <>
       <EncabezadoPagina
-        titulo="Proveedores"
+        titulo="Asociados de Negocio"
         descripcion="Evaluación y reevaluación periódica de proveedores, sobre los cuatro criterios del formulario F-SOP-08-01."
         acciones={
           gestiona ? (

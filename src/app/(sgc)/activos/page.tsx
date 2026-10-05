@@ -43,7 +43,7 @@ import {
 } from "@/lib/formato";
 import type { EstadoActivo } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Infraestructura y activos" };
+export const metadata: Metadata = { title: "Infraestructura y Tecnología" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaActivos({
@@ -111,7 +111,7 @@ export default async function PaginaActivos({
   return (
     <>
       <EncabezadoPagina
-        titulo="Infraestructura y activos"
+        titulo="Infraestructura y Tecnología"
         descripcion="Inventario de activos con mantenimientos preventivos, calendario y alertas por vencimiento."
         acciones={
           gestiona ? (
