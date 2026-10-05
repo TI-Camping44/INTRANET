@@ -123,3 +123,48 @@ export const MESES_ABREVIADOS = [
   "Nov",
   "Dic",
 ];
+
+
+// ---------------------------------------------------------------------
+// Plan de accion para el logro de los objetivos (hoja 6.2.2)
+// ---------------------------------------------------------------------
+
+export type EstadoPlan = "pendiente" | "en_curso" | "cumplido" | "no_cumplido" | "cancelado";
+
+export const ESTADOS_PLAN: EstadoPlan[] = [
+  "pendiente",
+  "en_curso",
+  "cumplido",
+  "no_cumplido",
+  "cancelado",
+];
+
+export const ETIQUETAS_ESTADO_PLAN: Record<EstadoPlan, string> = {
+  pendiente: "Pendiente",
+  en_curso: "En curso",
+  cumplido: "Cumplido",
+  no_cumplido: "No cumplido",
+  cancelado: "Cancelado",
+};
+
+/**
+ * Colores del estado del plan.
+ *
+ * No es un semaforo de desempeño: es el recorrido de la accion.
+ * «No cumplido» va en rojo porque es el unico que significa que algo
+ * quedo sin hacer; «cumplido» en verde; los demas en neutro.
+ *
+ * LA MISMA LISTA ESTA EN EL `CHECK` de `objetivo_planes.estado`. Si
+ * cambia, cambia en los dos lados.
+ */
+export const CLASES_ESTADO_PLAN: Record<EstadoPlan, string> = {
+  pendiente: "border-borde text-atenuado-contraste",
+  en_curso: "border-semaforo-medio/40 bg-semaforo-medio/10 text-semaforo-medio",
+  cumplido: "border-semaforo-bajo/40 bg-semaforo-bajo/10 text-semaforo-bajo",
+  no_cumplido: "border-semaforo-critico/40 bg-semaforo-critico/10 text-semaforo-critico",
+  cancelado: "border-borde text-atenuado-contraste",
+};
+
+export function esEstadoDePlan(valor: string): valor is EstadoPlan {
+  return (ESTADOS_PLAN as string[]).includes(valor);
+}

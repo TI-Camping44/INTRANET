@@ -122,6 +122,10 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
         subentradas: [
           { titulo: "Listado", ruta: "/indicadores" },
+          // La hoja 6.2.2 es otro formulario de Calidad —el F-EST-01-06—
+          // y tiene una fila por accion, no por indicador: va en su
+          // propia pantalla.
+          { titulo: "Plan de Objetivos", ruta: "/indicadores/plan" },
           { titulo: "Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
         ],
       },
