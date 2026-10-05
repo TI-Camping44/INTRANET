@@ -21,12 +21,15 @@ import { formatearFecha } from "@/lib/formato";
 import {
   CLASES_ESTADO_CAMBIO,
   ETIQUETAS_ESTADO_CAMBIO,
+  ETIQUETAS_RESULTADO_CAMBIO,
   ETIQUETAS_TIPO_CAMBIO,
   seguimientoVencido,
   type EstadoCambio,
+  type ResultadoCambio,
   type TipoCambio,
 } from "@/lib/cambios";
 import { puedeGestionar } from "@/lib/sesion";
+import { CeldaTexto } from "@/components/comunes/celda-texto";
 
 export const metadata: Metadata = { title: "Planificación y Gestión de Cambios" };
 export const dynamic = "force-dynamic";
@@ -37,10 +40,31 @@ interface FilaCambio {
   titulo: string;
   tipo: TipoCambio;
   estado: EstadoCambio;
+  fecha_solicitud: string | null;
+  proposito: string | null;
+  consecuencias_potenciales: string | null;
+  impacto_integridad_sgc: string | null;
+  recursos_necesarios: string | null;
+  responsabilidades: string | null;
+  comunicacion_a_quien: string | null;
+  comunicacion_cuando: string | null;
+  comunicacion_canal: string | null;
+  indicador_exito: string | null;
+  criterio_exito: string | null;
   fecha_revision: string;
+  documentos_afectados: string | null;
+  fecha_aprobacion: string | null;
+  fecha_implementacion: string | null;
+  seguimiento_observacion: string | null;
+  resultado_revision: string | null;
+  resultado: ResultadoCambio | null;
+  acciones_adicionales: string | null;
   afecta_material_controlado: boolean;
+  proceso_declarado: string | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
+  solicitante: { nombre_completo: string } | null;
+  aprobador: { nombre_completo: string } | null;
 }
 
 /**
@@ -63,8 +87,15 @@ export default async function PaginaCambios({
   const { data } = await supabase
     .from("cambios")
     .select(
-      "id, codigo, titulo, tipo, estado, fecha_revision, afecta_material_controlado, " +
-        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
+      "id, codigo, titulo, tipo, estado, fecha_solicitud, proposito, " +
+        "consecuencias_potenciales, impacto_integridad_sgc, recursos_necesarios, " +
+        "responsabilidades, comunicacion_a_quien, comunicacion_cuando, comunicacion_canal, " +
+        "indicador_exito, criterio_exito, fecha_revision, documentos_afectados, " +
+        "fecha_aprobacion, fecha_implementacion, seguimiento_observacion, " +
+        "resultado_revision, resultado, acciones_adicionales, " +
+        "afecta_material_controlado, proceso_declarado, " +
+        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo), " +
+        "solicitante:solicitante_id (nombre_completo), aprobador:aprobado_por (nombre_completo)",
     )
     .order("creado_en", { ascending: false });
 
@@ -132,43 +163,118 @@ export default async function PaginaCambios({
         />
       ) : (
         <Tarjeta>
+          {/* LAS COLUMNAS DE LA HOJA 6.3, EN SU ORDEN. Los incisos del
+              apartado 6.3 de la norma llevan su letra en el rótulo, como
+              en el formulario de Calidad: es como los busca un auditor.
+
+              El plan de comunicación son tres columnas de la tabla —a
+              quién, cuándo y por qué canal— y en la hoja es una sola
+              celda: se arman juntas, separadas por puntos. El indicador y
+              el criterio de éxito, igual. */}
           <Tabla>
             <TablaCabecera>
               <TablaFila>
-                <TablaEncabezado>Código</TablaEncabezado>
-                <TablaEncabezado>Cambio</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">Tipo</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Responsable</TablaEncabezado>
-                <TablaEncabezado>Revisión</TablaEncabezado>
-                <TablaEncabezado>Estado</TablaEncabezado>
+                <TablaEncabezado className="sticky left-0 z-10 w-[8rem] bg-fondo">
+                  Código
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Fecha de solicitud</TablaEncabezado>
+                <TablaEncabezado className="w-[11rem]">Solicitante</TablaEncabezado>
+                <TablaEncabezado className="w-[18rem]">Descripción del cambio</TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Tipo de cambio</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">a) Propósito</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">
+                  a) Consecuencias potenciales
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">
+                  b) Impacto en la integridad del SGC
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[13rem]">
+                  c) Recursos e información
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[13rem]">d) Responsabilidades</TablaEncabezado>
+                <TablaEncabezado className="w-[15rem]">e) Plan de comunicación</TablaEncabezado>
+                <TablaEncabezado className="w-[15rem]">
+                  f) Indicador y criterio de éxito
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">g) Revisión prevista</TablaEncabezado>
+                <TablaEncabezado className="w-[13rem]">Documentos afectados</TablaEncabezado>
+                <TablaEncabezado className="w-[11rem]">Aprobado por</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Fecha de aprobación</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Implementación</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">
+                  f) Seguimiento de eficacia
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">
+                  g) Resultado de la revisión
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">¿Fue eficaz?</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">Acciones adicionales</TablaEncabezado>
+                <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
               {cambios.map((cambio) => {
                 const vencido = seguimientoVencido(cambio.estado, cambio.fecha_revision);
+
+                // En la hoja el plan de comunicación es una celda; acá
+                // son tres columnas. Se unen con puntos y se saltan las
+                // vacías, para no mostrar «· · ».
+                const comunicacion =
+                  [cambio.comunicacion_a_quien, cambio.comunicacion_cuando, cambio.comunicacion_canal]
+                    .filter((parte) => parte?.trim())
+                    .join(" · ") || null;
+
+                const exito =
+                  [cambio.indicador_exito, cambio.criterio_exito]
+                    .filter((parte) => parte?.trim())
+                    .join(" · ") || null;
+
                 return (
                   <TablaFila key={cambio.id}>
-                    <TablaCelda className="whitespace-nowrap text-xs font-medium">
+                    <TablaCelda className="sticky left-0 z-10 whitespace-nowrap bg-fondo text-xs font-medium tabular">
                       <Link href={`/cambios/${cambio.id}`} className="hover:underline">
                         {cambio.codigo}
                       </Link>
-                    </TablaCelda>
-                    <TablaCelda className="text-xs">
-                      <Link href={`/cambios/${cambio.id}`} className="hover:underline">
-                        {cambio.titulo}
-                      </Link>
                       {cambio.afecta_material_controlado ? (
-                        <span className="ml-1.5 text-[10px] text-semaforo-medio">
+                        <span className="block text-[10px] font-normal text-semaforo-medio">
                           material controlado
                         </span>
                       ) : null}
                     </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
-                      {ETIQUETAS_TIPO_CAMBIO[cambio.tipo]}
+
+                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                      {cambio.fecha_solicitud ? formatearFecha(cambio.fecha_solicitud) : "—"}
                     </TablaCelda>
-                    <TablaCelda className="hidden whitespace-nowrap text-xs lg:table-cell">
-                      {cambio.responsable?.nombre_completo ?? "—"}
+
+                    <CeldaTexto ancho="11rem">{cambio.solicitante?.nombre_completo}</CeldaTexto>
+
+                    <TablaCelda className="text-xs" style={{ maxWidth: "18rem" }}>
+                      <Link
+                        href={`/cambios/${cambio.id}`}
+                        className="block truncate hover:underline"
+                        title={cambio.titulo}
+                      >
+                        {cambio.titulo}
+                      </Link>
+                      {/* El proceso va debajo del título: en la hoja no
+                          tiene columna propia, pero sin él no se sabe
+                          dónde cae el cambio. */}
+                      {cambio.proceso_declarado ?? cambio.procesos?.nombre ? (
+                        <span className="block truncate text-[11px] text-atenuado-contraste">
+                          {cambio.proceso_declarado ?? cambio.procesos?.nombre}
+                        </span>
+                      ) : null}
                     </TablaCelda>
+
+                    <CeldaTexto ancho="12rem">{ETIQUETAS_TIPO_CAMBIO[cambio.tipo]}</CeldaTexto>
+                    <CeldaTexto ancho="14rem">{cambio.proposito}</CeldaTexto>
+                    <CeldaTexto ancho="14rem">{cambio.consecuencias_potenciales}</CeldaTexto>
+                    <CeldaTexto ancho="14rem">{cambio.impacto_integridad_sgc}</CeldaTexto>
+                    <CeldaTexto ancho="13rem">{cambio.recursos_necesarios}</CeldaTexto>
+                    <CeldaTexto ancho="13rem">{cambio.responsabilidades}</CeldaTexto>
+                    <CeldaTexto ancho="15rem">{comunicacion}</CeldaTexto>
+                    <CeldaTexto ancho="15rem">{exito}</CeldaTexto>
+
                     <TablaCelda
                       className={`whitespace-nowrap text-xs tabular ${
                         vencido ? "font-semibold text-semaforo-critico" : ""
@@ -176,6 +282,40 @@ export default async function PaginaCambios({
                     >
                       {formatearFecha(cambio.fecha_revision)}
                     </TablaCelda>
+
+                    <CeldaTexto ancho="13rem">{cambio.documentos_afectados}</CeldaTexto>
+                    <CeldaTexto ancho="11rem">{cambio.aprobador?.nombre_completo}</CeldaTexto>
+
+                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                      {cambio.fecha_aprobacion ? formatearFecha(cambio.fecha_aprobacion) : "—"}
+                    </TablaCelda>
+                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                      {cambio.fecha_implementacion
+                        ? formatearFecha(cambio.fecha_implementacion)
+                        : "—"}
+                    </TablaCelda>
+
+                    <CeldaTexto ancho="14rem">{cambio.seguimiento_observacion}</CeldaTexto>
+                    <CeldaTexto ancho="14rem">{cambio.resultado_revision}</CeldaTexto>
+
+                    <TablaCelda className="text-xs">
+                      {cambio.resultado && cambio.resultado !== "pendiente" ? (
+                        <span
+                          className={
+                            cambio.resultado === "eficaz"
+                              ? "text-semaforo-bajo"
+                              : "text-semaforo-critico"
+                          }
+                        >
+                          {ETIQUETAS_RESULTADO_CAMBIO[cambio.resultado]}
+                        </span>
+                      ) : (
+                        <span className="text-atenuado-contraste">Pendiente</span>
+                      )}
+                    </TablaCelda>
+
+                    <CeldaTexto ancho="14rem">{cambio.acciones_adicionales}</CeldaTexto>
+
                     <TablaCelda>
                       <Insignia variante="contorno">
                         <span className={CLASES_ESTADO_CAMBIO[cambio.estado]}>
