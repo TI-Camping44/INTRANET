@@ -78,7 +78,8 @@ export async function obtenerHoja(anio: number): Promise<Hoja> {
       .from("indicadores")
       .select(
         "id, codigo, nombre, objetivo_id, formula, unidad, linea_base, meta, sentido, " +
-          "consolidacion, frecuencia, fuente_dato, " +
+          "consolidacion, frecuencia, fuente_dato, nivel, observaciones, " +
+          "proceso_declarado, responsable_declarado, " +
           "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
       )
       .eq("activo", true)
@@ -117,6 +118,12 @@ export async function obtenerHoja(anio: number): Promise<Hoja> {
     consolidacion: Consolidacion;
     frecuencia: FrecuenciaMedicion;
     fuente_dato: string | null;
+    /** El nivel que la hoja 6.2 declara por indicador. */
+    nivel: NivelObjetivo | null;
+    observaciones: string | null;
+    /** El proceso y el responsable tal como los nombra la planilla. */
+    proceso_declarado: string | null;
+    responsable_declarado: string | null;
     procesos: { nombre: string } | null;
     responsable: { nombre_completo: string } | null;
   };
@@ -173,10 +180,20 @@ export async function obtenerHoja(anio: number): Promise<Hoja> {
       // y deja el objetivo en blanco en la segunda. Se hace igual: el ojo
       // ve que son del mismo objetivo sin tener que leer dos veces.
       objetivo: repiteObjetivo ? "" : (objetivo?.nombre ?? "Sin objetivo asociado"),
-      nivel: repiteObjetivo ? null : (objetivo?.nivel ?? null),
-      ambito: repiteObjetivo
-        ? null
-        : (objetivo?.procesos?.nombre ?? indicador?.procesos?.nombre ?? null),
+      // EL NIVEL ES DEL INDICADOR cuando lo tiene. La hoja 6.2 lo declara
+      // por indicador —estrategico, tactico, operativo— y no por
+      // objetivo: los treinta y dos indicadores de desempeño de proceso
+      // no cuelgan de ningun objetivo de calidad y aun asi tienen nivel.
+      // Se repite en la segunda fila de un mismo objetivo, a diferencia
+      // del nombre, justamente porque es del indicador.
+      nivel: indicador?.nivel ?? (repiteObjetivo ? null : (objetivo?.nivel ?? null)),
+      // El proceso de la planilla primero: el mapa de la intranet
+      // todavia no coincide con el de Calidad.
+      ambito:
+        indicador?.proceso_declarado ??
+        (repiteObjetivo
+          ? null
+          : (objetivo?.procesos?.nombre ?? indicador?.procesos?.nombre ?? null)),
       indicadorId: indicador?.id ?? null,
       indicador: indicador?.nombre ?? null,
       codigo: indicador?.codigo ?? objetivo?.codigo ?? null,
@@ -189,12 +206,20 @@ export async function obtenerHoja(anio: number): Promise<Hoja> {
       frecuencia: indicador?.frecuencia ?? null,
       fuenteDato: indicador?.fuente_dato ?? null,
       responsable:
-        indicador?.responsable?.nombre_completo ?? objetivo?.responsable?.nombre_completo ?? null,
+        indicador?.responsable_declarado ??
+        indicador?.responsable?.nombre_completo ??
+        objetivo?.responsable?.nombre_completo ??
+        null,
       meses,
       resultado,
       cumplimiento,
       semaforo: semaforoDeCumplimiento(cumplimiento),
-      observaciones: repiteObjetivo ? null : (objetivo?.observaciones ?? null),
+      // Columna AD de la hoja: es del indicador. Varias dicen cosas que
+      // hay que leer para no malinterpretar el numero —«Meta 0: con
+      // resultado 0 el % de cumplimiento queda vacio; leer como
+      // Cumple»—, asi que no se pueden perder.
+      observaciones:
+        indicador?.observaciones ?? (repiteObjetivo ? null : (objetivo?.observaciones ?? null)),
     };
   }
 

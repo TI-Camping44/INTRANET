@@ -24,6 +24,7 @@ import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_FRECUENCIA, ETIQUETAS_SENTIDO } from "@/lib/constantes";
 import { formatearMes, formatearNumero, hoyEnAsuncion } from "@/lib/formato";
+import { cn } from "@/lib/utilidades";
 import type { FrecuenciaMedicion, SentidoIndicador } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Objetivos e Indicadores" };
@@ -32,11 +33,29 @@ export const dynamic = "force-dynamic";
 export default async function PaginaIndicadores({
   searchParams,
 }: {
-  searchParams: { q?: string; proceso?: string; cumplimiento?: string };
+  searchParams: { q?: string; proceso?: string; cumplimiento?: string; anio?: string };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
-  const anio = Number(hoyEnAsuncion().slice(0, 4));
+
+  // EL AÑO NO ES EL DE HOY. Lo era, y con eso la hoja de Calidad salía
+  // vacía: los objetivos del F-EST-01-05 son de 2027 —la línea base se
+  // mide de octubre a diciembre de 2026 y las metas se confirman en
+  // enero— y la pantalla buscaba los de 2026. Se elige, y por defecto se
+  // muestra el año más reciente que tenga objetivos cargados.
+  const { data: anios } = await supabase
+    .from("objetivos")
+    .select("anio")
+    .order("anio", { ascending: false });
+
+  const aniosConObjetivos = Array.from(
+    new Set(((anios as { anio: number }[] | null) ?? []).map((fila) => fila.anio)),
+  );
+  const anioPedido = Number(searchParams.anio);
+  const anio =
+    Number.isInteger(anioPedido) && aniosConObjetivos.includes(anioPedido)
+      ? anioPedido
+      : (aniosConObjetivos[0] ?? Number(hoyEnAsuncion().slice(0, 4)));
 
   let consulta = supabase
     .from("indicadores")
@@ -128,6 +147,28 @@ export default async function PaginaIndicadores({
             semáforo los calcula el sistema a partir de los meses cargados.
           </p>
         </div>
+
+        {/* El año, cuando hay más de uno cargado. Enlaces y no un
+            desplegable: así la pantalla sigue siendo de servidor y el año
+            queda en la dirección, que se puede guardar y compartir. */}
+        {aniosConObjetivos.length > 1 ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {aniosConObjetivos.map((valor) => (
+              <Link
+                key={valor}
+                href={`/indicadores?anio=${valor}`}
+                className={cn(
+                  "rounded border px-2 py-1 text-xs tabular transition-colors",
+                  valor === anio
+                    ? "border-primario bg-primario/10 font-medium text-primario"
+                    : "border-borde text-atenuado-contraste hover:text-texto",
+                )}
+              >
+                {valor}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-8">
