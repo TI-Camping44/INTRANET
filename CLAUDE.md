@@ -399,7 +399,14 @@ El sistema tiene dos capas.
 **Intranet** (la portada, pedida por Dirección): publicaciones internas
 —anuncios, novedades de producto, logros, reconocimientos, bienvenidas y
 eventos, todos la misma tabla con distinto `tipo`—, cumpleaños y
-aniversarios calculados del legajo, y directorio con organigrama.
+aniversarios calculados del legajo, y directorio de personas.
+
+> El directorio tenía organigrama y lista de perfiles de puesto. Los dos
+> se retiraron el 5 de octubre: los perfiles ya viven en Personas y
+> tenerlos en dos lados era buscar lo mismo en dos lugares. La línea de
+> reporte **no se borró**: `usuarios.superior_id` sigue ahí y la usan el
+> escalamiento de acciones y la pantalla de administración. Lo que se
+> quitó es el dibujo.
 
 **Calidad · SGC**, con sus nueve módulos operativos: Control de
 información documentada · No conformidades y acciones correctivas ·

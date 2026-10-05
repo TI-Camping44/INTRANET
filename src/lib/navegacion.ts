@@ -57,7 +57,10 @@ export const NAVEGACION: GrupoNavegacion[] = [
       { titulo: "Inicio", ruta: "/inicio", icono: "Home", fase: "operativo" },
       { titulo: "Directorio", ruta: "/directorio", icono: "Contact", fase: "operativo" },
       { titulo: "Aplicaciones", ruta: "/aplicaciones", icono: "LayoutGrid", fase: "operativo" },
-      { titulo: "Buscar", ruta: "/buscar", icono: "Search", fase: "operativo" },
+      // La busqueda NO va en la barra: ya esta el campo de arriba, que
+      // lleva a la misma pantalla. Dos accesos al mismo lugar, uno al
+      // lado del otro, se leen como dos cosas distintas.
+      // `/buscar` sigue existiendo: es adonde escribe el campo.
       {
         // Solo la ve quien esta vinculado al informe comercial. No es un
         // control de acceso —la pantalla vuelve a comprobarlo, y el dato
