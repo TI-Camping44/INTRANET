@@ -320,9 +320,11 @@ B_OBJETIVOS = CABEZA + """
       (select id from public.objetivos
         where empresa_id = v_empresa and codigo = f->>'codigo_objetivo'),
       f->>'nivel', f->>'proceso', f->>'formula', f->>'unidad',
-      (f->>'linea_base')::numeric, (f->>'meta')::numeric, f->>'sentido',
-      f->>'consolidacion', f->>'frecuencia', f->>'fuente',
-      f->>'responsable', f->>'observaciones', true, false
+      (f->>'linea_base')::numeric, (f->>'meta')::numeric,
+      (f->>'sentido')::public.sentido_indicador,
+      (f->>'consolidacion')::public.consolidacion_indicador,
+      (f->>'frecuencia')::public.frecuencia_medicion,
+      f->>'fuente', f->>'responsable', f->>'observaciones', true, false
     );
   end loop;
 
