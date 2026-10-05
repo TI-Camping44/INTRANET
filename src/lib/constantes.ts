@@ -414,12 +414,21 @@ export const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
 
 export const TIPOS_AUDITORIA_VIGENTES = ["por_proceso", "interna", "externa", "terceros"];
 
+/**
+ * Las cinco preguntas de la cadena.
+ *
+ * EL QUINTO NO DICE «CAUSA RAIZ». Decia, y estaba mal: el quinto porque
+ * es el ultimo eslabon de la cadena, una respuesta mas, y la causa raiz
+ * es la conclusion que se escribe aparte, debajo de los cinco. Rotular el
+ * quinto como la causa raiz invitaba justamente a lo que Calidad corrigio
+ * el 5 de octubre: copiar uno en el otro.
+ */
 export const PREGUNTAS_CINCO_PORQUES = [
   "¿Por qué ocurrió la desviación?",
   "¿Por qué?",
   "¿Por qué?",
   "¿Por qué?",
-  "¿Por qué? (Causa raíz)",
+  "¿Por qué?",
 ];
 
 export const ESTADOS_NC_ABIERTOS: EstadoNoConformidad[] = [
