@@ -144,8 +144,21 @@ export default async function PaginaFormacion({
     },
   ];
 
-  const ejecutadas = formaciones.filter((formacion) => formacion.estado === "ejecutada").length;
-  const conEficacia = formaciones.filter((formacion) => formacion.requiere_eficacia).length;
+  // LOS CUATRO NUMEROS SE CUENTAN POR ESTADO, sobre el año que se está
+  // mirando. Al contarse así no hay nada que mantener sincronizado: una
+  // acción que pasa de «No ejecutada» a «Ejecutada» deja de sumar en una
+  // tarjeta y suma en la otra sola, porque las dos miran el mismo campo.
+  const cuantasEn = (estado: EstadoCapacitacion) =>
+    formaciones.filter((formacion) => formacion.estado === estado).length;
+
+  const ejecutadas = cuantasEn("ejecutada");
+  const noEjecutadas = cuantasEn("no_ejecutada");
+  const pospuestas = cuantasEn("pospuesta");
+
+  const porcentajeDelPlan = (cuantas: number) =>
+    formaciones.length > 0
+      ? `${Math.round((cuantas * 100) / formaciones.length)} % del plan`
+      : undefined;
 
   return (
     <>
@@ -186,24 +199,20 @@ export default async function PaginaFormacion({
         <TarjetaIndicador
           titulo="Ejecutadas"
           valor={ejecutadas}
-          contexto={
-            formaciones.length > 0
-              ? `${Math.round((ejecutadas * 100) / formaciones.length)} % del plan`
-              : undefined
-          }
+          contexto={porcentajeDelPlan(ejecutadas)}
+          tono={ejecutadas > 0 ? "exito" : undefined}
         />
         <TarjetaIndicador
-          titulo="Convocatorias"
-          valor={formaciones.reduce(
-            (suma, formacion) => suma + (participantesPor.get(formacion.id) ?? 0),
-            0,
-          )}
-          contexto="Participantes en total"
+          titulo="No ejecutadas"
+          valor={noEjecutadas}
+          contexto={porcentajeDelPlan(noEjecutadas)}
+          tono={noEjecutadas > 0 ? "peligro" : undefined}
         />
         <TarjetaIndicador
-          titulo="Exigen evaluar eficacia"
-          valor={conEficacia}
-          contexto="Duran más de 2 horas"
+          titulo="Pospuestas"
+          valor={pospuestas}
+          contexto={porcentajeDelPlan(pospuestas)}
+          tono={pospuestas > 0 ? "advertencia" : undefined}
         />
       </div>
 
