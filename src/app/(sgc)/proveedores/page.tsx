@@ -64,6 +64,17 @@ export default async function PaginaProveedores({
 
   const { data } = await consulta;
   const proveedores = (data ?? []) as any[];
+
+  // Las empresas van por `empresas_del_grupo()` y no por un embed a
+  // `empresas`: esa tabla la acota RLS a la propia, así que la columna
+  // de un Asociado de Negocio de Vitálica saldría vacía.
+  const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
+  const nombreDeEmpresa = new Map(
+    ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).map((empresa) => [
+      empresa.id,
+      empresa.nombre,
+    ]),
+  );
   const hoy = hoyEnAsuncion();
 
   const criticos = proveedores.filter((proveedor) => proveedor.critico).length;
@@ -150,6 +161,7 @@ export default async function PaginaProveedores({
               <TablaFila>
                 <TablaEncabezado className="w-[7rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Razón social</TablaEncabezado>
+                <TablaEncabezado className="hidden md:table-cell">Empresa</TablaEncabezado>
                 <TablaEncabezado className="hidden lg:table-cell">Rubro</TablaEncabezado>
                 <TablaEncabezado className="hidden xl:table-cell">RUC</TablaEncabezado>
                 <TablaEncabezado className="w-[6rem] text-right">Calificación</TablaEncabezado>
@@ -180,6 +192,9 @@ export default async function PaginaProveedores({
                         ) : null}
                         {proveedor.es_demostracion ? <InsigniaDemostracion /> : null}
                       </Link>
+                    </TablaCelda>
+                    <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
+                      {nombreDeEmpresa.get(proveedor.empresa_compradora_id) ?? "—"}
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
                       {proveedor.rubro ?? "—"}

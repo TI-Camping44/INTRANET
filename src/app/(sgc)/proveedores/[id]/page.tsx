@@ -32,6 +32,7 @@ interface ProveedorDetalle {
   nombre_comercial: string | null;
   ruc: string | null;
   rubro: string | null;
+  empresa_compradora_id: string | null;
   critico: boolean;
   correo: string | null;
   contacto_secundario: string | null;
@@ -75,6 +76,13 @@ export default async function PaginaProveedor({ params }: { params: { id: string
 
   const proveedor = consulta as unknown as ProveedorDetalle | null;
   if (!proveedor) notFound();
+
+  // La empresa del grupo va por `empresas_del_grupo()`: `empresas` la
+  // acota RLS a la propia.
+  const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
+  const empresaDelAsociado = ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).find(
+    (empresa) => empresa.id === proveedor.empresa_compradora_id,
+  )?.nombre;
 
   const [{ data: evaluaciones }, { data: noConformidades }] = await Promise.all([
     supabase
@@ -202,6 +210,7 @@ export default async function PaginaProveedor({ params }: { params: { id: string
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
+                <Dato etiqueta="Empresa del grupo" valor={empresaDelAsociado ?? "—"} />
                 <Dato etiqueta="RUC" valor={proveedor.ruc ?? "—"} />
                 <Dato etiqueta="Contacto" valor={proveedor.contacto ?? "—"} />
                 <Dato

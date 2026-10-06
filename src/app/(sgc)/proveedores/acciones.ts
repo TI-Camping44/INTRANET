@@ -81,6 +81,11 @@ export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> 
 /** Los campos del formulario, ya limpios. */
 function leerCampos(datos: FormData) {
   return {
+    // PARA QUE EMPRESA DEL GRUPO SE LE COMPRA. No es `empresa_id`:
+    // esa es la que acota el acceso por RLS y siempre vale Camping 44,
+    // porque la misma gente administra las dos. Esta es la que firma la
+    // carta de evaluacion, con su logotipo y su razon social.
+    empresa_compradora_id: String(datos.get("empresa_compradora_id") ?? "").trim(),
     razon_social: String(datos.get("razon_social") ?? "").trim(),
     nombre_comercial: String(datos.get("nombre_comercial") ?? "").trim(),
     ruc: String(datos.get("ruc") ?? "").trim(),
@@ -97,6 +102,7 @@ function leerCampos(datos: FormData) {
 
 /** Devuelve el mensaje del primer problema, o null si esta todo bien. */
 function revisarCampos(campos: ReturnType<typeof leerCampos>): string | null {
+  if (!campos.empresa_compradora_id) return "Indique para qué empresa del grupo se lo evalúa.";
   if (campos.razon_social.length < 3) {
     return "La razón social debe tener al menos 3 caracteres.";
   }

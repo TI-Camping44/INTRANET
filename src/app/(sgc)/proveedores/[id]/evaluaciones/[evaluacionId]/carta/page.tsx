@@ -91,7 +91,7 @@ export default async function PaginaCartaEvaluacion({
   const [{ data: datosProveedor }, { data: datosEvaluacion }] = await Promise.all([
     supabase
       .from("proveedores")
-      .select("id, codigo, razon_social, empresa_id")
+      .select("id, codigo, razon_social, empresa_compradora_id")
       .eq("id", params.id)
       .maybeSingle(),
     supabase
@@ -108,18 +108,22 @@ export default async function PaginaCartaEvaluacion({
     id: string;
     codigo: string;
     razon_social: string;
-    empresa_id: string;
+    empresa_compradora_id: string;
   };
 
-  // LA EMPRESA VA POR `empresas_del_grupo()` Y NO POR UN SELECT A
-  // `empresas`: esa tabla la acota RLS a la propia, asi que un Asociado
-  // de Negocio de Vitalica abierto por alguien de Camping 44 devolvia
-  // null y la carta salia con el membrete de la otra empresa. Un
-  // documento que se entrega a un tercero no puede equivocarse en eso.
+  // FIRMA LA EMPRESA A LA QUE SE LE COMPRA, no `empresa_id`: esa es el
+  // acotamiento de RLS y siempre vale Camping 44, porque la misma gente
+  // administra las dos.
+  //
+  // Y va por `empresas_del_grupo()` y no por un select a `empresas`: esa
+  // tabla la acota RLS a la propia, asi que un Asociado de Negocio de
+  // Vitalica devolvia null y la carta salia con el membrete de la otra
+  // empresa. Un documento que se entrega a un tercero no puede
+  // equivocarse en eso.
   const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
 
   const empresa = ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).find(
-    (candidata) => candidata.id === proveedor.empresa_id,
+    (candidata) => candidata.id === proveedor.empresa_compradora_id,
   );
 
   // `empresas_del_grupo()` devuelve la razon social en `nombre`.

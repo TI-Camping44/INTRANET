@@ -4,11 +4,14 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
-import { Entrada, GrupoCampo } from "@/components/ui/campo";
+import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { crearProveedor } from "@/app/(sgc)/proveedores/acciones";
 
-export function FormularioProveedor() {
+/** Las dos empresas del grupo, como las devuelve `empresas_del_grupo()`. */
+type EmpresaDelGrupo = { id: string; nombre: string };
+
+export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
@@ -43,6 +46,34 @@ export function FormularioProveedor() {
               inventarlo—, el teléfono —con el contacto escrito se
               entiende, y suelto no decía de quién era—, la marca de
               crítico, el impacto en la calidad y las observaciones. */}
+          {/* CAMPING 44 Y VITÁLICA SON UN MISMO GRUPO Y LA MISMA GENTE
+              las administra, pero cada Asociado de Negocio es de una.
+              Esta es la empresa que firma su carta de evaluación, con su
+              logotipo y su razón social. */}
+          <GrupoCampo
+            etiqueta="Empresa del grupo"
+            htmlFor="empresa_compradora_id"
+            requerido
+            className="sm:col-span-2"
+            ayuda="Cuál de las dos le compra. Es la que firma la carta de evaluación."
+          >
+            <Seleccion
+              id="empresa_compradora_id"
+              name="empresa_compradora_id"
+              required
+              defaultValue={empresas[0]?.id ?? ""}
+            >
+              <option value="" disabled>
+                Elija la empresa…
+              </option>
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.nombre}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
           <GrupoCampo etiqueta="Razón social" htmlFor="razon_social" requerido className="sm:col-span-2">
             <Entrada id="razon_social" name="razon_social" required minLength={3} />
           </GrupoCampo>
