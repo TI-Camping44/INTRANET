@@ -48,14 +48,132 @@ export async function crearProgramaAuditoria(datos: FormData): Promise<Resultado
   return { exito: true, mensaje: `Programa ${anio} creado.` };
 }
 
-/** Aprobacion del programa anual por Direccion o Calidad. */
-export async function aprobarPrograma(programaId: string): Promise<ResultadoAccion> {
+/**
+ * Se pide la aprobacion del programa a alguien, y se le avisa.
+ *
+ * EL PROGRAMA NO SE APRUEBA SOLO. Antes el boton decia «Aprobar
+ * programa» y lo apretaba quien lo estuviera mirando: eso no es una
+ * aprobacion, es un cambio de estado. Ahora se elige a quien tiene que
+ * aprobarlo, le llega la notificacion, y el boton de aprobar aparece
+ * recien para esa persona.
+ */
+export async function solicitarAprobacionPrograma(
+  programaId: string,
+  aprobadorId: string,
+): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
-  if (usuario.rol !== "administrador_sgc") {
-    return { exito: false, error: "Solo el Administrador SGC puede aprobar el programa." };
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite gestionar el programa de auditorías." };
   }
 
+  if (!aprobadorId) return { exito: false, error: "Elija a quién le pide la aprobación." };
+
   const supabase = crearClienteServidor();
+
+  const { data: programa } = await supabase
+    .from("programas_auditoria")
+    .select("id, nombre, anio, fecha_aprobacion")
+    .eq("id", programaId)
+    .maybeSingle();
+
+  if (!programa) return { exito: false, error: "El programa no existe o no tiene acceso." };
+
+  const datosPrograma = programa as {
+    id: string;
+    nombre: string;
+    anio: number;
+    fecha_aprobacion: string | null;
+  };
+
+  if (datosPrograma.fecha_aprobacion) {
+    return { exito: false, error: "El programa ya está aprobado." };
+  }
+
+  const { error } = await supabase
+    .from("programas_auditoria")
+    .update({
+      aprobacion_solicitada_a: aprobadorId,
+      aprobacion_solicitada_en: new Date().toISOString(),
+    })
+    .eq("id", programaId);
+
+  if (error) {
+    return { exito: false, error: `No se pudo pedir la aprobación: ${error.message}` };
+  }
+
+  const { data: aprobador } = await supabase
+    .from("usuarios")
+    .select("id, correo, nombre_completo")
+    .eq("id", aprobadorId)
+    .maybeSingle();
+
+  if (aprobador) {
+    const persona = aprobador as { id: string; correo: string; nombre_completo: string };
+    // El correo no bloquea: si el SMTP no responde, la notificacion queda
+    // sin enviar y el trabajo programado la reintenta.
+    await notificar(supabase, {
+      deParteDe: departe(usuario),
+      usuarioId: persona.id,
+      correoDestino: persona.correo,
+      tipo: "revision_solicitada",
+      titulo: `Aprobación pendiente: ${datosPrograma.nombre}`,
+      mensaje:
+        `Se le pidió aprobar el programa anual de auditorías ${datosPrograma.anio}. ` +
+        "Entre a la ficha del programa para revisarlo y aprobarlo.",
+      enlace: `/auditorias/programas/${programaId}`,
+      entidad: "programas_auditoria",
+      entidadId: programaId,
+      claveUnicidad: `aprobacion-programa:${programaId}:${aprobadorId}`,
+    });
+  }
+
+  revalidatePath("/auditorias");
+  revalidatePath(`/auditorias/programas/${programaId}`);
+
+  return {
+    exito: true,
+    mensaje: `Aprobación solicitada a ${
+      (aprobador as { nombre_completo: string } | null)?.nombre_completo ?? "la persona elegida"
+    }.`,
+  };
+}
+
+/**
+ * Aprobacion del programa anual.
+ *
+ * SOLO APRUEBA A QUIEN SE LE PIDIO, o el Administrador SGC. No alcanza
+ * con ocultar el boton: quien tiene la direccion de la accion puede
+ * llamarla igual, asi que el control esta aca.
+ */
+export async function aprobarPrograma(programaId: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  const supabase = crearClienteServidor();
+
+  const { data: programa } = await supabase
+    .from("programas_auditoria")
+    .select("aprobacion_solicitada_a, fecha_aprobacion")
+    .eq("id", programaId)
+    .maybeSingle();
+
+  if (!programa) return { exito: false, error: "El programa no existe o no tiene acceso." };
+
+  const datosPrograma = programa as {
+    aprobacion_solicitada_a: string | null;
+    fecha_aprobacion: string | null;
+  };
+
+  if (datosPrograma.fecha_aprobacion) {
+    return { exito: false, error: "El programa ya está aprobado." };
+  }
+
+  const esElAprobador = datosPrograma.aprobacion_solicitada_a === usuario.id;
+  if (!esElAprobador && usuario.rol !== "administrador_sgc") {
+    return {
+      exito: false,
+      error: "La aprobación le corresponde a quien se le pidió, o al Administrador SGC.",
+    };
+  }
 
   const { error } = await supabase
     .from("programas_auditoria")
@@ -69,7 +187,131 @@ export async function aprobarPrograma(programaId: string): Promise<ResultadoAcci
   if (error) return { exito: false, error: `No se pudo aprobar el programa: ${error.message}` };
 
   revalidatePath("/auditorias");
+  revalidatePath(`/auditorias/programas/${programaId}`);
   return { exito: true, mensaje: "Programa aprobado y puesto en ejecución." };
+}
+
+/** Se pide la aprobacion del plan de una auditoria, y se le avisa. */
+export async function solicitarAprobacionPlan(
+  auditoriaId: string,
+  aprobadorId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite gestionar auditorías." };
+  }
+
+  if (!aprobadorId) return { exito: false, error: "Elija a quién le pide la aprobación." };
+
+  const supabase = crearClienteServidor();
+
+  const { data: auditoria } = await supabase
+    .from("auditorias")
+    .select("id, codigo, objetivo, plan_fecha_aprobacion")
+    .eq("id", auditoriaId)
+    .maybeSingle();
+
+  if (!auditoria) return { exito: false, error: "La auditoría no existe o no tiene acceso." };
+
+  const datosAuditoria = auditoria as {
+    codigo: string;
+    objetivo: string | null;
+    plan_fecha_aprobacion: string | null;
+  };
+
+  if (datosAuditoria.plan_fecha_aprobacion) {
+    return { exito: false, error: "El plan ya está aprobado." };
+  }
+
+  const { error } = await supabase
+    .from("auditorias")
+    .update({
+      plan_aprobacion_solicitada_a: aprobadorId,
+      plan_aprobacion_solicitada_en: new Date().toISOString(),
+    })
+    .eq("id", auditoriaId);
+
+  if (error) {
+    return { exito: false, error: `No se pudo pedir la aprobación: ${error.message}` };
+  }
+
+  const { data: aprobador } = await supabase
+    .from("usuarios")
+    .select("id, correo, nombre_completo")
+    .eq("id", aprobadorId)
+    .maybeSingle();
+
+  if (aprobador) {
+    const persona = aprobador as { id: string; correo: string; nombre_completo: string };
+    await notificar(supabase, {
+      deParteDe: departe(usuario),
+      usuarioId: persona.id,
+      correoDestino: persona.correo,
+      tipo: "revision_solicitada",
+      titulo: `Aprobación pendiente: plan de ${datosAuditoria.codigo}`,
+      mensaje:
+        `Se le pidió aprobar el plan de la auditoría ${datosAuditoria.codigo}. ` +
+        "Entre a la ficha de la auditoría para revisarlo y aprobarlo.",
+      enlace: `/auditorias/${auditoriaId}`,
+      entidad: "auditorias",
+      entidadId: auditoriaId,
+      claveUnicidad: `aprobacion-plan:${auditoriaId}:${aprobadorId}`,
+    });
+  }
+
+  revalidatePath(`/auditorias/${auditoriaId}`);
+
+  return {
+    exito: true,
+    mensaje: `Aprobación solicitada a ${
+      (aprobador as { nombre_completo: string } | null)?.nombre_completo ?? "la persona elegida"
+    }.`,
+  };
+}
+
+/** Aprobacion del plan de auditoria, por quien se le pidio. */
+export async function aprobarPlan(auditoriaId: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+
+  const supabase = crearClienteServidor();
+
+  const { data: auditoria } = await supabase
+    .from("auditorias")
+    .select("plan_aprobacion_solicitada_a, plan_fecha_aprobacion")
+    .eq("id", auditoriaId)
+    .maybeSingle();
+
+  if (!auditoria) return { exito: false, error: "La auditoría no existe o no tiene acceso." };
+
+  const datosAuditoria = auditoria as {
+    plan_aprobacion_solicitada_a: string | null;
+    plan_fecha_aprobacion: string | null;
+  };
+
+  if (datosAuditoria.plan_fecha_aprobacion) {
+    return { exito: false, error: "El plan ya está aprobado." };
+  }
+
+  const esElAprobador = datosAuditoria.plan_aprobacion_solicitada_a === usuario.id;
+  if (!esElAprobador && usuario.rol !== "administrador_sgc") {
+    return {
+      exito: false,
+      error: "La aprobación le corresponde a quien se le pidió, o al Administrador SGC.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("auditorias")
+    .update({
+      plan_aprobado_por: usuario.id,
+      plan_fecha_aprobacion: hoyEnAsuncion(),
+    })
+    .eq("id", auditoriaId);
+
+  if (error) return { exito: false, error: `No se pudo aprobar el plan: ${error.message}` };
+
+  revalidatePath(`/auditorias/${auditoriaId}`);
+  return { exito: true, mensaje: "Plan de auditoría aprobado." };
 }
 
 /** Alta de una auditoria dentro del programa. */
@@ -162,6 +404,24 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
     await supabase
       .from("auditoria_procesos")
       .insert(procesos.map((procesoId) => ({ auditoria_id: auditoria.id, proceso_id: procesoId })));
+  }
+
+  // Y los documentos: una auditoria tambien se hace contra la
+  // informacion documentada, no solo contra procesos.
+  const documentos = datos
+    .getAll("documentos")
+    .map((valor) => String(valor))
+    .filter((valor) => valor.length > 0);
+
+  if (documentos.length > 0) {
+    await supabase
+      .from("auditoria_documentos")
+      .insert(
+        documentos.map((documentoId) => ({
+          auditoria_id: auditoria.id,
+          documento_id: documentoId,
+        })),
+      );
   }
 
   // El auditor forma parte del equipo desde el inicio.

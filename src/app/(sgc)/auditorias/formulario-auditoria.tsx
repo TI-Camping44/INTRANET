@@ -23,11 +23,14 @@ interface Opcion {
 
 export function FormularioAuditoria({
   procesos,
+  documentos,
   usuarios,
   usuarioActual,
   programaId,
 }: {
   procesos: Opcion[];
+  /** La informacion documentada. Puede venir vacia: el modulo recien se carga. */
+  documentos: { id: string; codigo: string | null; titulo: string }[];
   usuarios: Opcion[];
   usuarioActual: string;
   /**
@@ -41,12 +44,19 @@ export function FormularioAuditoria({
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
   const [elegidos, definirElegidos] = React.useState<string[]>([]);
+  const [elegidosDocumentos, definirElegidosDocumentos] = React.useState<string[]>([]);
 
   const hoy = hoyEnAsuncion();
   const [planificada, definirPlanificada] = React.useState(sumarDias(hoy, 30));
 
   function alternarProceso(id: string) {
     definirElegidos((actuales) =>
+      actuales.includes(id) ? actuales.filter((otro) => otro !== id) : [...actuales, id],
+    );
+  }
+
+  function alternarDocumento(id: string) {
+    definirElegidosDocumentos((actuales) =>
       actuales.includes(id) ? actuales.filter((otro) => otro !== id) : [...actuales, id],
     );
   }
@@ -171,6 +181,71 @@ export function FormularioAuditoria({
               </ul>
             </div>
           </GrupoCampo>
+
+          {/* NO SOLO SE AUDITAN PROCESOS. Una auditoría también se hace
+              contra la información documentada: un procedimiento, un
+              instructivo, un registro. La lista sale de ese módulo, así
+              que crece sola a medida que se cargan documentos.
+
+              No reemplaza al cuadro de procesos: lo suma. Una auditoría
+              puede abarcar procesos, documentos o los dos. */}
+          <GrupoCampo
+            etiqueta="Documentos auditados"
+            className="sm:col-span-2"
+            ayuda={
+              documentos.length === 0
+                ? "Todavía no hay documentos cargados en Información Documentada."
+                : elegidosDocumentos.length === 0
+                  ? "Puede elegir varios. Sin ninguno, la auditoría no audita documentos."
+                  : `${elegidosDocumentos.length} ${
+                      elegidosDocumentos.length === 1
+                        ? "documento elegido"
+                        : "documentos elegidos"
+                    }.`
+            }
+          >
+            {documentos.length === 0 ? (
+              <p
+                className="rounded-md border border-dashed border-borde p-3 text-[11px]
+                           leading-relaxed text-atenuado-contraste"
+              >
+                Información Documentada está vacío. Cuando se carguen documentos van a
+                aparecer acá para elegirlos.
+              </p>
+            ) : (
+              <div
+                className="max-h-56 overflow-y-auto rounded-md border border-borde
+                           bg-fondo p-2"
+              >
+                <ul className="grid gap-0.5 sm:grid-cols-2">
+                  {documentos.map((documento) => (
+                    <li key={documento.id}>
+                      <label
+                        className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1
+                                   text-xs transition-colors hover:bg-acento/60"
+                      >
+                        <input
+                          type="checkbox"
+                          name="documentos"
+                          value={documento.id}
+                          checked={elegidosDocumentos.includes(documento.id)}
+                          onChange={() => alternarDocumento(documento.id)}
+                          className="size-3.5 shrink-0 accent-primario"
+                        />
+                        {documento.codigo ? (
+                          <span className="tabular text-atenuado-contraste">
+                            {documento.codigo}
+                          </span>
+                        ) : null}
+                        <span className="min-w-0 truncate">{documento.titulo}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </GrupoCampo>
+
 
           <GrupoCampo
             etiqueta="Auditor"

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarPlus, CheckCircle2 } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo } from "@/components/ui/campo";
 import {
@@ -15,19 +15,23 @@ import {
   DialogoPie,
   DialogoTitulo,
 } from "@/components/ui/dialogo";
-import { aprobarPrograma, crearProgramaAuditoria } from "@/app/(sgc)/auditorias/acciones";
+import { crearProgramaAuditoria } from "@/app/(sgc)/auditorias/acciones";
 
-/** Alta y aprobacion del programa anual de auditorias internas. */
+/**
+ * Alta del programa anual de auditorias internas.
+ *
+ * LA APROBACION YA NO ESTA ACA. Se pide y se aprueba en la ficha del
+ * programa, con `PanelAprobacion`: hay que elegir a quien aprueba y
+ * avisarle, y eso no entra en un boton del listado.
+ */
 export function PanelPrograma({
   programaId,
   estado,
   anioSugerido,
-  puedeAprobar,
 }: {
   programaId: string | null;
   estado: string | null;
   anioSugerido: number;
-  puedeAprobar: boolean;
 }) {
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
@@ -48,28 +52,9 @@ export function PanelPrograma({
     }
   }
 
-  async function aprobar() {
-    if (!programaId) return;
-    definirProcesando(true);
-    const resultado = await aprobarPrograma(programaId);
-    definirProcesando(false);
-
-    if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Programa aprobado.");
-      router.refresh();
-    } else {
-      toast.error(resultado.error);
-    }
-  }
-
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        {programaId && estado === "planificada" && puedeAprobar ? (
-          <Boton tamano="pequeno" onClick={aprobar} disabled={procesando}>
-            <CheckCircle2 /> Aprobar programa
-          </Boton>
-        ) : null}
         <Boton variante="contorno" tamano="pequeno" onClick={() => definirAbierto(true)}>
           <CalendarPlus /> Nuevo programa anual
         </Boton>

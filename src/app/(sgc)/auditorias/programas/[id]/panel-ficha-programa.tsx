@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo } from "@/components/ui/campo";
 import {
@@ -17,12 +17,14 @@ import {
 } from "@/components/ui/dialogo";
 import {
   actualizarProgramaAuditoria,
-  aprobarPrograma,
   eliminarProgramaAuditoria,
 } from "@/app/(sgc)/auditorias/acciones";
 
 /**
- * Edición, aprobación y baja del programa anual, desde su ficha.
+ * Edición y baja del programa anual, desde su ficha.
+ *
+ * La aprobación no está acá: vive en `PanelAprobacion`, que es el mismo
+ * recorrido para el programa y para el plan de cada auditoría.
  *
  * EL AÑO NO ESTÁ EN EL FORMULARIO. Es lo que ata cada auditoría a su
  * programa: cambiarlo movería todas las del ejercicio de una sola vez,
@@ -31,11 +33,9 @@ import {
 export function PanelFichaPrograma({
   programa,
   cuantasAuditorias,
-  puedeAprobar,
 }: {
   programa: { id: string; anio: number; nombre: string; objetivo: string | null; estado: string };
   cuantasAuditorias: number;
-  puedeAprobar: boolean;
 }) {
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
@@ -53,19 +53,6 @@ export function PanelFichaPrograma({
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Guardado.");
       definirAbierto(false);
-      router.refresh();
-    } else {
-      toast.error(resultado.error);
-    }
-  }
-
-  async function aprobar() {
-    definirProcesando(true);
-    const resultado = await aprobarPrograma(programa.id);
-    definirProcesando(false);
-
-    if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Programa aprobado.");
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -97,16 +84,9 @@ export function PanelFichaPrograma({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        {programa.estado === "planificada" && puedeAprobar ? (
-          <Boton tamano="pequeno" onClick={aprobar} cargando={procesando}>
-            <CheckCircle2 /> Aprobar programa
-          </Boton>
-        ) : null}
-        <Boton variante="contorno" tamano="pequeno" onClick={() => definirAbierto(true)}>
-          <Pencil /> Editar programa
-        </Boton>
-      </div>
+      <Boton variante="contorno" tamano="pequeno" onClick={() => definirAbierto(true)}>
+        <Pencil /> Editar programa
+      </Boton>
 
       <Dialogo open={abierto} onOpenChange={definirAbierto}>
         <DialogoContenido>

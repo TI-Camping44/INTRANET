@@ -139,7 +139,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
         subentradas: [
           { titulo: "Listado", ruta: "/auditorias" },
-          { titulo: "Nueva auditoría", ruta: "/auditorias/nueva", soloGestion: true },
+          { titulo: "+ Nueva auditoría", ruta: "/auditorias/nueva", soloGestion: true },
         ],
       },
       {

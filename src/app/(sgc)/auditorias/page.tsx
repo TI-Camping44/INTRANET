@@ -4,6 +4,7 @@ import { ChevronRight, ClipboardCheck, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
+import { CeldaTexto } from "@/components/comunes/celda-texto";
 import { InsigniaEstadoAuditoria } from "@/components/comunes/insignias-estado";
 import { PanelPrograma } from "@/app/(sgc)/auditorias/panel-programa";
 import { Boton } from "@/components/ui/boton";
@@ -41,6 +42,7 @@ interface FilaAuditoria {
   procesos: { nombre: string } | null;
   auditor: { nombre_completo: string } | null;
   auditoria_hallazgos: { id: string; tipo: string; no_conformidad_id: string | null }[];
+  auditoria_procesos: { procesos: { nombre: string } | null }[];
 }
 
 export default async function PaginaAuditorias({
@@ -58,7 +60,12 @@ export default async function PaginaAuditorias({
     .select(
       "id, codigo, tipo, objetivo, fecha_planificada, fecha_inicio, fecha_fin, estado, " +
         "procesos:proceso_id (nombre), auditor:auditor_lider_id (nombre_completo), " +
-        "auditoria_hallazgos (id, tipo, no_conformidad_id)",
+        "auditoria_hallazgos (id, tipo, no_conformidad_id), " +
+        // Todos los procesos que abarca, no solo el primero.
+        // `auditorias.proceso_id` guarda uno —el primero que se eligio— y
+        // la columna del listado mostraba ese y nada mas: una auditoria
+        // de ocho procesos se leia como una de uno.
+        "auditoria_procesos (procesos:proceso_id (nombre))",
     )
     .order("fecha_planificada", { ascending: true });
 
@@ -103,7 +110,6 @@ export default async function PaginaAuditorias({
                 programaId={programaVigente?.id ?? null}
                 estado={programaVigente?.estado ?? null}
                 anioSugerido={anioActual}
-                puedeAprobar={usuario.rol === "administrador_sgc"}
               />
               <Boton comoHijo>
                 <Link href="/auditorias/nueva">
@@ -270,8 +276,18 @@ export default async function PaginaAuditorias({
                         {recortar(auditoria.objetivo, 75) || "—"}
                       </Link>
                     </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {auditoria.procesos?.nombre ?? "—"}
+                    {/* Todos los procesos que abarca. `CeldaTexto` los
+                        recorta a una linea y deja el listado completo en
+                        el detalle al señalar. */}
+                    <TablaCelda className="hidden max-w-[16rem] lg:table-cell">
+                      <CeldaTexto>
+                        {(auditoria.auditoria_procesos ?? [])
+                          .map((fila) => fila.procesos?.nombre)
+                          .filter(Boolean)
+                          .join(" · ") ||
+                          auditoria.procesos?.nombre ||
+                          null}
+                      </CeldaTexto>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
                       {auditoria.auditor?.nombre_completo ?? "—"}

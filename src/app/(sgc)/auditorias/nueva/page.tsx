@@ -26,13 +26,16 @@ export default async function PaginaNuevaAuditoria({
   // programa del ano de su fecha planificada. Cuando el alta se abre
   // desde la ficha de un programa, ese id viaja por la direccion y manda
   // sobre el calculo por ano.
-  const [{ data: procesos }, { data: usuarios }] = await Promise.all([
+  const [{ data: procesos }, { data: usuarios }, { data: documentos }] = await Promise.all([
     supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("codigo"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    // La informacion documentada. Hoy la tabla esta vacia y el cuadro lo
+    // dice; a medida que Calidad cargue documentos aparecen solos.
+    supabase.from("documentos").select("id, codigo, titulo").order("codigo"),
   ]);
 
   return (
@@ -43,6 +46,9 @@ export default async function PaginaNuevaAuditoria({
       />
       <FormularioAuditoria
         procesos={procesos ?? []}
+        documentos={
+          (documentos as { id: string; codigo: string | null; titulo: string }[] | null) ?? []
+        }
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}
         programaId={searchParams.programa ?? null}

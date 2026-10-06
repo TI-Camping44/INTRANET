@@ -29,6 +29,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_TIPO_AUDITORIA } from "@/lib/constantes";
 import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 import { PanelFichaPrograma } from "@/app/(sgc)/auditorias/programas/[id]/panel-ficha-programa";
+import { PanelAprobacion } from "@/app/(sgc)/auditorias/panel-aprobacion";
 import type { EstadoAuditoria } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,8 @@ interface Programa {
   objetivo: string | null;
   estado: string;
   fecha_aprobacion: string | null;
+  aprobacion_solicitada_a: string | null;
+  aprobacion_solicitada_en: string | null;
 }
 
 interface AuditoriaDelPrograma {
@@ -94,10 +97,13 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
   const gestiona = puedeGestionarAuditorias(usuario);
   const hoy = hoyEnAsuncion();
 
-  const [{ data: consulta }, { data: datosAuditorias }] = await Promise.all([
+  const [{ data: consulta }, { data: datosAuditorias }, { data: personas }] = await Promise.all([
     supabase
       .from("programas_auditoria")
-      .select("id, anio, nombre, objetivo, estado, fecha_aprobacion")
+      .select(
+        "id, anio, nombre, objetivo, estado, fecha_aprobacion," +
+          " aprobacion_solicitada_a, aprobacion_solicitada_en",
+      )
       .eq("id", params.id)
       .maybeSingle(),
     supabase
@@ -108,6 +114,11 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
       )
       .eq("programa_id", params.id)
       .order("fecha_planificada", { ascending: true }),
+    supabase
+      .from("usuarios")
+      .select("id, nombre_completo")
+      .eq("activo", true)
+      .order("nombre_completo"),
   ]);
 
   const programa = consulta as Programa | null;
@@ -156,10 +167,19 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
         acciones={
           gestiona ? (
             <div className="flex flex-wrap gap-2">
+              <PanelAprobacion
+                entidad="programa"
+                id={programa.id}
+                usuarios={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
+                usuarioActualId={usuario.id}
+                esAdministrador={usuario.rol === "administrador_sgc"}
+                solicitadaA={programa.aprobacion_solicitada_a}
+                aprobada={Boolean(programa.fecha_aprobacion)}
+                puedeSolicitar={gestiona}
+              />
               <PanelFichaPrograma
                 programa={programa}
                 cuantasAuditorias={auditorias.length}
-                puedeAprobar={usuario.rol === "administrador_sgc"}
               />
               <Boton tamano="pequeno" comoHijo>
                 <Link href={`/auditorias/nueva?programa=${programa.id}`}>
@@ -180,9 +200,16 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
           <span className="text-[11px] text-atenuado-contraste">
             Aprobado el {formatearFecha(programa.fecha_aprobacion)}
           </span>
+        ) : programa.aprobacion_solicitada_a ? (
+          <span className="text-[11px] text-semaforo-medio">
+            Aprobación solicitada a{" "}
+            {((personas as { id: string; nombre_completo: string }[] | null) ?? []).find(
+              (persona) => persona.id === programa.aprobacion_solicitada_a,
+            )?.nombre_completo ?? "alguien que ya no está activo"}
+          </span>
         ) : (
           <span className="text-[11px] text-semaforo-medio">
-            Pendiente de aprobación del Administrador SGC
+            Sin solicitar aprobación
           </span>
         )}
       </div>

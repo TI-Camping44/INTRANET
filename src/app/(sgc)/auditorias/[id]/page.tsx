@@ -8,6 +8,7 @@ import { InsigniaEstadoAuditoria } from "@/components/comunes/insignias-estado";
 import { PanelEjecucion } from "@/app/(sgc)/auditorias/[id]/panel-ejecucion";
 import { PanelHallazgos } from "@/app/(sgc)/auditorias/[id]/panel-hallazgos";
 import { PanelPlan } from "@/app/(sgc)/auditorias/[id]/panel-plan";
+import { PanelAprobacion } from "@/app/(sgc)/auditorias/panel-aprobacion";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import {
@@ -40,6 +41,8 @@ interface AuditoriaDetalle {
   proceso_id: string | null;
   fecha_aviso: string | null;
   programa_id: string | null;
+  plan_aprobacion_solicitada_a: string | null;
+  plan_fecha_aprobacion: string | null;
   procesos: { nombre: string } | null;
   normas: { codigo: string } | null;
   sedes: { nombre: string } | null;
@@ -179,14 +182,48 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <Tarjeta>
-            <TarjetaCabecera className="flex-row items-center justify-between">
-              <TarjetaTitulo>Plan de auditoría</TarjetaTitulo>
-              <PanelPlan
+            <TarjetaCabecera className="flex-row flex-wrap items-center justify-between gap-2">
+              <TarjetaTitulo>
+                Plan de auditoría
+                {auditoria.plan_fecha_aprobacion ? (
+                  <span className="ml-2 text-[11px] font-normal text-semaforo-bajo">
+                    Aprobado el {formatearFecha(auditoria.plan_fecha_aprobacion)}
+                  </span>
+                ) : auditoria.plan_aprobacion_solicitada_a ? (
+                  <span className="ml-2 text-[11px] font-normal text-semaforo-medio">
+                    Aprobación solicitada a{" "}
+                    {(
+                      (personas as { id: string; nombre_completo: string }[] | null) ?? []
+                    ).find((persona) => persona.id === auditoria.plan_aprobacion_solicitada_a)
+                      ?.nombre_completo ?? "alguien que ya no está activo"}
+                  </span>
+                ) : (
+                  <span className="ml-2 text-[11px] font-normal text-atenuado-contraste">
+                    Sin aprobar
+                  </span>
+                )}
+              </TarjetaTitulo>
+
+              <span className="flex flex-wrap items-center gap-2">
+                <PanelAprobacion
+                  entidad="plan"
+                  id={auditoria.id}
+                  usuarios={
+                    (personas as { id: string; nombre_completo: string }[] | null) ?? []
+                  }
+                  usuarioActualId={usuario.id}
+                  esAdministrador={usuario.rol === "administrador_sgc"}
+                  solicitadaA={auditoria.plan_aprobacion_solicitada_a}
+                  aprobada={Boolean(auditoria.plan_fecha_aprobacion)}
+                  puedeSolicitar={gestiona}
+                />
+                <PanelPlan
                 auditoria={auditoria}
                 procesos={(procesos as { id: string; nombre: string }[] | null) ?? []}
                 personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-                puedeEditar={gestiona}
-              />
+                  puedeEditar={gestiona}
+                />
+              </span>
             </TarjetaCabecera>
             <TarjetaContenido className="space-y-3 text-xs leading-relaxed">
               <Bloque titulo="Objetivo" texto={auditoria.objetivo} />
