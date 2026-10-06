@@ -9,15 +9,17 @@ import { join } from "node:path";
  * que salir con el logotipo de la empresa que lo firma, no con el de la
  * otra.
  *
- * LA BÚSQUEDA IGNORA TILDES Y MAYÚSCULAS. En la base la empresa se llama
- * «Vitálica», con tilde; buscar por el texto exacto es la forma de que el
- * membrete salga sin logotipo el día que alguien escriba «Vitalica» o
- * «VITÁLICA» al cargar la empresa.
+ * SE BUSCA POR PREFIJO, ignorando tildes y mayúsculas. Según de dónde
+ * salga el dato, la empresa llega como «Vitálica» o como
+ * «Vitálica E.A.S.» —`empresas_del_grupo()` devuelve la razón social—, y
+ * comparar por texto exacto es la forma de que el membrete salga sin
+ * logotipo el día que cambie la forma jurídica o alguien escriba
+ * «VITALICA» al cargar la empresa.
  */
-const LOGOTIPO_POR_EMPRESA: Record<string, string> = {
-  "camping 44": "/logotipo-camping44.png",
-  vitalica: "/logotipo-vitalica.png",
-};
+const LOGOTIPO_POR_EMPRESA: { clave: string; archivo: string }[] = [
+  { clave: "camping 44", archivo: "/logotipo-camping44.png" },
+  { clave: "vitalica", archivo: "/logotipo-vitalica.png" },
+];
 
 /** Baja a minúsculas y saca las tildes, para comparar nombres de empresa. */
 function normalizar(texto: string): string {
@@ -25,7 +27,7 @@ function normalizar(texto: string): string {
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 /**
@@ -40,8 +42,13 @@ function normalizar(texto: string): string {
 export function logotipoDeEmpresa(nombreEmpresa: string | null | undefined): string | null {
   if (!nombreEmpresa) return null;
 
-  const archivo = LOGOTIPO_POR_EMPRESA[normalizar(nombreEmpresa)];
-  if (!archivo) return null;
+  const normalizado = normalizar(nombreEmpresa);
+  const encontrada = LOGOTIPO_POR_EMPRESA.find((empresa) =>
+    normalizado.startsWith(empresa.clave),
+  );
+  if (!encontrada) return null;
 
-  return existsSync(join(process.cwd(), "public", archivo.replace(/^\//, ""))) ? archivo : null;
+  return existsSync(join(process.cwd(), "public", encontrada.archivo.replace(/^\//, "")))
+    ? encontrada.archivo
+    : null;
 }

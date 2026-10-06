@@ -111,18 +111,26 @@ export default async function PaginaCartaEvaluacion({
     empresa_id: string;
   };
 
-  const { data: datosEmpresa } = await supabase
-    .from("empresas")
-    .select("nombre, razon_social")
-    .eq("id", proveedor.empresa_id)
-    .maybeSingle();
+  // LA EMPRESA VA POR `empresas_del_grupo()` Y NO POR UN SELECT A
+  // `empresas`: esa tabla la acota RLS a la propia, asi que un Asociado
+  // de Negocio de Vitalica abierto por alguien de Camping 44 devolvia
+  // null y la carta salia con el membrete de la otra empresa. Un
+  // documento que se entrega a un tercero no puede equivocarse en eso.
+  const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
 
-  const empresa = (datosEmpresa as { nombre: string; razon_social: string } | null) ?? {
-    nombre: "Camping 44",
-    razon_social: "Camping 44 S.A.",
-  };
+  const empresa = ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).find(
+    (candidata) => candidata.id === proveedor.empresa_id,
+  );
 
-  const logotipo = logotipoDeEmpresa(empresa.nombre);
+  // `empresas_del_grupo()` devuelve la razon social en `nombre`.
+  //
+  // SIN EMPRESA RESUELTA NO SE ARMA LA CARTA. Antes habia un valor por
+  // defecto con Camping 44, que es la forma de que una carta de Vitalica
+  // salga firmada por la otra empresa sin que nadie se entere.
+  const razonSocial = empresa?.nombre;
+  if (!razonSocial) notFound();
+
+  const logotipo = logotipoDeEmpresa(razonSocial);
 
   const evaluacion = datosEvaluacion as unknown as {
     id: string;
@@ -194,25 +202,21 @@ export default async function PaginaCartaEvaluacion({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logotipo} alt="" className="h-16 w-auto" />
             ) : null}
-            <div>
-              <p className="text-base font-semibold tracking-tight">{empresa.razon_social}</p>
-              <p className="text-[11px] text-black/60">Sistema de Gestión de Calidad</p>
-            </div>
+            <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
           </div>
 
           <div className="shrink-0 text-right text-[11px] text-black/60">
             <p className="font-semibold uppercase tracking-wide text-black/80">
               Evaluación de Asociado de Negocio
             </p>
-            <p className="mt-0.5">F-SOP-08-01</p>
-            <p>Asunción, {formatearFecha(hoyEnAsuncion())}</p>
+            <p className="mt-0.5">Asunción, {formatearFecha(hoyEnAsuncion())}</p>
           </div>
         </header>
 
         <p className="mb-4 mt-8">Estimados señores de {proveedor.razon_social}:</p>
 
         <p className="mb-4 text-justify">
-          En {empresa.razon_social.toUpperCase()} evaluamos periódicamente a nuestros Asociados de
+          En {razonSocial.toUpperCase()} evaluamos periódicamente a nuestros Asociados de
           Negocio, porque su desempeño influye directamente en la calidad de lo que entregamos a
           nuestros clientes. Les compartimos el resultado de la evaluación del período {periodo}.
           Se basa en los registros de recepción, entregas, documentación y atención de ese
@@ -305,14 +309,9 @@ export default async function PaginaCartaEvaluacion({
               {evaluacion.evaluador?.nombre_completo ?? usuario.nombre_completo}
             </p>
             <p className="text-[12px] text-black/70">Calidad</p>
-            <p className="text-[12px] text-black/70">{empresa.razon_social}</p>
+            <p className="text-[12px] text-black/70">{razonSocial}</p>
           </div>
         </div>
-
-        <footer className="imprimir-color mt-10 border-t border-black/20 pt-2 text-[10px] text-black/50">
-          {proveedor.codigo} · Evaluación registrada el {formatearFecha(evaluacion.fecha)} ·
-          F-SOP-08-01 · {empresa.razon_social}
-        </footer>
       </article>
     </div>
   );

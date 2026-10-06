@@ -157,7 +157,7 @@ migración nueva.
 
 | Columna | Para qué |
 | --- | --- |
-| `empresa_id` | Acota el registro a la empresa. Camping 44 y Vitálica comparten el espacio de trabajo de Google; hoy solo opera Camping 44. |
+| `empresa_id` | Acota el registro a la empresa: es el predicado de `misma_empresa()`. **Nunca lleva «de qué empresa del grupo habla el registro»**; para eso va una columna aparte, como `no_conformidades.empresa_afectada_id` o `puestos.empresa_del_puesto_id`. |
 | `es_demostracion` | Marca los registros cargados por el seed. |
 | `creado_en` / `actualizado_en` | `actualizado_en` lo mantiene el disparador `marcar_actualizacion()`. |
 | `creado_por` | Referencia a `usuarios`. |
@@ -288,6 +288,7 @@ en la base de datos y en `src/lib/`.
 | Ciclo de la NC en tres estados: abierta, en tratamiento, cerrada | `ESTADOS_NC_VIGENTES` |
 | Cerrar una NC es atribución de Calidad, y solo con la eficacia verificada | Disparador `controlar_cierre_nc()` y `cambiarEstadoNoConformidad()` |
 | La NC dice a qué **área** de las trece corresponde, y a qué **empresa** del grupo | `AREAS_ORGANIZACIONALES` y el `CHECK` de `no_conformidades.area` |
+| **El grupo son dos empresas: Camping 44 S.A. y Vitálica E.A.S.** Toda pantalla que pregunte por la empresa ofrece las dos, y todo documento que sale para afuera lleva el logotipo y la razón social de la que firma, no los de Camping 44 por omisión. La lista va por `empresas_del_grupo()`, nunca por un `select` a `empresas`: esa tabla la acota RLS a la propia, así que un registro de la otra empresa vuelve vacío | `empresas_del_grupo()` y `lib/membrete.ts` |
 | Causa raíz: los cinco porqués, los cinco obligatorios. Sin Ishikawa | `guardarPorques()` y `analisis-causa-raiz.tsx` |
 | Archivo del documento: PDF para manual, procedimiento, instructivo, política y plan; formato editable para formulario y registro | `FORMATO_POR_TIPO` en `lib/adjuntos.ts` |
 
