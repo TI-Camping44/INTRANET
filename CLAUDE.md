@@ -378,6 +378,22 @@ sin vínculo hasta que se aprueben.
   Entonces: se juntan los cambios de una tanda y se sube una vez. Y **no
   se empuja a dos ramas**: si el trabajo va a `main`, va solo a `main`.
   Commits chicos en el historial, sí; subidas de a una, no.
+
+  **Y hay un solo proyecto de Vercel: `intranet-sgc-camping44`.** Del
+  armado inicial quedaron otros dos —`intranet` e `intranet-aaei`—
+  apuntando al mismo repositorio y la misma rama, creados minutos antes
+  con el framework sin detectar y sin una sola variable de entorno: los
+  dos intentos que fallaron antes de declarar el framework en
+  `vercel.json`. Nadie los borró, así que cada `push` disparaba **tres**
+  compilaciones del mismo commit, el plan gratuito compila de a una y el
+  despliegue bueno esperaba 15-20 minutos detrás de los otros dos,
+  gastando tres del cupo diario en vez de uno.
+
+  El 6 de octubre se les puso «Ignored Build Step» en `exit 0`, que hace
+  que salten la compilación. Es reversible: se borra ese ajuste y vuelven
+  a compilar. Lo definitivo es desvincularlos del repositorio en
+  Ajustes → Git → Disconnect, o borrarlos si en un tiempo nadie los
+  extrañó.
 - **Al modificar un archivo existente, se entrega el archivo completo**,
   no un parche parcial.
 - **No inventar requerimientos.** Si falta información para decidir algo,
