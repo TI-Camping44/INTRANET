@@ -645,11 +645,17 @@ export const ETIQUETAS_SENTIDO: Record<SentidoIndicador, string> = {
   rango: "Dentro de rango",
 };
 
+/**
+ * Los nombres que puso Calidad el 6 de octubre. `condicional` y
+ * `rechazado` conservan su valor en el enumerado —en PostgreSQL no se
+ * puede quitar uno— y lo que cambio es como se llaman en pantalla.
+ */
 export const ETIQUETAS_ESTADO_PROVEEDOR: Record<EstadoProveedor, string> = {
   en_evaluacion: "En evaluación",
+  aprobado_preferente: "Aprobado preferente",
   aprobado: "Aprobado",
-  condicional: "Condicional",
-  rechazado: "Rechazado",
+  condicional: "Condicionado",
+  rechazado: "No aprobado",
   inactivo: "Inactivo",
 };
 

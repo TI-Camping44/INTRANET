@@ -150,6 +150,7 @@ export type EstadoCapacitacion =
 
 export type EstadoProveedor =
   | "en_evaluacion"
+  | "aprobado_preferente"
   | "aprobado"
   | "condicional"
   | "rechazado"

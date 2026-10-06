@@ -178,6 +178,7 @@ export function InsigniaEstadoAuditoria({ estado }: { estado: EstadoAuditoria })
 
 const VARIANTE_ESTADO_PROVEEDOR: Record<EstadoProveedor, Variante> = {
   en_evaluacion: "advertencia",
+  aprobado_preferente: "exito",
   aprobado: "exito",
   condicional: "atencion",
   rechazado: "peligro",

@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
-import { CRITERIOS_EVALUACION, FACTOR_PUNTAJE, resultadoSugerido } from "@/lib/proveedores";
+import {
+  CRITERIOS_EVALUACION,
+  FACTOR_PUNTAJE,
+  MESES_HASTA_REEVALUAR,
+  resultadoSugerido,
+} from "@/lib/proveedores";
 import type { EstadoProveedor, ResultadoAccion } from "@/lib/tipos";
 
 /**
@@ -198,6 +203,19 @@ export async function registrarEvaluacion(
 
   if (error) return { exito: false, error: `No se pudo registrar la evaluación: ${error.message}` };
 
+  // UN CONDICIONADO SE REEVALUA A LOS 3 MESES, que es lo que dice la
+  // tabla de Calidad, y no segun la periodicidad del Asociado de
+  // Negocio: la periodicidad es el ritmo normal y un condicionado no
+  // esta en ritmo normal. El disparador de la base agenda la proxima con
+  // la periodicidad, asi que se la ajusta antes.
+  const mesesHasta = MESES_HASTA_REEVALUAR[resultado];
+  if (mesesHasta) {
+    await supabase
+      .from("proveedores")
+      .update({ periodicidad_evaluacion_meses: mesesHasta })
+      .eq("id", proveedorId);
+  }
+
   const { data: proveedor } = await supabase
     .from("proveedores")
     .select("codigo, razon_social, critico")
@@ -205,7 +223,7 @@ export async function registrarEvaluacion(
     .maybeSingle();
 
   // Un proveedor crítico que baja de aprobado merece aviso a Calidad.
-  if (proveedor?.critico && resultado !== "aprobado") {
+  if (proveedor?.critico && resultado !== "aprobado" && resultado !== "aprobado_preferente") {
     const { data: administradores } = await supabase
       .from("usuarios")
       .select("id, correo")

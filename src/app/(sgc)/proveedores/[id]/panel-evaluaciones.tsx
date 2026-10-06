@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ClipboardCheck } from "lucide-react";
+import Link from "next/link";
+import { ClipboardCheck, FileText } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import {
@@ -25,7 +26,14 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { registrarEvaluacion } from "@/app/(sgc)/proveedores/acciones";
-import { CRITERIOS_EVALUACION, ESCALAS_EVALUACION, FACTOR_PUNTAJE, resultadoSugerido } from "@/lib/proveedores";
+import {
+  ACCION_POR_RESULTADO,
+  CRITERIOS_EVALUACION,
+  ESCALAS_EVALUACION,
+  FACTOR_PUNTAJE,
+  promedioDeEvaluacion,
+  resultadoSugerido,
+} from "@/lib/proveedores";
 import { ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
 import { formatearFecha, formatearNumero, hoyEnAsuncion } from "@/lib/formato";
 import type { EstadoProveedor } from "@/lib/tipos";
@@ -108,9 +116,10 @@ export function PanelEvaluaciones({
                   {criterio.etiqueta.split(" ")[0]}
                 </TablaEncabezado>
               ))}
-              <TablaEncabezado className="w-[6rem] text-right">Puntaje</TablaEncabezado>
+              <TablaEncabezado className="w-[6rem] text-right">Promedio</TablaEncabezado>
               <TablaEncabezado className="w-[8rem]">Resultado</TablaEncabezado>
               <TablaEncabezado className="hidden lg:table-cell">Evaluó</TablaEncabezado>
+              <TablaEncabezado className="w-[6rem]" />
             </TablaFila>
           </TablaCabecera>
           <TablaCuerpo>
@@ -135,7 +144,7 @@ export function PanelEvaluaciones({
                   </TablaCelda>
                 ))}
                 <TablaCelda className="text-right text-xs font-semibold tabular">
-                  {formatearNumero(evaluacion.puntaje, 0)} / 100
+                  {formatearNumero(promedioDeEvaluacion(evaluacion.puntaje), 1)} de 5
                 </TablaCelda>
                 <TablaCelda>
                   {evaluacion.resultado ? (
@@ -146,6 +155,17 @@ export function PanelEvaluaciones({
                 </TablaCelda>
                 <TablaCelda className="hidden text-[11px] text-atenuado-contraste lg:table-cell">
                   {evaluacion.evaluador?.nombre_completo ?? "—"}
+                </TablaCelda>
+                {/* La carta para el Asociado de Negocio, lista para
+                    guardar como PDF desde el navegador. */}
+                <TablaCelda className="text-right">
+                  <Boton variante="fantasma" tamano="pequeno" comoHijo>
+                    <Link
+                      href={`/proveedores/${proveedorId}/evaluaciones/${evaluacion.id}/carta`}
+                    >
+                      <FileText /> Carta
+                    </Link>
+                  </Boton>
                 </TablaCelda>
               </TablaFila>
             ))}
@@ -262,14 +282,29 @@ export function PanelEvaluaciones({
                 </GrupoCampo>
               ))}
 
-              <div className="flex items-center justify-between rounded-md border border-borde p-3">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-atenuado-contraste">
-                    Puntaje resultante
-                  </p>
-                  <p className="text-lg font-semibold tabular">{puntajePrevisto} / 100</p>
+              {/* EL PROMEDIO, que es la escala de la tabla de Calidad:
+                  4,0 a 5,0 preferente · 3,0 a 3,9 aprobado · 2,0 a 2,9
+                  condicionado · menos de 2, no aprobado. El puntaje de 0
+                  a 100 es el mismo numero por 20 y queda al lado, que es
+                  lo que la base guarda. */}
+              <div className="rounded-md border border-borde p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-atenuado-contraste">
+                      Promedio de los cuatro criterios
+                    </p>
+                    <p className="text-lg font-semibold tabular">
+                      {formatearNumero(promedioDeEvaluacion(puntajePrevisto), 1)} de 5
+                      <span className="ml-2 text-xs font-normal text-atenuado-contraste">
+                        {puntajePrevisto} / 100
+                      </span>
+                    </p>
+                  </div>
+                  <InsigniaEstadoProveedor estado={resultadoPrevisto} />
                 </div>
-                <InsigniaEstadoProveedor estado={resultadoPrevisto} />
+                <p className="mt-1 text-[11px] text-atenuado-contraste">
+                  {ACCION_POR_RESULTADO[resultadoPrevisto]}
+                </p>
               </div>
 
               <GrupoCampo

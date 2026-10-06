@@ -1,0 +1,31 @@
+-- ---------------------------------------------------------------------
+-- El resultado del Asociado de Negocio sale del PROMEDIO de los cuatro
+-- criterios
+--
+-- Tabla que paso Calidad el 6 de octubre:
+--
+--   4,0 a 5,0   Aprobado preferente   Ninguna accion
+--   3,0 a 3,9   Aprobado              Seguimiento normal
+--   2,0 a 2,9   Condicionado          Plan de mejora y nueva evaluacion
+--                                     en 3 meses
+--   menos de 2  No aprobado           Se deja de comprar
+--
+-- LA COLUMNA GENERADA NO SE TOCA. `puntaje` ya es la suma de los cuatro
+-- por 5, o sea el promedio por 20: un promedio de 4,0 es un puntaje de
+-- 80. Las bandas de arriba se leen igual sobre 0-100 —80, 60, 40— asi
+-- que lo unico que cambia es donde estan los cortes, que viven en
+-- `resultadoSugerido()` en `lib/proveedores.ts`.
+--
+-- Lo que si hace falta es el valor nuevo del enumerado. Va en su propia
+-- migracion porque PostgreSQL no deja usar un valor recien agregado en
+-- la misma transaccion que lo agrega.
+--
+--   alter type public.estado_proveedor add value 'aprobado_preferente';
+--
+-- «Condicionado» y «No aprobado» NO son valores nuevos: son
+-- `condicional` y `rechazado`, que ya existian. Lo que cambio es como se
+-- llaman en la pantalla, igual que se hizo con los origenes de la NC.
+-- ---------------------------------------------------------------------
+
+-- Sin cambios de esquema: queda escrito para la proxima sesion.
+select 1;

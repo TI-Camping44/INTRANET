@@ -187,3 +187,45 @@
     --fuerza-desplazable: 0.55;
   }
 }
+
+/* ---------------------------------------------------------------------
+   Impresión
+   ---------------------------------------------------------------------
+   La carta de evaluación del Asociado de Negocio se entrega en PDF, y el
+   PDF lo arma el navegador al imprimir esta misma pantalla. Para que lo
+   que salga sea la carta y no la aplicación, al imprimir se apaga todo
+   lo que no es el documento: la barra de navegación, los botones y los
+   fondos del tema.
+
+   `print-color-adjust` no se fuerza: el gris de los encabezados de tabla
+   se pierde y está bien que se pierda. Una carta sale mejor en negro
+   sobre blanco, y así no depende de que la impresora tenga color. */
+@media print {
+  .no-imprimir,
+  nav,
+  header,
+  aside,
+  footer {
+    display: none !important;
+  }
+
+  :root {
+    --fondo: 0 0% 100%;
+    --texto: 0 0% 0%;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  @page {
+    margin: 18mm 16mm;
+  }
+}

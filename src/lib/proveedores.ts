@@ -88,17 +88,65 @@ export const ESCALAS_EVALUACION: Record<
 /** Cuatro criterios de 1 a 5 escalados a una nota de 0 a 100. */
 export const FACTOR_PUNTAJE = 5;
 
+/** Cuantos criterios se promedian. */
+export const CANTIDAD_DE_CRITERIOS = CRITERIOS_EVALUACION.length;
+
 /**
- * Resultado que corresponde al puntaje obtenido:
- *   80 a 100 -> aprobado
- *   60 a  79 -> condicional
- *   menos de 60 -> rechazado
+ * El promedio de los cuatro criterios, de 1 a 5.
  *
- * La misma escala esta declarada en la columna generada `puntaje` de
- * `proveedor_evaluaciones`. Si cambia, cambia en los dos lados.
+ * `puntaje` guarda la suma por 5, que es el promedio por 20: un promedio
+ * de 4,0 es un puntaje de 80. Se deduce uno del otro, asi que no hay dos
+ * numeros que puedan contradecirse.
+ */
+export function promedioDeEvaluacion(puntaje: number): number {
+  return puntaje / (FACTOR_PUNTAJE * CANTIDAD_DE_CRITERIOS);
+}
+
+/**
+ * Resultado que corresponde al promedio obtenido. Tabla de Calidad del
+ * 6 de octubre:
+ *
+ *   4,0 a 5,0   -> aprobado preferente
+ *   3,0 a 3,9   -> aprobado
+ *   2,0 a 2,9   -> condicionado
+ *   menos de 2  -> no aprobado
+ *
+ * Se compara sobre el puntaje de 0 a 100 —80, 60, 40— porque es lo que
+ * guarda la columna generada `puntaje` de `proveedor_evaluaciones`: asi
+ * la banda se calcula sobre el mismo numero que esta escrito, sin
+ * redondeos en el medio.
+ *
+ * «Condicionado» y «No aprobado» son los valores `condicional` y
+ * `rechazado` de siempre: lo que cambio es como se llaman en pantalla.
  */
 export function resultadoSugerido(puntaje: number): EstadoProveedor {
-  if (puntaje >= 80) return "aprobado";
-  if (puntaje >= 60) return "condicional";
+  if (puntaje >= 80) return "aprobado_preferente";
+  if (puntaje >= 60) return "aprobado";
+  if (puntaje >= 40) return "condicional";
   return "rechazado";
 }
+
+/** Que corresponde hacer con cada resultado, segun la tabla de Calidad. */
+export const ACCION_POR_RESULTADO: Record<string, string> = {
+  aprobado_preferente: "Ninguna.",
+  aprobado: "Seguimiento normal.",
+  condicional: "Plan de mejora y nueva evaluación en 3 meses.",
+  rechazado: "Se deja de comprar.",
+  en_evaluacion: "Sin evaluar todavía.",
+  inactivo: "Fuera del padrón activo.",
+};
+
+/**
+ * Cada cuantos meses se reevalua segun el resultado.
+ *
+ * Un condicionado se reevalua a los 3 meses, que es lo que dice la tabla
+ * de Calidad, y no segun la periodicidad del Asociado de Negocio: la
+ * periodicidad es el ritmo normal, y un condicionado no esta en ritmo
+ * normal. `null` quiere decir «como siempre».
+ */
+export const MESES_HASTA_REEVALUAR: Record<string, number | null> = {
+  aprobado_preferente: null,
+  aprobado: null,
+  condicional: 3,
+  rechazado: null,
+};
