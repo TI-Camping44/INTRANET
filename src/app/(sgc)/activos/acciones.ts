@@ -5,7 +5,61 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
-import type { EstadoActivo, ResultadoAccion } from "@/lib/tipos";
+import { CLASES_ACTIVO, CRITICIDADES_ACTIVO, ESTADOS_ACTIVO } from "@/lib/constantes";
+import type {
+  ClaseActivo,
+  CriticidadActivo,
+  EstadoActivo,
+  ResultadoAccion,
+} from "@/lib/tipos";
+
+/**
+ * Los campos que comparten el alta y la edicion.
+ *
+ * LA CLASE, LA CRITICIDAD Y EL ESTADO van en el alta desde el 6 de
+ * octubre: Direccion lleva los activos edilicios y los tecnologicos por
+ * separado, y el estado dejo de nacer siempre en «operativo» porque un
+ * activo se puede cargar ya en reserva o ya fuera de servicio.
+ */
+function leerCamposDelActivo(datos: FormData) {
+  const valorCrudo = String(datos.get("valor_gs") ?? "").replace(/[^0-9]/g, "");
+  const requiereMantenimiento = datos.get("requiere_mantenimiento") === "on";
+  const frecuencia = Number(datos.get("frecuencia_mantenimiento_dias") ?? 0) || null;
+
+  return {
+    nombre: String(datos.get("nombre") ?? "").trim(),
+    clase: (String(datos.get("clase") ?? "") || "tecnologico") as ClaseActivo,
+    criticidad: (String(datos.get("criticidad") ?? "") || "media") as CriticidadActivo,
+    estado: (String(datos.get("estado") ?? "") || "operativo") as EstadoActivo,
+    categoria: String(datos.get("categoria") ?? "").trim() || null,
+    descripcion: String(datos.get("descripcion") ?? "").trim() || null,
+    sede_id: String(datos.get("sede_id") ?? "") || null,
+    ubicacion: String(datos.get("ubicacion") ?? "").trim() || null,
+    responsable_id: String(datos.get("responsable_id") ?? "") || null,
+    proveedor_id: String(datos.get("proveedor_id") ?? "") || null,
+    numero_serie: String(datos.get("numero_serie") ?? "").trim() || null,
+    marca: String(datos.get("marca") ?? "").trim() || null,
+    modelo: String(datos.get("modelo") ?? "").trim() || null,
+    fecha_adquisicion: String(datos.get("fecha_adquisicion") ?? "") || null,
+    vencimiento_garantia: String(datos.get("vencimiento_garantia") ?? "") || null,
+    observaciones: String(datos.get("observaciones") ?? "").trim() || null,
+    valor_gs: valorCrudo ? Number(valorCrudo) : null,
+    requiere_mantenimiento: requiereMantenimiento,
+    frecuencia_mantenimiento_dias: requiereMantenimiento ? frecuencia : null,
+  };
+}
+
+/** El mensaje del primer problema, o null si esta todo bien. */
+function revisarCamposDelActivo(campos: ReturnType<typeof leerCamposDelActivo>): string | null {
+  if (campos.nombre.length < 3) return "El nombre debe tener al menos 3 caracteres.";
+  if (!CLASES_ACTIVO.includes(campos.clase)) return "Indique si el activo es edilicio o tecnológico.";
+  if (!CRITICIDADES_ACTIVO.includes(campos.criticidad)) return "Indique la criticidad del activo.";
+  if (!ESTADOS_ACTIVO.includes(campos.estado)) return "Indique el estado del activo.";
+  if (campos.requiere_mantenimiento && !campos.frecuencia_mantenimiento_dias) {
+    return "Un activo con mantenimiento preventivo necesita su frecuencia en días.";
+  }
+  return null;
+}
 
 export async function crearActivo(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
@@ -16,46 +70,15 @@ export async function crearActivo(datos: FormData): Promise<ResultadoAccion> {
   const supabase = crearClienteServidor();
 
   const codigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
-  const nombre = String(datos.get("nombre") ?? "").trim();
-  const requiereMantenimiento = datos.get("requiere_mantenimiento") === "on";
-  const frecuencia = datos.get("frecuencia_mantenimiento_dias")
-    ? Number(datos.get("frecuencia_mantenimiento_dias"))
-    : null;
-
   if (!codigo) return { exito: false, error: "Indique el código del activo." };
-  if (nombre.length < 3) {
-    return { exito: false, error: "El nombre debe tener al menos 3 caracteres." };
-  }
-  if (requiereMantenimiento && (!frecuencia || frecuencia < 1)) {
-    return {
-      exito: false,
-      error: "Un activo con mantenimiento preventivo necesita su frecuencia en días.",
-    };
-  }
 
-  const valorCrudo = String(datos.get("valor_gs") ?? "").replace(/[^0-9]/g, "");
+  const campos = leerCamposDelActivo(datos);
+  const problema = revisarCamposDelActivo(campos);
+  if (problema) return { exito: false, error: problema };
 
   const { data: activo, error } = await supabase
     .from("activos")
-    .insert({
-      empresa_id: usuario.empresa_id,
-      codigo,
-      nombre,
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
-      descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      sede_id: String(datos.get("sede_id") ?? "") || null,
-      ubicacion: String(datos.get("ubicacion") ?? "").trim() || null,
-      responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      proveedor_id: String(datos.get("proveedor_id") ?? "") || null,
-      numero_serie: String(datos.get("numero_serie") ?? "").trim() || null,
-      marca: String(datos.get("marca") ?? "").trim() || null,
-      modelo: String(datos.get("modelo") ?? "").trim() || null,
-      estado: "operativo",
-      fecha_adquisicion: String(datos.get("fecha_adquisicion") ?? "") || null,
-      valor_gs: valorCrudo ? Number(valorCrudo) : null,
-      requiere_mantenimiento: requiereMantenimiento,
-      frecuencia_mantenimiento_dias: requiereMantenimiento ? frecuencia : null,
-    })
+    .insert({ empresa_id: usuario.empresa_id, codigo, ...campos })
     .select("id, codigo")
     .single();
 
@@ -77,34 +100,66 @@ export async function actualizarActivo(id: string, datos: FormData): Promise<Res
   }
 
   const supabase = crearClienteServidor();
-  const requiereMantenimiento = datos.get("requiere_mantenimiento") === "on";
-  const valorCrudo = String(datos.get("valor_gs") ?? "").replace(/[^0-9]/g, "");
 
-  const { error } = await supabase
-    .from("activos")
-    .update({
-      nombre: String(datos.get("nombre") ?? "").trim(),
-      categoria: String(datos.get("categoria") ?? "").trim() || null,
-      descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      sede_id: String(datos.get("sede_id") ?? "") || null,
-      ubicacion: String(datos.get("ubicacion") ?? "").trim() || null,
-      responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      proveedor_id: String(datos.get("proveedor_id") ?? "") || null,
-      numero_serie: String(datos.get("numero_serie") ?? "").trim() || null,
-      marca: String(datos.get("marca") ?? "").trim() || null,
-      modelo: String(datos.get("modelo") ?? "").trim() || null,
-      valor_gs: valorCrudo ? Number(valorCrudo) : null,
-      requiere_mantenimiento: requiereMantenimiento,
-      frecuencia_mantenimiento_dias: requiereMantenimiento
-        ? Number(datos.get("frecuencia_mantenimiento_dias") ?? 0) || null
-        : null,
-    })
-    .eq("id", id);
+  const campos = leerCamposDelActivo(datos);
+  const problema = revisarCamposDelActivo(campos);
+  if (problema) return { exito: false, error: problema };
+
+  // El codigo no se edita: identifica al activo en el inventario y en
+  // sus mantenimientos.
+  const { error } = await supabase.from("activos").update(campos).eq("id", id);
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
+  revalidatePath("/activos");
   revalidatePath(`/activos/${id}`);
   return { exito: true, mensaje: "Activo actualizado." };
+}
+
+/**
+ * Elimina un activo.
+ *
+ * SE LLEVA SU HISTORIAL DE MANTENIMIENTOS. Existe para lo que no deberia
+ * haberse cargado —una prueba, un duplicado—: un activo real que se
+ * retira se pasa a «Dado de baja», que es justamente el estado que
+ * Direccion pidio para eso, y asi queda en la tabla como historial.
+ */
+export async function eliminarActivo(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (usuario.rol !== "administrador_sgc") {
+    return { exito: false, error: "Solo el Administrador SGC puede eliminar un activo." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: activo } = await supabase
+    .from("activos")
+    .select("codigo")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!activo) return { exito: false, error: "El activo no existe o no tiene acceso." };
+
+  const { error: errorMantenimientos } = await supabase
+    .from("mantenimientos")
+    .delete()
+    .eq("activo_id", id);
+
+  if (errorMantenimientos) {
+    return {
+      exito: false,
+      error: `No se pudieron eliminar sus mantenimientos: ${errorMantenimientos.message}`,
+    };
+  }
+
+  const { error } = await supabase.from("activos").delete().eq("id", id);
+  if (error) return { exito: false, error: `No se pudo eliminar el activo: ${error.message}` };
+
+  revalidatePath("/activos");
+  return {
+    exito: true,
+    mensaje: `Activo ${(activo as { codigo: string }).codigo} eliminado.`,
+  };
 }
 
 export async function cambiarEstadoActivo(

@@ -272,6 +272,7 @@ en la base de datos y en `src/lib/`.
 | Evaluación del Asociado de Negocio: los 4 criterios del F-SOP-08-01 —calidad, logística, legal, servicio— de 1 a 5, **cada uno con su propia escala**. El resultado sale del **promedio**: 4,0-5,0 aprobado preferente · 3,0-3,9 aprobado · 2,0-2,9 condicionado · menos de 2,0 no aprobado | `ESCALAS_EVALUACION` y `resultadoSugerido()` en `lib/proveedores.ts`; `puntaje` generado en SQL es el promedio × 20 |
 | Un condicionado se reevalúa a los 3 meses, no según la periodicidad del Asociado de Negocio | `MESES_HASTA_REEVALUAR` y `registrarEvaluacion()` |
 | Ejecutar un mantenimiento reagenda el siguiente según la frecuencia del activo | `sincronizar_activo_al_mantener()` |
+| **El activo es edilicio o tecnológico, y se llevan por separado.** Son dos cortes del mismo inventario, no dos tablas: comparten calendario de mantenimientos e historial. Y tiene **criticidad** —alta, media, baja— y **seis estados**: operativo, operativo con observación, en mantenimiento, fuera de servicio, en reserva, dado de baja. Un activo real que se retira se pasa a «Dado de baja», no se borra | `clase`, `criticidad` y `estado_activo` en SQL; `ESTADOS_ACTIVO`, `CLASES_ACTIVO` y `SIGNIFICADO_ESTADO_ACTIVO` en `lib/constantes.ts` |
 | Competencias: escala 1 a 5; la brecha es exigido menos alcanzado | `brecha` generada en SQL y `NIVELES_COMPETENCIA` |
 | El nivel exigido sale de la matriz del puesto de la persona, no se escribe a mano | `evaluarCompetencia()` |
 | Solo el líder inmediato o Calidad evalúan a una persona | `evaluarCompetencia()` |

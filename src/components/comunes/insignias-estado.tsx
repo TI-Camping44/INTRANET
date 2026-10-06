@@ -2,6 +2,7 @@ import { ETIQUETAS_PASO_NC, pasoDeNoConformidad } from "@/lib/no-conformidades";
 import { Insignia } from "@/components/ui/insignia";
 import {
   ETIQUETAS_ESTADO_ACCION,
+  ETIQUETAS_CRITICIDAD_ACTIVO,
   ETIQUETAS_ESTADO_ACTIVO,
   ETIQUETAS_ESTADO_AUDITORIA,
   ETIQUETAS_ESTADO_DOCUMENTO,
@@ -14,6 +15,7 @@ import {
 import { etiquetaNivelRiesgo } from "@/lib/riesgos";
 import type {
   EstadoAccion,
+  CriticidadActivo,
   EstadoActivo,
   EstadoAuditoria,
   EstadoDocumento,
@@ -195,8 +197,12 @@ export function InsigniaEstadoProveedor({ estado }: { estado: EstadoProveedor })
 
 const VARIANTE_ESTADO_ACTIVO: Record<EstadoActivo, Variante> = {
   operativo: "exito",
+  // Funciona, pero algo quedó pendiente: no es verde ni es rojo.
+  operativo_con_observacion: "atencion",
   en_mantenimiento: "advertencia",
   fuera_de_servicio: "peligro",
+  // Anda y no es un problema; simplemente no está asignado.
+  en_reserva: "neutra",
   dado_de_baja: "contorno",
 };
 
@@ -204,6 +210,26 @@ export function InsigniaEstadoActivo({ estado }: { estado: EstadoActivo }) {
   return (
     <Insignia variante={VARIANTE_ESTADO_ACTIVO[estado]}>
       {ETIQUETAS_ESTADO_ACTIVO[estado]}
+    </Insignia>
+  );
+}
+
+const VARIANTE_CRITICIDAD_ACTIVO: Record<CriticidadActivo, Variante> = {
+  alta: "peligro",
+  media: "advertencia",
+  baja: "neutra",
+};
+
+/**
+ * Cuánto duele que el activo falle.
+ *
+ * Va con color porque es la columna por la que se prioriza, pero el
+ * texto dice lo mismo: el color nunca es lo único que lo identifica.
+ */
+export function InsigniaCriticidadActivo({ criticidad }: { criticidad: CriticidadActivo }) {
+  return (
+    <Insignia variante={VARIANTE_CRITICIDAD_ACTIVO[criticidad]}>
+      {ETIQUETAS_CRITICIDAD_ACTIVO[criticidad]}
     </Insignia>
   );
 }

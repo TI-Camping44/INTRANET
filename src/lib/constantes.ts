@@ -7,6 +7,8 @@
 import type {
   Departamento,
   EstadoAccion,
+  ClaseActivo,
+  CriticidadActivo,
   EstadoActivo,
   EstadoAuditoria,
   EstadoCapacitacion,
@@ -672,10 +674,56 @@ export const ETIQUETAS_ESTADO_PROVEEDOR: Record<EstadoProveedor, string> = {
 
 export const ETIQUETAS_ESTADO_ACTIVO: Record<EstadoActivo, string> = {
   operativo: "Operativo",
+  operativo_con_observacion: "Operativo con observación",
   en_mantenimiento: "En mantenimiento",
   fuera_de_servicio: "Fuera de servicio",
+  en_reserva: "En reserva",
   dado_de_baja: "Dado de baja",
 };
+
+/**
+ * Qué significa cada estado, con las palabras de Dirección.
+ *
+ * Va como ayuda en el desplegable del alta: sin esto, «Operativo con
+ * observación» y «En reserva» se eligen a ojo y la tabla deja de querer
+ * decir algo.
+ */
+export const SIGNIFICADO_ESTADO_ACTIVO: Record<EstadoActivo, string> = {
+  operativo: "Funciona normalmente y está en uso.",
+  operativo_con_observacion:
+    "Funciona, pero tiene una falla menor o algo pendiente: mantenimiento atrasado, " +
+    "o garantía o licencia por vencer.",
+  en_mantenimiento: "Fuera de uso temporalmente, en reparación interna o con un Asociado.",
+  fuera_de_servicio: "No funciona y espera la decisión de reparar o dar de baja.",
+  en_reserva: "Funciona, pero no está asignado. Queda de respaldo.",
+  dado_de_baja:
+    "Retirado definitivamente (desecho, venta o donación). Queda en la tabla como historial.",
+};
+
+/** El orden en que se ofrecen y se muestran: de lo que anda a lo que ya no. */
+export const ESTADOS_ACTIVO: EstadoActivo[] = [
+  "operativo",
+  "operativo_con_observacion",
+  "en_mantenimiento",
+  "fuera_de_servicio",
+  "en_reserva",
+  "dado_de_baja",
+];
+
+export const ETIQUETAS_CLASE_ACTIVO: Record<ClaseActivo, string> = {
+  edilicio: "Edilicio",
+  tecnologico: "Tecnológico",
+};
+
+export const CLASES_ACTIVO: ClaseActivo[] = ["edilicio", "tecnologico"];
+
+export const ETIQUETAS_CRITICIDAD_ACTIVO: Record<CriticidadActivo, string> = {
+  alta: "Alta",
+  media: "Media",
+  baja: "Baja",
+};
+
+export const CRITICIDADES_ACTIVO: CriticidadActivo[] = ["alta", "media", "baja"];
 
 export const ETIQUETAS_TIPO_PROCESO: Record<TipoProceso, string> = {
   estrategico: "Estratégico",

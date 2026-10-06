@@ -205,9 +205,24 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/activos",
         icono: "Wrench",
         fase: "operativo",
+        // Edilicios y tecnologicos se llevan por separado desde el 6
+        // de octubre. Son dos cortes del mismo inventario, no dos
+        // tablas: comparten el calendario de mantenimientos y el
+        // historial.
         subentradas: [
-          { titulo: "Listado", ruta: "/activos" },
-          { titulo: "Nuevo activo", ruta: "/activos/nuevo", soloGestion: true },
+          { titulo: "Todos", ruta: "/activos" },
+          { titulo: "Activos Edilicios", ruta: "/activos?clase=edilicio" },
+          { titulo: "Activos Tecnológicos", ruta: "/activos?clase=tecnologico" },
+          {
+            titulo: "+ Nuevo Activo Edilicio",
+            ruta: "/activos/nuevo?clase=edilicio",
+            soloGestion: true,
+          },
+          {
+            titulo: "+ Nuevo Activo Tecnológico",
+            ruta: "/activos/nuevo?clase=tecnologico",
+            soloGestion: true,
+          },
         ],
       },
       {

@@ -156,7 +156,26 @@ export type EstadoProveedor =
   | "rechazado"
   | "inactivo";
 
-export type EstadoActivo = "operativo" | "en_mantenimiento" | "fuera_de_servicio" | "dado_de_baja";
+/**
+ * Los seis estados del activo, los que paso Direccion el 6 de octubre.
+ *
+ * Los cuatro primeros ya estaban; «operativo con observacion» y «en
+ * reserva» se agregaron con ellos. El orden es el de la tabla: de lo que
+ * esta andando a lo que ya no esta.
+ */
+export type EstadoActivo =
+  | "operativo"
+  | "operativo_con_observacion"
+  | "en_mantenimiento"
+  | "fuera_de_servicio"
+  | "en_reserva"
+  | "dado_de_baja";
+
+/** Edilicio o tecnologico. Se llevan por separado. */
+export type ClaseActivo = "edilicio" | "tecnologico";
+
+/** Cuanto duele que este activo falle. */
+export type CriticidadActivo = "alta" | "media" | "baja";
 
 export type EstadoAuditoria =
   | "planificada"

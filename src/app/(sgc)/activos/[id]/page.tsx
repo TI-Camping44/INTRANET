@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import {
   InsigniaDemostracion,
   InsigniaEstadoActivo,
 } from "@/components/comunes/insignias-estado";
+import { EliminarActivo } from "@/app/(sgc)/activos/[id]/eliminar-activo";
 import { PanelMantenimientos } from "@/app/(sgc)/activos/[id]/panel-mantenimientos";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { Boton } from "@/components/ui/boton";
@@ -21,7 +22,11 @@ import {
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { describirVencimiento, formatearFecha, formatearGuaranies } from "@/lib/formato";
-import type { EstadoActivo } from "@/lib/tipos";
+import {
+  ETIQUETAS_CLASE_ACTIVO,
+  ETIQUETAS_CRITICIDAD_ACTIVO,
+} from "@/lib/constantes";
+import type { ClaseActivo, CriticidadActivo, EstadoActivo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +41,10 @@ interface ActivoDetalle {
   marca: string | null;
   modelo: string | null;
   estado: EstadoActivo;
+  clase: ClaseActivo;
+  criticidad: CriticidadActivo;
+  vencimiento_garantia: string | null;
+  observaciones: string | null;
   fecha_adquisicion: string | null;
   valor_gs: number | null;
   requiere_mantenimiento: boolean;
@@ -117,7 +126,31 @@ export default async function PaginaActivo({ params }: { params: { id: string } 
         </Link>
       </Boton>
 
-      <EncabezadoPagina titulo={activo.nombre} descripcion={activo.descripcion ?? undefined} />
+      <EncabezadoPagina
+        titulo={activo.nombre}
+        descripcion={activo.descripcion ?? undefined}
+        acciones={
+          <>
+            {puedeGestionar(usuario) ? (
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                <Link href={`/activos/${params.id}/editar`}>
+                  <Pencil /> Editar
+                </Link>
+              </Boton>
+            ) : null}
+            {/* Borrar es del Administrador SGC: se lleva el historial de
+                mantenimientos. Para retirar un activo real está «Dado de
+                baja». */}
+            {usuario.rol === "administrador_sgc" ? (
+              <EliminarActivo
+                activoId={params.id}
+                codigo={activo.codigo}
+                mantenimientos={lista.length}
+              />
+            ) : null}
+          </>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Insignia variante="primaria" className="tabular text-xs">
@@ -216,6 +249,22 @@ export default async function PaginaActivo({ params }: { params: { id: string } 
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
+                <Dato
+                  etiqueta="Clase"
+                  valor={ETIQUETAS_CLASE_ACTIVO[activo.clase as ClaseActivo] ?? "—"}
+                />
+                <Dato
+                  etiqueta="Criticidad"
+                  valor={ETIQUETAS_CRITICIDAD_ACTIVO[activo.criticidad as CriticidadActivo] ?? "—"}
+                />
+                <Dato
+                  etiqueta="Garantía o licencia"
+                  valor={
+                    activo.vencimiento_garantia
+                      ? formatearFecha(activo.vencimiento_garantia)
+                      : "—"
+                  }
+                />
                 <Dato etiqueta="Sede" valor={activo.sedes?.nombre ?? "—"} />
                 <Dato etiqueta="Ubicación" valor={activo.ubicacion ?? "—"} />
                 <Dato etiqueta="Responsable" valor={activo.responsable?.nombre_completo ?? "—"} />
@@ -223,6 +272,7 @@ export default async function PaginaActivo({ params }: { params: { id: string } 
                 <Dato etiqueta="Modelo" valor={activo.modelo ?? "—"} />
                 <Dato etiqueta="Número de serie" valor={activo.numero_serie ?? "—"} />
                 <Dato etiqueta="Proveedor" valor={activo.proveedores?.razon_social ?? "—"} />
+                <Dato etiqueta="Observaciones" valor={activo.observaciones ?? "—"} />
               </dl>
             </TarjetaContenido>
           </Tarjeta>

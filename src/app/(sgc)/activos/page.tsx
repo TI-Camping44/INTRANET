@@ -3,7 +3,10 @@ import Link from "next/link";
 import { Plus, Wrench } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
-import { InsigniaEstadoActivo } from "@/components/comunes/insignias-estado";
+import {
+  InsigniaCriticidadActivo,
+  InsigniaEstadoActivo,
+} from "@/components/comunes/insignias-estado";
 import {
   CalendarioMantenimientos,
   type MantenimientoAgendado,
@@ -32,16 +35,24 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
+import { CeldaTexto } from "@/components/comunes/celda-texto";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_ESTADO_ACTIVO } from "@/lib/constantes";
+import {
+  CLASES_ACTIVO,
+  CRITICIDADES_ACTIVO,
+  ESTADOS_ACTIVO,
+  ETIQUETAS_CLASE_ACTIVO,
+  ETIQUETAS_CRITICIDAD_ACTIVO,
+  ETIQUETAS_ESTADO_ACTIVO,
+} from "@/lib/constantes";
 import {
   describirVencimiento,
   formatearFecha,
   formatearGuaranies,
   hoyEnAsuncion,
 } from "@/lib/formato";
-import type { EstadoActivo } from "@/lib/tipos";
+import type { ClaseActivo, CriticidadActivo, EstadoActivo } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Infraestructura y Tecnología" };
 export const dynamic = "force-dynamic";
@@ -49,7 +60,13 @@ export const dynamic = "force-dynamic";
 export default async function PaginaActivos({
   searchParams,
 }: {
-  searchParams: { q?: string; estado?: string; mantenimiento?: string };
+  searchParams: {
+    q?: string;
+    estado?: string;
+    mantenimiento?: string;
+    clase?: string;
+    criticidad?: string;
+  };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
@@ -60,6 +77,14 @@ export default async function PaginaActivos({
     .order("codigo");
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
+  // EDILICIOS Y TECNOLÓGICOS SE MIRAN POR SEPARADO. Son las dos entradas
+  // del menú; el filtro es el mismo corte, para poder combinarlo con los
+  // demás.
+  const claseMirada = CLASES_ACTIVO.includes(searchParams.clase as ClaseActivo)
+    ? (searchParams.clase as ClaseActivo)
+    : null;
+  if (claseMirada) consulta = consulta.eq("clase", claseMirada);
+  if (searchParams.criticidad) consulta = consulta.eq("criticidad", searchParams.criticidad);
   if (searchParams.mantenimiento === "vencido") {
     consulta = consulta
       .eq("requiere_mantenimiento", true)
@@ -111,12 +136,15 @@ export default async function PaginaActivos({
   return (
     <>
       <EncabezadoPagina
-        titulo="Infraestructura y Tecnología"
-        descripcion="Inventario de activos con mantenimientos preventivos, calendario y alertas por vencimiento."
+        titulo={
+          claseMirada
+            ? `Activos ${ETIQUETAS_CLASE_ACTIVO[claseMirada]}s`
+            : "Infraestructura y Tecnología"
+        }
         acciones={
           gestiona ? (
             <Boton comoHijo>
-              <Link href="/activos/nuevo">
+              <Link href={claseMirada ? `/activos/nuevo?clase=${claseMirada}` : "/activos/nuevo"}>
                 <Plus /> Nuevo activo
               </Link>
             </Boton>
@@ -161,11 +189,27 @@ export default async function PaginaActivos({
         marcadorBusqueda="Buscar por código o nombre del activo…"
         campos={[
           {
+            nombre: "clase",
+            etiqueta: "Clase",
+            opciones: CLASES_ACTIVO.map((valor) => ({
+              valor,
+              etiqueta: ETIQUETAS_CLASE_ACTIVO[valor],
+            })),
+          },
+          {
             nombre: "estado",
             etiqueta: "Estado",
-            opciones: Object.entries(ETIQUETAS_ESTADO_ACTIVO).map(([valor, etiqueta]) => ({
+            opciones: ESTADOS_ACTIVO.map((valor) => ({
               valor,
-              etiqueta,
+              etiqueta: ETIQUETAS_ESTADO_ACTIVO[valor],
+            })),
+          },
+          {
+            nombre: "criticidad",
+            etiqueta: "Criticidad",
+            opciones: CRITICIDADES_ACTIVO.map((valor) => ({
+              valor,
+              etiqueta: ETIQUETAS_CRITICIDAD_ACTIVO[valor],
             })),
           },
         ]}
@@ -191,15 +235,19 @@ export default async function PaginaActivos({
           <Tabla>
             <TablaCabecera>
               <TablaFila>
-                <TablaEncabezado className="w-[8rem]">Código</TablaEncabezado>
-                <TablaEncabezado>Activo</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Sede</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Responsable</TablaEncabezado>
-                <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">
-                  Próximo mantenimiento
-                </TablaEncabezado>
-                <TablaEncabezado className="w-[9rem] text-right">Valor</TablaEncabezado>
+                {/* LAS COLUMNAS QUE PIDIÓ DIRECCIÓN EL 6 DE OCTUBRE,
+                    en su orden. La tabla se desplaza sola en horizontal:
+                    son diez y en un celular no entran. */}
+                <TablaEncabezado className="w-[7rem]">Código</TablaEncabezado>
+                <TablaEncabezado className="min-w-[14rem]">Descripción</TablaEncabezado>
+                <TablaEncabezado className="min-w-[9rem]">Ubicación</TablaEncabezado>
+                <TablaEncabezado className="min-w-[10rem]">Responsable</TablaEncabezado>
+                <TablaEncabezado className="w-[6rem]">Criticidad</TablaEncabezado>
+                <TablaEncabezado className="w-[11rem]">Estado</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Último mant.</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">Próximo mant.</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">Garantía o licencia</TablaEncabezado>
+                <TablaEncabezado className="min-w-[12rem]">Observaciones</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -213,23 +261,33 @@ export default async function PaginaActivos({
                   <TablaCelda>
                     <Link href={`/activos/${activo.id}`} className="hover:text-primario">
                       <p className="text-xs font-medium">{activo.nombre}</p>
-                    {activo.categoria ? (
-                      <p className="text-[11px] text-atenuado-contraste">{activo.categoria}</p>
-                    ) : null}
+                      {activo.descripcion ? (
+                        <p className="text-[11px] text-atenuado-contraste">{activo.descripcion}</p>
+                      ) : activo.categoria ? (
+                        <p className="text-[11px] text-atenuado-contraste">{activo.categoria}</p>
+                      ) : null}
                     </Link>
                   </TablaCelda>
-                  <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                    {activo.sedes?.nombre ?? "—"}
+                  <TablaCelda className="text-xs text-atenuado-contraste">
+                    {activo.ubicacion ?? activo.sedes?.nombre ?? "—"}
                   </TablaCelda>
-                  <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
+                  <TablaCelda className="text-xs text-atenuado-contraste">
                     {activo.responsable?.nombre_completo ?? "—"}
+                  </TablaCelda>
+                  <TablaCelda className="text-xs">
+                    <InsigniaCriticidadActivo criticidad={activo.criticidad as CriticidadActivo} />
                   </TablaCelda>
                   <TablaCelda>
                     <InsigniaEstadoActivo estado={activo.estado as EstadoActivo} />
                   </TablaCelda>
-                  <TablaCelda className="hidden text-xs md:table-cell">
+                  <TablaCelda className="text-xs tabular text-atenuado-contraste">
+                    {activo.fecha_ultimo_mantenimiento
+                      ? formatearFecha(activo.fecha_ultimo_mantenimiento)
+                      : "—"}
+                  </TablaCelda>
+                  <TablaCelda className="text-xs">
                     {activo.requiere_mantenimiento && activo.fecha_proximo_mantenimiento ? (
-                      <span className="text-atenuado-contraste">
+                      <span className="text-atenuado-contraste tabular">
                         {formatearFecha(activo.fecha_proximo_mantenimiento)}
                         <span className="block text-[10px]">
                           {describirVencimiento(activo.fecha_proximo_mantenimiento)}
@@ -239,9 +297,19 @@ export default async function PaginaActivos({
                       <span className="text-atenuado-contraste">No aplica</span>
                     )}
                   </TablaCelda>
-                  <TablaCelda className="text-right text-xs tabular">
-                    {formatearGuaranies(activo.valor_gs)}
+                  <TablaCelda className="text-xs">
+                    {activo.vencimiento_garantia ? (
+                      <span className="text-atenuado-contraste tabular">
+                        {formatearFecha(activo.vencimiento_garantia)}
+                        <span className="block text-[10px]">
+                          {describirVencimiento(activo.vencimiento_garantia)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-atenuado-contraste">—</span>
+                    )}
                   </TablaCelda>
+                  <CeldaTexto ancho="12rem">{activo.observaciones}</CeldaTexto>
                 </TablaFila>
               ))}
             </TablaCuerpo>

@@ -3,13 +3,29 @@ import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FormularioActivo } from "@/app/(sgc)/activos/formulario-activo";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ROLES_GESTION } from "@/lib/constantes";
+import { CLASES_ACTIVO, ETIQUETAS_CLASE_ACTIVO, ROLES_GESTION } from "@/lib/constantes";
+import type { ClaseActivo } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Nuevo activo" };
 export const dynamic = "force-dynamic";
 
-export default async function PaginaNuevoActivo() {
+/**
+ * Alta de un activo.
+ *
+ * `?clase=edilicio` o `?clase=tecnologico` llega de los dos atajos del
+ * menú y deja la clase elegida. Igual se puede cambiar en el formulario:
+ * equivocarse de atajo no deberia obligar a empezar de nuevo.
+ */
+export default async function PaginaNuevoActivo({
+  searchParams,
+}: {
+  searchParams: { clase?: string };
+}) {
   await requerirRol(ROLES_GESTION);
+
+  const claseFijada = CLASES_ACTIVO.includes(searchParams.clase as ClaseActivo)
+    ? (searchParams.clase as ClaseActivo)
+    : undefined;
   const supabase = crearClienteServidor();
 
   const [{ data: sedes }, { data: personas }, { data: proveedores }, { data: existentes }] =
@@ -36,14 +52,14 @@ export default async function PaginaNuevoActivo() {
   return (
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
-        titulo="Nuevo activo"
-        descripcion="Si el activo requiere mantenimiento preventivo, el sistema agenda el primero según la frecuencia indicada."
+        titulo={claseFijada ? `Nuevo activo ${ETIQUETAS_CLASE_ACTIVO[claseFijada]}` : "Nuevo activo"}
       />
       <FormularioActivo
         sedes={sedes ?? []}
         personas={personas ?? []}
         proveedores={proveedores ?? []}
         codigoSugerido={`ACT-${String(siguiente).padStart(3, "0")}`}
+        claseFijada={claseFijada}
       />
     </div>
   );
