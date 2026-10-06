@@ -267,6 +267,7 @@ en la base de datos y en `src/lib/`.
 | Perfil de puesto: formulario `R-02-01`, con revisión | Columnas de `puestos` y `datos-reales/20-perfiles-de-puesto.sql` |
 | Adjuntos: 20 MB máximo | `CHECK` en `adjuntos`, bucket y `TAMANO_MAXIMO_ADJUNTO` |
 | Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
+| **La NC se registra en su propio módulo, no en la auditoría.** «Registrar hallazgo» abre `/no-conformidades/nueva?auditoria=<id>`, con el origen y el proceso ya puestos. Decisión de Dirección del 6 de octubre, tomada sabiendo que la auditoría deja de tener hallazgos propios y que no queda dónde anotar una observación, una oportunidad de mejora ni una fortaleza | `panel-hallazgos.tsx` y `no-conformidades/nueva/page.tsx` |
 | Evaluación de proveedores: los 4 criterios del F-SOP-08-01 —calidad, logística, legal, servicio— de 1 a 5, nota 0-100; 80+ aprobado, 60-79 condicional | `puntaje` generado en SQL y `lib/proveedores.ts` |
 | Ejecutar un mantenimiento reagenda el siguiente según la frecuencia del activo | `sincronizar_activo_al_mantener()` |
 | Competencias: escala 1 a 5; la brecha es exigido menos alcanzado | `brecha` generada en SQL y `NIVELES_COMPETENCIA` |

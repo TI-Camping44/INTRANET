@@ -65,12 +65,19 @@ export function FormularioNoConformidad({
   empresas,
   usuarios,
   inicial,
+  sugerido,
 }: {
   procesos: Opcion[];
   empresas: Opcion[];
   usuarios: Opcion[];
   /** Cuando viene, el formulario edita esa desviación en vez de crear una. */
   inicial?: NoConformidadInicial;
+  /**
+   * Valores con los que abrir un alta ya encaminada. Se usa cuando la NC
+   * se registra desde una auditoría: llega con el origen y el proceso
+   * puestos, y quien la carga no tiene que acordarse de elegirlos.
+   */
+  sugerido?: { origen?: string; proceso_id?: string | null };
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
@@ -158,7 +165,11 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Origen" htmlFor="origen" requerido>
-            <Seleccion id="origen" name="origen" defaultValue={inicial?.origen ?? "proceso_interno"}>
+            <Seleccion
+              id="origen"
+              name="origen"
+              defaultValue={inicial?.origen ?? sugerido?.origen ?? "proceso_interno"}
+            >
               {ORIGENES_NC_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
                   {ETIQUETAS_ORIGEN_NC[valor]}
@@ -211,7 +222,11 @@ export function FormularioNoConformidad({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Proceso afectado" htmlFor="proceso_id">
-            <Seleccion id="proceso_id" name="proceso_id" defaultValue={inicial?.proceso_id ?? ""}>
+            <Seleccion
+              id="proceso_id"
+              name="proceso_id"
+              defaultValue={inicial?.proceso_id ?? sugerido?.proceso_id ?? ""}
+            >
               <option value="">Sin proceso asociado</option>
               {procesos.map((proceso) => (
                 <option key={proceso.id} value={proceso.id}>

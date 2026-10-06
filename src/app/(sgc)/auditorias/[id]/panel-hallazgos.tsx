@@ -21,12 +21,11 @@ import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import {
   actualizarHallazgo,
-  crearHallazgo,
   eliminarHallazgo,
   generarNoConformidad,
 } from "@/app/(sgc)/auditorias/acciones";
 import { ETIQUETAS_TIPO_HALLAZGO, TIPOS_HALLAZGO_VIGENTES } from "@/lib/constantes";
-import { ACEPTA_EVIDENCIA, describirTamano } from "@/lib/adjuntos";
+import { describirTamano } from "@/lib/adjuntos";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import type { TipoHallazgo } from "@/lib/tipos";
 
@@ -79,7 +78,6 @@ export function PanelHallazgos({
   puedeEditar: boolean;
 }) {
   const router = useRouter();
-  const [abierto, definirAbierto] = React.useState(false);
   const [generando, definirGenerando] = React.useState<Hallazgo | null>(null);
   const [editando, definirEditando] = React.useState<Hallazgo | null>(null);
   const [procesando, definirProcesando] = React.useState(false);
@@ -89,21 +87,6 @@ export function PanelHallazgos({
   const pendientes = hallazgos.filter(
     (hallazgo) => hallazgo.tipo.startsWith("no_conformidad") && !hallazgo.no_conformidad_id,
   ).length;
-
-  async function agregar(evento: React.FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    definirProcesando(true);
-    const resultado = await crearHallazgo(auditoriaId, new FormData(evento.currentTarget));
-    definirProcesando(false);
-
-    if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Hallazgo registrado.");
-      definirAbierto(false);
-      router.refresh();
-    } else {
-      toast.error(resultado.error);
-    }
-  }
 
   async function generar() {
     if (!generando) return;
@@ -173,7 +156,7 @@ export function PanelHallazgos({
       {hallazgos.length === 0 ? (
         <EstadoVacio
           titulo="Sin hallazgos registrados"
-          descripcion="Los hallazgos se cargan durante la ejecución de la auditoría."
+          descripcion="«Registrar hallazgo» abre el módulo de No Conformidades, con el origen y el proceso de esta auditoría ya puestos."
         />
       ) : (
         <ul className="space-y-2">
@@ -292,10 +275,22 @@ export function PanelHallazgos({
         </ul>
       )}
 
+      {/* «REGISTRAR HALLAZGO» ABRE EL MODULO DE NO CONFORMIDADES.
+          Lo pidió Dirección el 6 de octubre. La NC se carga allá, con el
+          origen y el proceso de esta auditoría ya puestos, y desde el
+          encabezado de esa pantalla se vuelve acá.
+
+          Queda sabido y aceptado lo que esto deja afuera: la auditoría no
+          registra más hallazgos propios, así que no hay dónde anotar una
+          observación, una oportunidad de mejora o una fortaleza, que no
+          generan no conformidad. Los hallazgos ya cargados se siguen
+          viendo y se siguen pudiendo editar y eliminar. */}
       {puedeEditar ? (
         <div className="flex justify-end">
-          <Boton tamano="pequeno" variante="contorno" onClick={() => definirAbierto(true)}>
-            <Plus /> Registrar hallazgo
+          <Boton tamano="pequeno" variante="contorno" comoHijo>
+            <Link href={`/no-conformidades/nueva?auditoria=${auditoriaId}`}>
+              <Plus /> Registrar hallazgo
+            </Link>
           </Boton>
         </div>
       ) : null}
@@ -388,89 +383,6 @@ export function PanelHallazgos({
             </form>
           ) : null}
       </DialogoContenido>
-      </Dialogo>
-
-      {/* Alta de hallazgo */}
-      <Dialogo open={abierto} onOpenChange={definirAbierto}>
-        <DialogoContenido>
-          <form onSubmit={agregar}>
-            <DialogoCabecera>
-              <DialogoTitulo>Nuevo hallazgo</DialogoTitulo>
-              <DialogoDescripcion>
-                Los hallazgos de no conformidad y las observaciones pueden derivar en una NC
-                desde esta misma pantalla.
-              </DialogoDescripcion>
-            </DialogoCabecera>
-
-            <div className="mt-4 space-y-3">
-              <GrupoCampo etiqueta="Tipo de hallazgo" htmlFor="tipo" requerido>
-                <Seleccion id="tipo" name="tipo" defaultValue="no_conformidad_menor">
-                  {TIPOS_HALLAZGO_VIGENTES.map((valor) => (
-                    <option key={valor} value={valor}>
-                      {ETIQUETAS_TIPO_HALLAZGO[valor]}
-                    </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Descripción" htmlFor="descripcion" requerido>
-                <AreaTexto id="descripcion" name="descripcion" rows={3} required minLength={15} />
-              </GrupoCampo>
-
-              <GrupoCampo
-                etiqueta="Evidencia objetiva"
-                htmlFor="evidencia"
-                ayuda="Qué se verificó y cómo. Sostiene el hallazgo ante una auditoría externa."
-              >
-                <AreaTexto id="evidencia" name="evidencia" rows={2} />
-              </GrupoCampo>
-
-              {/* La evidencia escrita describe; el archivo la sostiene.
-                  Una foto de la estantería, el registro incompleto, la
-                  captura del sistema: sin esto terminaban en el WhatsApp
-                  del auditor y no en el informe. */}
-              <GrupoCampo
-                etiqueta="Archivos de evidencia"
-                htmlFor="evidencias"
-                ayuda="Fotos, PDF o planillas que sostienen el hallazgo. Puede elegir varios, de hasta 20 MB cada uno."
-              >
-                <input
-                  id="evidencias"
-                  name="evidencias"
-                  type="file"
-                  multiple
-                  accept={ACEPTA_EVIDENCIA}
-                  className="block w-full cursor-pointer rounded-md border border-borde bg-fondo
-                             text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
-                             file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
-                             file:text-texto"
-                />
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">
-                <Seleccion id="proceso_id" name="proceso_id">
-                  <option value="">El de la auditoría</option>
-                  {procesos.map((proceso) => (
-                    <option key={proceso.id} value={proceso.id}>
-                      {proceso.nombre}
-                    </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
-            </div>
-
-            <DialogoPie className="mt-5">
-              <DialogoCierre asChild>
-                <Boton type="button" variante="contorno">
-                  Cancelar
-                </Boton>
-              </DialogoCierre>
-              <Boton type="submit" disabled={procesando}>
-                Registrar hallazgo
-              </Boton>
-            </DialogoPie>
-          </form>
-        </DialogoContenido>
       </Dialogo>
 
       {/* Generación de la no conformidad */}
