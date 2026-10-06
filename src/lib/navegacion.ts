@@ -96,8 +96,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
         subentradas: [
           { titulo: "Todos", ruta: "/documentos" },
-          { titulo: "Vigentes", ruta: "/documentos?vista=vigentes" },
-          { titulo: "Obsoletos", ruta: "/documentos?vista=obsoletos" },
           {
             titulo: "+ Nuevo Documento",
             ruta: "/documentos/nuevo",
@@ -138,7 +136,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "ClipboardCheck",
         fase: "operativo",
         subentradas: [
-          { titulo: "Listado", ruta: "/auditorias" },
+          { titulo: "Todos", ruta: "/auditorias" },
           { titulo: "+ Nueva auditoría", ruta: "/auditorias/nueva", soloGestion: true },
         ],
       },
@@ -149,8 +147,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
         subentradas: [
           { titulo: "Todos", ruta: "/cambios" },
-          { titulo: "En aprobación", ruta: "/cambios?vista=aprobacion" },
-          { titulo: "Seguimiento vencido", ruta: "/cambios?vista=vencidos" },
           { titulo: "+ Nuevo Cambio", ruta: "/cambios/nuevo", soloGestion: true },
         ],
       },
@@ -160,9 +156,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "TriangleAlert",
         fase: "operativo",
         subentradas: [
-          { titulo: "Todas", ruta: "/no-conformidades" },
-          { titulo: "Abiertas", ruta: "/no-conformidades?estado=abiertas" },
-          { titulo: "Cerradas", ruta: "/no-conformidades?estado=cerrada" },
+          { titulo: "Todos", ruta: "/no-conformidades" },
           {
             titulo: "+ Nueva No Conformidad",
             ruta: "/no-conformidades/nueva",
@@ -179,9 +173,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "ListChecks",
         fase: "operativo",
         subentradas: [
-          { titulo: "Todas", ruta: "/acciones" },
-          { titulo: "Abiertas", ruta: "/acciones?estado=abierta" },
-          { titulo: "Cerradas", ruta: "/acciones?estado=ejecutada" },
+          { titulo: "Todos", ruta: "/acciones" },
           {
             titulo: "+ Nueva Acción Correctiva",
             ruta: "/acciones/nueva",
@@ -231,7 +223,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "Truck",
         fase: "operativo",
         subentradas: [
-          { titulo: "Listado", ruta: "/proveedores" },
+          { titulo: "Todos", ruta: "/proveedores" },
           { titulo: "+ Nuevo Asociado de Negocio", ruta: "/proveedores/nuevo", soloGestion: true },
         ],
       },

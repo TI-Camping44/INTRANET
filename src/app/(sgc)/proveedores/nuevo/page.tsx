@@ -21,7 +21,7 @@ export default async function PaginaNuevoProveedor() {
   await requerirRol(ROLES_GESTION);
 
   // Las empresas van por `empresas_del_grupo()` y no por un select a
-  // `empresas`: esa tabla la acota RLS a la propia, así que Vitálica no
+  // `empresas`: esa tabla la acota RLS a la propia, así que Vitalica no
   // aparecería y no habría forma de cargarle un Asociado de Negocio.
   const supabase = crearClienteServidor();
   const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");

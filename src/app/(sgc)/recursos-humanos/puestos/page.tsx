@@ -70,7 +70,7 @@ export default async function PaginaPuestos({
   const administra = esAdministrador(usuario);
 
   // Las empresas van por `empresas_del_grupo()` y no por un select a
-  // `empresas`: esa tabla solo deja ver la propia, así que Vitálica no
+  // `empresas`: esa tabla solo deja ver la propia, así que Vitalica no
   // aparecería en el selector. Es el mismo camino que usa el formulario
   // de no conformidad.
   const [{ data: datosPuestos }, { data: datosPersonas }, { data: adjuntos }, { data: datosEmpresas }] =

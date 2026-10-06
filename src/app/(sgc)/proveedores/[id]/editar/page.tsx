@@ -47,7 +47,7 @@ export default async function PaginaEditarProveedor({
       .eq("id", params.id)
       .maybeSingle(),
     // Por `empresas_del_grupo()`: `empresas` la acota RLS a la propia y
-    // Vitálica no aparecería en el desplegable.
+    // Vitalica no aparecería en el desplegable.
     supabase.rpc("empresas_del_grupo"),
   ]);
 

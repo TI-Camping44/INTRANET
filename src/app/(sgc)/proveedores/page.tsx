@@ -67,7 +67,7 @@ export default async function PaginaProveedores({
 
   // Las empresas van por `empresas_del_grupo()` y no por un embed a
   // `empresas`: esa tabla la acota RLS a la propia, así que la columna
-  // de un Asociado de Negocio de Vitálica saldría vacía.
+  // de un Asociado de Negocio de Vitalica saldría vacía.
   const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
   const nombreDeEmpresa = new Map(
     ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).map((empresa) => [

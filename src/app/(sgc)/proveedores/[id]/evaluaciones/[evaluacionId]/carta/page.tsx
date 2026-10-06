@@ -62,11 +62,11 @@ const PARRAFO_POR_RESULTADO: Record<string, string> = {
  * cambie una palabra.
  *
  * EL MEMBRETE SALE DE LA EMPRESA DEL ASOCIADO DE NEGOCIO, no de una
- * constante: Camping 44 S.A. y Vitálica E.A.S. comparten el sistema y un
+ * constante: Camping 44 S.A. y Vitalica E.A.S. comparten el sistema y un
  * documento que se entrega a un tercero tiene que salir con el logotipo
- * de la empresa que lo firma. El de Vitálica todavía no está en
- * `public/`; mientras no esté, el membrete sale con la razón social en
- * tipografía y sin imagen rota.
+ * de la empresa que lo firma. Los dos están en `public/`; si alguna vez
+ * faltara uno, el membrete sale con la razón social en tipografía y sin
+ * imagen rota.
  *
  * EL RUC VA EN EL MEMBRETE desde el 6 de octubre, cuando llegaron los
  * reales. Hasta entonces no se imprimía: los cargados eran marcadores de

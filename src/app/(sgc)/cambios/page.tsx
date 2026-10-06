@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GitBranch, Plus } from "lucide-react";
 
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
+import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { Boton } from "@/components/ui/boton";
 import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -78,34 +79,38 @@ interface FilaCambio {
 export default async function PaginaCambios({
   searchParams,
 }: {
-  searchParams: { vista?: string };
+  searchParams: { q?: string; estado?: string; tipo?: string };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const { data } = await supabase
-    .from("cambios")
-    .select(
+  const campos =
       "id, codigo, titulo, tipo, estado, fecha_solicitud, proposito, " +
         "consecuencias_potenciales, impacto_integridad_sgc, recursos_necesarios, " +
         "responsabilidades, comunicacion_a_quien, comunicacion_cuando, comunicacion_canal, " +
         "indicador_exito, criterio_exito, fecha_revision, resultado, " +
         "afecta_material_controlado, proceso_declarado, " +
-        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
-    )
-    .order("creado_en", { ascending: false });
+        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)";
 
-  const todos = (data as unknown as FilaCambio[] | null) ?? [];
-  const vista = searchParams.vista ?? "todos";
+  // Dos consultas: los gráficos miran SIEMPRE todo el módulo, y la tabla
+  // mira lo filtrado. Es la regla de los demás listados: un gráfico que
+  // se mueve con el filtro deja de ser la foto del módulo.
+  let consulta = supabase.from("cambios").select(campos).order("creado_en", { ascending: false });
 
-  const cambios =
-    vista === "aprobacion"
-      ? todos.filter((c) => c.estado === "en_aprobacion")
-      : vista === "vencidos"
-        ? todos.filter((c) => seguimientoVencido(c.estado, c.fecha_revision))
-        : todos;
+  if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
+  if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
+  if (searchParams.q) {
+    const texto = `%${searchParams.q}%`;
+    consulta = consulta.or(`codigo.ilike.${texto},titulo.ilike.${texto}`);
+  }
 
-  const vencidos = todos.filter((c) => seguimientoVencido(c.estado, c.fecha_revision)).length;
+  const [{ data }, { data: datosTodos }] = await Promise.all([
+    consulta,
+    supabase.from("cambios").select(campos).order("creado_en", { ascending: false }),
+  ]);
+
+  const todos = (datosTodos as unknown as FilaCambio[] | null) ?? [];
+  const cambios = (data as unknown as FilaCambio[] | null) ?? [];
 
   // ------------------------------------------------------------------
   // Los gráficos, con la misma forma que los demás módulos: sobre TODOS
@@ -174,38 +179,32 @@ export default async function PaginaCambios({
         }
       />
 
-      {/* Atajos, con la misma forma que los demás módulos. */}
-      <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
-        {[
-          { clave: "todos", texto: `Todos (${todos.length})` },
-          // «En aprobación» ya no se produce: el módulo dejó de tener
-          // aprobación el 6 de octubre. El atajo solo aparece si queda
-          // alguno en ese estado, para que no se esconda.
-          ...(todos.some((c) => c.estado === "en_aprobacion")
-            ? [
-                {
-                  clave: "aprobacion",
-                  texto: `En aprobación (${
-                    todos.filter((c) => c.estado === "en_aprobacion").length
-                  })`,
-                },
-              ]
-            : []),
-          { clave: "vencidos", texto: `Seguimiento vencido (${vencidos})` },
-        ].map((opcion) => (
-          <Link
-            key={opcion.clave}
-            href={opcion.clave === "todos" ? "/cambios" : `/cambios?vista=${opcion.clave}`}
-            className={`rounded-md border px-2.5 py-1 ${
-              vista === opcion.clave
-                ? "border-primario bg-primario/10 text-primario"
-                : "border-borde text-atenuado-contraste hover:bg-acento"
-            }`}
-          >
-            {opcion.texto}
-          </Link>
-        ))}
-      </div>
+      {/* Búsqueda y filtros, con la misma forma que los demás listados.
+          Reemplazan a los atajos «En aprobación» y «Seguimiento
+          vencido»: el primero dejó de producirse cuando el módulo perdió
+          la aprobación, y el segundo era un atajo suelto donde hacía
+          falta poder buscar. */}
+      <FiltrosListado
+        marcadorBusqueda="Buscar por código o título…"
+        campos={[
+          {
+            nombre: "estado",
+            etiqueta: "Estado",
+            opciones: ESTADOS_CAMBIO_VIGENTES.map((valor) => ({
+              valor,
+              etiqueta: ETIQUETAS_ESTADO_CAMBIO[valor],
+            })),
+          },
+          {
+            nombre: "tipo",
+            etiqueta: "Tipo",
+            opciones: TIPOS_CAMBIO.map((valor) => ({
+              valor,
+              etiqueta: ETIQUETAS_TIPO_CAMBIO[valor],
+            })),
+          },
+        ]}
+      />
 
       {todos.length > 0 ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
@@ -223,11 +222,13 @@ export default async function PaginaCambios({
       {cambios.length === 0 ? (
         <EstadoVacio
           icono={<GitBranch className="size-6" />}
-          titulo={vista === "todos" ? "Todavía no hay cambios registrados" : "Nada en esta vista"}
+          titulo={
+            todos.length === 0 ? "Todavía no hay cambios registrados" : "Nada con esos filtros"
+          }
           descripcion={
-            vista === "todos"
+            todos.length === 0
               ? "Acá se registran los cambios significativos al SGC: alta o baja de un proceso, cambio de responsable, de sistema, de habilitación, mudanzas, nuevas líneas de productos controlados y cambios normativos."
-              : "Pruebe con otra vista."
+              : "Pruebe con otra búsqueda o quite los filtros."
           }
         />
       ) : (

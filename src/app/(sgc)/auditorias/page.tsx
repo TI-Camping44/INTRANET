@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_ESTADO_AUDITORIA } from "@/lib/constantes";
+import { ETIQUETAS_ESTADO_AUDITORIA, ETIQUETAS_TIPO_AUDITORIA } from "@/lib/constantes";
 import { describirVencimiento, diasHasta, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 import { recortar } from "@/lib/utilidades";
 import type { EstadoAuditoria } from "@/lib/tipos";
@@ -49,7 +49,7 @@ interface FilaAuditoria {
 export default async function PaginaAuditorias({
   searchParams,
 }: {
-  searchParams: { q?: string; estado?: string; anio?: string };
+  searchParams: { q?: string; estado?: string; anio?: string; tipo?: string };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
@@ -72,9 +72,12 @@ export default async function PaginaAuditorias({
     .order("fecha_planificada", { ascending: true });
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
+  if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
   if (searchParams.q) {
     const texto = `%${searchParams.q}%`;
-    consulta = consulta.or(`codigo.ilike.${texto},objetivo.ilike.${texto}`);
+    consulta = consulta.or(
+      `codigo.ilike.${texto},objetivo.ilike.${texto},alcance.ilike.${texto},criterios.ilike.${texto}`,
+    );
   }
 
   const [{ data: auditoriasDatos }, { data: programas }] = await Promise.all([
@@ -86,6 +89,19 @@ export default async function PaginaAuditorias({
   const listaProgramas = (programas ?? []) as any[];
   const programaVigente =
     listaProgramas.find((programa) => programa.anio === anio) ?? listaProgramas[0] ?? null;
+
+  // Los años que ofrece el filtro: los de los programas y los de las
+  // auditorías planificadas, mas el corriente, sin repetir y de mayor a
+  // menor.
+  const aniosConRegistros = Array.from(
+    new Set<number>([
+      anioActual,
+      ...listaProgramas.map((programa) => Number(programa.anio)),
+      ...auditorias
+        .map((auditoria) => Number((auditoria.fecha_planificada ?? "").slice(0, 4)))
+        .filter((valor) => !Number.isNaN(valor) && valor > 0),
+    ]),
+  ).sort((a, b) => b - a);
 
   const delAnio = auditorias.filter(
     (auditoria) => (auditoria.fecha_planificada ?? "").slice(0, 4) === String(anio),
@@ -208,8 +224,13 @@ export default async function PaginaAuditorias({
         </div>
       ) : null}
 
+      {/* EL AÑO ESTABA EN LA URL PERO NO TENÍA DÓNDE ELEGIRSE: la
+          pantalla leía `anio` y siempre mostraba el corriente. Los años
+          que se ofrecen salen de lo que hay cargado —programas y
+          auditorías—, así no aparece un año vacío ni falta uno con
+          registros. */}
       <FiltrosListado
-        marcadorBusqueda="Buscar por código u objetivo…"
+        marcadorBusqueda="Buscar por código, objetivo, alcance o criterios…"
         campos={[
           {
             nombre: "estado",
@@ -217,6 +238,22 @@ export default async function PaginaAuditorias({
             opciones: Object.entries(ETIQUETAS_ESTADO_AUDITORIA).map(([valor, etiqueta]) => ({
               valor,
               etiqueta,
+            })),
+          },
+          {
+            nombre: "tipo",
+            etiqueta: "Tipo",
+            opciones: Object.entries(ETIQUETAS_TIPO_AUDITORIA).map(([valor, etiqueta]) => ({
+              valor,
+              etiqueta,
+            })),
+          },
+          {
+            nombre: "anio",
+            etiqueta: "Año",
+            opciones: aniosConRegistros.map((valor) => ({
+              valor: String(valor),
+              etiqueta: String(valor),
             })),
           },
         ]}

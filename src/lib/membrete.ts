@@ -4,14 +4,14 @@ import { join } from "node:path";
 /**
  * El membrete de los documentos que salen de la empresa.
  *
- * SON DOS EMPRESAS Y DOS LOGOTIPOS. Camping 44 S.A. y Vitálica E.A.S.
+ * SON DOS EMPRESAS Y DOS LOGOTIPOS. Camping 44 S.A. y Vitalica E.A.S.
  * comparten el sistema, y un documento que se entrega a un tercero tiene
  * que salir con el logotipo de la empresa que lo firma, no con el de la
  * otra.
  *
  * SE BUSCA POR PREFIJO, ignorando tildes y mayúsculas. Según de dónde
- * salga el dato, la empresa llega como «Vitálica» o como
- * «Vitálica E.A.S.» —`empresas_del_grupo()` devuelve la razón social—, y
+ * salga el dato, la empresa llega como «Vitalica» o como
+ * «Vitalica E.A.S.» —`empresas_del_grupo()` devuelve la razón social—, y
  * comparar por texto exacto es la forma de que el membrete salga sin
  * logotipo el día que cambie la forma jurídica o alguien escriba
  * «VITALICA» al cargar la empresa.
