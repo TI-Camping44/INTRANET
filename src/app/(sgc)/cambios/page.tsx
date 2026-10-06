@@ -52,19 +52,12 @@ interface FilaCambio {
   indicador_exito: string | null;
   criterio_exito: string | null;
   fecha_revision: string;
-  documentos_afectados: string | null;
-  fecha_aprobacion: string | null;
   fecha_implementacion: string | null;
-  seguimiento_observacion: string | null;
-  resultado_revision: string | null;
   resultado: ResultadoCambio | null;
-  acciones_adicionales: string | null;
   afecta_material_controlado: boolean;
   proceso_declarado: string | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
-  solicitante: { nombre_completo: string } | null;
-  aprobador: { nombre_completo: string } | null;
 }
 
 /**
@@ -90,12 +83,9 @@ export default async function PaginaCambios({
       "id, codigo, titulo, tipo, estado, fecha_solicitud, proposito, " +
         "consecuencias_potenciales, impacto_integridad_sgc, recursos_necesarios, " +
         "responsabilidades, comunicacion_a_quien, comunicacion_cuando, comunicacion_canal, " +
-        "indicador_exito, criterio_exito, fecha_revision, documentos_afectados, " +
-        "fecha_aprobacion, fecha_implementacion, seguimiento_observacion, " +
-        "resultado_revision, resultado, acciones_adicionales, " +
+        "indicador_exito, criterio_exito, fecha_revision, resultado, " +
         "afecta_material_controlado, proceso_declarado, " +
-        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo), " +
-        "solicitante:solicitante_id (nombre_completo), aprobador:aprobado_por (nombre_completo)",
+        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
     )
     .order("creado_en", { ascending: false });
 
@@ -131,10 +121,19 @@ export default async function PaginaCambios({
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
         {[
           { clave: "todos", texto: `Todos (${todos.length})` },
-          {
-            clave: "aprobacion",
-            texto: `En aprobación (${todos.filter((c) => c.estado === "en_aprobacion").length})`,
-          },
+          // «En aprobación» ya no se produce: el módulo dejó de tener
+          // aprobación el 6 de octubre. El atajo solo aparece si queda
+          // alguno en ese estado, para que no se esconda.
+          ...(todos.some((c) => c.estado === "en_aprobacion")
+            ? [
+                {
+                  clave: "aprobacion",
+                  texto: `En aprobación (${
+                    todos.filter((c) => c.estado === "en_aprobacion").length
+                  })`,
+                },
+              ]
+            : []),
           { clave: "vencidos", texto: `Seguimiento vencido (${vencidos})` },
         ].map((opcion) => (
           <Link
@@ -178,38 +177,26 @@ export default async function PaginaCambios({
                   Código
                 </TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Fecha de solicitud</TablaEncabezado>
-                <TablaEncabezado className="w-[11rem]">Solicitante</TablaEncabezado>
                 <TablaEncabezado className="w-[18rem]">Descripción del cambio</TablaEncabezado>
                 <TablaEncabezado className="w-[12rem]">Tipo de cambio</TablaEncabezado>
-                <TablaEncabezado className="w-[14rem]">a) Propósito</TablaEncabezado>
+                <TablaEncabezado className="w-[14rem]">Propósito</TablaEncabezado>
                 <TablaEncabezado className="w-[14rem]">
-                  a) Consecuencias potenciales
+                  Consecuencias potenciales
                 </TablaEncabezado>
                 <TablaEncabezado className="w-[14rem]">
-                  b) Impacto en la integridad del SGC
+                  Impacto en la integridad del SGC
                 </TablaEncabezado>
                 <TablaEncabezado className="w-[13rem]">
-                  c) Recursos e información
+                  Recursos e información
                 </TablaEncabezado>
-                <TablaEncabezado className="w-[13rem]">d) Responsabilidades</TablaEncabezado>
-                <TablaEncabezado className="w-[15rem]">e) Plan de comunicación</TablaEncabezado>
+                <TablaEncabezado className="w-[13rem]">Responsabilidades</TablaEncabezado>
+                <TablaEncabezado className="w-[15rem]">Plan de comunicación</TablaEncabezado>
                 <TablaEncabezado className="w-[15rem]">
-                  f) Indicador y criterio de éxito
+                  Indicador y criterio de éxito
                 </TablaEncabezado>
-                <TablaEncabezado className="w-[7rem]">g) Revisión prevista</TablaEncabezado>
-                <TablaEncabezado className="w-[13rem]">Documentos afectados</TablaEncabezado>
-                <TablaEncabezado className="w-[11rem]">Aprobado por</TablaEncabezado>
-                <TablaEncabezado className="w-[7rem]">Fecha de aprobación</TablaEncabezado>
-                <TablaEncabezado className="w-[7rem]">Implementación</TablaEncabezado>
-                <TablaEncabezado className="w-[14rem]">
-                  f) Seguimiento de eficacia
-                </TablaEncabezado>
-                <TablaEncabezado className="w-[14rem]">
-                  g) Resultado de la revisión
-                </TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">¿Fue eficaz?</TablaEncabezado>
-                <TablaEncabezado className="w-[14rem]">Acciones adicionales</TablaEncabezado>
+                <TablaEncabezado className="w-[7rem]">Revisión prevista</TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">¿Fue eficaz?</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -246,8 +233,6 @@ export default async function PaginaCambios({
                       {cambio.fecha_solicitud ? formatearFecha(cambio.fecha_solicitud) : "—"}
                     </TablaCelda>
 
-                    <CeldaTexto ancho="11rem">{cambio.solicitante?.nombre_completo}</CeldaTexto>
-
                     <TablaCelda className="text-xs" style={{ maxWidth: "18rem" }}>
                       <Link
                         href={`/cambios/${cambio.id}`}
@@ -283,20 +268,14 @@ export default async function PaginaCambios({
                       {formatearFecha(cambio.fecha_revision)}
                     </TablaCelda>
 
-                    <CeldaTexto ancho="13rem">{cambio.documentos_afectados}</CeldaTexto>
-                    <CeldaTexto ancho="11rem">{cambio.aprobador?.nombre_completo}</CeldaTexto>
 
-                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
-                      {cambio.fecha_aprobacion ? formatearFecha(cambio.fecha_aprobacion) : "—"}
+                    <TablaCelda>
+                      <Insignia variante="contorno">
+                        <span className={CLASES_ESTADO_CAMBIO[cambio.estado]}>
+                          {ETIQUETAS_ESTADO_CAMBIO[cambio.estado]}
+                        </span>
+                      </Insignia>
                     </TablaCelda>
-                    <TablaCelda className="text-xs tabular text-atenuado-contraste">
-                      {cambio.fecha_implementacion
-                        ? formatearFecha(cambio.fecha_implementacion)
-                        : "—"}
-                    </TablaCelda>
-
-                    <CeldaTexto ancho="14rem">{cambio.seguimiento_observacion}</CeldaTexto>
-                    <CeldaTexto ancho="14rem">{cambio.resultado_revision}</CeldaTexto>
 
                     <TablaCelda className="text-xs">
                       {cambio.resultado && cambio.resultado !== "pendiente" ? (
@@ -314,15 +293,6 @@ export default async function PaginaCambios({
                       )}
                     </TablaCelda>
 
-                    <CeldaTexto ancho="14rem">{cambio.acciones_adicionales}</CeldaTexto>
-
-                    <TablaCelda>
-                      <Insignia variante="contorno">
-                        <span className={CLASES_ESTADO_CAMBIO[cambio.estado]}>
-                          {ETIQUETAS_ESTADO_CAMBIO[cambio.estado]}
-                        </span>
-                      </Insignia>
-                    </TablaCelda>
                   </TablaFila>
                 );
               })}

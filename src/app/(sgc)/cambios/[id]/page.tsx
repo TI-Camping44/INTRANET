@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ArrowLeft } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
+import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import {
   Tarjeta,
@@ -61,19 +63,20 @@ interface Cambio {
   no_conformidad: { id: string; codigo: string } | null;
   procesos: { nombre: string } | null;
   responsable: { nombre_completo: string } | null;
-  aprobador: { nombre_completo: string } | null;
+  solicitante: { nombre_completo: string } | null;
+  fecha_solicitud: string | null;
   seguidor: { nombre_completo: string } | null;
 }
 
 const CAMPOS = "id, codigo, titulo, tipo, estado, proposito, consecuencias_potenciales, "
   + "impacto_integridad_sgc, recursos_necesarios, responsabilidades, comunicacion_a_quien, "
   + "comunicacion_cuando, comunicacion_canal, afecta_material_controlado, impacto_trazabilidad, "
-  + "indicador_exito, criterio_exito, fecha_revision, fecha_aprobacion, motivo_rechazo, "
+  + "indicador_exito, criterio_exito, fecha_revision, fecha_solicitud, motivo_rechazo, "
   + "fecha_implementacion, capacitacion_detalle, resultado, seguimiento_observacion, decision, "
   + "fecha_seguimiento, documentacion_actualizada, requiere_actualizar_documentacion, "
   + "no_conformidad:no_conformidad_id (id, codigo), "
   + "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo), "
-  + "aprobador:aprobado_por (nombre_completo), seguidor:seguido_por (nombre_completo)";
+  + "solicitante:solicitante_id (nombre_completo), seguidor:seguido_por (nombre_completo)";
 
 export async function generateMetadata({
   params,
@@ -116,6 +119,12 @@ export default async function PaginaCambio({ params }: { params: { id: string } 
 
   return (
     <div className="mx-auto max-w-4xl">
+      <Boton variante="fantasma" tamano="pequeno" comoHijo className="mb-3 -ml-2">
+        <Link href="/cambios">
+          <ArrowLeft /> Volver al listado
+        </Link>
+      </Boton>
+
       <EncabezadoPagina
         titulo={`${cambio.codigo} · ${cambio.titulo}`}
         descripcion={ETIQUETAS_TIPO_CAMBIO[cambio.tipo]}
@@ -255,10 +264,10 @@ export default async function PaginaCambio({ params }: { params: { id: string } 
               {[
                 ["Proceso", cambio.procesos?.nombre ?? "—"],
                 ["Responsable", cambio.responsable?.nombre_completo ?? "—"],
-                ["Aprobado por", cambio.aprobador?.nombre_completo ?? "—"],
+                ["Solicitante", cambio.solicitante?.nombre_completo ?? "—"],
                 [
-                  "Fecha de aprobación",
-                  cambio.fecha_aprobacion ? formatearFecha(cambio.fecha_aprobacion) : "—",
+                  "Fecha de solicitud",
+                  cambio.fecha_solicitud ? formatearFecha(cambio.fecha_solicitud) : "—",
                 ],
                 [
                   "Implementado el",

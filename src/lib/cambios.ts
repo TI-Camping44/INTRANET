@@ -115,14 +115,37 @@ export const DECISIONES_CAMBIO: DecisionCambio[] = ["ajuste", "reversion", "acci
  * Un rechazo vuelve a borrador a propósito: la idea puede ser buena y
  * estar mal planteada, y obligar a empezar de cero perdería lo escrito.
  */
+/**
+ * EL CAMBIO NO PASA POR APROBACION. Calidad lo definio el 6 de octubre:
+ * en este modulo no aplica. El recorrido queda borrador → implementado
+ * → cerrado.
+ *
+ * Los tres estados de aprobacion —`en_aprobacion`, `aprobado`,
+ * `rechazado`— siguen en el enumerado de la base, porque en PostgreSQL
+ * un valor no se puede quitar, y siguen teniendo salida: CAM-2026-001
+ * quedo «en aprobacion» antes de este cambio y sin salida se habria
+ * trabado para siempre. Lo que ya no existe es la ENTRADA: desde
+ * borrador no se va a aprobacion.
+ */
 export const TRANSICIONES_CAMBIO: Record<EstadoCambio, EstadoCambio[]> = {
-  borrador: ["en_aprobacion"],
-  en_aprobacion: ["aprobado", "rechazado", "borrador"],
+  borrador: ["implementado"],
+  en_aprobacion: ["implementado", "borrador"],
   aprobado: ["implementado"],
   rechazado: ["borrador"],
   implementado: ["cerrado"],
   cerrado: [],
 };
+
+/**
+ * Los estados que se ofrecen hoy, para los filtros del listado. Los de
+ * aprobacion se siguen mostrando cuando un registro viejo los tiene,
+ * pero no se ofrecen para filtrar algo que ya no se produce.
+ */
+export const ESTADOS_CAMBIO_VIGENTES: EstadoCambio[] = [
+  "borrador",
+  "implementado",
+  "cerrado",
+];
 
 export function puedePasarA(desde: EstadoCambio, hasta: EstadoCambio): boolean {
   return TRANSICIONES_CAMBIO[desde].includes(hasta);

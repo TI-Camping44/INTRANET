@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { crearClienteServidor } from "@/lib/supabase/servidor";
+import { hoyEnAsuncion } from "@/lib/formato";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import {
   puedePasarA,
@@ -127,6 +128,12 @@ export async function crearCambio(datos: FormData): Promise<ResultadoAccion> {
       codigo,
       estado: "borrador",
       creado_por: usuario.id,
+      // EL SOLICITANTE Y LA FECHA NO SE PIDEN: se saben. El formulario
+      // nunca los pedia y las dos columnas del listado salian siempre
+      // vacias. Quien registra el cambio es quien lo solicita, y la
+      // fecha es la de hoy.
+      solicitante_id: usuario.id,
+      fecha_solicitud: hoyEnAsuncion(),
       ...aFilaDeBase(campos),
     })
     .select("id, codigo")
