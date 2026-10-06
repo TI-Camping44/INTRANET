@@ -197,9 +197,16 @@
    lo que no es el documento: la barra de navegación, los botones y los
    fondos del tema.
 
-   `print-color-adjust` no se fuerza: el gris de los encabezados de tabla
-   se pierde y está bien que se pierda. Una carta sale mejor en negro
-   sobre blanco, y así no depende de que la impresora tenga color. */
+   El color se pierde al imprimir salvo que se pida lo contrario, y está
+   bien que se pierda casi en todos lados: una carta sale mejor en negro
+   sobre blanco. La excepción es el membrete —el logotipo y la línea roja
+   institucional—, que lleva `.imprimir-color` para que salga como es. */
+
+.imprimir-color {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 @media print {
   .no-imprimir,
   nav,

@@ -371,6 +371,17 @@ export const ETIQUETAS_ESTADO_CAPACITACION: Record<EstadoCapacitacion, string> =
 export const CORREO_TODOS = "todos@camping44.com.py";
 
 /**
+ * A donde escribe un Asociado de Negocio que quiere presentar descargos
+ * sobre su evaluacion.
+ *
+ * ES UNA CASILLA DE LA EMPRESA Y NO LA DE QUIEN EVALUA. La carta sale
+ * para afuera: si llevara el correo personal del evaluador, el descargo
+ * se perderia el dia que esa persona se tome vacaciones o cambie de
+ * puesto. Recepcion la recibe y la distribuye.
+ */
+export const CORREO_RECEPCION = "recepcion@camping44.com.py";
+
+/**
  * Los cuatro tipos de auditoria que usa Calidad, en su orden.
  *
  * 'proveedor' y 'seguimiento' siguen en el enumerado de la base porque de

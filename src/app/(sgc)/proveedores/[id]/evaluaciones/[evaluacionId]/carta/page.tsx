@@ -6,8 +6,9 @@ import { ArrowLeft } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { formatearFecha, formatearNumero } from "@/lib/formato";
-import { ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
+import { formatearFecha, formatearNumero, hoyEnAsuncion } from "@/lib/formato";
+import { CORREO_RECEPCION, ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
+import { logotipoDeEmpresa } from "@/lib/membrete";
 import {
   ACCION_POR_RESULTADO,
   CRITERIOS_EVALUACION,
@@ -60,6 +61,18 @@ const PARRAFO_POR_RESULTADO: Record<string, string> = {
  * con peor tipografía y un mantenimiento aparte cada vez que la carta
  * cambie una palabra.
  *
+ * EL MEMBRETE SALE DE LA EMPRESA DEL ASOCIADO DE NEGOCIO, no de una
+ * constante: Camping 44 S.A. y Vitálica E.A.S. comparten el sistema y un
+ * documento que se entrega a un tercero tiene que salir con el logotipo
+ * de la empresa que lo firma. El de Vitálica todavía no está en
+ * `public/`; mientras no esté, el membrete sale con la razón social en
+ * tipografía y sin imagen rota.
+ *
+ * NO SE IMPRIME EL RUC. El que está cargado —80012345-6— es un marcador
+ * de posición del armado inicial, y un número inventado en un documento
+ * que sale para afuera es peor que no ponerlo. Cuando Calidad confirme
+ * el real, se agrega.
+ *
  * El texto es el que pasó Dirección el 6 de octubre. Tres partes salen
  * solo si corresponde, como pide ese texto: las observaciones del
  * evaluador, el aviso de criterio crítico, y los hechos registrados del
@@ -78,12 +91,12 @@ export default async function PaginaCartaEvaluacion({
   const [{ data: datosProveedor }, { data: datosEvaluacion }] = await Promise.all([
     supabase
       .from("proveedores")
-      .select("id, codigo, razon_social")
+      .select("id, codigo, razon_social, empresa_id")
       .eq("id", params.id)
       .maybeSingle(),
     supabase
       .from("proveedor_evaluaciones")
-      .select("*, evaluador:evaluado_por (nombre_completo, correo)")
+      .select("*, evaluador:evaluado_por (nombre_completo)")
       .eq("id", params.evaluacionId)
       .eq("proveedor_id", params.id)
       .maybeSingle(),
@@ -91,7 +104,26 @@ export default async function PaginaCartaEvaluacion({
 
   if (!datosProveedor || !datosEvaluacion) notFound();
 
-  const proveedor = datosProveedor as { id: string; codigo: string; razon_social: string };
+  const proveedor = datosProveedor as {
+    id: string;
+    codigo: string;
+    razon_social: string;
+    empresa_id: string;
+  };
+
+  const { data: datosEmpresa } = await supabase
+    .from("empresas")
+    .select("nombre, razon_social")
+    .eq("id", proveedor.empresa_id)
+    .maybeSingle();
+
+  const empresa = (datosEmpresa as { nombre: string; razon_social: string } | null) ?? {
+    nombre: "Camping 44",
+    razon_social: "Camping 44 S.A.",
+  };
+
+  const logotipo = logotipoDeEmpresa(empresa.nombre);
+
   const evaluacion = datosEvaluacion as unknown as {
     id: string;
     fecha: string;
@@ -105,7 +137,7 @@ export default async function PaginaCartaEvaluacion({
     puntaje: number;
     resultado: EstadoProveedor | null;
     comentario: string | null;
-    evaluador: { nombre_completo: string; correo: string } | null;
+    evaluador: { nombre_completo: string } | null;
   };
 
   const puntos: Record<CampoCriterio, number> = {
@@ -118,10 +150,10 @@ export default async function PaginaCartaEvaluacion({
   const promedio = promedioDeEvaluacion(evaluacion.puntaje);
   const resultado = evaluacion.resultado ?? "en_evaluacion";
 
-  // El aviso de criterio crítico: cualquiera en 1 pesa por sí solo,
-  // más allá del promedio. Lo de «Legal 2 o menos en Material
-  // Controlado» no se puede evaluar: el Asociado de Negocio no lleva
-  // ninguna marca de material controlado.
+  // El aviso de criterio crítico: cualquiera en 1 pesa por sí solo, más
+  // allá del promedio. Lo de «Legal 2 o menos en Material Controlado» no
+  // se puede evaluar: el Asociado de Negocio no lleva ninguna marca de
+  // material controlado.
   const criticos = CRITERIOS_EVALUACION.filter(
     (criterio) => puntos[criterio.campo] === 1,
   ).map((criterio) => criterio.etiqueta);
@@ -144,16 +176,47 @@ export default async function PaginaCartaEvaluacion({
         <BotonImprimir />
       </div>
 
-      {/* La carta. Texto en negro sobre blanco también en modo oscuro:
-          es un documento que se entrega, no una pantalla. */}
-      <article className="rounded-md border border-borde bg-white p-8 text-[13px] leading-relaxed text-black print:border-0 print:p-0">
-        <p className="mb-4">Estimados señores de {proveedor.razon_social}:</p>
+      {/* La carta. Negro sobre blanco también en modo oscuro: es un
+          documento que se entrega, no una pantalla. */}
+      <article className="rounded-md border border-borde bg-white p-10 text-[13px] leading-relaxed text-black print:rounded-none print:border-0 print:p-0">
+        {/* MEMBRETE */}
+        <header className="imprimir-color flex items-start justify-between gap-6 border-b-2 border-[#E01E37] pb-4">
+          <div className="flex items-center gap-4">
+            {logotipo ? (
+              // Sin next/image: esto se imprime, y el optimizador entrega
+              // un formato que el dialogo de impresion no siempre resuelve
+              // a tiempo. El archivo se dibuja una sola vez.
+              //
+              // SE FIJA LA ALTURA, NO EL ANCHO: los dos logotipos tienen
+              // proporciones distintas —el de Camping 44 es casi cuadrado,
+              // el de Vitalica es la flor sobre la palabra— y a ancho fijo
+              // uno quedaria el doble de alto que el otro.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logotipo} alt="" className="h-16 w-auto" />
+            ) : null}
+            <div>
+              <p className="text-base font-semibold tracking-tight">{empresa.razon_social}</p>
+              <p className="text-[11px] text-black/60">Sistema de Gestión de Calidad</p>
+            </div>
+          </div>
+
+          <div className="shrink-0 text-right text-[11px] text-black/60">
+            <p className="font-semibold uppercase tracking-wide text-black/80">
+              Evaluación de Asociado de Negocio
+            </p>
+            <p className="mt-0.5">F-SOP-08-01</p>
+            <p>Asunción, {formatearFecha(hoyEnAsuncion())}</p>
+          </div>
+        </header>
+
+        <p className="mb-4 mt-8">Estimados señores de {proveedor.razon_social}:</p>
 
         <p className="mb-4 text-justify">
-          En CAMPING 44 S.A. evaluamos periódicamente a nuestros Asociados de Negocio, porque su
-          desempeño influye directamente en la calidad de lo que entregamos a nuestros clientes.
-          Les compartimos el resultado de la evaluación del período {periodo}. Se basa en los
-          registros de recepción, entregas, documentación y atención de ese período.
+          En {empresa.razon_social.toUpperCase()} evaluamos periódicamente a nuestros Asociados de
+          Negocio, porque su desempeño influye directamente en la calidad de lo que entregamos a
+          nuestros clientes. Les compartimos el resultado de la evaluación del período {periodo}.
+          Se basa en los registros de recepción, entregas, documentación y atención de ese
+          período.
         </p>
 
         <h2 className="mb-2 mt-6 text-sm font-semibold">Resultado por criterio</h2>
@@ -183,7 +246,7 @@ export default async function PaginaCartaEvaluacion({
                 </tr>
               );
             })}
-            <tr className="border-b border-black/30">
+            <tr className="border-b-2 border-black/40">
               <td className="py-1.5 font-semibold" colSpan={2}>
                 Promedio
               </td>
@@ -194,14 +257,16 @@ export default async function PaginaCartaEvaluacion({
           </tbody>
         </table>
 
-        <p className="mt-2 text-[11px]">
+        <p className="mt-2 text-[11px] text-black/70">
           Escala: 5 Excelente · 4 Bueno · 3 Aceptable · 2 Deficiente · 1 Inaceptable.
         </p>
 
-        <p className="mt-4">
+        <p className="mt-5 border-l-2 border-[#E01E37] pl-3 imprimir-color">
           <span className="font-semibold">Resultado final:</span>{" "}
-          {ETIQUETAS_ESTADO_PROVEEDOR[resultado as EstadoProveedor]} ·{" "}
-          {ACCION_POR_RESULTADO[resultado] ?? ""}
+          {ETIQUETAS_ESTADO_PROVEEDOR[resultado as EstadoProveedor]}
+          <span className="block text-[12px] text-black/70">
+            {ACCION_POR_RESULTADO[resultado] ?? ""}
+          </span>
         </p>
 
         {evaluacion.comentario ? (
@@ -211,11 +276,12 @@ export default async function PaginaCartaEvaluacion({
           </>
         ) : null}
 
-        <p className="mt-4 text-justify">{PARRAFO_POR_RESULTADO[resultado] ?? ""}</p>
+        <p className="mt-5 text-justify">{PARRAFO_POR_RESULTADO[resultado] ?? ""}</p>
 
         {criticos.length > 0 ? (
           <p className="mt-4 text-justify">
-            Independientemente del promedio, {criticos.length === 1 ? "el criterio" : "los criterios"}{" "}
+            Independientemente del promedio,{" "}
+            {criticos.length === 1 ? "el criterio" : "los criterios"}{" "}
             <span className="font-semibold">{criticos.join(" y ")}</span>{" "}
             {criticos.length === 1 ? "obtuvo" : "obtuvieron"} el puntaje mínimo de la escala, lo
             que según nuestro procedimiento implica la suspensión de nuevas compras hasta
@@ -225,27 +291,28 @@ export default async function PaginaCartaEvaluacion({
 
         <p className="mt-4 text-justify">
           Si tienen dudas sobre esta evaluación o desean presentar descargos o evidencias, pueden
-          escribirnos a {evaluacion.evaluador?.correo ?? usuario.correo} dentro de los 10 días
-          hábiles siguientes a su recepción. Revisaremos cada caso y, si corresponde, ajustaremos
-          el resultado.
+          escribirnos a <span className="font-medium">{CORREO_RECEPCION}</span> dentro de los 10
+          días hábiles siguientes a su recepción. Revisaremos cada caso y, si corresponde,
+          ajustaremos el resultado.
         </p>
 
-        <p className="mt-4">
-          Agradecemos su compromiso y esperamos seguir trabajando juntos.
-        </p>
+        <p className="mt-4">Agradecemos su compromiso y esperamos seguir trabajando juntos.</p>
 
-        <div className="mt-10">
+        <div className="mt-12">
           <p>Atentamente,</p>
-          <p className="mt-8 font-semibold">
-            {evaluacion.evaluador?.nombre_completo ?? usuario.nombre_completo}
-          </p>
-          <p>Calidad</p>
-          <p>CAMPING 44 S.A.</p>
+          <div className="mt-12 w-64 border-t border-black/50 pt-1">
+            <p className="font-semibold">
+              {evaluacion.evaluador?.nombre_completo ?? usuario.nombre_completo}
+            </p>
+            <p className="text-[12px] text-black/70">Calidad</p>
+            <p className="text-[12px] text-black/70">{empresa.razon_social}</p>
+          </div>
         </div>
 
-        <p className="mt-8 text-[10px] text-black/50">
-          {proveedor.codigo} · Evaluación del {formatearFecha(evaluacion.fecha)} · F-SOP-08-01
-        </p>
+        <footer className="imprimir-color mt-10 border-t border-black/20 pt-2 text-[10px] text-black/50">
+          {proveedor.codigo} · Evaluación registrada el {formatearFecha(evaluacion.fecha)} ·
+          F-SOP-08-01 · {empresa.razon_social}
+        </footer>
       </article>
     </div>
   );
