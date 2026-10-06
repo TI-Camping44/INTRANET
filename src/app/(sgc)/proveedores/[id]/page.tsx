@@ -34,7 +34,7 @@ interface ProveedorDetalle {
   rubro: string | null;
   critico: boolean;
   correo: string | null;
-  telefono: string | null;
+  contacto_secundario: string | null;
   ciudad: string | null;
   pais: string | null;
   contacto: string | null;
@@ -166,7 +166,7 @@ export default async function PaginaProveedor({ params }: { params: { id: string
         <TarjetaIndicador
           titulo="Periodicidad"
           valor={`${proveedor.periodicidad_evaluacion_meses} meses`}
-          contexto={proveedor.critico ? "Proveedor crítico" : "Proveedor estándar"}
+          contexto={proveedor.critico ? "Asociado de Negocio crítico" : "Asociado de Negocio estándar"}
         />
       </div>
 
@@ -204,8 +204,11 @@ export default async function PaginaProveedor({ params }: { params: { id: string
               <dl className="space-y-2.5 text-xs">
                 <Dato etiqueta="RUC" valor={proveedor.ruc ?? "—"} />
                 <Dato etiqueta="Contacto" valor={proveedor.contacto ?? "—"} />
+                <Dato
+                  etiqueta="Segundo contacto"
+                  valor={proveedor.contacto_secundario ?? "—"}
+                />
                 <Dato etiqueta="Correo" valor={proveedor.correo ?? "—"} />
-                <Dato etiqueta="Teléfono" valor={proveedor.telefono ?? "—"} />
                 <Dato
                   etiqueta="Ubicación"
                   valor={[proveedor.ciudad, proveedor.pais].filter(Boolean).join(", ") || "—"}

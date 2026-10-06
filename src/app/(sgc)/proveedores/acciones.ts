@@ -7,6 +7,19 @@ import { departe, notificar } from "@/lib/notificaciones";
 import { CRITERIOS_EVALUACION, FACTOR_PUNTAJE, resultadoSugerido } from "@/lib/proveedores";
 import type { EstadoProveedor, ResultadoAccion } from "@/lib/tipos";
 
+/**
+ * Alta de un Asociado de Negocio.
+ *
+ * TODOS LOS CAMPOS SON OBLIGATORIOS menos el segundo contacto. Lo pidio
+ * Direccion el 6 de octubre, y se controla aca: la validacion del
+ * navegador es comodidad, no control.
+ *
+ * EL CODIGO NO SE ESCRIBE, SE GENERA. Nadie quiere inventarlo al dar de
+ * alta, y a mano se repite o se saltea. La columna es obligatoria y
+ * unica por empresa, asi que se calcula el siguiente `AN-xxx`. Los
+ * importados de Sofidya conservan su `SOF-PR-...`, por eso el
+ * correlativo mira solo los que empiezan con `AN-`.
+ */
 export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (!puedeGestionar(usuario)) {
@@ -15,50 +28,87 @@ export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> 
 
   const supabase = crearClienteServidor();
 
-  const codigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
-  const razonSocial = String(datos.get("razon_social") ?? "").trim();
-  const periodicidad = Number(datos.get("periodicidad_evaluacion_meses") ?? 12);
+  const campos = leerCampos(datos);
+  const problema = revisarCampos(campos);
+  if (problema) return { exito: false, error: problema };
 
-  if (!codigo) return { exito: false, error: "Indique el código del Asociado de Negocio." };
-  if (razonSocial.length < 3) {
-    return { exito: false, error: "La razón social debe tener al menos 3 caracteres." };
-  }
-  if (!Number.isInteger(periodicidad) || periodicidad < 1 || periodicidad > 60) {
-    return { exito: false, error: "La periodicidad de evaluación debe estar entre 1 y 60 meses." };
-  }
+  const { data: existentes } = await supabase
+    .from("proveedores")
+    .select("codigo")
+    .eq("empresa_id", usuario.empresa_id)
+    .ilike("codigo", "AN-%");
+
+  const secuencias = ((existentes as { codigo: string }[] | null) ?? [])
+    .map((fila) => Number.parseInt(fila.codigo.split("-")[1] ?? "", 10))
+    .filter((numero) => !Number.isNaN(numero));
+
+  const codigo = `AN-${String((secuencias.length ? Math.max(...secuencias) : 0) + 1).padStart(3, "0")}`;
 
   const { data: proveedor, error } = await supabase
     .from("proveedores")
     .insert({
       empresa_id: usuario.empresa_id,
       codigo,
-      razon_social: razonSocial,
-      nombre_comercial: String(datos.get("nombre_comercial") ?? "").trim() || null,
-      ruc: String(datos.get("ruc") ?? "").trim() || null,
-      rubro: String(datos.get("rubro") ?? "").trim() || null,
-      critico: datos.get("critico") === "on",
-      correo: String(datos.get("correo") ?? "").trim() || null,
-      telefono: String(datos.get("telefono") ?? "").trim() || null,
-      ciudad: String(datos.get("ciudad") ?? "").trim() || null,
-      pais: String(datos.get("pais") ?? "Paraguay").trim() || "Paraguay",
-      contacto: String(datos.get("contacto") ?? "").trim() || null,
-      periodicidad_evaluacion_meses: periodicidad,
+      ...campos,
       estado: "en_evaluacion",
-      impacto_en_calidad: String(datos.get("impacto_en_calidad") ?? "").trim() || null,
-      observaciones: String(datos.get("observaciones") ?? "").trim() || null,
     })
     .select("id, codigo")
     .single();
 
   if (error) {
     if (error.code === "23505") {
-      return { exito: false, error: `Ya existe un Asociado de Negocio con el código ${codigo}.` };
+      return {
+        exito: false,
+        error: "Dos altas al mismo tiempo tomaron el mismo código. Vuelva a intentar.",
+      };
     }
     return { exito: false, error: `No se pudo crear el Asociado de Negocio: ${error.message}` };
   }
 
   revalidatePath("/proveedores");
-  return { exito: true, id: proveedor.id, mensaje: `Asociado de Negocio ${proveedor.codigo} registrado.` };
+  return {
+    exito: true,
+    id: proveedor.id,
+    mensaje: `Asociado de Negocio ${proveedor.codigo} registrado.`,
+  };
+}
+
+/** Los campos del formulario, ya limpios. */
+function leerCampos(datos: FormData) {
+  return {
+    razon_social: String(datos.get("razon_social") ?? "").trim(),
+    nombre_comercial: String(datos.get("nombre_comercial") ?? "").trim(),
+    ruc: String(datos.get("ruc") ?? "").trim(),
+    rubro: String(datos.get("rubro") ?? "").trim(),
+    correo: String(datos.get("correo") ?? "").trim(),
+    ciudad: String(datos.get("ciudad") ?? "").trim(),
+    pais: String(datos.get("pais") ?? "").trim(),
+    contacto: String(datos.get("contacto") ?? "").trim(),
+    // EL UNICO OPCIONAL.
+    contacto_secundario: String(datos.get("contacto_secundario") ?? "").trim() || null,
+    periodicidad_evaluacion_meses: Number(datos.get("periodicidad_evaluacion_meses") ?? 12),
+  };
+}
+
+/** Devuelve el mensaje del primer problema, o null si esta todo bien. */
+function revisarCampos(campos: ReturnType<typeof leerCampos>): string | null {
+  if (campos.razon_social.length < 3) {
+    return "La razón social debe tener al menos 3 caracteres.";
+  }
+  if (!campos.nombre_comercial) return "Indique el nombre comercial.";
+  if (!campos.ruc) return "Indique el RUC.";
+  if (!campos.rubro) return "Indique el rubro.";
+  if (!campos.contacto) return "Indique el primer contacto.";
+  if (!campos.correo) return "Indique el correo.";
+  if (!campos.ciudad) return "Indique la ciudad.";
+  if (!campos.pais) return "Indique el país.";
+
+  const periodicidad = campos.periodicidad_evaluacion_meses;
+  if (!Number.isInteger(periodicidad) || periodicidad < 1 || periodicidad > 60) {
+    return "La periodicidad de evaluación debe estar entre 1 y 60 meses.";
+  }
+
+  return null;
 }
 
 export async function actualizarProveedor(
@@ -70,25 +120,15 @@ export async function actualizarProveedor(
     return { exito: false, error: "Su rol no permite editar Asociados de Negocio." };
   }
 
+  const campos = leerCampos(datos);
+  const problema = revisarCampos(campos);
+  if (problema) return { exito: false, error: problema };
+
   const supabase = crearClienteServidor();
 
-  const { error } = await supabase
-    .from("proveedores")
-    .update({
-      razon_social: String(datos.get("razon_social") ?? "").trim(),
-      nombre_comercial: String(datos.get("nombre_comercial") ?? "").trim() || null,
-      ruc: String(datos.get("ruc") ?? "").trim() || null,
-      rubro: String(datos.get("rubro") ?? "").trim() || null,
-      critico: datos.get("critico") === "on",
-      correo: String(datos.get("correo") ?? "").trim() || null,
-      telefono: String(datos.get("telefono") ?? "").trim() || null,
-      ciudad: String(datos.get("ciudad") ?? "").trim() || null,
-      contacto: String(datos.get("contacto") ?? "").trim() || null,
-      periodicidad_evaluacion_meses: Number(datos.get("periodicidad_evaluacion_meses") ?? 12),
-      impacto_en_calidad: String(datos.get("impacto_en_calidad") ?? "").trim() || null,
-      observaciones: String(datos.get("observaciones") ?? "").trim() || null,
-    })
-    .eq("id", id);
+  // El codigo no se edita: lo genero el alta y es lo que identifica al
+  // Asociado de Negocio en el padron.
+  const { error } = await supabase.from("proveedores").update(campos).eq("id", id);
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
@@ -126,6 +166,19 @@ export async function registrarEvaluacion(
     valores[criterio.campo] = valor;
   }
 
+  // EL PERIODO EVALUADO, EN DOS FECHAS. La base no acepta un «hasta»
+  // anterior al «desde», pero el mensaje de PostgreSQL no se entiende:
+  // se controla aca para decirlo en castellano.
+  const periodoDesde = String(datos.get("periodo_desde") ?? "");
+  const periodoHasta = String(datos.get("periodo_hasta") ?? "");
+
+  if (!periodoDesde || !periodoHasta) {
+    return { exito: false, error: "Indique el período evaluado: desde y hasta." };
+  }
+  if (periodoHasta < periodoDesde) {
+    return { exito: false, error: "El «hasta» del período no puede ser anterior al «desde»." };
+  }
+
   const puntaje =
     Object.values(valores).reduce((suma, valor) => suma + valor, 0) * FACTOR_PUNTAJE;
 
@@ -135,7 +188,8 @@ export async function registrarEvaluacion(
   const { error } = await supabase.from("proveedor_evaluaciones").insert({
     proveedor_id: proveedorId,
     fecha: String(datos.get("fecha") ?? new Date().toISOString().slice(0, 10)),
-    periodo: String(datos.get("periodo") ?? "").trim() || null,
+    periodo_desde: periodoDesde,
+    periodo_hasta: periodoHasta,
     ...valores,
     resultado,
     comentario: String(datos.get("comentario") ?? "").trim() || null,

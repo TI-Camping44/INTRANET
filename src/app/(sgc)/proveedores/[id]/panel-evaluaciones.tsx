@@ -25,7 +25,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { registrarEvaluacion } from "@/app/(sgc)/proveedores/acciones";
-import { CRITERIOS_EVALUACION, FACTOR_PUNTAJE, resultadoSugerido } from "@/lib/proveedores";
+import { CRITERIOS_EVALUACION, ESCALAS_EVALUACION, FACTOR_PUNTAJE, resultadoSugerido } from "@/lib/proveedores";
 import { ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
 import { formatearFecha, formatearNumero, hoyEnAsuncion } from "@/lib/formato";
 import type { EstadoProveedor } from "@/lib/tipos";
@@ -34,6 +34,8 @@ interface Evaluacion {
   id: string;
   fecha: string;
   periodo: string | null;
+  periodo_desde: string | null;
+  periodo_hasta: string | null;
   calidad: number;
   logistica: number;
   legal: number;
@@ -43,14 +45,6 @@ interface Evaluacion {
   comentario: string | null;
   evaluador: { nombre_completo: string } | null;
 }
-
-const ESCALA = [
-  { valor: 1, etiqueta: "1 · Deficiente" },
-  { valor: 2, etiqueta: "2 · Insuficiente" },
-  { valor: 3, etiqueta: "3 · Aceptable" },
-  { valor: 4, etiqueta: "4 · Bueno" },
-  { valor: 5, etiqueta: "5 · Excelente" },
-];
 
 /**
  * Evaluacion periodica del proveedor sobre los cuatro criterios del
@@ -72,6 +66,7 @@ export function PanelEvaluaciones({
   const [puntos, definirPuntos] = React.useState<Record<string, number>>(() =>
     Object.fromEntries(CRITERIOS_EVALUACION.map((criterio) => [criterio.campo, 3])),
   );
+  const [periodoDesde, definirPeriodoDesde] = React.useState("");
 
   const puntajePrevisto =
     Object.values(puntos).reduce((suma, valor) => suma + valor, 0) * FACTOR_PUNTAJE;
@@ -125,7 +120,11 @@ export function PanelEvaluaciones({
                   {formatearFecha(evaluacion.fecha)}
                 </TablaCelda>
                 <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
-                  {evaluacion.periodo ?? "—"}
+                  {evaluacion.periodo_desde && evaluacion.periodo_hasta
+                    ? `${formatearFecha(evaluacion.periodo_desde)} a ${formatearFecha(
+                        evaluacion.periodo_hasta,
+                      )}`
+                    : (evaluacion.periodo ?? "—")}
                 </TablaCelda>
                 {CRITERIOS_EVALUACION.map((criterio) => (
                   <TablaCelda
@@ -201,8 +200,34 @@ export function PanelEvaluaciones({
                     required
                   />
                 </GrupoCampo>
-                <GrupoCampo etiqueta="Período evaluado" htmlFor="periodo">
-                  <Entrada id="periodo" name="periodo" placeholder="Semestre 1" />
+              </div>
+
+              {/* EL PERÍODO, EN DOS FECHAS. Era un texto libre —«Semestre
+                  1»— y así no se podía ordenar, ni saber si dos
+                  evaluaciones se pisan, ni calcular cuánto abarcó cada
+                  una. La base no acepta un «hasta» anterior al «desde». */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <GrupoCampo etiqueta="Período evaluado · desde" htmlFor="periodo_desde" requerido>
+                  <Entrada
+                    id="periodo_desde"
+                    name="periodo_desde"
+                    type="date"
+                    required
+                    value={periodoDesde}
+                    max={hoyEnAsuncion()}
+                    onChange={(evento) => definirPeriodoDesde(evento.target.value)}
+                  />
+                </GrupoCampo>
+                <GrupoCampo etiqueta="Período evaluado · hasta" htmlFor="periodo_hasta" requerido>
+                  <Entrada
+                    id="periodo_hasta"
+                    name="periodo_hasta"
+                    type="date"
+                    required
+                    min={periodoDesde || undefined}
+                    max={hoyEnAsuncion()}
+                    defaultValue={hoyEnAsuncion()}
+                  />
                 </GrupoCampo>
               </div>
 
@@ -213,6 +238,10 @@ export function PanelEvaluaciones({
                   htmlFor={criterio.campo}
                   requerido
                 >
+                  {/* CADA CRITERIO TIENE SU PROPIA ESCALA. Antes los
+                      cuatro compartían una genérica —«3 · Aceptable»— que
+                      no decía qué era aceptable en cada uno: un 3 de
+                      logística y un 3 de legal se elegían a ojo. */}
                   <Seleccion
                     id={criterio.campo}
                     name={criterio.campo}
@@ -224,9 +253,9 @@ export function PanelEvaluaciones({
                       }))
                     }
                   >
-                    {ESCALA.map((opcion) => (
+                    {ESCALAS_EVALUACION[criterio.campo].map((opcion) => (
                       <option key={opcion.valor} value={opcion.valor}>
-                        {opcion.etiqueta}
+                        {opcion.valor} · {opcion.texto}
                       </option>
                     ))}
                   </Seleccion>

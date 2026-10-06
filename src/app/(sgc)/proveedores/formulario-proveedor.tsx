@@ -4,15 +4,14 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, Entrada, GrupoCampo } from "@/components/ui/campo";
+import { Entrada, GrupoCampo } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { crearProveedor } from "@/app/(sgc)/proveedores/acciones";
 
-export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string }) {
+export function FormularioProveedor() {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
-  const [critico, definirCritico] = React.useState(false);
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -22,7 +21,7 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
     const resultado = await crearProveedor(new FormData(evento.currentTarget));
 
     if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Proveedor registrado.");
+      toast.success(resultado.mensaje ?? "Asociado de Negocio registrado.");
       router.push(`/proveedores/${resultado.id}`);
       router.refresh();
     } else {
@@ -36,60 +35,66 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
     <form onSubmit={enviar}>
       <Tarjeta className="p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <GrupoCampo etiqueta="Código" htmlFor="codigo" requerido>
-            <Entrada
-              id="codigo"
-              name="codigo"
-              defaultValue={codigoSugerido}
-              required
-              className="tabular"
-            />
-          </GrupoCampo>
+          {/* TODO OBLIGATORIO MENOS EL SEGUNDO CONTACTO. Lo pidió
+              Dirección el 6 de octubre. El control de verdad está en la
+              acción de servidor; esto evita el viaje de ida y vuelta.
 
-          <GrupoCampo etiqueta="RUC" htmlFor="ruc">
-            <Entrada id="ruc" name="ruc" placeholder="80012345-6" className="tabular" />
-          </GrupoCampo>
-
+              SALIERON: el código —lo genera el alta, nadie quiere
+              inventarlo—, el teléfono —con el contacto escrito se
+              entiende, y suelto no decía de quién era—, la marca de
+              crítico, el impacto en la calidad y las observaciones. */}
           <GrupoCampo etiqueta="Razón social" htmlFor="razon_social" requerido className="sm:col-span-2">
             <Entrada id="razon_social" name="razon_social" required minLength={3} />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Nombre comercial" htmlFor="nombre_comercial">
-            <Entrada id="nombre_comercial" name="nombre_comercial" />
+          <GrupoCampo etiqueta="Nombre comercial" htmlFor="nombre_comercial" requerido>
+            <Entrada id="nombre_comercial" name="nombre_comercial" required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Rubro" htmlFor="rubro">
-            <Entrada id="rubro" name="rubro" placeholder="Equipamiento outdoor" />
+          <GrupoCampo etiqueta="RUC" htmlFor="ruc" requerido>
+            <Entrada
+              id="ruc"
+              name="ruc"
+              required
+              placeholder="80012345-6"
+              className="tabular"
+            />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Contacto" htmlFor="contacto">
-            <Entrada id="contacto" name="contacto" />
+          <GrupoCampo etiqueta="Rubro" htmlFor="rubro" requerido>
+            <Entrada id="rubro" name="rubro" required placeholder="Equipamiento outdoor" />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Correo" htmlFor="correo">
-            <Entrada id="correo" name="correo" type="email" />
+          <GrupoCampo etiqueta="Correo" htmlFor="correo" requerido>
+            <Entrada id="correo" name="correo" type="email" required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Teléfono" htmlFor="telefono">
-            <Entrada id="telefono" name="telefono" />
+          <GrupoCampo etiqueta="Contacto" htmlFor="contacto" requerido>
+            <Entrada id="contacto" name="contacto" required />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Ciudad" htmlFor="ciudad">
-            <Entrada id="ciudad" name="ciudad" placeholder="Asunción" />
+          <GrupoCampo
+            etiqueta="Segundo contacto"
+            htmlFor="contacto_secundario"
+            ayuda="Opcional. Es el único campo que puede quedar vacío."
+          >
+            <Entrada id="contacto_secundario" name="contacto_secundario" />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="País" htmlFor="pais">
-            <Entrada id="pais" name="pais" defaultValue="Paraguay" />
+          <GrupoCampo etiqueta="Ciudad" htmlFor="ciudad" requerido>
+            <Entrada id="ciudad" name="ciudad" required placeholder="Asunción" />
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="País" htmlFor="pais" requerido>
+            <Entrada id="pais" name="pais" required defaultValue="Paraguay" />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Periodicidad de evaluación (meses)"
             htmlFor="periodicidad_evaluacion_meses"
-            ayuda={
-              critico
-                ? "Los Asociados de Negocio críticos suelen evaluarse cada 6 meses."
-                : "Se usa para agendar la reevaluación automáticamente."
-            }
+            requerido
+            className="sm:col-span-2"
+            ayuda="Se usa para agendar la reevaluación automáticamente."
           >
             <Entrada
               id="periodicidad_evaluacion_meses"
@@ -97,44 +102,10 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
               type="number"
               min={1}
               max={60}
-              value={critico ? 6 : undefined}
-              defaultValue={critico ? undefined : 12}
-              onChange={() => undefined}
-              readOnly={critico}
+              required
+              defaultValue={12}
               className="tabular"
             />
-          </GrupoCampo>
-
-          <div className="sm:col-span-2">
-            <label className="flex items-start gap-2 text-xs">
-              <input
-                type="checkbox"
-                name="critico"
-                className="mt-0.5 size-4 accent-[#E01E37]"
-                checked={critico}
-                onChange={(evento) => definirCritico(evento.target.checked)}
-              />
-              <span>
-                <span className="font-medium">Asociado de Negocio crítico</span>
-                <span className="block text-atenuado-contraste">
-                  Su incumplimiento afecta directamente la calidad del producto o el cumplimiento
-                  legal. Se evalúa con mayor frecuencia y su resultado desfavorable avisa a Calidad.
-                </span>
-              </span>
-            </label>
-          </div>
-
-          <GrupoCampo
-            etiqueta="¿De qué manera afecta a la calidad?"
-            htmlFor="impacto_en_calidad"
-            className="sm:col-span-2"
-            ayuda="Del formulario F-SOP-08-01. Es el fundamento de por qué este Asociado de Negocio se evalúa."
-          >
-            <AreaTexto id="impacto_en_calidad" name="impacto_en_calidad" rows={2} />
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Observaciones" htmlFor="observaciones" className="sm:col-span-2">
-            <AreaTexto id="observaciones" name="observaciones" rows={2} />
           </GrupoCampo>
         </div>
 
