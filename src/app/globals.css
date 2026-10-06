@@ -232,7 +232,11 @@
     max-width: none !important;
   }
 
+  /* A4 declarado. Sin `size` el navegador usa su tamano por defecto,
+     que en Chrome suele ser Carta —media pulgada menos de alto— y la
+     firma de la carta de evaluacion se iba sola a la segunda hoja. */
   @page {
-    margin: 14mm 16mm;
+    size: A4;
+    margin: 12mm 16mm;
   }
 }

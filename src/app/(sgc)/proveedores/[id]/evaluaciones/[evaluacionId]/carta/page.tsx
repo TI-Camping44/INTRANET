@@ -189,7 +189,7 @@ export default async function PaginaCartaEvaluacion({
 
       {/* La carta. Negro sobre blanco también en modo oscuro: es un
           documento que se entrega, no una pantalla. */}
-      <article className="rounded-md border border-borde bg-white p-10 text-[13px] leading-relaxed text-black print:rounded-none print:border-0 print:p-0">
+      <article className="rounded-md border border-borde bg-white p-10 text-[13px] leading-relaxed text-black print:rounded-none print:border-0 print:p-0 print:text-[12px] print:leading-[1.5]">
         {/* MEMBRETE */}
         <header className="imprimir-color flex items-start justify-between gap-6 border-b-2 border-[#E01E37] pb-4 print:pb-3">
           <div className="flex items-center gap-4">
@@ -203,7 +203,7 @@ export default async function PaginaCartaEvaluacion({
               // el de Vitalica es la flor sobre la palabra— y a ancho fijo
               // uno quedaria el doble de alto que el otro.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logotipo} alt="" className="h-16 w-auto print:h-14" />
+              <img src={logotipo} alt="" className="h-16 w-auto print:h-12" />
             ) : null}
             <div>
               <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
@@ -251,7 +251,7 @@ export default async function PaginaCartaEvaluacion({
               return (
                 <tr key={criterio.campo} className="break-inside-avoid border-b border-black/15 align-top">
                   <td className="py-1.5 font-medium">{criterio.etiqueta}</td>
-                  <td className="py-1.5 pr-3 text-justify">{QUE_EVALUAMOS[criterio.campo]}</td>
+                  <td className="py-1.5 pr-3">{QUE_EVALUAMOS[criterio.campo]}</td>
                   <td className="py-1.5">
                     <span className="font-semibold tabular">{punto}</span> · {texto}
                   </td>
@@ -310,9 +310,9 @@ export default async function PaginaCartaEvaluacion({
 
         <p className="mt-4">Agradecemos su compromiso y esperamos seguir trabajando juntos.</p>
 
-        <div className="mt-12 break-inside-avoid print:mt-10">
+        <div className="mt-12 break-inside-avoid print:mt-8">
           <p>Atentamente,</p>
-          <div className="mt-12 w-64 border-t border-black/50 pt-1 print:mt-10">
+          <div className="mt-12 w-64 border-t border-black/50 pt-1 print:mt-8">
             <p className="font-semibold">
               {evaluacion.evaluador?.nombre_completo ?? usuario.nombre_completo}
             </p>
