@@ -143,8 +143,80 @@ export async function actualizarProveedor(
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
+  revalidatePath("/proveedores");
   revalidatePath(`/proveedores/${id}`);
   return { exito: true, mensaje: "Asociado de Negocio actualizado." };
+}
+
+/**
+ * Elimina un Asociado de Negocio.
+ *
+ * SE LLEVA SU HISTORIAL DE EVALUACIONES, por la cascada de la clave
+ * foranea. Existe para lo que no deberia haberse cargado —una prueba, un
+ * duplicado, el registro de ejemplo—: a un Asociado de Negocio real se
+ * lo pasa a inactivo, no se lo borra, porque la norma pide conservar la
+ * evidencia de como se lo evaluo.
+ *
+ * NO SE BORRA SI ESTA EN USO. La clave foranea de `activos` y
+ * `mantenimientos` es `on delete set null`: borrarlo dejaria 84 activos
+ * sin decir quien los proveyo, en silencio y sin vuelta atras. Antes que
+ * eso, se corta y se dice donde esta usado.
+ */
+export async function eliminarProveedor(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (usuario.rol !== "administrador_sgc") {
+    return { exito: false, error: "Solo el Administrador SGC puede eliminar un Asociado de Negocio." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: proveedor } = await supabase
+    .from("proveedores")
+    .select("codigo, razon_social")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!proveedor) {
+    return { exito: false, error: "El Asociado de Negocio no existe o no tiene acceso." };
+  }
+
+  const [{ count: activos }, { count: mantenimientos }] = await Promise.all([
+    supabase
+      .from("activos")
+      .select("id", { count: "exact", head: true })
+      .eq("proveedor_id", id),
+    supabase
+      .from("mantenimientos")
+      .select("id", { count: "exact", head: true })
+      .eq("proveedor_id", id),
+  ]);
+
+  const usos: string[] = [];
+  if (activos) usos.push(`${activos} ${activos === 1 ? "activo" : "activos"}`);
+  if (mantenimientos) {
+    usos.push(`${mantenimientos} ${mantenimientos === 1 ? "mantenimiento" : "mantenimientos"}`);
+  }
+
+  if (usos.length > 0) {
+    return {
+      exito: false,
+      error:
+        `No se puede eliminar: está asignado a ${usos.join(" y ")}. ` +
+        "Quítelo de ahí primero, o páselo a inactivo si ya no se le compra.",
+    };
+  }
+
+  const { error } = await supabase.from("proveedores").delete().eq("id", id);
+
+  if (error) {
+    return { exito: false, error: `No se pudo eliminar el Asociado de Negocio: ${error.message}` };
+  }
+
+  revalidatePath("/proveedores");
+  return {
+    exito: true,
+    mensaje: `Asociado de Negocio ${(proveedor as { codigo: string }).codigo} eliminado.`,
+  };
 }
 
 /**

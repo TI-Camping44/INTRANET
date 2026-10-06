@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import {
   InsigniaDemostracion,
   InsigniaEstadoProveedor,
 } from "@/components/comunes/insignias-estado";
+import { EliminarAsociado } from "@/app/(sgc)/proveedores/[id]/eliminar-asociado";
 import { PanelEvaluaciones } from "@/app/(sgc)/proveedores/[id]/panel-evaluaciones";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { Boton } from "@/components/ui/boton";
@@ -118,6 +119,26 @@ export default async function PaginaProveedor({ params }: { params: { id: string
       <EncabezadoPagina
         titulo={proveedor.razon_social}
         descripcion={proveedor.nombre_comercial ?? undefined}
+        acciones={
+          <>
+            {gestiona ? (
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                <Link href={`/proveedores/${params.id}/editar`}>
+                  <Pencil /> Editar
+                </Link>
+              </Boton>
+            ) : null}
+            {/* Borrar es del Administrador SGC, no de cualquiera que
+                gestione: se lleva el historial de evaluaciones. */}
+            {usuario.rol === "administrador_sgc" ? (
+              <EliminarAsociado
+                proveedorId={params.id}
+                codigo={proveedor.codigo}
+                evaluaciones={listaEvaluaciones.length}
+              />
+            ) : null}
+          </>
+        }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

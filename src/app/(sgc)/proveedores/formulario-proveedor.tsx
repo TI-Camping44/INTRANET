@@ -6,26 +6,60 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { crearProveedor } from "@/app/(sgc)/proveedores/acciones";
+import { actualizarProveedor, crearProveedor } from "@/app/(sgc)/proveedores/acciones";
 
 /** Las dos empresas del grupo, como las devuelve `empresas_del_grupo()`. */
 type EmpresaDelGrupo = { id: string; nombre: string };
 
-export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] }) {
+/** Los datos del Asociado de Negocio que este formulario edita. */
+export interface ProveedorInicial {
+  id: string;
+  empresa_compradora_id: string | null;
+  razon_social: string;
+  nombre_comercial: string | null;
+  ruc: string | null;
+  rubro: string | null;
+  correo: string | null;
+  contacto: string | null;
+  contacto_secundario: string | null;
+  ciudad: string | null;
+  pais: string | null;
+  periodicidad_evaluacion_meses: number;
+}
+
+/**
+ * El mismo formulario sirve para el alta y para la edición.
+ *
+ * EL CÓDIGO NO ESTÁ NI EN UNO NI EN OTRO: lo genera el alta y es lo que
+ * identifica al Asociado de Negocio en el padrón; cambiarlo después
+ * rompería la trazabilidad de sus evaluaciones.
+ */
+export function FormularioProveedor({
+  empresas,
+  inicial,
+}: {
+  empresas: EmpresaDelGrupo[];
+  inicial?: ProveedorInicial;
+}) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
+
+  const editando = Boolean(inicial);
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     definirEnviando(true);
     definirError(null);
 
-    const resultado = await crearProveedor(new FormData(evento.currentTarget));
+    const datos = new FormData(evento.currentTarget);
+    const resultado = inicial
+      ? await actualizarProveedor(inicial.id, datos)
+      : await crearProveedor(datos);
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Asociado de Negocio registrado.");
-      router.push(`/proveedores/${resultado.id}`);
+      router.push(`/proveedores/${inicial?.id ?? resultado.id}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -61,7 +95,7 @@ export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] 
               id="empresa_compradora_id"
               name="empresa_compradora_id"
               required
-              defaultValue={empresas[0]?.id ?? ""}
+              defaultValue={inicial?.empresa_compradora_id ?? empresas[0]?.id ?? ""}
             >
               <option value="" disabled>
                 Elija la empresa…
@@ -75,11 +109,22 @@ export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] 
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Razón social" htmlFor="razon_social" requerido className="sm:col-span-2">
-            <Entrada id="razon_social" name="razon_social" required minLength={3} />
+            <Entrada
+              id="razon_social"
+              name="razon_social"
+              required
+              minLength={3}
+              defaultValue={inicial?.razon_social ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Nombre comercial" htmlFor="nombre_comercial" requerido>
-            <Entrada id="nombre_comercial" name="nombre_comercial" required />
+            <Entrada
+              id="nombre_comercial"
+              name="nombre_comercial"
+              required
+              defaultValue={inicial?.nombre_comercial ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="RUC" htmlFor="ruc" requerido>
@@ -89,19 +134,37 @@ export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] 
               required
               placeholder="80012345-6"
               className="tabular"
+              defaultValue={inicial?.ruc ?? ""}
             />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Rubro" htmlFor="rubro" requerido>
-            <Entrada id="rubro" name="rubro" required placeholder="Equipamiento outdoor" />
+            <Entrada
+              id="rubro"
+              name="rubro"
+              required
+              placeholder="Equipamiento outdoor"
+              defaultValue={inicial?.rubro ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Correo" htmlFor="correo" requerido>
-            <Entrada id="correo" name="correo" type="email" required />
+            <Entrada
+              id="correo"
+              name="correo"
+              type="email"
+              required
+              defaultValue={inicial?.correo ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Contacto" htmlFor="contacto" requerido>
-            <Entrada id="contacto" name="contacto" required />
+            <Entrada
+              id="contacto"
+              name="contacto"
+              required
+              defaultValue={inicial?.contacto ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -109,15 +172,30 @@ export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] 
             htmlFor="contacto_secundario"
             ayuda="Opcional. Es el único campo que puede quedar vacío."
           >
-            <Entrada id="contacto_secundario" name="contacto_secundario" />
+            <Entrada
+              id="contacto_secundario"
+              name="contacto_secundario"
+              defaultValue={inicial?.contacto_secundario ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Ciudad" htmlFor="ciudad" requerido>
-            <Entrada id="ciudad" name="ciudad" required placeholder="Asunción" />
+            <Entrada
+              id="ciudad"
+              name="ciudad"
+              required
+              placeholder="Asunción"
+              defaultValue={inicial?.ciudad ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="País" htmlFor="pais" requerido>
-            <Entrada id="pais" name="pais" required defaultValue="Paraguay" />
+            <Entrada
+              id="pais"
+              name="pais"
+              required
+              defaultValue={inicial?.pais ?? "Paraguay"}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -134,7 +212,7 @@ export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] 
               min={1}
               max={60}
               required
-              defaultValue={12}
+              defaultValue={inicial?.periodicidad_evaluacion_meses ?? 12}
               className="tabular"
             />
           </GrupoCampo>
@@ -146,8 +224,8 @@ export function FormularioProveedor({ empresas }: { empresas: EmpresaDelGrupo[] 
           <Boton type="button" variante="contorno" onClick={() => router.back()}>
             Cancelar
           </Boton>
-          <Boton type="submit" disabled={enviando}>
-            {enviando ? "Registrando…" : "Registrar Asociado de Negocio"}
+          <Boton type="submit" cargando={enviando}>
+            {editando ? "Guardar cambios" : "Registrar Asociado de Negocio"}
           </Boton>
         </div>
       </Tarjeta>
