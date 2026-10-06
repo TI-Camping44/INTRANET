@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Paperclip, Trash2, Upload, X } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
 import { Entrada, GrupoCampo } from "@/components/ui/campo";
 import {
   Dialogo,
@@ -28,6 +29,13 @@ import {
 } from "@/app/(sgc)/recursos-humanos/formacion/acciones";
 import { AreaTexto, Seleccion } from "@/components/ui/campo";
 import { ETIQUETAS_EFICACIA } from "@/lib/constantes";
+import {
+  CAUSAS_NO_EFICACIA,
+  CLASES_EFICACIA_ACCION,
+  eficaciaDeLaAccion,
+  ETIQUETAS_EFICACIA_ACCION,
+  type CausaNoEficacia,
+} from "@/lib/formacion";
 import type { ResultadoEficacia } from "@/lib/tipos";
 import { ACEPTA_EVIDENCIA, describirTamano } from "@/lib/adjuntos";
 import { formatearFecha } from "@/lib/formato";
@@ -39,6 +47,11 @@ interface Participante {
   usuario_id: string;
   asistio: boolean | null;
   eficacia: string | null;
+  /** El primer resultado, cuando ya hubo una reevaluación. */
+  eficacia_inicial: string | null;
+  causa_no_eficacia: string | null;
+  plan_refuerzo: string | null;
+  fecha_reevaluacion: string | null;
   usuarios: { nombre_completo: string; correo: string } | null;
 }
 
@@ -87,8 +100,29 @@ export function PanelEjecucion({
   const [evaluando, definirEvaluando] = React.useState<Participante | null>(null);
   const [resultado, definirResultado] = React.useState<ResultadoEficacia>("eficaz");
   const [observacion, definirObservacion] = React.useState("");
+  const [causa, definirCausa] = React.useState<CausaNoEficacia | "">("");
+  const [planRefuerzo, definirPlanRefuerzo] = React.useState("");
+  const [fechaReevaluacion, definirFechaReevaluacion] = React.useState("");
 
   const ejecutada = estado === "ejecutada";
+  // Con un solo participante el resultado de la acción es el de esa
+  // persona, así que un «no eficaz» exige saber de dónde vino.
+  const esIndividual = participantes.length === 1;
+  const yaSeReevaluo = Boolean(evaluando?.eficacia_inicial);
+
+  // El resultado de la ACCION sale de contar el de su gente. No se
+  // guarda en ninguna columna: se deduce acá y en la base con la misma
+  // regla, así que no puede quedar viejo.
+  const eficaciaAccion = eficaciaDeLaAccion(
+    participantes.map((participante) => ({
+      eficacia: (participante.eficacia ?? "pendiente") as ResultadoEficacia,
+      eficacia_inicial: participante.eficacia_inicial as ResultadoEficacia | null,
+    })),
+  );
+
+  const evaluados = participantes.filter(
+    (participante) => participante.eficacia && participante.eficacia !== "pendiente",
+  ).length;
   const asistieron = participantes.filter((participante) => participante.asistio === true).length;
 
   async function marcar(participante: Participante, asistio: boolean) {
@@ -109,18 +143,22 @@ export function PanelEjecucion({
     if (!evaluando) return;
 
     definirProcesando(true);
-    const salida = await verificarEficacia(
-      evaluando.id,
-      formacionId,
-      resultado,
+    const salida = await verificarEficacia(evaluando.id, formacionId, {
+      eficacia: resultado,
       observacion,
-    );
+      causa: causa || null,
+      planRefuerzo,
+      fechaReevaluacion,
+    });
     definirProcesando(false);
 
     if (salida.exito) {
       toast.success(salida.mensaje ?? "Eficacia verificada.");
       definirEvaluando(null);
       definirObservacion("");
+      definirCausa("");
+      definirPlanRefuerzo("");
+      definirFechaReevaluacion("");
       router.refresh();
     } else {
       toast.error(salida.error);
@@ -158,11 +196,26 @@ export function PanelEjecucion({
   return (
     <>
       <Tarjeta>
-        <TarjetaCabecera>
+        <TarjetaCabecera className="flex-row items-start justify-between gap-3">
           <TarjetaTitulo>
             {ejecutada ? "Registro de participación" : "Participantes"}
             {ejecutada ? ` · ${asistieron} de ${participantes.length}` : ""}
           </TarjetaTitulo>
+
+          {/* El resultado de la acción, deducido. Se muestra donde se
+              evalúa: si no, quien carga persona por persona nunca ve en
+              qué terminó la acción. */}
+          {ejecutada && requiereEficacia ? (
+            <span className="shrink-0 text-right">
+              <Insignia variante="contorno" className={CLASES_EFICACIA_ACCION[eficaciaAccion]}>
+                {ETIQUETAS_EFICACIA_ACCION[eficaciaAccion]}
+              </Insignia>
+              <span className="mt-1 block text-[10px] text-atenuado-contraste">
+                {evaluados} de {participantes.length} evaluado
+                {participantes.length === 1 ? "" : "s"}
+              </span>
+            </span>
+          ) : null}
         </TarjetaCabecera>
         <TarjetaContenido>
           {participantes.length === 0 ? (
@@ -244,13 +297,18 @@ export function PanelEjecucion({
                           variante="fantasma"
                           onClick={() => {
                             definirEvaluando(participante);
+                            // Se abre en «Eficaz» salvo que ya tenga un
+                            // resultado binario cargado. Con «no eficaz»
+                            // previo, lo que viene es la reevaluación.
                             definirResultado(
-                              (participante.eficacia as ResultadoEficacia) === "pendiente" ||
-                                !participante.eficacia
-                                ? "eficaz"
-                                : (participante.eficacia as ResultadoEficacia),
+                              participante.eficacia === "no_eficaz" ? "no_eficaz" : "eficaz",
                             );
                             definirObservacion("");
+                            definirCausa(
+                              (participante.causa_no_eficacia as CausaNoEficacia | null) ?? "",
+                            );
+                            definirPlanRefuerzo(participante.plan_refuerzo ?? "");
+                            definirFechaReevaluacion(participante.fecha_reevaluacion ?? "");
                           }}
                         >
                           {participante.eficacia && participante.eficacia !== "pendiente"
@@ -381,6 +439,11 @@ export function PanelEjecucion({
                 que se le enseñó. Se registra por persona, no por curso.
               </p>
 
+              {/* EL RESULTADO DE LA PERSONA ES BINARIO. «Parcialmente
+                  eficaz» salió de acá el 6 de octubre: es un resultado de
+                  la acción, no de alguien. Una persona aplica lo que
+                  aprendió o no lo aplica; de contar a su gente sale el
+                  parcialmente eficaz de la acción. */}
               <GrupoCampo etiqueta="Resultado" htmlFor="resultado-eficacia" requerido>
                 <Seleccion
                   id="resultado-eficacia"
@@ -390,11 +453,7 @@ export function PanelEjecucion({
                   }
                 >
                   <option value="eficaz">{ETIQUETAS_EFICACIA.eficaz}</option>
-                  <option value="parcialmente_eficaz">
-                    {ETIQUETAS_EFICACIA.parcialmente_eficaz}
-                  </option>
                   <option value="no_eficaz">{ETIQUETAS_EFICACIA.no_eficaz}</option>
-                  <option value="pendiente">{ETIQUETAS_EFICACIA.pendiente}</option>
                 </Seleccion>
               </GrupoCampo>
 
@@ -411,6 +470,86 @@ export function PanelEjecucion({
                   onChange={(evento) => definirObservacion(evento.target.value)}
                 />
               </GrupoCampo>
+
+              {/* CON UNA SOLA PERSONA, UN «NO EFICAZ» NO CONCLUYE NADA
+                  TODAVÍA: no se puede distinguir si falló la formación o
+                  falló ella, y de eso depende qué se corrige. */}
+              {esIndividual && resultado === "no_eficaz" ? (
+                <div className="space-y-3 rounded-md border border-semaforo-medio/40
+                                bg-semaforo-medio/5 p-3">
+                  <p className="text-[11px] leading-relaxed text-atenuado-contraste">
+                    Es el único participante, así que este resultado no alcanza para concluir
+                    que la capacitación falló. Indique dónde estuvo la causa: de eso depende si
+                    se corrige la capacitación o se refuerza a la persona.
+                  </p>
+
+                  <GrupoCampo etiqueta="Causa" htmlFor="causa-eficacia" requerido>
+                    <Seleccion
+                      id="causa-eficacia"
+                      value={causa}
+                      onChange={(evento) =>
+                        definirCausa(evento.target.value as CausaNoEficacia | "")
+                      }
+                    >
+                      <option value="">Elija la causa…</option>
+                      {CAUSAS_NO_EFICACIA.map((opcion) => (
+                        <option key={opcion.valor} value={opcion.valor}>
+                          {opcion.etiqueta} · {opcion.ejemplos}
+                        </option>
+                      ))}
+                    </Seleccion>
+                  </GrupoCampo>
+
+                  {causa ? (
+                    <p className="text-[11px] leading-relaxed">
+                      {CAUSAS_NO_EFICACIA.find((opcion) => opcion.valor === causa)?.queSeHace}
+                    </p>
+                  ) : null}
+
+                  {causa === "participante" ? (
+                    <>
+                      <GrupoCampo
+                        etiqueta="Refuerzo"
+                        htmlFor="plan-refuerzo"
+                        requerido
+                        ayuda="Qué se hace antes de volver a evaluar."
+                      >
+                        <AreaTexto
+                          id="plan-refuerzo"
+                          rows={2}
+                          value={planRefuerzo}
+                          onChange={(evento) => definirPlanRefuerzo(evento.target.value)}
+                        />
+                      </GrupoCampo>
+
+                      <GrupoCampo
+                        etiqueta="Fecha de reevaluación"
+                        htmlFor="fecha-reevaluacion"
+                        requerido
+                        ayuda="Un refuerzo sin plazo no se revisa nunca. Se reevalúa una sola vez."
+                      >
+                        <Entrada
+                          id="fecha-reevaluacion"
+                          type="date"
+                          value={fechaReevaluacion}
+                          onChange={(evento) => definirFechaReevaluacion(evento.target.value)}
+                        />
+                      </GrupoCampo>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {yaSeReevaluo ? (
+                <p className="rounded-md border border-borde p-3 text-[11px] leading-relaxed
+                              text-atenuado-contraste">
+                  Esta persona ya fue reevaluada una vez: la primera evaluación dio «
+                  {ETIQUETAS_EFICACIA[evaluando?.eficacia_inicial as ResultadoEficacia] ??
+                    "no eficaz"}
+                  ». Si sigue sin ser eficaz, corresponde una acción correctiva y no otra
+                  reevaluación.
+                </p>
+              ) : null}
             </div>
 
             <DialogoPie className="mt-5">

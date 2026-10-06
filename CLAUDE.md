@@ -272,7 +272,9 @@ en la base de datos y en `src/lib/`.
 | Competencias: escala 1 a 5; la brecha es exigido menos alcanzado | `brecha` generada en SQL y `NIVELES_COMPETENCIA` |
 | El nivel exigido sale de la matriz del puesto de la persona, no se escribe a mano | `evaluarCompetencia()` |
 | Solo el líder inmediato o Calidad evalúan a una persona | `evaluarCompetencia()` |
-| La eficacia de una capacitación se verifica por persona, no por curso | `verificarEficacia()` y `capacitacion_participantes.eficacia` |
+| La eficacia de una capacitación se verifica por persona, no por curso, y el resultado de cada persona es binario: eficaz o no eficaz | `verificarEficacia()` y `capacitacion_participantes.eficacia` |
+| Eficacia de la acción formativa, deducida de la de su gente: 1 participante, el suyo; 2 a 4, eficaz si todos, parcialmente con uno no eficaz, no eficaz con dos o más; 5 o más, por porcentaje —80 % o más eficaz, 60 a 79 parcialmente, menos de 60 no eficaz—. No se guarda: se calcula al leer | `eficacia_de_la_accion()` en SQL y `eficaciaDeLaAccion()` en `lib/formacion.ts` |
+| Con un solo participante, un «no eficaz» exige declarar la causa —la formación o el participante— y admite **una** reevaluación. Si tras el refuerzo resulta eficaz, la acción cierra como «eficaz tras refuerzo» y el primer resultado queda en `eficacia_inicial` | `verificarEficacia()` y `CAUSAS_NO_EFICACIA` |
 | NPS = % promotores (9-10) menos % detractores (0-6); los pasivos cuentan en el denominador | `resumirNps()` y `categoria_nps` generada en SQL |
 | Solo un detractor con comentario genera no conformidad, de origen `reclamo_cliente` | `generar_no_conformidad_desde_respuesta()` |
 | Un mes con menos de 5 respuestas no se grafica: el índice deja de significar algo | `RESPUESTAS_MINIMAS_NPS` |

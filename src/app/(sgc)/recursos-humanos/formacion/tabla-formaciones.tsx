@@ -8,12 +8,16 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { CeldaTexto } from "@/components/comunes/celda-texto";
+import { Insignia } from "@/components/ui/insignia";
 import { formatearFecha } from "@/lib/formato";
 import {
+  CLASES_EFICACIA_ACCION,
+  ETIQUETAS_EFICACIA_ACCION,
   ETIQUETAS_MODALIDAD,
   ETIQUETAS_TIPO_FORMACION,
   MESES_CORTOS,
   mesesQueOcupa,
+  type EficaciaDeLaAccion,
   type ModalidadFormacion,
 } from "@/lib/formacion";
 import { cn } from "@/lib/utilidades";
@@ -38,12 +42,15 @@ import type { FilaFormacion } from "@/app/(sgc)/recursos-humanos/formacion/page"
 export function TablaFormaciones({
   formaciones,
   participantes,
+  eficacias,
   anio,
   clasesEstado,
   etiquetasEstado,
 }: {
   formaciones: FilaFormacion[];
   participantes: Record<string, number>;
+  /** Resultado de cada acción, deducido del de su gente. */
+  eficacias: Record<string, EficaciaDeLaAccion>;
   anio: number;
   clasesEstado: Record<string, string>;
   etiquetasEstado: Record<string, string>;
@@ -129,15 +136,18 @@ export function TablaFormaciones({
               </TablaCelda>
 
               {/* Más de dos horas exige Evaluación de Eficacia de la
-                  Formación. Lo calcula la base, no la pantalla. */}
+                  Formación —lo calcula la base, no la pantalla— y la
+                  celda muestra el resultado cuando ya hay alguno. Decía
+                  «Exige» para siempre, incluso con todo evaluado. */}
               <TablaCelda className="text-center text-xs">
                 {formacion.requiere_eficacia ? (
-                  <span
-                    className="text-semaforo-medio"
+                  <Insignia
+                    variante="contorno"
+                    className={CLASES_EFICACIA_ACCION[eficacias[formacion.id] ?? "pendiente"]}
                     title={`${Number(formacion.horas_totales ?? 0)} h en total: exige Evaluación de Eficacia de la Formación.`}
                   >
-                    Exige
-                  </span>
+                    {ETIQUETAS_EFICACIA_ACCION[eficacias[formacion.id] ?? "pendiente"]}
+                  </Insignia>
                 ) : (
                   <span className="text-atenuado-contraste">—</span>
                 )}

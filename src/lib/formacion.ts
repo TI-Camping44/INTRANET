@@ -21,7 +21,7 @@
  *     revisar, que es lo que la Revision por la Direccion mira.
  */
 
-import type { EstadoCapacitacion, TipoCapacitacion } from "@/lib/tipos";
+import type { EstadoCapacitacion, ResultadoEficacia, TipoCapacitacion } from "@/lib/tipos";
 
 // ---------------------------------------------------------------------
 // Estado de la accion formativa
@@ -208,4 +208,163 @@ export function mesesQueOcupa(
   }
 
   return meses;
+}
+
+// ---------------------------------------------------------------------
+// Eficacia de la accion formativa
+// ---------------------------------------------------------------------
+
+/**
+ * EL RESULTADO DE LA ACCION SE DEDUCE, NO SE ESCRIBE.
+ *
+ * La eficacia se sigue verificando por persona —esa regla no cambia— y
+ * de ahi sale el resultado de la accion, segun la tabla que paso Calidad
+ * el 6 de octubre:
+ *
+ *   1 participante   el de la persona, tal cual
+ *   2 a 4            eficaz si todos; parcialmente con uno no eficaz;
+ *                    no eficaz con dos o mas
+ *   5 o mas          por porcentaje: 80 % o mas eficaz, 60 a 79
+ *                    parcialmente, menos de 60 no eficaz
+ *
+ * La misma regla vive en `eficacia_de_la_accion()` en la base. Si cambia,
+ * cambia en los dos lados.
+ *
+ * No se guarda en ninguna columna a proposito: un resultado guardado se
+ * calcula una vez y despues miente. Basta corregir la evaluacion de una
+ * persona para que la accion quede diciendo lo de antes.
+ */
+export type EficaciaDeLaAccion =
+  | "eficaz"
+  | "eficaz_tras_refuerzo"
+  | "parcialmente_eficaz"
+  | "no_eficaz"
+  | "pendiente";
+
+/** Los cortes de la escala por porcentaje, desde 5 participantes. */
+export const PORCENTAJE_EFICAZ = 80;
+export const PORCENTAJE_PARCIALMENTE_EFICAZ = 60;
+
+/** Desde cuantos participantes se mide por porcentaje y no por conteo. */
+export const PARTICIPANTES_PARA_MEDIR_POR_PORCENTAJE = 5;
+
+export interface EvaluacionDeParticipante {
+  eficacia: ResultadoEficacia;
+  /** El primer resultado, cuando hubo reevaluacion. */
+  eficacia_inicial?: ResultadoEficacia | null;
+}
+
+export function eficaciaDeLaAccion(
+  participantes: EvaluacionDeParticipante[],
+): EficaciaDeLaAccion {
+  // Solo cuentan los evaluados. Quien todavia no tiene resultado no
+  // suma ni resta: la accion esta pendiente, no a medias.
+  const evaluados = participantes.filter(
+    (participante) => participante.eficacia !== "pendiente",
+  );
+
+  const total = evaluados.length;
+  if (total === 0) return "pendiente";
+
+  const eficaces = evaluados.filter(
+    (participante) => participante.eficacia === "eficaz",
+  ).length;
+
+  if (total === 1) {
+    if (eficaces === 0) return "no_eficaz";
+    return evaluados[0].eficacia_inicial === "no_eficaz" ? "eficaz_tras_refuerzo" : "eficaz";
+  }
+
+  if (total < PARTICIPANTES_PARA_MEDIR_POR_PORCENTAJE) {
+    const fallidos = total - eficaces;
+    if (fallidos === 0) return "eficaz";
+    return fallidos === 1 ? "parcialmente_eficaz" : "no_eficaz";
+  }
+
+  // Con enteros, para no arrastrar el redondeo de una division.
+  if (eficaces * 100 >= total * PORCENTAJE_EFICAZ) return "eficaz";
+  if (eficaces * 100 >= total * PORCENTAJE_PARCIALMENTE_EFICAZ) return "parcialmente_eficaz";
+  return "no_eficaz";
+}
+
+export const ETIQUETAS_EFICACIA_ACCION: Record<EficaciaDeLaAccion, string> = {
+  eficaz: "Eficaz",
+  eficaz_tras_refuerzo: "Eficaz tras refuerzo",
+  parcialmente_eficaz: "Parcialmente eficaz",
+  no_eficaz: "No eficaz",
+  pendiente: "Pendiente",
+};
+
+/**
+ * El orden en que se muestran. «Eficaz tras refuerzo» va junto a
+ * «Eficaz» porque termino bien, pero separado porque la primera vez no:
+ * es lo que hay que mirar al decidir si se repite esa capacitacion.
+ */
+export const EFICACIAS_ACCION_EN_ORDEN: EficaciaDeLaAccion[] = [
+  "eficaz",
+  "eficaz_tras_refuerzo",
+  "parcialmente_eficaz",
+  "no_eficaz",
+  "pendiente",
+];
+
+export const COLOR_EFICACIA_ACCION: Record<EficaciaDeLaAccion, string> = {
+  eficaz: "hsl(var(--semaforo-bajo))",
+  eficaz_tras_refuerzo: "hsl(var(--primario))",
+  parcialmente_eficaz: "hsl(var(--semaforo-medio))",
+  no_eficaz: "hsl(var(--semaforo-critico))",
+  pendiente: "hsl(var(--atenuado-contraste))",
+};
+
+export const CLASES_EFICACIA_ACCION: Record<EficaciaDeLaAccion, string> = {
+  eficaz: "border-semaforo-bajo/40 bg-semaforo-bajo/10 text-semaforo-bajo",
+  eficaz_tras_refuerzo: "border-primario/40 bg-primario/10 text-primario",
+  parcialmente_eficaz: "border-semaforo-medio/40 bg-semaforo-medio/10 text-semaforo-medio",
+  no_eficaz: "border-semaforo-critico/40 bg-semaforo-critico/10 text-semaforo-critico",
+  pendiente: "border-borde text-atenuado-contraste",
+};
+
+// ---------------------------------------------------------------------
+// El caso de una sola persona
+// ---------------------------------------------------------------------
+
+/**
+ * CON UN SOLO PARTICIPANTE, UN «NO EFICAZ» NO CONCLUYE NADA TODAVIA.
+ *
+ * No se puede distinguir si fallo la formacion o fallo la persona, y de
+ * eso depende que se corrige: la capacitacion o el acompañamiento. Por
+ * eso se pide la causa antes de dar la accion por fallida.
+ *
+ * Se admite UNA reevaluacion. Si despues del refuerzo la persona resulta
+ * eficaz, la accion cierra como «eficaz tras refuerzo» y el primer
+ * resultado queda guardado en `eficacia_inicial`: esconder que la
+ * primera vez no funciono seria perder el dato que sirve para decidir
+ * sobre esa capacitacion el año que viene.
+ */
+export type CausaNoEficacia = "formacion" | "participante";
+
+export const CAUSAS_NO_EFICACIA: {
+  valor: CausaNoEficacia;
+  etiqueta: string;
+  ejemplos: string;
+  queSeHace: string;
+}[] = [
+  {
+    valor: "formacion",
+    etiqueta: "La formación",
+    ejemplos: "Contenido inadecuado, instructor, modalidad.",
+    queSeHace:
+      "Acción correctiva sobre la capacitación: rediseñarla o cambiar de proveedor.",
+  },
+  {
+    valor: "participante",
+    etiqueta: "El participante",
+    ejemplos: "Falta de práctica, no tuvo oportunidad de aplicarlo, dificultades personales.",
+    queSeHace: "Refuerzo, acompañamiento en el puesto y reevaluación en un plazo definido.",
+  },
+];
+
+/** Si ya se reevaluo una vez, no hay otra. */
+export function admiteReevaluacion(participante: EvaluacionDeParticipante): boolean {
+  return !participante.eficacia_inicial;
 }

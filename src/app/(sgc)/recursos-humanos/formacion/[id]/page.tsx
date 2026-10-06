@@ -74,7 +74,11 @@ export default async function PaginaFormacion({ params }: { params: { id: string
         .maybeSingle(),
       supabase
         .from("capacitacion_participantes")
-        .select("id, usuario_id, asistio, eficacia, usuarios:usuario_id (nombre_completo, correo)")
+        .select(
+          "id, usuario_id, asistio, eficacia, eficacia_inicial, causa_no_eficacia," +
+            " plan_refuerzo, fecha_reevaluacion," +
+            " usuarios:usuario_id (nombre_completo, correo)",
+        )
         .eq("capacitacion_id", params.id),
       supabase
         .from("adjuntos")
@@ -99,6 +103,10 @@ export default async function PaginaFormacion({ params }: { params: { id: string
           usuario_id: string;
           asistio: boolean | null;
           eficacia: string | null;
+          eficacia_inicial: string | null;
+          causa_no_eficacia: string | null;
+          plan_refuerzo: string | null;
+          fecha_reevaluacion: string | null;
           usuarios: { nombre_completo: string; correo: string } | null;
         }[]
       | null) ?? [];

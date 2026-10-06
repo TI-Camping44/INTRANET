@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GraduationCap } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
-import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
+import { Torta } from "@/components/comunes/graficos";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Tarjeta } from "@/components/ui/tarjeta";
@@ -11,17 +11,20 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
   CLASES_ESTADO_FORMACION,
+  COLOR_EFICACIA_ACCION,
   COLOR_ESTADO_FORMACION,
+  eficaciaDeLaAccion,
+  EFICACIAS_ACCION_EN_ORDEN,
   ESTADOS_FORMACION_VIGENTES,
+  ETIQUETAS_EFICACIA_ACCION,
   ETIQUETAS_ESTADO_FORMACION,
-  ETIQUETAS_MODALIDAD,
   ETIQUETAS_TIPO_FORMACION,
-  MODALIDADES,
   TIPOS_FORMACION_VIGENTES,
+  type EvaluacionDeParticipante,
 } from "@/lib/formacion";
 import { FormularioFormacion } from "@/app/(sgc)/recursos-humanos/formacion/formulario-formacion";
 import { TablaFormaciones } from "@/app/(sgc)/recursos-humanos/formacion/tabla-formaciones";
-import type { EstadoCapacitacion, TipoCapacitacion } from "@/lib/tipos";
+import type { EstadoCapacitacion, ResultadoEficacia, TipoCapacitacion } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Formación y Competencia" };
 export const dynamic = "force-dynamic";
@@ -87,7 +90,9 @@ export default async function PaginaFormacion({
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
-    supabase.from("capacitacion_participantes").select("capacitacion_id, usuario_id"),
+    supabase
+      .from("capacitacion_participantes")
+      .select("capacitacion_id, usuario_id, eficacia, eficacia_inicial"),
   ]);
 
   const todas = (datos as FilaFormacion[] | null) ?? [];
@@ -112,10 +117,24 @@ export default async function PaginaFormacion({
     ),
   ).sort((uno, otro) => otro - uno);
 
-  // Cuántos participantes tiene cada acción.
+  // Cuántos participantes tiene cada acción, y con qué resultado. Lo
+  // segundo es lo que decide la eficacia de la acción: no se guarda en
+  // ninguna columna, se deduce de su gente cada vez que se mira.
   const participantesPor = new Map<string, number>();
-  for (const fila of (participaciones as { capacitacion_id: string }[] | null) ?? []) {
+  const evaluacionesPor = new Map<string, EvaluacionDeParticipante[]>();
+
+  for (const fila of (participaciones as
+    | {
+        capacitacion_id: string;
+        eficacia: ResultadoEficacia;
+        eficacia_inicial: ResultadoEficacia | null;
+      }[]
+    | null) ?? []) {
     participantesPor.set(fila.capacitacion_id, (participantesPor.get(fila.capacitacion_id) ?? 0) + 1);
+    evaluacionesPor.set(fila.capacitacion_id, [
+      ...(evaluacionesPor.get(fila.capacitacion_id) ?? []),
+      { eficacia: fila.eficacia, eficacia_inicial: fila.eficacia_inicial },
+    ]);
   }
 
   // Los gráficos se arman sobre el año que se está mirando, no sobre el
@@ -133,16 +152,25 @@ export default async function PaginaFormacion({
       tipo === "interna" ? "hsl(var(--semaforo-bajo))" : "hsl(var(--primario))",
   }));
 
-  const porModalidad = [
-    ...MODALIDADES.map((modalidad) => ({
-      etiqueta: ETIQUETAS_MODALIDAD[modalidad],
-      valor: formaciones.filter((formacion) => formacion.modalidad === modalidad).length,
-    })),
-    {
-      etiqueta: "Sin modalidad declarada",
-      valor: formaciones.filter((formacion) => !formacion.modalidad).length,
-    },
-  ];
+  // LA EFICACIA, EN LUGAR DE LA MODALIDAD. La modalidad ya está en la
+  // tabla, columna propia, y repetirla en un gráfico no agregaba nada:
+  // saber que el 100 % fue presencial no cambia ninguna decisión. La
+  // eficacia sí: es lo que la Revisión por la Dirección pregunta del
+  // plan de formación.
+  //
+  // Solo entran las que EXIGEN evaluarla —más de 2 horas—. Contar las
+  // que no la exigen como «pendientes» llenaría el gráfico de acciones
+  // que nunca van a tener resultado, y el número dejaría de significar
+  // algo.
+  const conEficaciaExigida = formaciones.filter((formacion) => formacion.requiere_eficacia);
+
+  const porEficacia = EFICACIAS_ACCION_EN_ORDEN.map((resultado) => ({
+    etiqueta: ETIQUETAS_EFICACIA_ACCION[resultado],
+    valor: conEficaciaExigida.filter(
+      (formacion) => eficaciaDeLaAccion(evaluacionesPor.get(formacion.id) ?? []) === resultado,
+    ).length,
+    color: COLOR_EFICACIA_ACCION[resultado],
+  }));
 
   // LOS CUATRO NUMEROS SE CUENTAN POR ESTADO, sobre el año que se está
   // mirando. Al contarse así no hay nada que mantener sincronizado: una
@@ -220,7 +248,7 @@ export default async function PaginaFormacion({
         <div className="mb-4 grid gap-3 lg:grid-cols-3">
           <Torta titulo="Por estado" porciones={porEstado} />
           <Torta titulo="Interna o externa" porciones={porTipo} />
-          <BarrasPorcentaje titulo="Por modalidad" filas={porModalidad} />
+          <Torta titulo="Eficacia de la acción" porciones={porEficacia} />
         </div>
       ) : null}
 
@@ -242,6 +270,12 @@ export default async function PaginaFormacion({
           <TablaFormaciones
             formaciones={formaciones}
             participantes={Object.fromEntries(participantesPor)}
+            eficacias={Object.fromEntries(
+              formaciones.map((formacion) => [
+                formacion.id,
+                eficaciaDeLaAccion(evaluacionesPor.get(formacion.id) ?? []),
+              ]),
+            )}
             anio={anio}
             clasesEstado={CLASES_ESTADO_FORMACION}
             etiquetasEstado={ETIQUETAS_ESTADO_FORMACION}

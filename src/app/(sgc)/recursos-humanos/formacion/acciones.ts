@@ -464,18 +464,51 @@ async function avisarALosParticipantes(
  * Y SOLO SOBRE LO EJECUTADO. Evaluar la eficacia de algo que no se dicto
  * es afirmar sobre lo que no paso.
  */
+/**
+ * Evaluacion de Eficacia de la Formacion, por persona.
+ *
+ * EL RESULTADO DE LA PERSONA ES BINARIO: eficaz o no eficaz. Calidad lo
+ * definio asi el 6 de octubre. «Parcialmente eficaz» existe, pero es un
+ * resultado de la ACCION y sale de contar a su gente —ver
+ * `eficaciaDeLaAccion`—: una persona aplica lo que aprendio o no lo
+ * aplica.
+ *
+ * CON UN SOLO PARTICIPANTE SE PIDE LA CAUSA antes de dar la accion por
+ * fallida. Con una sola persona no se puede distinguir si fallo la
+ * formacion o fallo ella, y de eso depende que se corrige: la
+ * capacitacion o el acompañamiento en el puesto.
+ *
+ * SE REEVALUA UNA VEZ. Al reevaluar, el primer resultado se guarda en
+ * `eficacia_inicial` y no se pisa: si despues del refuerzo la persona
+ * resulta eficaz, la accion cierra como «eficaz tras refuerzo» y queda
+ * registrado que la primera vez no funciono. Esconderlo seria perder el
+ * dato que sirve para decidir sobre esa capacitacion el año que viene.
+ */
 export async function verificarEficacia(
   participanteId: string,
   formacionId: string,
-  eficacia: ResultadoEficacia,
-  observacion: string,
+  datos: {
+    eficacia: ResultadoEficacia;
+    observacion: string;
+    causa?: string | null;
+    planRefuerzo?: string | null;
+    fechaReevaluacion?: string | null;
+  },
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (!puedeGestionar(usuario)) {
     return { exito: false, error: "Su rol no permite verificar la eficacia." };
   }
 
-  if (eficacia !== "pendiente" && observacion.trim().length < 10) {
+  if (datos.eficacia !== "eficaz" && datos.eficacia !== "no_eficaz") {
+    return {
+      exito: false,
+      error: "El resultado de cada persona es eficaz o no eficaz.",
+    };
+  }
+
+  const observacion = datos.observacion.trim();
+  if (observacion.length < 10) {
     return {
       exito: false,
       error: "Indique cómo se verificó la eficacia, con al menos 10 caracteres.",
@@ -509,13 +542,85 @@ export async function verificarEficacia(
     };
   }
 
+  const { data: previo } = await supabase
+    .from("capacitacion_participantes")
+    .select("eficacia, eficacia_inicial")
+    .eq("id", participanteId)
+    .eq("capacitacion_id", formacionId)
+    .maybeSingle();
+
+  if (!previo) return { exito: false, error: "La persona no está en esta formación." };
+
+  const actual = previo as {
+    eficacia: ResultadoEficacia;
+    eficacia_inicial: ResultadoEficacia | null;
+  };
+
+  const { count } = await supabase
+    .from("capacitacion_participantes")
+    .select("id", { count: "exact", head: true })
+    .eq("capacitacion_id", formacionId);
+
+  const esIndividual = (count ?? 0) === 1;
+
+  // La causa, solo cuando una sola persona no fue eficaz: es el caso en
+  // que el resultado no alcanza para concluir nada.
+  const causa = datos.causa?.trim() || null;
+  if (esIndividual && datos.eficacia === "no_eficaz") {
+    if (causa !== "formacion" && causa !== "participante") {
+      return {
+        exito: false,
+        error:
+          "Con un solo participante, indique si la causa estuvo en la formación o en el " +
+          "participante: de eso depende qué se corrige.",
+      };
+    }
+
+    if (causa === "participante") {
+      if ((datos.planRefuerzo ?? "").trim().length < 10) {
+        return {
+          exito: false,
+          error: "Describa el refuerzo o el acompañamiento, con al menos 10 caracteres.",
+        };
+      }
+      if (!datos.fechaReevaluacion) {
+        return {
+          exito: false,
+          error: "Ponga la fecha de reevaluación: un refuerzo sin plazo no se revisa nunca.",
+        };
+      }
+    }
+  }
+
+  // UNA SOLA REEVALUACION. Se reevalua cuando ya habia un «no eficaz»
+  // registrado; con `eficacia_inicial` ya cargada, esa reevaluacion ya
+  // ocurrio.
+  const esReevaluacion = actual.eficacia === "no_eficaz" && datos.eficacia !== "no_eficaz";
+  if (esReevaluacion && actual.eficacia_inicial) {
+    return {
+      exito: false,
+      error:
+        "Esta persona ya fue reevaluada una vez. Si sigue sin ser eficaz, corresponde una " +
+        "acción correctiva, no otra reevaluación.",
+    };
+  }
+
+  const cambios: Record<string, string | null> = {
+    eficacia: datos.eficacia,
+    fecha_evaluacion_eficacia: hoyEnAsuncion(),
+    observacion: observacion || null,
+    causa_no_eficacia: datos.eficacia === "no_eficaz" ? causa : null,
+    plan_refuerzo:
+      datos.eficacia === "no_eficaz" ? (datos.planRefuerzo ?? "").trim() || null : null,
+    fecha_reevaluacion: datos.eficacia === "no_eficaz" ? (datos.fechaReevaluacion || null) : null,
+  };
+
+  // El primer resultado se conserva al reevaluar.
+  if (esReevaluacion) cambios.eficacia_inicial = actual.eficacia;
+
   const { data: actualizado, error } = await supabase
     .from("capacitacion_participantes")
-    .update({
-      eficacia,
-      fecha_evaluacion_eficacia: eficacia === "pendiente" ? null : hoyEnAsuncion(),
-      observacion: observacion.trim() || null,
-    })
+    .update(cambios)
     .eq("id", participanteId)
     .eq("capacitacion_id", formacionId)
     .select("id")
@@ -526,5 +631,12 @@ export async function verificarEficacia(
 
   revalidatePath(`/recursos-humanos/formacion/${formacionId}`);
   revalidatePath("/recursos-humanos/formacion");
-  return { exito: true, mensaje: "Eficacia verificada." };
+
+  return {
+    exito: true,
+    mensaje: esReevaluacion
+      ? "Reevaluación registrada. El primer resultado queda guardado."
+      : "Eficacia verificada.",
+  };
 }
+
