@@ -26,8 +26,7 @@ export default async function PaginaNuevaAuditoria({
   // programa del ano de su fecha planificada. Cuando el alta se abre
   // desde la ficha de un programa, ese id viaja por la direccion y manda
   // sobre el calculo por ano.
-  const [{ data: procesos }, { data: usuarios }, { data: documentos }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("codigo"),
+  const [{ data: usuarios }, { data: documentos }] = await Promise.all([
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
@@ -45,7 +44,6 @@ export default async function PaginaNuevaAuditoria({
         descripcion="La auditoría se numera automáticamente y queda planificada. Los hallazgos se cargan durante la ejecución."
       />
       <FormularioAuditoria
-        procesos={procesos ?? []}
         documentos={
           (documentos as { id: string; codigo: string | null; titulo: string }[] | null) ?? []
         }

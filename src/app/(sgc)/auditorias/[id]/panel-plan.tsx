@@ -106,9 +106,23 @@ export function PanelPlan({
 
   return (
     <>
-      <Boton variante="contorno" tamano="pequeno" onClick={() => definirAbierto(true)}>
-        <Pencil /> Editar el plan
-      </Boton>
+      {/* EDITAR Y ELIMINAR, LOS DOS A LA VISTA. «Eliminar» estaba
+          adentro del diálogo de edición y no se encontraba: para borrar
+          una auditoría había que entrar a editarla primero. */}
+      <span className="flex flex-wrap gap-2">
+        <Boton variante="contorno" tamano="pequeno" onClick={() => definirAbierto(true)}>
+          <Pencil /> Editar el plan
+        </Boton>
+        <Boton
+          variante="contorno"
+          tamano="pequeno"
+          onClick={borrar}
+          cargando={procesando}
+          className="text-semaforo-critico hover:text-semaforo-critico"
+        >
+          <Trash2 /> Eliminar
+        </Boton>
+      </span>
 
       <Dialogo open={abierto} onOpenChange={definirAbierto}>
         <DialogoContenido className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
@@ -224,27 +238,15 @@ export function PanelPlan({
               </div>
             </div>
 
-            <DialogoPie className="mt-5 sm:justify-between">
-              <Boton
-                type="button"
-                variante="contorno"
-                onClick={borrar}
-                cargando={procesando}
-                className="text-semaforo-critico hover:text-semaforo-critico"
-              >
-                <Trash2 /> Eliminar auditoría
-              </Boton>
-
-              <span className="flex gap-2">
-                <DialogoCierre asChild>
-                  <Boton type="button" variante="contorno">
-                    Cancelar
-                  </Boton>
-                </DialogoCierre>
-                <Boton type="submit" cargando={procesando}>
-                  Guardar el plan
+            <DialogoPie className="mt-5">
+              <DialogoCierre asChild>
+                <Boton type="button" variante="contorno">
+                  Cancelar
                 </Boton>
-              </span>
+              </DialogoCierre>
+              <Boton type="submit" cargando={procesando}>
+                Guardar el plan
+              </Boton>
             </DialogoPie>
           </form>
         </DialogoContenido>

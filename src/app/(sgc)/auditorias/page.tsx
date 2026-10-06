@@ -43,6 +43,7 @@ interface FilaAuditoria {
   auditor: { nombre_completo: string } | null;
   auditoria_hallazgos: { id: string; tipo: string; no_conformidad_id: string | null }[];
   auditoria_procesos: { procesos: { nombre: string } | null }[];
+  auditoria_documentos: { documentos: { codigo: string | null; titulo: string } | null }[];
 }
 
 export default async function PaginaAuditorias({
@@ -65,7 +66,8 @@ export default async function PaginaAuditorias({
         // `auditorias.proceso_id` guarda uno —el primero que se eligio— y
         // la columna del listado mostraba ese y nada mas: una auditoria
         // de ocho procesos se leia como una de uno.
-        "auditoria_procesos (procesos:proceso_id (nombre))",
+        "auditoria_procesos (procesos:proceso_id (nombre)), " +
+        "auditoria_documentos (documentos:documento_id (codigo, titulo))",
     )
     .order("fecha_planificada", { ascending: true });
 
@@ -242,7 +244,9 @@ export default async function PaginaAuditorias({
               <TablaFila>
                 <TablaEncabezado className="w-[8.5rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Objetivo</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
+                <TablaEncabezado className="hidden lg:table-cell">
+                  Documentos auditados
+                </TablaEncabezado>
                 <TablaEncabezado className="hidden xl:table-cell">Auditor líder</TablaEncabezado>
                 <TablaEncabezado className="w-[6rem] text-center">Hallazgos</TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
@@ -276,15 +280,25 @@ export default async function PaginaAuditorias({
                         {recortar(auditoria.objetivo, 75) || "—"}
                       </Link>
                     </TablaCelda>
-                    {/* Todos los procesos que abarca. `CeldaTexto` los
-                        recorta a una linea y deja el listado completo en
-                        el detalle al señalar. */}
+                    {/* Lo que la auditoría abarca. Desde el 6 de octubre
+                        se declara por documento; los procesos quedan como
+                        respaldo para las auditorías cargadas antes, que no
+                        tienen documentos. `CeldaTexto` recorta a una línea
+                        y deja el listado completo al señalar. */}
                     <TablaCelda className="hidden max-w-[16rem] lg:table-cell">
                       <CeldaTexto>
-                        {(auditoria.auditoria_procesos ?? [])
-                          .map((fila) => fila.procesos?.nombre)
+                        {(auditoria.auditoria_documentos ?? [])
+                          .map((fila) =>
+                            [fila.documentos?.codigo, fila.documentos?.titulo]
+                              .filter(Boolean)
+                              .join(" "),
+                          )
                           .filter(Boolean)
                           .join(" · ") ||
+                          (auditoria.auditoria_procesos ?? [])
+                            .map((fila) => fila.procesos?.nombre)
+                            .filter(Boolean)
+                            .join(" · ") ||
                           auditoria.procesos?.nombre ||
                           null}
                       </CeldaTexto>

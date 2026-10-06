@@ -326,11 +326,27 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
   const objetivo = String(datos.get("objetivo") ?? "").trim();
   const fechaPlanificada = String(datos.get("fecha_planificada") ?? "");
 
+  // TODOS LOS CAMPOS SON OBLIGATORIOS. Lo pidio Direccion el 6 de
+  // octubre. La validacion del navegador es comodidad; el control va
+  // aca, que es por donde pasa la escritura.
+  const alcance = String(datos.get("alcance") ?? "").trim();
+  const criterios = String(datos.get("criterios") ?? "").trim();
+  const fechaAviso = String(datos.get("fecha_aviso") ?? "");
+
   if (objetivo.length < 10) {
     return { exito: false, error: "Describa el objetivo con al menos 10 caracteres." };
   }
+  if (alcance.length < 5) {
+    return { exito: false, error: "Indique el alcance de la auditoría." };
+  }
+  if (criterios.length < 5) {
+    return { exito: false, error: "Indique los criterios contra los que se audita." };
+  }
   if (!fechaPlanificada) {
     return { exito: false, error: "La auditoría necesita una fecha planificada." };
+  }
+  if (!fechaAviso) {
+    return { exito: false, error: "Indique qué día se avisa a la empresa." };
   }
 
   const { data: codigo, error: errorCodigo } = await supabase.rpc(
@@ -363,10 +379,12 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
     programaId = (delAnio as { id: string } | null)?.id ?? null;
   }
 
-  // Una auditoria puede abarcar varios procesos. Llegan como varias
-  // casillas con el mismo nombre.
-  const procesos = datos
-    .getAll("procesos")
+  // Una auditoria abarca documentos de la informacion documentada.
+  // Llegan como varias casillas con el mismo nombre. «Procesos
+  // auditados» salio del alta el 6 de octubre: Calidad definio que son
+  // lo mismo y que el alcance se declara por documento.
+  const documentos = datos
+    .getAll("documentos")
     .map((valor) => String(valor))
     .filter((valor) => valor.length > 0);
 
@@ -377,20 +395,17 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
       programa_id: programaId,
       codigo,
       tipo: String(datos.get("tipo") ?? "por_proceso"),
-      // El primero de los elegidos queda tambien en `proceso_id`, que es
-      // lo que leen todavia el listado y la ficha. La lista completa va a
-      // `auditoria_procesos`.
-      proceso_id: procesos[0] ?? null,
+      proceso_id: null,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: auditorLiderId,
       objetivo,
-      alcance: String(datos.get("alcance") ?? "").trim() || null,
-      criterios: String(datos.get("criterios") ?? "").trim() || null,
+      alcance,
+      criterios,
       fecha_planificada: fechaPlanificada,
-      // El aviso a toda la empresa. Nulo si no se pidio; el trabajo
-      // programado lo manda ese dia y marca `aviso_enviado`.
-      fecha_aviso: String(datos.get("fecha_aviso") ?? "") || null,
+      // El aviso a toda la empresa: el trabajo programado lo manda ese
+      // dia y marca `aviso_enviado`.
+      fecha_aviso: fechaAviso,
       estado: "planificada",
     })
     .select("id, codigo")
@@ -398,21 +413,8 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   if (error) return { exito: false, error: `No se pudo crear la auditoría: ${error.message}` };
 
-  // Los procesos que abarca. Si falla, la auditoria igual quedo creada:
-  // se corrige desde la ficha y no se pierde el alta.
-  if (procesos.length > 0) {
-    await supabase
-      .from("auditoria_procesos")
-      .insert(procesos.map((procesoId) => ({ auditoria_id: auditoria.id, proceso_id: procesoId })));
-  }
-
-  // Y los documentos: una auditoria tambien se hace contra la
-  // informacion documentada, no solo contra procesos.
-  const documentos = datos
-    .getAll("documentos")
-    .map((valor) => String(valor))
-    .filter((valor) => valor.length > 0);
-
+  // Los documentos que abarca. Si falla, la auditoria igual quedo
+  // creada: se corrige desde la ficha y no se pierde el alta.
   if (documentos.length > 0) {
     await supabase
       .from("auditoria_documentos")
