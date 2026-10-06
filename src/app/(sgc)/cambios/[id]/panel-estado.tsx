@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
+import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { cambiarEstadoCambio } from "@/app/(sgc)/cambios/acciones";
 import {
@@ -14,15 +14,19 @@ import {
   TRANSICIONES_CAMBIO,
   type EstadoCambio,
 } from "@/lib/cambios";
-import { hoyEnAsuncion } from "@/lib/formato";
 
 /**
  * El ciclo del cambio, en un solo panel.
  *
- * CADA PASO PIDE LO QUE EL PROCEDIMIENTO EXIGE en ese punto, y no antes:
- * rechazar pide el motivo, implementar pide a quién se capacitó, cerrar
- * pide el resultado y —si no fue eficaz— la decisión entre ajuste,
- * reversión o acción correctiva.
+ * UN SOLO PASO: cerrar. Calidad lo definió el 6 de octubre: el cambio se
+ * planifica y se cierra diciendo si fue eficaz. Salieron la aprobación y
+ * el registro de implementación, y del cierre salieron los dos campos de
+ * información documentada.
+ *
+ * Lo que queda es lo que el procedimiento sí exige: el resultado, la
+ * observación del seguimiento y —si no fue eficaz— la decisión entre
+ * ajuste, reversión o acción correctiva. Esa tercera abre una no
+ * conformidad de verdad.
  *
  * Los botones salen de `TRANSICIONES_CAMBIO`, la misma tabla que usa la
  * acción de servidor para decidir si acepta. Así la pantalla no puede
@@ -49,12 +53,14 @@ export function PanelEstado({
   if (posibles.length === 0) return null;
 
   const etiquetas: Partial<Record<EstadoCambio, string>> = {
+    borrador: "Devolver a borrador",
+    cerrado: "Cerrar el cambio",
+    // Los tres de abajo ya no se ofrecen: quedan por si un registro
+    // viejo todavia los tiene como estado.
     en_aprobacion: "Enviar a aprobación",
     aprobado: "Aprobar",
-    rechazado: "Rechazar",
-    borrador: "Devolver a borrador",
     implementado: "Registrar implementación",
-    cerrado: "Registrar seguimiento y cerrar",
+    rechazado: "Rechazar",
   };
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
@@ -112,34 +118,6 @@ export function PanelEstado({
             </GrupoCampo>
           ) : null}
 
-          {destino === "implementado" ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <GrupoCampo etiqueta="Fecha de implementación" htmlFor="fecha_implementacion">
-                <Entrada
-                  id="fecha_implementacion"
-                  name="fecha_implementacion"
-                  type="date"
-                  defaultValue={hoyEnAsuncion()}
-                />
-              </GrupoCampo>
-              <GrupoCampo
-                etiqueta="Capacitación del personal afectado"
-                htmlFor="capacitacion_detalle"
-                requerido
-                className="sm:col-span-2"
-                ayuda="A quién capacitó el Dueño del Proceso, cuándo y sobre qué (MP-SOP-01)."
-              >
-                <AreaTexto
-                  id="capacitacion_detalle"
-                  name="capacitacion_detalle"
-                  rows={3}
-                  required
-                  minLength={10}
-                />
-              </GrupoCampo>
-            </div>
-          ) : null}
-
           {destino === "cerrado" ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <GrupoCampo etiqueta="Resultado" htmlFor="resultado" requerido>
@@ -169,19 +147,7 @@ export function PanelEstado({
                     ))}
                   </Seleccion>
                 </GrupoCampo>
-              ) : (
-                <GrupoCampo
-                  etiqueta="Información documentada actualizada"
-                  htmlFor="documentacion_actualizada"
-                  ayuda="Qué documentos se actualizaron por este cambio (MP-SOP-01)."
-                >
-                  <Entrada
-                    id="documentacion_actualizada"
-                    name="documentacion_actualizada"
-                    placeholder="P-SOP-04-02 v03"
-                  />
-                </GrupoCampo>
-              )}
+              ) : null}
 
               <GrupoCampo
                 etiqueta="Observación del seguimiento"
@@ -199,16 +165,6 @@ export function PanelEstado({
                 />
               </GrupoCampo>
 
-              {resultado === "eficaz" ? (
-                <label className="flex items-center gap-2 text-xs sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    name="requiere_actualizar_documentacion"
-                    className="size-3.5 accent-[#E01E37]"
-                  />
-                  Queda pendiente actualizar información documentada
-                </label>
-              ) : null}
             </div>
           ) : null}
 

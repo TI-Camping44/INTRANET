@@ -295,10 +295,6 @@ export async function cambiarEstadoCambio(
       parche.decision = decision;
     } else {
       parche.decision = null;
-      parche.requiere_actualizar_documentacion =
-        datos.get("requiere_actualizar_documentacion") === "on";
-      parche.documentacion_actualizada =
-        String(datos.get("documentacion_actualizada") ?? "").trim() || null;
     }
   }
 

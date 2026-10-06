@@ -116,9 +116,10 @@ export const DECISIONES_CAMBIO: DecisionCambio[] = ["ajuste", "reversion", "acci
  * estar mal planteada, y obligar a empezar de cero perdería lo escrito.
  */
 /**
- * EL CAMBIO NO PASA POR APROBACION. Calidad lo definio el 6 de octubre:
- * en este modulo no aplica. El recorrido queda borrador → implementado
- * → cerrado.
+ * EL CAMBIO SE PLANIFICA Y SE CIERRA. Calidad lo definio el 6 de
+ * octubre: en este modulo no aplica ni la aprobacion ni el registro de
+ * implementacion. El recorrido queda borrador → cerrado, y al cerrar se
+ * dice si fue eficaz.
  *
  * Los tres estados de aprobacion —`en_aprobacion`, `aprobado`,
  * `rechazado`— siguen en el enumerado de la base, porque en PostgreSQL
@@ -128,9 +129,9 @@ export const DECISIONES_CAMBIO: DecisionCambio[] = ["ajuste", "reversion", "acci
  * borrador no se va a aprobacion.
  */
 export const TRANSICIONES_CAMBIO: Record<EstadoCambio, EstadoCambio[]> = {
-  borrador: ["implementado"],
-  en_aprobacion: ["implementado", "borrador"],
-  aprobado: ["implementado"],
+  borrador: ["cerrado"],
+  en_aprobacion: ["cerrado", "borrador"],
+  aprobado: ["cerrado"],
   rechazado: ["borrador"],
   implementado: ["cerrado"],
   cerrado: [],
@@ -141,11 +142,7 @@ export const TRANSICIONES_CAMBIO: Record<EstadoCambio, EstadoCambio[]> = {
  * aprobacion se siguen mostrando cuando un registro viejo los tiene,
  * pero no se ofrecen para filtrar algo que ya no se produce.
  */
-export const ESTADOS_CAMBIO_VIGENTES: EstadoCambio[] = [
-  "borrador",
-  "implementado",
-  "cerrado",
-];
+export const ESTADOS_CAMBIO_VIGENTES: EstadoCambio[] = ["borrador", "cerrado"];
 
 export function puedePasarA(desde: EstadoCambio, hasta: EstadoCambio): boolean {
   return TRANSICIONES_CAMBIO[desde].includes(hasta);
