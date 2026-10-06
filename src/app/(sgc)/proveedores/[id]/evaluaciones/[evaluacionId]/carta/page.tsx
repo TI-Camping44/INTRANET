@@ -68,10 +68,10 @@ const PARRAFO_POR_RESULTADO: Record<string, string> = {
  * `public/`; mientras no esté, el membrete sale con la razón social en
  * tipografía y sin imagen rota.
  *
- * NO SE IMPRIME EL RUC. El que está cargado —80012345-6— es un marcador
- * de posición del armado inicial, y un número inventado en un documento
- * que sale para afuera es peor que no ponerlo. Cuando Calidad confirme
- * el real, se agrega.
+ * EL RUC VA EN EL MEMBRETE desde el 6 de octubre, cuando llegaron los
+ * reales. Hasta entonces no se imprimía: los cargados eran marcadores de
+ * posición del armado inicial, y un número inventado en un documento que
+ * sale para afuera es peor que no ponerlo.
  *
  * El texto es el que pasó Dirección el 6 de octubre. Tres partes salen
  * solo si corresponde, como pide ese texto: las observaciones del
@@ -115,23 +115,22 @@ export default async function PaginaCartaEvaluacion({
   // acotamiento de RLS y siempre vale Camping 44, porque la misma gente
   // administra las dos.
   //
-  // Y va por `empresas_del_grupo()` y no por un select a `empresas`: esa
-  // tabla la acota RLS a la propia, asi que un Asociado de Negocio de
-  // Vitalica devolvia null y la carta salia con el membrete de la otra
-  // empresa. Un documento que se entrega a un tercero no puede
+  // Y va por `empresa_del_membrete()` y no por un select a `empresas`:
+  // esa tabla la acota RLS a la propia, asi que un Asociado de Negocio
+  // de Vitalica devolvia null y la carta salia con el membrete de la
+  // otra empresa. Un documento que se entrega a un tercero no puede
   // equivocarse en eso.
-  const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
+  const { data: datosEmpresa } = await supabase.rpc("empresa_del_membrete", {
+    id_empresa: proveedor.empresa_compradora_id,
+  });
 
-  const empresa = ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).find(
-    (candidata) => candidata.id === proveedor.empresa_compradora_id,
-  );
+  const empresa = ((datosEmpresa as { razon_social: string; ruc: string | null }[] | null) ??
+    [])[0];
 
-  // `empresas_del_grupo()` devuelve la razon social en `nombre`.
-  //
   // SIN EMPRESA RESUELTA NO SE ARMA LA CARTA. Antes habia un valor por
   // defecto con Camping 44, que es la forma de que una carta de Vitalica
   // salga firmada por la otra empresa sin que nadie se entere.
-  const razonSocial = empresa?.nombre;
+  const razonSocial = empresa?.razon_social;
   if (!razonSocial) notFound();
 
   const logotipo = logotipoDeEmpresa(razonSocial);
@@ -206,7 +205,12 @@ export default async function PaginaCartaEvaluacion({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logotipo} alt="" className="h-16 w-auto print:h-14" />
             ) : null}
-            <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
+            <div>
+              <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
+              {empresa?.ruc ? (
+                <p className="text-[11px] tabular text-black/60">RUC {empresa.ruc}</p>
+              ) : null}
+            </div>
           </div>
 
           <div className="shrink-0 text-right text-[11px] text-black/60">
