@@ -167,7 +167,6 @@ export default async function PaginaCambios({
     <div>
       <EncabezadoPagina
         titulo="Planificación y Gestión de Cambios"
-        descripcion="Todo cambio significativo al SGC se registra antes de hacerse, y se revisa en una fecha fijada de antemano."
         acciones={
           puedeGestionar(usuario) ? (
             <Boton comoHijo>

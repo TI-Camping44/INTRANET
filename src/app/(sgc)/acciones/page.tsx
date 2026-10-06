@@ -270,7 +270,6 @@ export default async function PaginaAcciones({
     <>
       <EncabezadoPagina
         titulo="Acciones correctivas"
-        descripcion="El plan de acción de todas las no conformidades, junto. Puede cargar una acción sobre cualquier desviación abierta, también sobre una que no esté a su nombre."
         acciones={
           soloLectura ? null : (
             <Boton comoHijo>

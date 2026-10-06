@@ -120,7 +120,6 @@ export default async function PaginaAuditorias({
     <>
       <EncabezadoPagina
         titulo="Auditoría"
-        descripcion="Programa anual, planes de auditoría, hallazgos e informes. Los hallazgos de no conformidad generan la NC correspondiente en un paso."
         acciones={
           gestiona ? (
             <>

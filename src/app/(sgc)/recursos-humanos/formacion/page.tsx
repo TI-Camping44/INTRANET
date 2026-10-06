@@ -192,7 +192,6 @@ export default async function PaginaFormacion({
     <>
       <EncabezadoPagina
         titulo="Formación y Competencia"
-        descripcion="El plan anual de acciones formativas y su calendario de impartición."
         acciones={
           gestiona ? (
             <FormularioFormacion

@@ -42,6 +42,13 @@ export interface EntradaNavegacion {
   notaFase?: string;
   /** Se muestra solo a quien esta vinculado al informe comercial. */
   soloComerciales?: boolean;
+  /**
+   * El modulo no tiene pantalla propia: su ruta redirige a uno de sus
+   * submodulos. Sin esto, el menu agrega un «Ir a X» que lleva al mismo
+   * lugar que la primera subentrada, y quedan dos lineas para el mismo
+   * destino.
+   */
+  sinPantallaPropia?: boolean;
   subentradas?: SubentradaNavegacion[];
 }
 
@@ -212,9 +219,24 @@ export const NAVEGACION: GrupoNavegacion[] = [
         // perfil de puesto es documental —el puesto y su PDF firmado— y
         // la formacion es un plan anual con su calendario: no comparten
         // ni una pantalla ni un criterio.
+        // `/recursos-humanos` solo redirige a los puestos, asi que un
+        // «Ir a Personas» seria la misma linea dos veces.
+        sinPantallaPropia: true,
         subentradas: [
           { titulo: "Perfil de Resultados de Puesto", ruta: "/recursos-humanos/puestos" },
           { titulo: "Formación y Competencia", ruta: "/recursos-humanos/formacion" },
+          // El alta de las dos vive en un dialogo de su listado, no en
+          // una pantalla propia: `?nuevo=1` lo abre al llegar.
+          {
+            titulo: "+ Nuevo Puesto",
+            ruta: "/recursos-humanos/puestos?nuevo=1",
+            soloGestion: true,
+          },
+          {
+            titulo: "+ Nueva Formación",
+            ruta: "/recursos-humanos/formacion?nuevo=1",
+            soloGestion: true,
+          },
         ],
       },
       {

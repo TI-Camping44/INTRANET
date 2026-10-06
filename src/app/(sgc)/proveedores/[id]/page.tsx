@@ -9,6 +9,7 @@ import {
   InsigniaEstadoProveedor,
 } from "@/components/comunes/insignias-estado";
 import { EliminarAsociado } from "@/app/(sgc)/proveedores/[id]/eliminar-asociado";
+import { EstadoDelAsociado } from "@/app/(sgc)/proveedores/[id]/estado-del-asociado";
 import { PanelEvaluaciones } from "@/app/(sgc)/proveedores/[id]/panel-evaluaciones";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { Boton } from "@/components/ui/boton";
@@ -233,6 +234,7 @@ export default async function PaginaProveedor({ params }: { params: { id: string
               <dl className="space-y-2.5 text-xs">
                 <Dato etiqueta="Empresa del grupo" valor={empresaDelAsociado ?? "—"} />
                 <Dato etiqueta="RUC" valor={proveedor.ruc ?? "—"} />
+                <Dato etiqueta="Rubro" valor={proveedor.rubro ?? "—"} />
                 <Dato etiqueta="Contacto" valor={proveedor.contacto ?? "—"} />
                 <Dato
                   etiqueta="Segundo contacto"
@@ -244,6 +246,24 @@ export default async function PaginaProveedor({ params }: { params: { id: string
                   valor={[proveedor.ciudad, proveedor.pais].filter(Boolean).join(", ") || "—"}
                 />
               </dl>
+
+              {/* Dar de baja es lo que corresponde cuando el Asociado es
+                  real y se le deja de comprar: el registro queda con su
+                  historial, que es lo que pide la norma. Borrar es solo
+                  para lo que no debería haberse cargado. */}
+              {gestiona ? (
+                <div className="mt-4 border-t border-borde pt-3">
+                  <EstadoDelAsociado
+                    proveedorId={proveedor.id}
+                    estado={proveedor.estado}
+                    calificacion={
+                      proveedor.calificacion_actual !== null
+                        ? Number(proveedor.calificacion_actual)
+                        : null
+                    }
+                  />
+                </div>
+              ) : null}
 
               {proveedor.impacto_en_calidad ? (
                 <div className="mt-3 border-t border-borde pt-3">

@@ -147,7 +147,6 @@ export default async function PaginaPuestos({
     <>
       <EncabezadoPagina
         titulo="Perfil de Resultados de Puesto"
-        descripcion="Los puestos del grupo, su empresa, su departamento y el perfil firmado de cada uno."
         acciones={administra ? <FormularioPuesto empresas={empresas} /> : null}
       />
 

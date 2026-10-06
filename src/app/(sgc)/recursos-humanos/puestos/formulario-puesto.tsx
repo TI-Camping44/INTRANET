@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
@@ -43,9 +43,31 @@ export function FormularioPuesto({
   empresas: { id: string; nombre: string }[];
 }) {
   const router = useRouter();
-  const [abierto, definirAbierto] = React.useState(false);
-  const [procesando, definirProcesando] = React.useState(false);
   const editando = Boolean(puesto);
+  const [abierto, definirAbierto] = React.useState(false);
+
+  // SE ABRE SOLO CON `?nuevo=1`. Es lo que permite que «+ Nuevo…» del
+  // menú lleve acá: el alta vive en este diálogo y no en una pantalla
+  // propia, así que sin esto la entrada del menú no tendría a dónde ir.
+  // Al cerrar se limpia el parámetro, para que recargar no lo reabra.
+  const ruta = usePathname();
+  const parametros = useSearchParams();
+  const pideNuevo = parametros.get("nuevo") === "1";
+
+  React.useEffect(() => {
+    if (pideNuevo && !editando) definirAbierto(true);
+  }, [pideNuevo, editando]);
+
+  function cambiarApertura(valor: boolean) {
+    definirAbierto(valor);
+    if (!valor && pideNuevo) {
+      const nuevos = new URLSearchParams(parametros.toString());
+      nuevos.delete("nuevo");
+      const cola = nuevos.toString();
+      router.replace(cola ? `${ruta}?${cola}` : ruta);
+    }
+  }
+  const [procesando, definirProcesando] = React.useState(false);
 
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -58,7 +80,7 @@ export function FormularioPuesto({
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Guardado.");
-      definirAbierto(false);
+      cambiarApertura(false);
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -77,7 +99,7 @@ export function FormularioPuesto({
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Eliminado.");
-      definirAbierto(false);
+      cambiarApertura(false);
       router.push("/recursos-humanos/puestos");
       router.refresh();
     } else {
@@ -97,7 +119,7 @@ export function FormularioPuesto({
         </Boton>
       )}
 
-      <Dialogo open={abierto} onOpenChange={definirAbierto}>
+      <Dialogo open={abierto} onOpenChange={cambiarApertura}>
         <DialogoContenido>
           <form onSubmit={guardar}>
             <DialogoCabecera>

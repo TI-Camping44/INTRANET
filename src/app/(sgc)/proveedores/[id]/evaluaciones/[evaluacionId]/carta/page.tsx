@@ -68,10 +68,12 @@ const PARRAFO_POR_RESULTADO: Record<string, string> = {
  * faltara uno, el membrete sale con la razón social en tipografía y sin
  * imagen rota.
  *
- * EL RUC VA EN EL MEMBRETE desde el 6 de octubre, cuando llegaron los
- * reales. Hasta entonces no se imprimía: los cargados eran marcadores de
- * posición del armado inicial, y un número inventado en un documento que
- * sale para afuera es peor que no ponerlo.
+ * EL MEMBRETE NO LLEVA EL RUC. Dirección lo quitó el 6 de octubre: en el
+ * encabezado va el logotipo y la razón social, nada más. El RUC sigue
+ * cargado en `empresas` para lo que haga falta.
+ *
+ * FIRMA QUIEN GENERA LA CARTA, con el puesto que tiene en Personas. No
+ * el evaluador: la carta la entrega quien la imprime.
  *
  * El texto es el que pasó Dirección el 6 de octubre. Tres partes salen
  * solo si corresponde, como pide ese texto: las observaciones del
@@ -96,7 +98,7 @@ export default async function PaginaCartaEvaluacion({
       .maybeSingle(),
     supabase
       .from("proveedor_evaluaciones")
-      .select("*, evaluador:evaluado_por (nombre_completo)")
+      .select("*")
       .eq("id", params.evaluacionId)
       .eq("proveedor_id", params.id)
       .maybeSingle(),
@@ -135,6 +137,21 @@ export default async function PaginaCartaEvaluacion({
 
   const logotipo = logotipoDeEmpresa(razonSocial);
 
+  // FIRMA QUIEN GENERA LA CARTA, no quien hizo la evaluacion: la carta
+  // la entrega la persona que la imprime, y es su nombre el que tiene
+  // que estar debajo de la linea. Si manana la genera otra persona, sale
+  // la suya.
+  //
+  // El cargo sale del puesto que tiene asignado en Personas, no de una
+  // constante: en el proyecto hay una sola fuente para eso. Si todavia
+  // no tiene puesto asignado, la firma sale sin cargo antes que con uno
+  // inventado.
+  const { data: datosPuesto } = usuario.puesto_id
+    ? await supabase.from("puestos").select("nombre").eq("id", usuario.puesto_id).maybeSingle()
+    : { data: null };
+
+  const puestoDeQuienFirma = (datosPuesto as { nombre: string } | null)?.nombre ?? null;
+
   const evaluacion = datosEvaluacion as unknown as {
     id: string;
     fecha: string;
@@ -148,7 +165,6 @@ export default async function PaginaCartaEvaluacion({
     puntaje: number;
     resultado: EstadoProveedor | null;
     comentario: string | null;
-    evaluador: { nombre_completo: string } | null;
   };
 
   const puntos: Record<CampoCriterio, number> = {
@@ -205,12 +221,7 @@ export default async function PaginaCartaEvaluacion({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logotipo} alt="" className="h-16 w-auto print:h-12" />
             ) : null}
-            <div>
-              <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
-              {empresa?.ruc ? (
-                <p className="text-[11px] tabular text-black/60">RUC {empresa.ruc}</p>
-              ) : null}
-            </div>
+            <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
           </div>
 
           <div className="shrink-0 text-right text-[11px] text-black/60">
@@ -313,11 +324,10 @@ export default async function PaginaCartaEvaluacion({
         <div className="mt-12 break-inside-avoid print:mt-8">
           <p>Atentamente,</p>
           <div className="mt-12 w-64 border-t border-black/50 pt-1 print:mt-8">
-            <p className="font-semibold">
-              {evaluacion.evaluador?.nombre_completo ?? usuario.nombre_completo}
-            </p>
-            <p className="text-[12px] text-black/70">Calidad</p>
-            <p className="text-[12px] text-black/70">{razonSocial}</p>
+            <p className="font-semibold">{usuario.nombre_completo}</p>
+            {puestoDeQuienFirma ? (
+              <p className="text-[12px] text-black/70">{puestoDeQuienFirma}</p>
+            ) : null}
           </div>
         </div>
       </article>

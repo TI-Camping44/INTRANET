@@ -138,7 +138,8 @@ function MenuDeGrupo({
                     puerta de entrada; con esto de más, «Todas» e «Ir a No
                     conformidades» serían dos líneas para el mismo
                     destino. */}
-                {entrada.subentradas.some((sub) => sub.ruta === entrada.ruta) ? null : (
+                {entrada.sinPantallaPropia ||
+                entrada.subentradas.some((sub) => sub.ruta === entrada.ruta) ? null : (
                   <MenuElemento asChild>
                     <Link href={entrada.ruta} className="font-medium">
                       Ir a {entrada.titulo}

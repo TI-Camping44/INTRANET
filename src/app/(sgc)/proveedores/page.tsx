@@ -91,7 +91,6 @@ export default async function PaginaProveedores({
     <>
       <EncabezadoPagina
         titulo="Asociados de Negocio"
-        descripcion="Evaluación y reevaluación periódica de los Asociados de Negocio, sobre los cuatro criterios del formulario F-SOP-08-01."
         acciones={
           gestiona ? (
             <Boton comoHijo>
