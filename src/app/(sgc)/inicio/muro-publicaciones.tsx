@@ -58,6 +58,7 @@ import { formatearFechaHora, hoyEnAsuncion } from "@/lib/formato";
 import { describirTamano } from "@/lib/adjuntos";
 import {
   ACEPTA_ADJUNTO_PUBLICACION,
+  esImagen,
   motivoDeRechazoAdjunto,
   TAMANO_MAXIMO_IMAGEN,
 } from "@/lib/imagenes";
@@ -251,6 +252,26 @@ export function MuroPublicaciones({
             const Icono = ICONOS[publicacion.tipo];
             const desplegada = abierta === publicacion.id;
 
+            // Un anexo que es una imagen se muestra; uno que es un
+            // documento se enlaza. Se decide por el nombre del archivo y
+            // no por `tipo_mime`, que el navegador manda vacío más
+            // seguido de lo que uno espera. Un anexo sin enlace firmado
+            // no se puede dibujar: va a la lista, donde al menos se ve
+            // que está.
+            const anexosImagen = publicacion.anexos.filter(
+              (anexo) => esImagen(anexo.nombre) && anexo.enlace,
+            );
+            const documentos = publicacion.anexos.filter(
+              (anexo) => !esImagen(anexo.nombre) || !anexo.enlace,
+            );
+
+            const imagenes = [
+              ...(publicacion.imagen
+                ? [{ clave: `principal-${publicacion.id}`, src: publicacion.imagen }]
+                : []),
+              ...anexosImagen.map((anexo) => ({ clave: anexo.id, src: anexo.enlace! })),
+            ];
+
             return (
               <Tarjeta
                 key={publicacion.id}
@@ -295,33 +316,68 @@ export function MuroPublicaciones({
                       {publicacion.titulo}
                     </h3>
 
-                    {/* `object-contain` y no `cover`: la mitad de lo que se
-                        publica son capturas de texto —una circular, una
-                        pauta— y recortarlas corta la frase al medio.
-                        El marco es `inline-block` para que se ajuste a la
-                        imagen: con `block` una captura vertical quedaba en
-                        el medio de una caja del ancho de la tarjeta, rodeada
-                        de vacio. Al tocarla se abre en vista previa. */}
-                    {publicacion.imagen ? (
-                      <VisorImagen src={publicacion.imagen} titulo={publicacion.titulo}>
-                        <button
-                          type="button"
-                          className="mt-2 inline-block max-w-full cursor-zoom-in overflow-hidden
-                                     rounded-md border border-borde"
-                          title="Ver la imagen en grande"
-                        >
-                          {/* Sin next/image: la direccion es un enlace firmado
-                              que cambia en cada carga, asi que el optimizador
-                              no tendria nada estable que cachear. */}
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={publicacion.imagen}
-                            alt=""
-                            className="block max-h-[22rem] w-auto max-w-full object-contain"
-                            loading="lazy"
-                          />
-                        </button>
-                      </VisorImagen>
+                    {/* TODAS LAS IMAGENES SE VEN. La tarjeta dibuja una
+                        sola en `url_imagen`, pero desde que se pueden
+                        subir varios archivos las demas llegan como anexos
+                        y salian listadas como un PDF cualquiera: cinco
+                        renglones «WhatsApp Image…» donde habia cinco
+                        fotos. Las imagenes se muestran; los documentos
+                        siguen abajo, como enlace.
+
+                        Una sola ocupa el ancho que le dé la suya; de dos
+                        en adelante van en grilla, para que la publicacion
+                        no se vuelva una columna de fotos de pantalla
+                        completa. Al tocar cualquiera se abre entera. */}
+                    {imagenes.length > 0 ? (
+                      <div
+                        className={
+                          imagenes.length === 1
+                            ? "mt-2"
+                            : "mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+                        }
+                      >
+                        {imagenes.map((imagen, indice) => (
+                          <VisorImagen
+                            key={imagen.clave}
+                            src={imagen.src}
+                            titulo={publicacion.titulo}
+                          >
+                            <button
+                              type="button"
+                              className={
+                                imagenes.length === 1
+                                  ? "inline-block max-w-full cursor-zoom-in overflow-hidden" +
+                                    " rounded-md border border-borde"
+                                  : "block w-full cursor-zoom-in overflow-hidden rounded-md" +
+                                    " border border-borde"
+                              }
+                              title="Ver la imagen en grande"
+                            >
+                              {/* Sin next/image: la direccion es un enlace firmado
+                                  que cambia en cada carga, asi que el optimizador
+                                  no tendria nada estable que cachear. */}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={imagen.src}
+                                alt=""
+                                className={
+                                  // `object-contain` y no `cover` con una
+                                  // sola: la mitad de lo que se publica son
+                                  // capturas de texto —una circular, una
+                                  // pauta— y recortarlas corta la frase al
+                                  // medio. En grilla sí se recorta: lo que
+                                  // importa es ver que están y cuántas son,
+                                  // y la completa está a un toque.
+                                  imagenes.length === 1
+                                    ? "block max-h-[22rem] w-auto max-w-full object-contain"
+                                    : "block aspect-square w-full object-cover"
+                                }
+                                loading={indice === 0 ? "eager" : "lazy"}
+                              />
+                            </button>
+                          </VisorImagen>
+                        ))}
+                      </div>
                     ) : null}
 
                     <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-atenuado-contraste">
@@ -340,9 +396,9 @@ export function MuroPublicaciones({
                       </button>
                     ) : null}
 
-                    {publicacion.anexos.length > 0 ? (
+                    {documentos.length > 0 ? (
                       <ul className="mt-2 space-y-1">
-                        {publicacion.anexos.map((anexo) => (
+                        {documentos.map((anexo) => (
                           <li key={anexo.id}>
                             <a
                               href={anexo.enlace ?? "#"}

@@ -126,7 +126,11 @@ export default async function PaginaInicio() {
       .in(
         "entidad_id",
         visibles.map((publicacion) => publicacion.id),
-      );
+      )
+      // Por orden de carga: ahora que las imagenes anexas se dibujan en
+      // la tarjeta, sin un orden fijo la galeria se reacomodaba sola
+      // entre una recarga y otra.
+      .order("creado_en", { ascending: true });
 
     listaAnexos = (anexos as AnexoDePublicacion[] | null) ?? [];
   }
