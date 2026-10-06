@@ -80,12 +80,12 @@ export default async function PaginaProveedores({
     <>
       <EncabezadoPagina
         titulo="Asociados de Negocio"
-        descripcion="Evaluación y reevaluación periódica de proveedores, sobre los cuatro criterios del formulario F-SOP-08-01."
+        descripcion="Evaluación y reevaluación periódica de los Asociados de Negocio, sobre los cuatro criterios del formulario F-SOP-08-01."
         acciones={
           gestiona ? (
             <Boton comoHijo>
               <Link href="/proveedores/nuevo">
-                <Plus /> Nuevo proveedor
+                <Plus /> Nuevo Asociado de Negocio
               </Link>
             </Boton>
           ) : null
@@ -93,7 +93,7 @@ export default async function PaginaProveedores({
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <TarjetaIndicador titulo="Proveedores" valor={proveedores.length} />
+        <TarjetaIndicador titulo="Asociados de Negocio" valor={proveedores.length} />
         <TarjetaIndicador
           titulo="Críticos"
           valor={criticos}
@@ -131,13 +131,13 @@ export default async function PaginaProveedores({
       {proveedores.length === 0 ? (
         <EstadoVacio
           icono={<Truck className="size-6" />}
-          titulo="Sin proveedores registrados"
+          titulo="Sin Asociados de Negocio registrados"
           descripcion="El padrón se completa con la importación desde Sofidya o con la carga manual."
           accion={
             gestiona ? (
               <Boton comoHijo tamano="pequeno">
                 <Link href="/proveedores/nuevo">
-                  <Plus /> Nuevo proveedor
+                  <Plus /> Nuevo Asociado de Negocio
                 </Link>
               </Boton>
             ) : null

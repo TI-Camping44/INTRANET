@@ -87,7 +87,7 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
             htmlFor="periodicidad_evaluacion_meses"
             ayuda={
               critico
-                ? "Los proveedores críticos suelen evaluarse cada 6 meses."
+                ? "Los Asociados de Negocio críticos suelen evaluarse cada 6 meses."
                 : "Se usa para agendar la reevaluación automáticamente."
             }
           >
@@ -115,7 +115,7 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
                 onChange={(evento) => definirCritico(evento.target.checked)}
               />
               <span>
-                <span className="font-medium">Proveedor crítico</span>
+                <span className="font-medium">Asociado de Negocio crítico</span>
                 <span className="block text-atenuado-contraste">
                   Su incumplimiento afecta directamente la calidad del producto o el cumplimiento
                   legal. Se evalúa con mayor frecuencia y su resultado desfavorable avisa a Calidad.
@@ -128,7 +128,7 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
             etiqueta="¿De qué manera afecta a la calidad?"
             htmlFor="impacto_en_calidad"
             className="sm:col-span-2"
-            ayuda="Del formulario F-SOP-08-01. Es el fundamento de por qué este proveedor se evalúa."
+            ayuda="Del formulario F-SOP-08-01. Es el fundamento de por qué este Asociado de Negocio se evalúa."
           >
             <AreaTexto id="impacto_en_calidad" name="impacto_en_calidad" rows={2} />
           </GrupoCampo>
@@ -145,7 +145,7 @@ export function FormularioProveedor({ codigoSugerido }: { codigoSugerido: string
             Cancelar
           </Boton>
           <Boton type="submit" disabled={enviando}>
-            {enviando ? "Registrando…" : "Registrar proveedor"}
+            {enviando ? "Registrando…" : "Registrar Asociado de Negocio"}
           </Boton>
         </div>
       </Tarjeta>

@@ -27,7 +27,7 @@ export function BuscadorGlobal({ valorInicial = "" }: { valorInicial?: string })
         type="search"
         value={texto}
         onChange={(evento) => definirTexto(evento.target.value)}
-        placeholder="Buscar documentos, NC, riesgos y proveedores…"
+        placeholder="Buscar documentos, NC, riesgos y Asociados de Negocio…"
         aria-label="Búsqueda global"
         className="h-8 pl-8 text-xs"
       />

@@ -60,7 +60,7 @@ export async function generateMetadata({
     .eq("id", params.id)
     .maybeSingle();
 
-  return { title: data ? `${data.codigo} · ${data.razon_social}` : "Proveedor" };
+  return { title: data ? `${data.codigo} · ${data.razon_social}` : "Asociado de Negocio" };
 }
 
 export default async function PaginaProveedor({ params }: { params: { id: string } }) {
@@ -235,7 +235,7 @@ export default async function PaginaProveedor({ params }: { params: { id: string
           {((noConformidades as any[] | null) ?? []).length > 0 ? (
             <Tarjeta>
               <TarjetaCabecera>
-                <TarjetaTitulo>No conformidades de proveedores</TarjetaTitulo>
+                <TarjetaTitulo>No conformidades del Asociado de Negocio</TarjetaTitulo>
               </TarjetaCabecera>
               <TarjetaContenido>
                 <ul className="space-y-2">

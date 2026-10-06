@@ -5,7 +5,7 @@ import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ROLES_GESTION } from "@/lib/constantes";
 
-export const metadata: Metadata = { title: "Nuevo proveedor" };
+export const metadata: Metadata = { title: "Nuevo Asociado de Negocio" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaNuevoProveedor() {
@@ -25,8 +25,8 @@ export default async function PaginaNuevoProveedor() {
   return (
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
-        titulo="Nuevo proveedor"
-        descripcion="El proveedor ingresa en evaluación. Su calificación y su estado se definen al registrar la primera evaluación."
+        titulo="Nuevo Asociado de Negocio"
+        descripcion="El Asociado de Negocio ingresa en evaluación. Su calificación y su estado se definen al registrar la primera evaluación."
       />
       <FormularioProveedor codigoSugerido={`PRV-${String(siguiente).padStart(3, "0")}`} />
     </div>

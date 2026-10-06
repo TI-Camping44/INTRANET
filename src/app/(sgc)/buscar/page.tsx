@@ -46,7 +46,7 @@ export default async function PaginaBusqueda({
     <div className="mx-auto max-w-4xl">
       <EncabezadoPagina
         titulo="Búsqueda global"
-        descripcion="Busca dentro del contenido de los documentos, y sobre no conformidades, riesgos y proveedores. Solo aparece lo que su rol puede consultar."
+        descripcion="Busca dentro del contenido de los documentos, y sobre no conformidades, riesgos y Asociados de Negocio. Solo aparece lo que su rol puede consultar."
       />
 
       <div className="mb-5">

@@ -10,7 +10,7 @@ import type { EstadoProveedor, ResultadoAccion } from "@/lib/tipos";
 export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (!puedeGestionar(usuario)) {
-    return { exito: false, error: "Su rol no permite dar de alta proveedores." };
+    return { exito: false, error: "Su rol no permite dar de alta Asociados de Negocio." };
   }
 
   const supabase = crearClienteServidor();
@@ -19,7 +19,7 @@ export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> 
   const razonSocial = String(datos.get("razon_social") ?? "").trim();
   const periodicidad = Number(datos.get("periodicidad_evaluacion_meses") ?? 12);
 
-  if (!codigo) return { exito: false, error: "Indique el código del proveedor." };
+  if (!codigo) return { exito: false, error: "Indique el código del Asociado de Negocio." };
   if (razonSocial.length < 3) {
     return { exito: false, error: "La razón social debe tener al menos 3 caracteres." };
   }
@@ -52,13 +52,13 @@ export async function crearProveedor(datos: FormData): Promise<ResultadoAccion> 
 
   if (error) {
     if (error.code === "23505") {
-      return { exito: false, error: `Ya existe un proveedor con el código ${codigo}.` };
+      return { exito: false, error: `Ya existe un Asociado de Negocio con el código ${codigo}.` };
     }
-    return { exito: false, error: `No se pudo crear el proveedor: ${error.message}` };
+    return { exito: false, error: `No se pudo crear el Asociado de Negocio: ${error.message}` };
   }
 
   revalidatePath("/proveedores");
-  return { exito: true, id: proveedor.id, mensaje: `Proveedor ${proveedor.codigo} registrado.` };
+  return { exito: true, id: proveedor.id, mensaje: `Asociado de Negocio ${proveedor.codigo} registrado.` };
 }
 
 export async function actualizarProveedor(
@@ -67,7 +67,7 @@ export async function actualizarProveedor(
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (!puedeGestionar(usuario)) {
-    return { exito: false, error: "Su rol no permite editar proveedores." };
+    return { exito: false, error: "Su rol no permite editar Asociados de Negocio." };
   }
 
   const supabase = crearClienteServidor();
@@ -93,7 +93,7 @@ export async function actualizarProveedor(
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
   revalidatePath(`/proveedores/${id}`);
-  return { exito: true, mensaje: "Proveedor actualizado." };
+  return { exito: true, mensaje: "Asociado de Negocio actualizado." };
 }
 
 /**
@@ -109,7 +109,7 @@ export async function registrarEvaluacion(
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (!puedeGestionar(usuario)) {
-    return { exito: false, error: "Su rol no permite evaluar proveedores." };
+    return { exito: false, error: "Su rol no permite evaluar Asociados de Negocio." };
   }
 
   const supabase = crearClienteServidor();
@@ -164,10 +164,10 @@ export async function registrarEvaluacion(
         usuarioId: administrador.id,
         correoDestino: administrador.correo,
         tipo: "general",
-        titulo: `Proveedor crítico ${resultado}: ${proveedor.codigo}`,
+        titulo: `Asociado de Negocio crítico ${resultado}: ${proveedor.codigo}`,
         mensaje:
           `${proveedor.razon_social} obtuvo ${puntaje} de 100 en su evaluación y quedó como ` +
-          `${resultado}. Es un proveedor marcado como crítico.`,
+          `${resultado}. Es un Asociado de Negocio marcado como crítico.`,
         enlace: `/proveedores/${proveedorId}`,
         entidad: "proveedores",
         entidadId: proveedorId,
@@ -190,7 +190,7 @@ export async function cambiarEstadoProveedor(
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   if (!puedeGestionar(usuario)) {
-    return { exito: false, error: "Su rol no permite cambiar el estado del proveedor." };
+    return { exito: false, error: "Su rol no permite cambiar el estado del Asociado de Negocio." };
   }
 
   const supabase = crearClienteServidor();

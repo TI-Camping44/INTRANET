@@ -180,7 +180,7 @@ export default async function PaginaPanel() {
           icono={<GitBranch className="size-4" />}
         />
         <TarjetaIndicador
-          titulo="Proveedores por reevaluar"
+          titulo="Asociados de Negocio por reevaluar"
           valor={resumen.proveedoresPorReevaluar}
           contexto={`De ${resumen.proveedoresActivos} en el padrón`}
           tono={resumen.proveedoresPorReevaluar > 0 ? "advertencia" : "exito"}

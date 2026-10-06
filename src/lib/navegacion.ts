@@ -232,7 +232,7 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
         subentradas: [
           { titulo: "Listado", ruta: "/proveedores" },
-          { titulo: "Nuevo proveedor", ruta: "/proveedores/nuevo", soloGestion: true },
+          { titulo: "+ Nuevo Asociado de Negocio", ruta: "/proveedores/nuevo", soloGestion: true },
         ],
       },
     ],

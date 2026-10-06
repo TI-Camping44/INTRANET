@@ -384,7 +384,7 @@ export const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
   interna: "Interna",
   externa: "Externa",
   terceros: "A terceros",
-  proveedor: "A proveedor",
+  proveedor: "A un Asociado de Negocio",
   seguimiento: "De seguimiento",
 };
 

@@ -96,7 +96,7 @@ export function PanelEvaluaciones({
     <div className="space-y-3">
       {evaluaciones.length === 0 ? (
         <p className="py-6 text-center text-xs text-atenuado-contraste">
-          Sin evaluaciones registradas. El proveedor permanece en evaluación hasta la primera.
+          Sin evaluaciones registradas. El Asociado de Negocio permanece en evaluación hasta la primera.
         </p>
       ) : (
         <Tabla>
@@ -182,7 +182,7 @@ export function PanelEvaluaciones({
         <DialogoContenido className="max-w-xl">
           <form onSubmit={registrar}>
             <DialogoCabecera>
-              <DialogoTitulo>Evaluación del proveedor</DialogoTitulo>
+              <DialogoTitulo>Evaluación del Asociado de Negocio</DialogoTitulo>
               <DialogoDescripcion>
                 Cinco criterios de 1 a 5. El puntaje resultante va de 0 a 100 y define el
                 resultado; la próxima evaluación se agenda sola según la periodicidad.
