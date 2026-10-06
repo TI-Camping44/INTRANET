@@ -56,8 +56,13 @@ export default async function SgcLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-dvh bg-fondo">
       {/* La cabecera y el menu viajan juntos: al desplazar la pagina
-          quedan los dos arriba, no solo uno. */}
-      <div className="sticky top-0 z-40">
+          quedan los dos arriba, no solo uno.
+
+          `no-imprimir` para que no salga al imprimir. Va marcado aca y
+          no por la etiqueta en el CSS: ocultar todo <header> se llevaba
+          por delante el membrete de la carta de evaluacion, que tambien
+          es un <header>. */}
+      <div className="no-imprimir sticky top-0 z-40">
         <Cabecera
           usuario={usuario}
           grupos={grupos}

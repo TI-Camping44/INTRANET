@@ -192,7 +192,7 @@ export default async function PaginaCartaEvaluacion({
           documento que se entrega, no una pantalla. */}
       <article className="rounded-md border border-borde bg-white p-10 text-[13px] leading-relaxed text-black print:rounded-none print:border-0 print:p-0">
         {/* MEMBRETE */}
-        <header className="imprimir-color flex items-start justify-between gap-6 border-b-2 border-[#E01E37] pb-4">
+        <header className="imprimir-color flex items-start justify-between gap-6 border-b-2 border-[#E01E37] pb-4 print:pb-3">
           <div className="flex items-center gap-4">
             {logotipo ? (
               // Sin next/image: esto se imprime, y el optimizador entrega
@@ -204,7 +204,7 @@ export default async function PaginaCartaEvaluacion({
               // el de Vitalica es la flor sobre la palabra— y a ancho fijo
               // uno quedaria el doble de alto que el otro.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logotipo} alt="" className="h-16 w-auto" />
+              <img src={logotipo} alt="" className="h-16 w-auto print:h-14" />
             ) : null}
             <p className="text-base font-semibold tracking-tight">{razonSocial}</p>
           </div>
@@ -217,7 +217,7 @@ export default async function PaginaCartaEvaluacion({
           </div>
         </header>
 
-        <p className="mb-4 mt-8">Estimados señores de {proveedor.razon_social}:</p>
+        <p className="mb-4 mt-8 print:mt-6">Estimados señores de {proveedor.razon_social}:</p>
 
         <p className="mb-4 text-justify">
           En {razonSocial.toUpperCase()} evaluamos periódicamente a nuestros Asociados de
@@ -227,9 +227,9 @@ export default async function PaginaCartaEvaluacion({
           período.
         </p>
 
-        <h2 className="mb-2 mt-6 text-sm font-semibold">Resultado por criterio</h2>
+        <h2 className="mb-2 mt-6 text-sm font-semibold print:mt-5">Resultado por criterio</h2>
 
-        <table className="w-full border-collapse text-[12px]">
+        <table className="w-full border-collapse text-[12px] print:text-[11px]">
           <thead>
             <tr className="border-y border-black/30">
               <th className="w-[5.5rem] py-1.5 text-left font-semibold">Criterio</th>
@@ -245,7 +245,7 @@ export default async function PaginaCartaEvaluacion({
               )?.texto;
 
               return (
-                <tr key={criterio.campo} className="border-b border-black/15 align-top">
+                <tr key={criterio.campo} className="break-inside-avoid border-b border-black/15 align-top">
                   <td className="py-1.5 font-medium">{criterio.etiqueta}</td>
                   <td className="py-1.5 pr-3 text-justify">{QUE_EVALUAMOS[criterio.campo]}</td>
                   <td className="py-1.5">
@@ -306,9 +306,9 @@ export default async function PaginaCartaEvaluacion({
 
         <p className="mt-4">Agradecemos su compromiso y esperamos seguir trabajando juntos.</p>
 
-        <div className="mt-12">
+        <div className="mt-12 break-inside-avoid print:mt-10">
           <p>Atentamente,</p>
-          <div className="mt-12 w-64 border-t border-black/50 pt-1">
+          <div className="mt-12 w-64 border-t border-black/50 pt-1 print:mt-10">
             <p className="font-semibold">
               {evaluacion.evaluador?.nombre_completo ?? usuario.nombre_completo}
             </p>

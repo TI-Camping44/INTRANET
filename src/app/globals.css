@@ -208,11 +208,11 @@
 }
 
 @media print {
-  .no-imprimir,
-  nav,
-  header,
-  aside,
-  footer {
+  /* Solo lo marcado. Antes esto ocultaba toda etiqueta <nav>,
+     <header>, <aside> y <footer>, y se llevaba por delante el membrete
+     de la carta de evaluacion, que es un <header> dentro del contenido.
+     La barra de la aplicacion lleva `no-imprimir` en el layout. */
+  .no-imprimir {
     display: none !important;
   }
 
@@ -233,6 +233,6 @@
   }
 
   @page {
-    margin: 18mm 16mm;
+    margin: 14mm 16mm;
   }
 }
