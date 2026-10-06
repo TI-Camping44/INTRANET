@@ -76,6 +76,14 @@ interface FilaDocumento {
  * equivocada.
  */
 const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> = {
+  // «Todos» es la pestaña de entrada desde el 6 de octubre, y es la que
+  // el menú nombra. Antes se entraba en «Vigentes», y un documento en
+  // elaboración o anulado no aparecía hasta cambiar de pestaña: quien no
+  // supiera que las pestañas existen no lo encontraba nunca.
+  todos: {
+    etiqueta: "Todos",
+    estados: ["borrador", "en_revision", "en_aprobacion", "vigente", "obsoleto", "anulado"],
+  },
   vigentes: { etiqueta: "Vigentes", estados: ["vigente"] },
   // «En elaboración» junta todo lo que todavía no rige: el borrador, lo
   // que está con los revisores y lo que espera la firma del aprobador.
@@ -111,7 +119,7 @@ export default async function PaginaDocumentos({
   const puedeOrdenar = puedeGestionar(usuario);
   const supabase = crearClienteServidor();
 
-  const vista = searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "vigentes";
+  const vista = searchParams.vista && searchParams.vista in VISTAS ? searchParams.vista : "todos";
   const limiteRevision = sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO);
   const { estados } = VISTAS[vista];
 
