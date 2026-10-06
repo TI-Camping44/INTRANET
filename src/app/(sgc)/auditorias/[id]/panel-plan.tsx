@@ -155,9 +155,10 @@ export function PanelPlan({
                 htmlFor="criterios"
                 ayuda="Contra qué se audita: la norma, los procedimientos, la legislación."
               >
-                <Entrada
+                <AreaTexto
                   id="criterios"
                   name="criterios"
+                  rows={2}
                   defaultValue={auditoria.criterios ?? ""}
                 />
               </GrupoCampo>

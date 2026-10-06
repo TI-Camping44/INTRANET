@@ -141,7 +141,6 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
   });
 
   const atrasadas = dias.filter((dia) => dia.tono === "atencion").length;
-  const sinFecha = auditorias.length - dias.length;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -188,7 +187,7 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
         )}
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <TarjetaIndicador
           titulo={`Avance ${programa.anio}`}
           valor={`${avance}%`}
@@ -201,12 +200,6 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
           valor={atrasadas}
           contexto={atrasadas > 0 ? "Pasó la fecha planificada" : "Ninguna atrasada"}
           tono={atrasadas > 0 ? "peligro" : "exito"}
-        />
-        <TarjetaIndicador
-          titulo="Sin fecha"
-          valor={sinFecha}
-          contexto={sinFecha > 0 ? "No entran al calendario" : "Todas agendadas"}
-          tono={sinFecha > 0 ? "advertencia" : "exito"}
         />
       </div>
 

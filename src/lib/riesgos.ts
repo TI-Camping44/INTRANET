@@ -304,6 +304,18 @@ export const RELLENO_PRIORIDAD_OPORTUNIDAD: Record<PrioridadOportunidad, string>
   baja: "bg-atenuado hover:bg-acento",
 };
 
+/**
+ * Colores ya resueltos para los graficos de oportunidades.
+ *
+ * AL REVES QUE EN RIESGOS: ahi el verde es el nivel bajo, el que no
+ * preocupa. Aca el verde es la prioridad alta, la que conviene tomar.
+ */
+export const COLOR_PRIORIDAD: Record<PrioridadOportunidad, string> = {
+  alta: "hsl(var(--semaforo-bajo))",
+  media: "hsl(var(--semaforo-medio))",
+  baja: "hsl(var(--atenuado-contraste))",
+};
+
 export const CLASES_PRIORIDAD: Record<PrioridadOportunidad, string> = {
   alta: "bg-semaforo-bajo/15 text-semaforo-bajo border-semaforo-bajo/30",
   media: "bg-semaforo-medio/15 text-semaforo-medio border-semaforo-medio/30",

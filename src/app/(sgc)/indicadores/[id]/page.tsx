@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { GraficoTendencia, type PuntoTendencia } from "@/components/comunes/grafico-tendencia";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
@@ -130,6 +130,15 @@ export default async function PaginaIndicador({ params }: { params: { id: string
       <EncabezadoPagina
         titulo={indicador.nombre}
         descripcion={indicador.descripcion ?? undefined}
+        acciones={
+          gestiona ? (
+            <Boton variante="contorno" tamano="pequeno" comoHijo>
+              <Link href={`/indicadores/${indicador.id}/editar`}>
+                <Pencil /> Editar indicador
+              </Link>
+            </Boton>
+          ) : null
+        }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

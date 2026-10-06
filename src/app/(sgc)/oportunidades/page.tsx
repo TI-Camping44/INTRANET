@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Grid3x3, Lightbulb, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
+import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import {
   InsigniaDemostracion,
   InsigniaEstadoRiesgo,
@@ -25,6 +26,8 @@ import { ETIQUETAS_EFICACIA, ETIQUETAS_ESTADO_RIESGO } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
 import {
   CLASES_PRIORIDAD,
+  COLOR_ESTADO_RIESGO,
+  COLOR_PRIORIDAD,
   ETIQUETAS_ALINEACION,
   ETIQUETAS_PRIORIDAD,
   prioridadOportunidad,
@@ -127,6 +130,96 @@ export default async function PaginaOportunidades({
 
   const sinValorar = oportunidades.filter((fila) => fila.indice === null).length;
 
+  // ------------------------------------------------------------------
+  // Los gráficos, los mismos cinco que riesgos pero sobre lo que una
+  // oportunidad sí tiene. No se copia «por nivel» ni «por tratamiento»:
+  // una oportunidad no se valora con probabilidad por severidad ni se
+  // trata, se decide si se aborda.
+  //
+  // Cada uno lleva su tabla de datos al lado, que la ponen los propios
+  // componentes: el color nunca es lo único que identifica una porción.
+  // ------------------------------------------------------------------
+  const porPrioridad = [
+    ...(["alta", "media", "baja"] as const).map((prioridad) => ({
+      etiqueta: ETIQUETAS_PRIORIDAD[prioridad],
+      valor: oportunidades.filter((fila) => prioridadOportunidad(fila.indice) === prioridad)
+        .length,
+      color: COLOR_PRIORIDAD[prioridad],
+    })),
+    // Las que todavía no tienen beneficio y factibilidad cargados. Sin
+    // esta porción, el porcentaje sería sobre las valoradas y no sobre
+    // las que hay, que es lo que la pantalla está mostrando.
+    {
+      etiqueta: "Sin valorar",
+      valor: sinValorar,
+      color: "hsl(var(--borde))",
+    },
+  ];
+
+  const porEstado = Object.entries(ETIQUETAS_ESTADO_RIESGO).map(([valor, etiqueta]) => ({
+    etiqueta,
+    valor: oportunidades.filter((fila) => fila.estado === valor).length,
+    color: COLOR_ESTADO_RIESGO[valor] ?? "hsl(var(--primario))",
+  }));
+
+  // El proceso que nombra la planilla de Calidad va primero; el de la
+  // relación, después. Es el mismo orden que usa la tabla.
+  const nombreDeProceso = (fila: FilaOportunidad) =>
+    fila.proceso_declarado ?? fila.procesos?.nombre ?? null;
+
+  const nombresDeProceso = Array.from(
+    new Set(
+      oportunidades
+        .map(nombreDeProceso)
+        .filter((nombre): nombre is string => Boolean(nombre)),
+    ),
+  ).sort((uno, otro) => uno.localeCompare(otro, "es"));
+
+  const porProceso = [
+    ...nombresDeProceso.map((nombre) => ({
+      etiqueta: nombre,
+      valor: oportunidades.filter((fila) => nombreDeProceso(fila) === nombre).length,
+    })),
+    {
+      etiqueta: "Sin proceso asignado",
+      valor: oportunidades.filter((fila) => !nombreDeProceso(fila)).length,
+    },
+  ];
+
+  // La decisión, con la palabra exacta de la planilla —Sí, No, Diferida—
+  // cuando está escrita ahí.
+  const decisiones = Array.from(
+    new Set(
+      oportunidades
+        .map((fila) => fila.decision_declarada)
+        .filter((valor): valor is string => Boolean(valor)),
+    ),
+  ).sort((uno, otro) => uno.localeCompare(otro, "es"));
+
+  const porDecision = [
+    ...decisiones.map((decision) => ({
+      etiqueta: decision,
+      valor: oportunidades.filter((fila) => fila.decision_declarada === decision).length,
+    })),
+    {
+      etiqueta: "Sin decidir",
+      valor: oportunidades.filter((fila) => !fila.decision_declarada).length,
+    },
+  ];
+
+  const porAlineacion = [
+    ...(["alta", "media", "baja"] as const).map((valor) => ({
+      etiqueta: ETIQUETAS_ALINEACION[valor] ?? valor,
+      valor: oportunidades.filter((fila) => fila.alineacion_estrategica === valor).length,
+    })),
+    {
+      etiqueta: "Sin declarar",
+      valor: oportunidades.filter(
+        (fila) => !["alta", "media", "baja"].includes(fila.alineacion_estrategica ?? ""),
+      ).length,
+    },
+  ];
+
   return (
     <>
       <EncabezadoPagina
@@ -184,6 +277,24 @@ export default async function PaginaOportunidades({
           },
         ]}
       />
+
+      {oportunidades.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por prioridad" porciones={porPrioridad} />
+          <Torta titulo="Por estado" porciones={porEstado} />
+          <BarrasPorcentaje
+            titulo="Por proceso"
+            filas={porProceso}
+            vacio="Ninguna tiene proceso asignado."
+          />
+          <BarrasPorcentaje titulo="¿Se decide abordar?" filas={porDecision} />
+          <BarrasPorcentaje
+            titulo="Por alineación estratégica"
+            filas={porAlineacion}
+            className="lg:col-span-2"
+          />
+        </div>
+      ) : null}
 
       {oportunidades.length === 0 ? (
         <EstadoVacio

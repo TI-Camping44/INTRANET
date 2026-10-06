@@ -93,29 +93,120 @@ export async function actualizarIndicador(
 
   const supabase = crearClienteServidor();
 
-  const { error } = await supabase
+  const nombre = String(datos.get("nombre") ?? "").trim();
+  const sentido = String(datos.get("sentido") ?? "mayor_mejor") as SentidoIndicador;
+  const meta = datos.get("meta") ? Number(datos.get("meta")) : null;
+  const metaMinima = datos.get("meta_minima") ? Number(datos.get("meta_minima")) : null;
+  const metaMaxima = datos.get("meta_maxima") ? Number(datos.get("meta_maxima")) : null;
+
+  // LAS MISMAS VALIDACIONES QUE EL ALTA. Esta accion existia desde el
+  // principio pero ninguna pantalla la llamaba, asi que nunca se habia
+  // notado que dejaba guardar un indicador por rango sin rango, o con el
+  // minimo por encima del maximo.
+  if (nombre.length < 5) {
+    return { exito: false, error: "El nombre debe tener al menos 5 caracteres." };
+  }
+  if (sentido === "rango") {
+    if (metaMinima === null || metaMaxima === null) {
+      return {
+        exito: false,
+        error: "Un indicador por rango necesita su valor mínimo y su valor máximo.",
+      };
+    }
+    if (metaMinima >= metaMaxima) {
+      return { exito: false, error: "El mínimo del rango debe ser menor que el máximo." };
+    }
+  } else if (meta === null || Number.isNaN(meta)) {
+    return { exito: false, error: "Indique la meta del indicador." };
+  }
+
+  // EL CODIGO NO SE EDITA. Es lo que identifica al indicador en la hoja
+  // de Calidad y en los informes ya emitidos; cambiarlo rompe la
+  // referencia sin que nadie se entere.
+  const { data: actualizado, error } = await supabase
     .from("indicadores")
     .update({
-      nombre: String(datos.get("nombre") ?? "").trim(),
+      nombre,
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
       formula: String(datos.get("formula") ?? "").trim() || null,
       unidad: String(datos.get("unidad") ?? "%").trim() || "%",
-      frecuencia: String(datos.get("frecuencia") ?? "mensual"),
-      sentido: String(datos.get("sentido") ?? "mayor_mejor"),
-      meta: datos.get("meta") ? Number(datos.get("meta")) : null,
-      meta_minima: datos.get("meta_minima") ? Number(datos.get("meta_minima")) : null,
-      meta_maxima: datos.get("meta_maxima") ? Number(datos.get("meta_maxima")) : null,
+      frecuencia: String(datos.get("frecuencia") ?? "mensual") as FrecuenciaMedicion,
+      sentido,
+      meta,
+      meta_minima: metaMinima,
+      meta_maxima: metaMaxima,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
-      activo: datos.get("activo") === "on",
+      objetivo_id: String(datos.get("objetivo_id") ?? "") || null,
+      linea_base: datos.get("linea_base") ? Number(datos.get("linea_base")) : null,
+      fuente_dato: String(datos.get("fuente_dato") ?? "").trim() || null,
+      consolidacion: String(datos.get("consolidacion") ?? "promedio"),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("codigo")
+    .maybeSingle();
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
+  if (!actualizado) {
+    return { exito: false, error: "El indicador no existe o no tiene acceso." };
+  }
 
   revalidatePath(`/indicadores/${id}`);
   revalidatePath("/indicadores");
-  return { exito: true, mensaje: "Indicador actualizado." };
+  return {
+    exito: true,
+    mensaje: `Indicador ${(actualizado as { codigo: string }).codigo} actualizado.`,
+  };
+}
+
+/**
+ * Baja de un indicador.
+ *
+ * SE BORRAN TAMBIEN SUS MEDICIONES, y por eso se avisa cuantas son antes
+ * de que la persona confirme: un indicador con dos años de mediciones
+ * cargadas es historia del SGC, no un registro suelto. El aviso va en la
+ * pantalla; aca se borra lo que corresponde.
+ *
+ * Las mediciones primero: si se borrara el indicador y despues fallara
+ * el borrado de las mediciones, quedarian filas apuntando a un indicador
+ * que ya no existe.
+ */
+export async function eliminarIndicador(id: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite eliminar indicadores." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: indicador } = await supabase
+    .from("indicadores")
+    .select("codigo")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!indicador) return { exito: false, error: "El indicador no existe o no tiene acceso." };
+
+  const { error: errorMediciones } = await supabase
+    .from("indicador_mediciones")
+    .delete()
+    .eq("indicador_id", id);
+
+  if (errorMediciones) {
+    return {
+      exito: false,
+      error: `No se pudieron eliminar las mediciones: ${errorMediciones.message}`,
+    };
+  }
+
+  const { error } = await supabase.from("indicadores").delete().eq("id", id);
+  if (error) return { exito: false, error: `No se pudo eliminar el indicador: ${error.message}` };
+
+  revalidatePath("/indicadores");
+  return {
+    exito: true,
+    mensaje: `Indicador ${(indicador as { codigo: string }).codigo} eliminado.`,
+  };
 }
 
 /**
@@ -277,6 +368,132 @@ export async function crearObjetivo(datos: FormData): Promise<ResultadoAccion> {
 
   revalidatePath("/indicadores");
   return { exito: true, mensaje: `Objetivo ${codigo} creado.` };
+}
+
+/**
+ * Edicion de un objetivo de la calidad.
+ *
+ * EL AÑO NO SE EDITA. Es el de la LINEA BASE del objetivo, no el de la
+ * medicion, y es lo que `obtenerHoja` usa para decidir que objetivos
+ * mostrar: moverlo haria aparecer y desaparecer objetivos de la hoja de
+ * un año para otro sin que nadie lo hubiera pedido. Un objetivo de otro
+ * año es otro objetivo.
+ *
+ * El codigo tampoco: identifica al objetivo en la hoja de Calidad y en
+ * los informes ya emitidos.
+ */
+export async function actualizarObjetivo(
+  objetivoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite editar objetivos." };
+  }
+
+  const nombre = String(datos.get("nombre") ?? "").trim();
+  if (nombre.length < 5) {
+    return { exito: false, error: "El nombre debe tener al menos 5 caracteres." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // SOLO LO QUE EL FORMULARIO MANDA. Con `datos.get()` a secas, un campo
+  // que el formulario no incluye llega como nulo y borra lo que habia:
+  // el formulario de edicion no pide el responsable, y sin este recaudo
+  // cada guardado lo dejaba sin nadie a cargo.
+  const cambios: Record<string, string | null> = {
+    nombre,
+    descripcion: String(datos.get("descripcion") ?? "").trim() || null,
+    meta: String(datos.get("meta") ?? "").trim() || null,
+  };
+
+  if (datos.has("proceso_id")) {
+    cambios.proceso_id = String(datos.get("proceso_id") ?? "") || null;
+  }
+  if (datos.has("responsable_id")) {
+    cambios.responsable_id = String(datos.get("responsable_id") ?? "") || null;
+  }
+
+  const { data: actualizado, error } = await supabase
+    .from("objetivos")
+    .update(cambios)
+    .eq("id", objetivoId)
+    .select("codigo")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo guardar: ${error.message}` };
+  if (!actualizado) return { exito: false, error: "El objetivo no existe o no tiene acceso." };
+
+  revalidatePath("/indicadores");
+  revalidatePath("/indicadores/plan");
+  return {
+    exito: true,
+    mensaje: `Objetivo ${(actualizado as { codigo: string }).codigo} actualizado.`,
+  };
+}
+
+/**
+ * Baja de un objetivo.
+ *
+ * NO SE BORRA UN OBJETIVO CON INDICADORES COLGANDO. Los indicadores
+ * quedarian sin objetivo y la hoja F-EST-01-05 —que es una fila por
+ * objetivo con sus indicadores al lado— mostraria mediciones que no
+ * miden nada. Primero se los reasigna o se los elimina.
+ *
+ * Lo mismo con su plan de acciones, el 6.2.2: son las acciones
+ * comprometidas para alcanzarlo, y sin el objetivo pierden el sentido.
+ * Ahi si se borran con el, porque no existen fuera de el.
+ */
+export async function eliminarObjetivo(objetivoId: string): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite eliminar objetivos." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: objetivo } = await supabase
+    .from("objetivos")
+    .select("codigo")
+    .eq("id", objetivoId)
+    .maybeSingle();
+
+  if (!objetivo) return { exito: false, error: "El objetivo no existe o no tiene acceso." };
+
+  const { count } = await supabase
+    .from("indicadores")
+    .select("id", { count: "exact", head: true })
+    .eq("objetivo_id", objetivoId);
+
+  if ((count ?? 0) > 0) {
+    return {
+      exito: false,
+      error:
+        `No se puede eliminar: hay ${count} indicador(es) colgando de este objetivo. ` +
+        "Reasígnelos o elimínelos primero.",
+    };
+  }
+
+  // El plan de acciones del objetivo se va con él: no existe sin él.
+  const { error: errorPlan } = await supabase
+    .from("objetivo_planes")
+    .delete()
+    .eq("objetivo_id", objetivoId);
+
+  if (errorPlan) {
+    return { exito: false, error: `No se pudo eliminar el plan: ${errorPlan.message}` };
+  }
+
+  const { error } = await supabase.from("objetivos").delete().eq("id", objetivoId);
+  if (error) return { exito: false, error: `No se pudo eliminar el objetivo: ${error.message}` };
+
+  revalidatePath("/indicadores");
+  revalidatePath("/indicadores/plan");
+  return {
+    exito: true,
+    mensaje: `Objetivo ${(objetivo as { codigo: string }).codigo} eliminado.`,
+  };
 }
 
 export async function actualizarAvanceObjetivo(

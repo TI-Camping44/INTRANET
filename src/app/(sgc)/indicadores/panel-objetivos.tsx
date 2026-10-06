@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Save, Target } from "lucide-react";
+import { Pencil, Plus, Save, Target, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import {
@@ -18,7 +18,12 @@ import {
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Progreso } from "@/components/ui/progreso";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { actualizarAvanceObjetivo, crearObjetivo } from "@/app/(sgc)/indicadores/acciones";
+import {
+  actualizarAvanceObjetivo,
+  actualizarObjetivo,
+  crearObjetivo,
+  eliminarObjetivo,
+} from "@/app/(sgc)/indicadores/acciones";
 
 interface Objetivo {
   id: string;
@@ -55,6 +60,8 @@ export function PanelObjetivos({
   const [abierto, definirAbierto] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
   const [avances, definirAvances] = React.useState<Record<string, number>>({});
+  // null = nadie en edición. Con un objetivo adentro, el mismo diálogo edita.
+  const [editando, definirEditando] = React.useState<Objetivo | null>(null);
 
   async function crear(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -65,6 +72,45 @@ export function PanelObjetivos({
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Objetivo creado.");
       definirAbierto(false);
+      router.refresh();
+    } else {
+      toast.error(resultado.error);
+    }
+  }
+
+  async function guardarEdicion(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (!editando) return;
+
+    definirProcesando(true);
+    const resultado = await actualizarObjetivo(editando.id, new FormData(evento.currentTarget));
+    definirProcesando(false);
+
+    if (resultado.exito) {
+      toast.success(resultado.mensaje ?? "Objetivo actualizado.");
+      definirEditando(null);
+      router.refresh();
+    } else {
+      toast.error(resultado.error);
+    }
+  }
+
+  async function borrar(objetivo: Objetivo) {
+    if (
+      !confirm(
+        `¿Eliminar el objetivo ${objetivo.codigo} y su plan de acciones? No se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+
+    definirProcesando(true);
+    const resultado = await eliminarObjetivo(objetivo.id);
+    definirProcesando(false);
+
+    if (resultado.exito) {
+      toast.success(resultado.mensaje ?? "Objetivo eliminado.");
+      definirEditando(null);
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -113,8 +159,20 @@ export function PanelObjetivos({
                     {objetivo.responsable?.nombre_completo ?? "Sin responsable"}
                   </p>
                 </div>
-                <span className="shrink-0 text-lg font-semibold tabular">
-                  {avances[objetivo.id] ?? objetivo.avance_porcentaje}%
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-lg font-semibold tabular">
+                    {avances[objetivo.id] ?? objetivo.avance_porcentaje}%
+                  </span>
+                  {puedeEditar ? (
+                    <button
+                      type="button"
+                      onClick={() => definirEditando(objetivo)}
+                      aria-label={`Editar el objetivo ${objetivo.codigo}`}
+                      className="text-atenuado-contraste transition-colors hover:text-primario"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  ) : null}
                 </span>
               </div>
 
@@ -184,6 +242,99 @@ export function PanelObjetivos({
           </Boton>
         </div>
       ) : null}
+
+      {/* Edición del objetivo. NO SE EDITAN NI EL CÓDIGO NI EL AÑO: el
+          código lo identifica en la hoja de Calidad y en los informes ya
+          emitidos, y el año es el de su línea base, que es lo que decide
+          en qué hoja aparece. Un objetivo de otro año es otro objetivo. */}
+      <Dialogo
+        open={editando !== null}
+        onOpenChange={(abre) => (abre ? null : definirEditando(null))}
+      >
+        <DialogoContenido>
+          {editando ? (
+            <form onSubmit={guardarEdicion}>
+              <DialogoCabecera>
+                <DialogoTitulo>Editar {editando.codigo}</DialogoTitulo>
+                <DialogoDescripcion>
+                  El avance y el estado se cargan desde la tarjeta, no desde acá.
+                </DialogoDescripcion>
+              </DialogoCabecera>
+
+              <div className="mt-4 space-y-3">
+                <GrupoCampo etiqueta="Nombre" htmlFor="nombre-editar" requerido>
+                  <Entrada
+                    id="nombre-editar"
+                    name="nombre"
+                    required
+                    minLength={5}
+                    defaultValue={editando.nombre}
+                  />
+                </GrupoCampo>
+
+                <GrupoCampo etiqueta="Descripción" htmlFor="descripcion-editar">
+                  <AreaTexto
+                    id="descripcion-editar"
+                    name="descripcion"
+                    rows={2}
+                    defaultValue={editando.descripcion ?? ""}
+                  />
+                </GrupoCampo>
+
+                <GrupoCampo etiqueta="Meta" htmlFor="meta-editar">
+                  <Entrada
+                    id="meta-editar"
+                    name="meta"
+                    defaultValue={editando.meta ?? ""}
+                    placeholder="99 % de exactitud sostenida"
+                  />
+                </GrupoCampo>
+
+                <GrupoCampo etiqueta="Proceso" htmlFor="proceso-editar">
+                  <Seleccion
+                    id="proceso-editar"
+                    name="proceso_id"
+                    defaultValue={
+                      procesos.find((proceso) => proceso.nombre === editando.procesos?.nombre)
+                        ?.id ?? ""
+                    }
+                  >
+                    <option value="">Sin proceso</option>
+                    {procesos.map((proceso) => (
+                      <option key={proceso.id} value={proceso.id}>
+                        {proceso.nombre}
+                      </option>
+                    ))}
+                  </Seleccion>
+                </GrupoCampo>
+              </div>
+
+              <DialogoPie className="mt-5 sm:justify-between">
+                <Boton
+                  type="button"
+                  variante="contorno"
+                  onClick={() => borrar(editando)}
+                  cargando={procesando}
+                  className="text-semaforo-critico hover:text-semaforo-critico"
+                >
+                  <Trash2 /> Eliminar
+                </Boton>
+
+                <span className="flex gap-2">
+                  <DialogoCierre asChild>
+                    <Boton type="button" variante="contorno">
+                      Cancelar
+                    </Boton>
+                  </DialogoCierre>
+                  <Boton type="submit" cargando={procesando}>
+                    Guardar cambios
+                  </Boton>
+                </span>
+              </DialogoPie>
+            </form>
+          ) : null}
+        </DialogoContenido>
+      </Dialogo>
 
       <Dialogo open={abierto} onOpenChange={definirAbierto}>
         <DialogoContenido>

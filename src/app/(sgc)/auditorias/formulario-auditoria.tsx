@@ -116,9 +116,13 @@ export function FormularioAuditoria({
             className="sm:col-span-2"
             ayuda="Norma y documentos internos contra los que se audita."
           >
-            <Entrada
+            {/* Area de texto y no una linea: los criterios son varios
+                —la norma, el procedimiento, la ley— y en un campo de una
+                linea se escriben a ciegas, sin ver lo que uno puso. */}
+            <AreaTexto
               id="criterios"
               name="criterios"
+              rows={2}
               placeholder="ISO 9001 y los procedimientos del proceso auditado."
             />
           </GrupoCampo>

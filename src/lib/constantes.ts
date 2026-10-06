@@ -377,7 +377,10 @@ export const CORREO_TODOS = "todos@camping44.com.py";
  * un tipo de PostgreSQL no se saca un valor, pero no se ofrecen.
  */
 export const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
-  por_proceso: "Por proceso",
+  // Calidad lo renombro el 6 de octubre. El valor del enumerado sigue
+  // siendo `por_proceso` —en PostgreSQL un valor no se puede quitar— y
+  // lo que cambia es la etiqueta, como con los origenes de la NC.
+  por_proceso: "Control de Procesos",
   interna: "Interna",
   externa: "Externa",
   terceros: "A terceros",
