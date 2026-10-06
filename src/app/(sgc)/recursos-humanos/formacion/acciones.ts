@@ -41,7 +41,7 @@ function revisarCampos(datos: FormData): string | null {
   // casa y se elige de la lista; si es externa no tiene perfil en la
   // intranet y el nombre se escribe.
   if (tipo === "interna" && !String(datos.get("formador_id") ?? "").trim()) {
-    return "Elija al formador de la lista de colaboradores.";
+    return "Elija al formador de la lista de personas.";
   }
   if (tipo === "externa" && !String(datos.get("instructor") ?? "").trim()) {
     return "Escriba el nombre del formador externo.";
@@ -49,7 +49,7 @@ function revisarCampos(datos: FormData): string | null {
 
   const participantes = datos.getAll("participantes").filter((valor) => String(valor).trim());
   if (participantes.length === 0) {
-    return "Elija al menos un colaborador.";
+    return "Elija al menos un participante.";
   }
 
   const desde = String(datos.get("fecha_inicio") ?? "").trim();
@@ -89,7 +89,7 @@ function camposDelFormulario(datos: FormData) {
   };
 }
 
-/** Los colaboradores elegidos, sin repetidos ni vacios. */
+/** Los participantes elegidos, sin repetidos ni vacios. */
 function participantesDelFormulario(datos: FormData): string[] {
   return Array.from(
     new Set(
@@ -139,7 +139,7 @@ export async function crearFormacion(datos: FormData): Promise<ResultadoAccion> 
     return {
       exito: false,
       error:
-        `La formación se creó pero no se pudieron cargar los colaboradores: ` +
+        `La formación se creó pero no se pudieron cargar los participantes: ` +
         `${errorParticipantes.message}`,
     };
   }
@@ -158,7 +158,7 @@ export async function crearFormacion(datos: FormData): Promise<ResultadoAccion> 
     });
   }
 
-  await avisarALosConvocados(supabase, usuario, creada, participantes);
+  await avisarALosParticipantes(supabase, usuario, creada, participantes);
 
   revalidatePath("/recursos-humanos/formacion");
   return { exito: true, id: creada.id, mensaje: `Formación «${creada.nombre}» planificada.` };
@@ -190,7 +190,7 @@ export async function actualizarFormacion(
     return { exito: false, error: "No se pudo guardar: la formación no existe o no tiene acceso." };
   }
 
-  // Los colaboradores se reemplazan por los elegidos. Se borran solo los
+  // Los participantes se reemplazan por los elegidos. Se borran solo los
   // que salieron, no todos: quien sigue conserva su asistencia y su
   // evaluacion de eficacia, que es lo que no se puede perder.
   const elegidos = participantesDelFormulario(datos);
@@ -222,7 +222,7 @@ export async function actualizarFormacion(
         eficacia: "pendiente",
       })),
     );
-    await avisarALosConvocados(supabase, usuario, actualizada, entran);
+    await avisarALosParticipantes(supabase, usuario, actualizada, entran);
   }
 
   const archivos = archivosDelFormulario(datos, "plan");
@@ -418,8 +418,8 @@ export async function registrarAsistencia(
   return { exito: true, mensaje: asistio ? "Asistencia registrada." : "Marcado como ausente." };
 }
 
-/** Aviso a quienes quedaron convocados. No bloquea: ver `notificar`. */
-async function avisarALosConvocados(
+/** Aviso a quienes quedaron como participantes. No bloquea: ver `notificar`. */
+async function avisarALosParticipantes(
   supabase: ReturnType<typeof crearClienteServidor>,
   usuario: Awaited<ReturnType<typeof requerirUsuario>>,
   formacion: { id: string; nombre: string },
@@ -440,7 +440,7 @@ async function avisarALosConvocados(
       correoDestino: persona.correo,
       tipo: "general",
       titulo: "Formación planificada",
-      mensaje: `Quedó convocado a «${formacion.nombre}».`,
+      mensaje: `Quedó como participante de «${formacion.nombre}».`,
       enlace: `/recursos-humanos/formacion/${formacion.id}`,
       entidad: "capacitaciones",
       entidadId: formacion.id,

@@ -34,7 +34,7 @@ import { formatearFecha } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
 import type { EstadoCapacitacion } from "@/lib/tipos";
 
-interface Convocado {
+interface Participante {
   id: string;
   usuario_id: string;
   asistio: boolean | null;
@@ -54,7 +54,7 @@ interface ArchivoDeFormacion {
  * El registro de participación y las evidencias.
  *
  * SE ABRE CUANDO LA ACCIÓN QUEDA EJECUTADA, que es cuando hay algo que
- * registrar. Antes se ve la lista de convocados —hace falta: es a quién
+ * registrar. Antes se ve la lista de participantes —hace falta: es a quién
  * hay que avisar— pero sin los controles de asistencia, porque marcar
  * que alguien asistió a algo que todavía no pasó no tiene sentido.
  *
@@ -77,23 +77,23 @@ export function PanelEjecucion({
   formacionId: string;
   estado: EstadoCapacitacion;
   requiereEficacia: boolean;
-  participantes: Convocado[];
+  participantes: Participante[];
   archivos: ArchivoDeFormacion[];
   puedeEditar: boolean;
 }) {
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
   const [marcando, definirMarcando] = React.useState<string | null>(null);
-  const [evaluando, definirEvaluando] = React.useState<Convocado | null>(null);
+  const [evaluando, definirEvaluando] = React.useState<Participante | null>(null);
   const [resultado, definirResultado] = React.useState<ResultadoEficacia>("eficaz");
   const [observacion, definirObservacion] = React.useState("");
 
   const ejecutada = estado === "ejecutada";
-  const asistieron = participantes.filter((convocado) => convocado.asistio === true).length;
+  const asistieron = participantes.filter((participante) => participante.asistio === true).length;
 
-  async function marcar(convocado: Convocado, asistio: boolean) {
-    definirMarcando(convocado.id);
-    const resultado = await registrarAsistencia(convocado.id, formacionId, asistio);
+  async function marcar(participante: Participante, asistio: boolean) {
+    definirMarcando(participante.id);
+    const resultado = await registrarAsistencia(participante.id, formacionId, asistio);
     definirMarcando(null);
 
     if (resultado.exito) {
@@ -160,25 +160,25 @@ export function PanelEjecucion({
       <Tarjeta>
         <TarjetaCabecera>
           <TarjetaTitulo>
-            {ejecutada ? "Registro de participación" : "Convocados"}
+            {ejecutada ? "Registro de participación" : "Participantes"}
             {ejecutada ? ` · ${asistieron} de ${participantes.length}` : ""}
           </TarjetaTitulo>
         </TarjetaCabecera>
         <TarjetaContenido>
           {participantes.length === 0 ? (
             <p className="text-xs text-atenuado-contraste">
-              Sin colaboradores convocados. Se agregan desde «Editar».
+              Sin participantes. Se agregan desde «Editar».
             </p>
           ) : (
             <ul className="divide-y divide-borde">
-              {participantes.map((convocado) => (
-                <li key={convocado.id} className="flex items-center gap-3 py-2 first:pt-0">
+              {participantes.map((participante) => (
+                <li key={participante.id} className="flex items-center gap-3 py-2 first:pt-0">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium">
-                      {convocado.usuarios?.nombre_completo ?? "Sin nombre"}
+                      {participante.usuarios?.nombre_completo ?? "Sin nombre"}
                     </span>
                     <span className="block truncate text-[11px] text-atenuado-contraste">
-                      {convocado.usuarios?.correo}
+                      {participante.usuarios?.correo}
                     </span>
                   </span>
 
@@ -186,21 +186,21 @@ export function PanelEjecucion({
                     <span className="flex shrink-0 gap-1">
                       <Boton
                         tamano="iconoPequeno"
-                        variante={convocado.asistio === true ? "primario" : "contorno"}
-                        aria-label={`Marcar que ${convocado.usuarios?.nombre_completo} asistió`}
-                        cargando={marcando === convocado.id}
-                        onClick={() => marcar(convocado, true)}
+                        variante={participante.asistio === true ? "primario" : "contorno"}
+                        aria-label={`Marcar que ${participante.usuarios?.nombre_completo} asistió`}
+                        cargando={marcando === participante.id}
+                        onClick={() => marcar(participante, true)}
                       >
                         <Check />
                       </Boton>
                       <Boton
                         tamano="iconoPequeno"
                         variante="contorno"
-                        aria-label={`Marcar que ${convocado.usuarios?.nombre_completo} no asistió`}
-                        cargando={marcando === convocado.id}
-                        onClick={() => marcar(convocado, false)}
+                        aria-label={`Marcar que ${participante.usuarios?.nombre_completo} no asistió`}
+                        cargando={marcando === participante.id}
+                        onClick={() => marcar(participante, false)}
                         className={cn(
-                          convocado.asistio === false &&
+                          participante.asistio === false &&
                             "border-semaforo-critico/50 text-semaforo-critico",
                         )}
                       >
@@ -209,9 +209,9 @@ export function PanelEjecucion({
                     </span>
                   ) : ejecutada ? (
                     <span className="shrink-0 text-[11px] text-atenuado-contraste">
-                      {convocado.asistio === true
+                      {participante.asistio === true
                         ? "Asistió"
-                        : convocado.asistio === false
+                        : participante.asistio === false
                           ? "No asistió"
                           : "Sin registrar"}
                     </span>
@@ -221,20 +221,20 @@ export function PanelEjecucion({
                       de dos horas y solo sobre lo ejecutado: es la regla
                       de Calidad y la controla también la acción de
                       servidor. A quien no asistió no se le evalúa nada. */}
-                  {ejecutada && requiereEficacia && convocado.asistio === true ? (
+                  {ejecutada && requiereEficacia && participante.asistio === true ? (
                     <span className="flex shrink-0 items-center gap-1.5">
-                      {convocado.eficacia && convocado.eficacia !== "pendiente" ? (
+                      {participante.eficacia && participante.eficacia !== "pendiente" ? (
                         <span
                           className={cn(
                             "whitespace-nowrap text-[11px] font-medium",
-                            convocado.eficacia === "eficaz"
+                            participante.eficacia === "eficaz"
                               ? "text-semaforo-bajo"
-                              : convocado.eficacia === "no_eficaz"
+                              : participante.eficacia === "no_eficaz"
                                 ? "text-semaforo-critico"
                                 : "text-semaforo-medio",
                           )}
                         >
-                          {ETIQUETAS_EFICACIA[convocado.eficacia as ResultadoEficacia]}
+                          {ETIQUETAS_EFICACIA[participante.eficacia as ResultadoEficacia]}
                         </span>
                       ) : null}
 
@@ -243,17 +243,17 @@ export function PanelEjecucion({
                           tamano="pequeno"
                           variante="fantasma"
                           onClick={() => {
-                            definirEvaluando(convocado);
+                            definirEvaluando(participante);
                             definirResultado(
-                              (convocado.eficacia as ResultadoEficacia) === "pendiente" ||
-                                !convocado.eficacia
+                              (participante.eficacia as ResultadoEficacia) === "pendiente" ||
+                                !participante.eficacia
                                 ? "eficaz"
-                                : (convocado.eficacia as ResultadoEficacia),
+                                : (participante.eficacia as ResultadoEficacia),
                             );
                             definirObservacion("");
                           }}
                         >
-                          {convocado.eficacia && convocado.eficacia !== "pendiente"
+                          {participante.eficacia && participante.eficacia !== "pendiente"
                             ? "Corregir"
                             : "Evaluar eficacia"}
                         </Boton>

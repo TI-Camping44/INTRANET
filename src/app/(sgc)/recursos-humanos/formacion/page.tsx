@@ -112,10 +112,10 @@ export default async function PaginaFormacion({
     ),
   ).sort((uno, otro) => otro - uno);
 
-  // Cuánta gente hay convocada en cada acción.
-  const convocadosPor = new Map<string, number>();
+  // Cuántos participantes tiene cada acción.
+  const participantesPor = new Map<string, number>();
   for (const fila of (participaciones as { capacitacion_id: string }[] | null) ?? []) {
-    convocadosPor.set(fila.capacitacion_id, (convocadosPor.get(fila.capacitacion_id) ?? 0) + 1);
+    participantesPor.set(fila.capacitacion_id, (participantesPor.get(fila.capacitacion_id) ?? 0) + 1);
   }
 
   // Los gráficos se arman sobre el año que se está mirando, no sobre el
@@ -195,10 +195,10 @@ export default async function PaginaFormacion({
         <TarjetaIndicador
           titulo="Convocatorias"
           valor={formaciones.reduce(
-            (suma, formacion) => suma + (convocadosPor.get(formacion.id) ?? 0),
+            (suma, formacion) => suma + (participantesPor.get(formacion.id) ?? 0),
             0,
           )}
-          contexto="Personas convocadas en total"
+          contexto="Participantes en total"
         />
         <TarjetaIndicador
           titulo="Exigen evaluar eficacia"
@@ -219,7 +219,7 @@ export default async function PaginaFormacion({
         <EstadoVacio
           icono={<GraduationCap className="size-6" />}
           titulo={`Sin acciones formativas en ${anio}`}
-          descripcion="Planifique la primera. Cada acción lleva su objetivo, su formador, sus colaboradores y su calendario."
+          descripcion="Planifique la primera. Cada acción lleva su objetivo, su formador, sus participantes y su calendario."
           accion={
             gestiona ? (
               <FormularioFormacion
@@ -232,7 +232,7 @@ export default async function PaginaFormacion({
         <Tarjeta>
           <TablaFormaciones
             formaciones={formaciones}
-            convocados={Object.fromEntries(convocadosPor)}
+            participantes={Object.fromEntries(participantesPor)}
             anio={anio}
             clasesEstado={CLASES_ESTADO_FORMACION}
             etiquetasEstado={ETIQUETAS_ESTADO_FORMACION}

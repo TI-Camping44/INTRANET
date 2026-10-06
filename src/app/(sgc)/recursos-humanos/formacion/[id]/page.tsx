@@ -92,7 +92,7 @@ export default async function PaginaFormacion({ params }: { params: { id: string
   const formacion = consulta as unknown as FilaFormacion | null;
   if (!formacion) notFound();
 
-  const convocados =
+  const participantesDeLaAccion =
     (participantes as
       | {
           id: string;
@@ -119,7 +119,7 @@ export default async function PaginaFormacion({ params }: { params: { id: string
             <FormularioFormacion
               personas={(personas as { id: string; nombre_completo: string }[]) ?? []}
               formacion={formacion}
-              participantesActuales={convocados.map((fila) => fila.usuario_id)}
+              participantesActuales={participantesDeLaAccion.map((fila) => fila.usuario_id)}
             />
           ) : null
         }
@@ -131,7 +131,7 @@ export default async function PaginaFormacion({ params }: { params: { id: string
             formacionId={formacion.id}
             estado={formacion.estado}
             requiereEficacia={formacion.requiere_eficacia}
-            participantes={convocados}
+            participantes={participantesDeLaAccion}
             archivos={
               (archivos as
                 | {

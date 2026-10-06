@@ -48,7 +48,7 @@ export interface PersonaElegible {
  *     dos campos a la vez dejaría dos formadores para la misma acción y
  *     ninguna forma de saber cuál vale.
  *
- *   · Los colaboradores se agregan de a uno, sin límite. Arranca con uno
+ *   · Los participantes se agregan de a uno, sin límite. Arranca con uno
  *     y el botón suma otro. Es lo que pidió Dirección y es lo que pasa en
  *     la práctica: una formación no tiene una cantidad fija de gente.
  *
@@ -94,7 +94,7 @@ export function FormularioFormacion({
   const total = horasTotales(sesiones, horas);
   const exigeEficacia = requiereEvaluacionDeEficacia(sesiones, horas);
 
-  function cambiarColaborador(indice: number, valor: string) {
+  function cambiarParticipante(indice: number, valor: string) {
     definirElegidos((anteriores) =>
       anteriores.map((elegido, posicion) => (posicion === indice ? valor : elegido)),
     );
@@ -261,22 +261,22 @@ export function FormularioFormacion({
                 </GrupoCampo>
               )}
 
-              {/* Los colaboradores, de a uno y sin límite. */}
+              {/* Los participantes, de a uno y sin límite. */}
               <div className="space-y-2">
                 <p className="text-xs font-medium">
-                  Colaboradores <span className="text-primario">*</span>
+                  Participantes <span className="text-primario">*</span>
                 </p>
                 {elegidos.map((elegido, indice) => (
                   <div key={indice} className="flex items-center gap-2">
                     <Seleccion
                       name="participantes"
-                      aria-label={`Colaborador ${indice + 1}`}
+                      aria-label={`Participante ${indice + 1}`}
                       value={elegido}
-                      onChange={(evento) => cambiarColaborador(indice, evento.target.value)}
+                      onChange={(evento) => cambiarParticipante(indice, evento.target.value)}
                       className="flex-1"
                     >
                       <option value="" disabled>
-                        Elija un colaborador
+                        Elija un participante
                       </option>
                       {personas.map((persona) => (
                         <option key={persona.id} value={persona.id}>
@@ -294,7 +294,7 @@ export function FormularioFormacion({
                           )
                         }
                         className="shrink-0 text-atenuado-contraste transition-colors hover:text-semaforo-critico"
-                        aria-label={`Quitar el colaborador ${indice + 1}`}
+                        aria-label={`Quitar el participante ${indice + 1}`}
                       >
                         <X className="size-4" />
                       </button>
@@ -308,7 +308,7 @@ export function FormularioFormacion({
                   tamano="pequeno"
                   onClick={() => definirElegidos((anteriores) => [...anteriores, ""])}
                 >
-                  <Plus /> Agregar otro colaborador
+                  <Plus /> Agregar otro participante
                 </Boton>
               </div>
 

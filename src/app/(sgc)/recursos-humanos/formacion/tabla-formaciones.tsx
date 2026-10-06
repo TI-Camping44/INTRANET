@@ -37,13 +37,13 @@ import type { FilaFormacion } from "@/app/(sgc)/recursos-humanos/formacion/page"
  */
 export function TablaFormaciones({
   formaciones,
-  convocados,
+  participantes,
   anio,
   clasesEstado,
   etiquetasEstado,
 }: {
   formaciones: FilaFormacion[];
-  convocados: Record<string, number>;
+  participantes: Record<string, number>;
   anio: number;
   clasesEstado: Record<string, string>;
   etiquetasEstado: Record<string, string>;
@@ -62,7 +62,7 @@ export function TablaFormaciones({
           <TablaEncabezado className="w-[5rem] text-center">Eficacia</TablaEncabezado>
           <TablaEncabezado className="w-[7rem]">Inicio</TablaEncabezado>
           <TablaEncabezado className="w-[7rem]">Finalización</TablaEncabezado>
-          <TablaEncabezado className="w-[5rem] text-center">Personas</TablaEncabezado>
+          <TablaEncabezado className="w-[6rem] text-center">Participantes</TablaEncabezado>
           {MESES_CORTOS.map((mes) => (
             <TablaEncabezado key={mes} className="w-9 text-center">
               {mes}
@@ -151,7 +151,7 @@ export function TablaFormaciones({
               </TablaCelda>
 
               <TablaCelda className="text-center text-xs tabular">
-                {convocados[formacion.id] ?? 0}
+                {participantes[formacion.id] ?? 0}
               </TablaCelda>
 
               {meses.map((ocupa, indice) => (
