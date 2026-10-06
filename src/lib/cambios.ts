@@ -154,6 +154,22 @@ export function puedePasarA(desde: EstadoCambio, hasta: EstadoCambio): boolean {
  * Rechazado y «no eficaz» comparten el rojo del semáforo porque son la
  * misma noticia para quien mira la lista: esto no avanzó.
  */
+/** Colores ya resueltos para los graficos, de las variables del tema. */
+export const COLOR_ESTADO_CAMBIO: Record<EstadoCambio, string> = {
+  borrador: "hsl(var(--atenuado-contraste))",
+  en_aprobacion: "hsl(var(--semaforo-medio))",
+  aprobado: "hsl(var(--semaforo-bajo))",
+  rechazado: "hsl(var(--semaforo-critico))",
+  implementado: "hsl(var(--primario))",
+  cerrado: "hsl(var(--semaforo-bajo))",
+};
+
+export const COLOR_RESULTADO_CAMBIO: Record<ResultadoCambio, string> = {
+  pendiente: "hsl(var(--atenuado-contraste))",
+  eficaz: "hsl(var(--semaforo-bajo))",
+  no_eficaz: "hsl(var(--semaforo-critico))",
+};
+
 export const CLASES_ESTADO_CAMBIO: Record<EstadoCambio, string> = {
   borrador: "text-atenuado-contraste",
   en_aprobacion: "text-semaforo-medio",

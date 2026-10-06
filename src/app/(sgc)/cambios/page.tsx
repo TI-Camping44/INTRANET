@@ -4,6 +4,7 @@ import { GitBranch, Plus } from "lucide-react";
 
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { Boton } from "@/components/ui/boton";
+import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
@@ -20,10 +21,15 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha } from "@/lib/formato";
 import {
   CLASES_ESTADO_CAMBIO,
+  COLOR_ESTADO_CAMBIO,
+  COLOR_RESULTADO_CAMBIO,
+  ESTADOS_CAMBIO,
+  ESTADOS_CAMBIO_VIGENTES,
   ETIQUETAS_ESTADO_CAMBIO,
   ETIQUETAS_RESULTADO_CAMBIO,
   ETIQUETAS_TIPO_CAMBIO,
   seguimientoVencido,
+  TIPOS_CAMBIO,
   type EstadoCambio,
   type ResultadoCambio,
   type TipoCambio,
@@ -101,6 +107,57 @@ export default async function PaginaCambios({
 
   const vencidos = todos.filter((c) => seguimientoVencido(c.estado, c.fecha_revision)).length;
 
+  // ------------------------------------------------------------------
+  // Los gráficos, con la misma forma que los demás módulos: sobre TODOS
+  // los cambios y no sobre los filtrados, porque son la foto del módulo
+  // y no del atajo que uno esté mirando.
+  //
+  // Cada uno lleva su tabla de datos al lado, que la ponen los propios
+  // componentes: el color nunca es lo único que identifica una porción.
+  // ------------------------------------------------------------------
+  // Los estados vigentes salen siempre, aunque estén en cero: un cero
+  // visible dice algo. Los tres de aprobación ya no se producen, así que
+  // solo aparecen si todavía queda algún registro en ellos.
+  const porEstado = ESTADOS_CAMBIO.map((estado) => ({
+    estado,
+    etiqueta: ETIQUETAS_ESTADO_CAMBIO[estado],
+    valor: todos.filter((cambio) => cambio.estado === estado).length,
+    color: COLOR_ESTADO_CAMBIO[estado],
+  })).filter(
+    (porcion) => ESTADOS_CAMBIO_VIGENTES.includes(porcion.estado) || porcion.valor > 0,
+  );
+
+  const porResultado = (["eficaz", "no_eficaz", "pendiente"] as const).map((resultado) => ({
+    etiqueta: ETIQUETAS_RESULTADO_CAMBIO[resultado],
+    valor: todos.filter((cambio) => (cambio.resultado ?? "pendiente") === resultado).length,
+    color: COLOR_RESULTADO_CAMBIO[resultado],
+  }));
+
+  const porTipo = TIPOS_CAMBIO.map((tipo) => ({
+    etiqueta: ETIQUETAS_TIPO_CAMBIO[tipo],
+    valor: todos.filter((cambio) => cambio.tipo === tipo).length,
+  }));
+
+  // El proceso que nombra la planilla va primero; el de la relación,
+  // después. Es el mismo orden que usa la tabla.
+  const nombreDeProceso = (cambio: FilaCambio) =>
+    cambio.proceso_declarado ?? cambio.procesos?.nombre ?? null;
+
+  const nombresDeProceso = Array.from(
+    new Set(todos.map(nombreDeProceso).filter((nombre): nombre is string => Boolean(nombre))),
+  ).sort((uno, otro) => uno.localeCompare(otro, "es"));
+
+  const porProceso = [
+    ...nombresDeProceso.map((nombre) => ({
+      etiqueta: nombre,
+      valor: todos.filter((cambio) => nombreDeProceso(cambio) === nombre).length,
+    })),
+    {
+      etiqueta: "Sin proceso asignado",
+      valor: todos.filter((cambio) => !nombreDeProceso(cambio)).length,
+    },
+  ];
+
   return (
     <div>
       <EncabezadoPagina
@@ -149,6 +206,19 @@ export default async function PaginaCambios({
           </Link>
         ))}
       </div>
+
+      {todos.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por estado" porciones={porEstado} />
+          <Torta titulo="¿Fue eficaz?" porciones={porResultado} />
+          <BarrasPorcentaje titulo="Por tipo de cambio" filas={porTipo} />
+          <BarrasPorcentaje
+            titulo="Por proceso"
+            filas={porProceso}
+            vacio="Ninguno tiene proceso asignado."
+          />
+        </div>
+      ) : null}
 
       {cambios.length === 0 ? (
         <EstadoVacio

@@ -13,7 +13,8 @@ import {
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
 import { PanelEstado } from "@/app/(sgc)/cambios/[id]/panel-estado";
-import { requerirUsuario } from "@/lib/sesion";
+import { AccionesDelCambio } from "@/app/(sgc)/cambios/[id]/acciones-del-cambio";
+import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha } from "@/lib/formato";
 import {
@@ -108,7 +109,8 @@ function Bloque({ titulo, texto }: { titulo: string; texto: string | null }) {
 }
 
 export default async function PaginaCambio({ params }: { params: { id: string } }) {
-  await requerirUsuario();
+  const usuario = await requerirUsuario();
+  const gestiona = puedeGestionar(usuario);
   const supabase = crearClienteServidor();
 
   const { data } = await supabase.from("cambios").select(CAMPOS).eq("id", params.id).maybeSingle();
@@ -129,11 +131,20 @@ export default async function PaginaCambio({ params }: { params: { id: string } 
         titulo={`${cambio.codigo} · ${cambio.titulo}`}
         descripcion={ETIQUETAS_TIPO_CAMBIO[cambio.tipo]}
         acciones={
-          <Insignia variante="contorno">
-            <span className={CLASES_ESTADO_CAMBIO[cambio.estado]}>
-              {ETIQUETAS_ESTADO_CAMBIO[cambio.estado]}
-            </span>
-          </Insignia>
+          <span className="flex flex-wrap items-center gap-2">
+            <Insignia variante="contorno">
+              <span className={CLASES_ESTADO_CAMBIO[cambio.estado]}>
+                {ETIQUETAS_ESTADO_CAMBIO[cambio.estado]}
+              </span>
+            </Insignia>
+            {gestiona ? (
+              <AccionesDelCambio
+                cambioId={cambio.id}
+                codigo={cambio.codigo}
+                estado={cambio.estado}
+              />
+            ) : null}
+          </span>
         }
       />
 
@@ -268,10 +279,6 @@ export default async function PaginaCambio({ params }: { params: { id: string } 
                 [
                   "Fecha de solicitud",
                   cambio.fecha_solicitud ? formatearFecha(cambio.fecha_solicitud) : "—",
-                ],
-                [
-                  "Implementado el",
-                  cambio.fecha_implementacion ? formatearFecha(cambio.fecha_implementacion) : "—",
                 ],
                 ["Seguimiento por", cambio.seguidor?.nombre_completo ?? "—"],
                 [
