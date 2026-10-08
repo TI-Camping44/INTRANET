@@ -5,8 +5,6 @@ import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
-import { obtenerHoja } from "@/app/(sgc)/indicadores/hoja";
-import { TablaHoja } from "@/app/(sgc)/indicadores/tabla-hoja";
 import { CalendarioObjetivos } from "@/app/(sgc)/indicadores/calendario-objetivos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -41,10 +39,12 @@ export const dynamic = "force-dynamic";
  * indicadores de cada uno se cargan, se editan y se eliminan dentro de
  * su ficha.
  *
- * El F-EST-01-05 sigue abajo, entero. Es la hoja que Calidad venía
- * llevando en el Drive y la que un auditor pide ver: cruza objetivo e
- * indicador en la misma fila con los doce meses, que es lo que ninguna
- * de las dos pantallas muestra por separado.
+ * Y ES UN CALENDARIO: el objetivo y sus doce meses, nada más. Dirección
+ * lo pidió así el 8 de octubre. El F-EST-01-05 salió de esta pantalla el
+ * mismo día: cruzaba objetivo e indicador con los doce meses y repetía
+ * lo que el calendario ya dice, con treinta columnas en vez de doce. La
+ * hoja sigue armada en `hoja.ts` y dibujada por `tabla-hoja.tsx`, por si
+ * Calidad la vuelve a pedir en su propia pantalla.
  */
 const COLOR_ESTADO_OBJETIVO: Record<EstadoObjetivo, string> = {
   identificado: "hsl(var(--atenuado-contraste))",
@@ -90,7 +90,7 @@ export default async function PaginaIndicadores({
   // objetivos declarados. El de hoy va siempre: Calidad registra el
   // objetivo una vez, con el año de su línea base, y lo sigue midiendo
   // los años siguientes. Cuáles rigen en cada año lo resuelve
-  // `obtenerHoja`; el año solo manda sobre la hoja del F-EST-01-05.
+  // `obtenerHoja`. Acá el año es el del calendario.
   const { data: anios } = await supabase
     .from("objetivos")
     .select("anio")
@@ -130,9 +130,8 @@ export default async function PaginaIndicadores({
     consulta = consulta.or(`codigo.ilike.${texto},nombre.ilike.${texto}`);
   }
 
-  const [hoja, { data: datosObjetivos }, { data: datosEmpresas }, { data: datosIndicadores }] =
+  const [{ data: datosObjetivos }, { data: datosEmpresas }, { data: datosIndicadores }] =
     await Promise.all([
-      obtenerHoja(anio),
       consulta,
       supabase.rpc("empresas_del_grupo"),
       // Para decir cuántos indicadores mide cada objetivo. Una consulta,
@@ -231,7 +230,6 @@ export default async function PaginaIndicadores({
     <>
       <EncabezadoPagina
         titulo="Objetivos e Indicadores"
-        descripcion="Cada objetivo declara qué se quiere lograr, en qué período y contra qué resultado esperado. Los indicadores con los que se mide se cargan dentro de su ficha."
         acciones={
           gestiona ? (
             <Boton comoHijo>
@@ -368,20 +366,6 @@ export default async function PaginaIndicadores({
         objetivo abre su ficha, donde se cargan las acciones y los indicadores.
       </p>
 
-      {/* EL F-EST-01-05, ENTERO. Es la hoja que Calidad venía llevando en
-          el Drive: cruza el objetivo con su indicador y los doce meses
-          del año, que es lo que ninguna de las dos fichas muestra. */}
-      <div className="mb-3 mt-8 border-b border-borde pb-2">
-        <h2 className="text-sm font-semibold tracking-tight">
-          Objetivos de la calidad e indicadores · {anio}
-        </h2>
-        <p className="mt-0.5 text-xs text-atenuado-contraste">
-          F-EST-01-05. Las mismas columnas de la hoja: el resultado, el cumplimiento y el
-          semáforo los calcula el sistema a partir de los meses cargados del indicador.
-        </p>
-      </div>
-
-      <TablaHoja hoja={hoja} puedeEditar={gestiona} />
     </>
   );
 }
