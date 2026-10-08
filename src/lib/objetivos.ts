@@ -124,6 +124,22 @@ export const MESES_ABREVIADOS = [
   "Dic",
 ];
 
+/** Los doce meses con su nombre entero, para el diálogo del calendario. */
+export const MESES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
 
 // ---------------------------------------------------------------------
 // Plan de accion para el logro de los objetivos (hoja 6.2.2)
@@ -286,4 +302,155 @@ export function resultadoEsperado(objetivo: {
   }
 
   return "Sin declarar";
+}
+
+// ---------------------------------------------------------------------
+// El calendario: el resultado del objetivo, mes a mes
+// ---------------------------------------------------------------------
+// Es la vista principal del modulo desde el 8 de octubre: una fila por
+// objetivo y doce celdas, una por mes. Las reglas de que color lleva
+// cada celda viven aca y no en el componente porque las necesitan el
+// servidor —para contar— y el cliente —para pintar—.
+
+/** El resultado de un mes, tal como se guarda en `objetivo_mediciones`. */
+export interface MedicionMensual {
+  anio: number;
+  mes: number;
+  valor_numerico: number | null;
+  resultado_si_no: boolean | null;
+  resultado_texto: string | null;
+  comentario: string | null;
+}
+
+/**
+ * En que estado esta la celda de un mes.
+ *
+ * `fuera`      el mes no entra en el periodo de medicion declarado.
+ * `no_toca`    entra, pero la frecuencia no lo mide (un trimestral no
+ *              se carga en febrero).
+ * `pendiente`  toca medir y todavia no se cargo.
+ * `alcanzado`  cargado y dentro de lo esperado.
+ * `no_alcanzado` cargado y fuera de lo esperado.
+ * `cargado`    cargado, sin forma de decir si alcanza —el objetivo de
+ *              tipo texto no tiene con que compararse—.
+ */
+export type EstadoDelMes =
+  | "fuera"
+  | "no_toca"
+  | "pendiente"
+  | "alcanzado"
+  | "no_alcanzado"
+  | "cargado";
+
+export const ETIQUETAS_ESTADO_DEL_MES: Record<EstadoDelMes, string> = {
+  fuera: "Fuera del período de medición",
+  no_toca: "No corresponde medir este mes",
+  pendiente: "Pendiente de cargar",
+  alcanzado: "Alcanzado",
+  no_alcanzado: "No alcanzado",
+  cargado: "Cargado",
+};
+
+/**
+ * Cada cuantos meses mide una frecuencia.
+ *
+ * El semanal se trata como mensual: la celda es el mes y no hay forma de
+ * poner cuatro valores en una. Lo que cambia es con que frecuencia se
+ * actualiza por dentro, no la grilla.
+ */
+const MESES_ENTRE_MEDICIONES: Record<FrecuenciaMedicion, number> = {
+  semanal: 1,
+  mensual: 1,
+  trimestral: 3,
+  semestral: 6,
+  anual: 12,
+};
+
+/** El numero de mes de una fecha `AAAA-MM-DD`, sin pasar por `Date`. */
+function mesDeLaFecha(fecha: string | null): { anio: number; mes: number } | null {
+  if (!fecha) return null;
+  const anio = Number(fecha.slice(0, 4));
+  const mes = Number(fecha.slice(5, 7));
+  if (!Number.isInteger(anio) || !Number.isInteger(mes)) return null;
+  return { anio, mes };
+}
+
+/**
+ * El estado de la celda de un mes, para un objetivo y un año.
+ *
+ * Primero el periodo: un mes fuera de las fechas declaradas no se pinta
+ * ni se puede cargar, porque cargarlo seria medir algo que todavia no
+ * empezo o que ya cerro. Despues la frecuencia, que decide si ese mes
+ * toca. Y recien al final se mira si hay medicion y si alcanza.
+ */
+export function estadoDelMes(
+  objetivo: {
+    fecha_inicio_medicion: string | null;
+    fecha_fin_medicion: string | null;
+    frecuencia_medicion: FrecuenciaMedicion | null;
+    tipo_resultado: TipoResultadoObjetivo | null;
+    resultado_esperado_si_no: boolean | null;
+    valor_minimo: number | null;
+    valor_maximo: number | null;
+  },
+  anio: number,
+  mes: number,
+  medicion: MedicionMensual | undefined,
+): EstadoDelMes {
+  const inicio = mesDeLaFecha(objetivo.fecha_inicio_medicion);
+  const fin = mesDeLaFecha(objetivo.fecha_fin_medicion);
+
+  const ordinal = anio * 12 + mes;
+  if (inicio && ordinal < inicio.anio * 12 + inicio.mes) return "fuera";
+  if (fin && ordinal > fin.anio * 12 + fin.mes) return "fuera";
+
+  // Lo ya cargado manda sobre la frecuencia: si alguien cargo un mes que
+  // la frecuencia no pedia, el dato esta y se muestra. Esconderlo seria
+  // perderlo.
+  if (!medicion) {
+    const paso = objetivo.frecuencia_medicion
+      ? MESES_ENTRE_MEDICIONES[objetivo.frecuencia_medicion]
+      : 1;
+
+    if (paso > 1 && inicio) {
+      const desde = ordinal - (inicio.anio * 12 + inicio.mes);
+      if (desde % paso !== 0) return "no_toca";
+    }
+    return "pendiente";
+  }
+
+  if (objetivo.tipo_resultado === "si_no") {
+    if (medicion.resultado_si_no === null) return "cargado";
+    const esperado = objetivo.resultado_esperado_si_no ?? true;
+    return medicion.resultado_si_no === esperado ? "alcanzado" : "no_alcanzado";
+  }
+
+  if (objetivo.tipo_resultado === "numerico") {
+    if (medicion.valor_numerico === null) return "cargado";
+    const { valor_minimo: minimo, valor_maximo: maximo } = objetivo;
+    if (minimo === null && maximo === null) return "cargado";
+    const dentro =
+      (minimo === null || medicion.valor_numerico >= minimo) &&
+      (maximo === null || medicion.valor_numerico <= maximo);
+    return dentro ? "alcanzado" : "no_alcanzado";
+  }
+
+  // El de tipo texto no tiene contra que compararse: queda cargado.
+  return "cargado";
+}
+
+/** Lo que muestra la celda, cuando hay algo cargado. */
+export function resumenDelMes(
+  objetivo: { tipo_resultado: TipoResultadoObjetivo | null; unidad_valor: string | null },
+  medicion: MedicionMensual | undefined,
+): string {
+  if (!medicion) return "";
+  if (objetivo.tipo_resultado === "numerico" && medicion.valor_numerico !== null) {
+    const unidad = objetivo.unidad_valor ? ` ${objetivo.unidad_valor}` : "";
+    return `${medicion.valor_numerico}${unidad}`;
+  }
+  if (objetivo.tipo_resultado === "si_no" && medicion.resultado_si_no !== null) {
+    return medicion.resultado_si_no ? "Sí" : "No";
+  }
+  return medicion.resultado_texto?.trim() ? "✓" : "";
 }

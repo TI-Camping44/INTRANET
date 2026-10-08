@@ -440,12 +440,13 @@ function revisarObjetivo(campos: ReturnType<typeof leerCamposDelObjetivo>): stri
   if (campos.tipo_resultado === "texto" && !campos.resultado_esperado_texto) {
     return "Escriba el resultado esperado.";
   }
-  if (
-    campos.tipo_resultado === "numerico" &&
-    campos.valor_minimo === null &&
-    campos.valor_maximo === null
-  ) {
-    return "Indique al menos uno de los dos valores esperables, el mínimo o el máximo.";
+  if (campos.tipo_resultado === "numerico") {
+    if (campos.valor_minimo === null || campos.valor_maximo === null) {
+      return "Indique los dos valores esperables, el mínimo y el máximo.";
+    }
+    if (!campos.unidad_valor) {
+      return "Indique el nombre de la unidad del valor, por ejemplo «%».";
+    }
   }
   if (
     campos.valor_minimo !== null &&
@@ -457,6 +458,12 @@ function revisarObjetivo(campos: ReturnType<typeof leerCamposDelObjetivo>): stri
 
   if (!campos.frecuencia_medicion) return "Indique la frecuencia de medición.";
   if (!campos.responsable_id) return "Indique el responsable del objetivo.";
+
+  // TODO OBLIGATORIO, desde el 8 de octubre. Un objetivo a medio
+  // declarar no se puede medir ni llevar a la Revision por la Direccion.
+  if (!campos.fuente_datos) return "Indique la fuente de datos.";
+  if (!campos.recursos_requeridos) return "Indique los recursos requeridos.";
+  if (!campos.proveedor_recursos) return "Indique quién provee los recursos.";
 
   return null;
 }
@@ -675,4 +682,120 @@ export async function cambiarEstadoObjetivo(
       ? `${(objetivo as { codigo: string }).codigo} cerrado.`
       : "Estado actualizado.",
   };
+}
+
+// ---------------------------------------------------------------------
+// El resultado del objetivo, mes a mes
+// ---------------------------------------------------------------------
+// Es el calendario de la pantalla principal: una celda por mes, y en
+// cada una se registra lo que dio el objetivo ese mes. Direccion lo
+// pidio el 8 de octubre, y por eso el seguimiento salio del formulario
+// de la accion del plan: el resultado se mira acá, mes contra mes.
+//
+// SE GUARDA SEGUN EL TIPO DEL OBJETIVO. Si/No, texto o valor numerico:
+// la misma distincion que ya hace el alta, para que el numerico se pueda
+// comparar contra el minimo y el maximo esperables.
+
+/** Registra —o corrige— el resultado de un mes. */
+export async function registrarMedicionDelObjetivo(
+  objetivoId: string,
+  anio: number,
+  mes: number,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
+    return { exito: false, error: "El mes no es válido." };
+  }
+  if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) {
+    return { exito: false, error: "El año no es válido." };
+  }
+
+  const { data: objetivo } = await supabase
+    .from("objetivos")
+    .select("id, codigo, tipo_resultado, unidad_valor")
+    .eq("id", objetivoId)
+    .maybeSingle();
+
+  if (!objetivo) {
+    return { exito: false, error: "El objetivo no existe o no tiene acceso." };
+  }
+
+  const tipo = (objetivo as { tipo_resultado: string | null }).tipo_resultado;
+
+  const crudoNumero = String(datos.get("valor_numerico") ?? "").trim();
+  const crudoSiNo = String(datos.get("resultado_si_no") ?? "").trim();
+  const texto = String(datos.get("resultado_texto") ?? "").trim();
+
+  // Solo se guarda lo que corresponde al tipo: si no, un objetivo
+  // numerico arrastraria el texto que alguien escribio antes de cambiar
+  // el tipo, y la celda mostraria dos resultados distintos.
+  let valorNumerico: number | null = null;
+  let resultadoSiNo: boolean | null = null;
+  let resultadoTexto: string | null = null;
+
+  if (tipo === "numerico") {
+    if (crudoNumero === "" || Number.isNaN(Number(crudoNumero))) {
+      return { exito: false, error: "Cargue el valor del mes." };
+    }
+    valorNumerico = Number(crudoNumero);
+  } else if (tipo === "si_no") {
+    if (crudoSiNo !== "si" && crudoSiNo !== "no") {
+      return { exito: false, error: "Indique si el mes cumplió o no." };
+    }
+    resultadoSiNo = crudoSiNo === "si";
+  } else {
+    if (!texto) return { exito: false, error: "Escriba el resultado del mes." };
+    resultadoTexto = texto;
+  }
+
+  // `upsert` sobre el indice unico (objetivo, año, mes): volver a tocar
+  // la celda corrige, no duplica.
+  const { error } = await supabase.from("objetivo_mediciones").upsert(
+    {
+      empresa_id: usuario.empresa_id,
+      objetivo_id: objetivoId,
+      anio,
+      mes,
+      valor_numerico: valorNumerico,
+      resultado_si_no: resultadoSiNo,
+      resultado_texto: resultadoTexto,
+      comentario: String(datos.get("comentario") ?? "").trim() || null,
+      creado_por: usuario.id,
+    },
+    { onConflict: "objetivo_id,anio,mes" },
+  );
+
+  if (error) {
+    return { exito: false, error: `No se pudo registrar el mes: ${error.message}` };
+  }
+
+  revalidatePath("/indicadores");
+  revalidatePath(`/indicadores/objetivos/${objetivoId}`);
+  return { exito: true, mensaje: "Resultado del mes registrado." };
+}
+
+/** Borra el resultado de un mes, para la celda cargada por error. */
+export async function borrarMedicionDelObjetivo(
+  objetivoId: string,
+  anio: number,
+  mes: number,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { error } = await supabase
+    .from("objetivo_mediciones")
+    .delete()
+    .eq("objetivo_id", objetivoId)
+    .eq("anio", anio)
+    .eq("mes", mes);
+
+  if (error) return { exito: false, error: `No se pudo borrar el mes: ${error.message}` };
+
+  revalidatePath("/indicadores");
+  revalidatePath(`/indicadores/objetivos/${objetivoId}`);
+  return { exito: true, mensaje: "Resultado del mes borrado." };
 }

@@ -19,7 +19,6 @@ import {
   crearPlanDeObjetivo,
   eliminarPlanDeObjetivo,
 } from "@/app/(sgc)/indicadores/plan/acciones";
-import { ESTADOS_PLAN, ETIQUETAS_ESTADO_PLAN } from "@/lib/objetivos";
 import type { FilaPlan } from "@/app/(sgc)/indicadores/plan/page";
 
 /**
@@ -34,10 +33,16 @@ import type { FilaPlan } from "@/app/(sgc)/indicadores/plan/page";
  * y como los busca un auditor. No es decoración: es el vocabulario del
  * formulario que esta pantalla reemplaza.
  *
- * El responsable se puede elegir de la lista o escribir como cargo. Hace
- * falta lo segundo: la planilla nombra cargos y de los diecinueve que
- * nombra hoy existen dos usuarios, porque el perfil se crea en el primer
- * ingreso. Obligar a elegir una persona impediría cargar el plan.
+ * TODO OBLIGATORIO MENOS EL PUESTO DEL RESPONSABLE. Lo pidió Dirección
+ * el 8 de octubre: una acción a medio llenar no se puede seguir ni
+ * auditar. El puesto queda suelto porque es el nombre que le da la
+ * planilla y no siempre coincide con un cargo del organigrama.
+ *
+ * EL SEGUIMIENTO NO ESTÁ ACÁ. La fecha real de finalización, el
+ * resultado de la evaluación, el porcentaje de avance, el estado y las
+ * observaciones salieron del formulario: el resultado se registra mes a
+ * mes en el calendario de la pantalla principal, que es donde Dirección
+ * lo mira. Las columnas siguen en la base y conservan lo ya cargado.
  */
 export function AccionesDelPlan({
   objetivos,
@@ -54,13 +59,8 @@ export function AccionesDelPlan({
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
-  const [estado, definirEstado] = React.useState(plan?.estado ?? "pendiente");
 
   const editando = Boolean(plan) && !soloAlta;
-
-  React.useEffect(() => {
-    if (abierto) definirEstado(plan?.estado ?? "pendiente");
-  }, [abierto, plan]);
 
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -131,15 +131,19 @@ export function AccionesDelPlan({
               <GrupoCampo
                 etiqueta="Objetivo relacionado"
                 htmlFor="objetivo_id"
-                ayuda="Deje «Todos» si la acción aplica a todos los objetivos a la vez."
+                requerido
+                ayuda="A qué objetivo responde la acción."
               >
                 <Seleccion
                   id="objetivo_id"
                   name="objetivo_id"
-                  defaultValue={plan?.objetivo_id ?? ""}
+                  required
+                  defaultValue={plan?.objetivo_id ?? objetivos[0]?.id ?? ""}
                   key={plan?.id ?? "nueva"}
                 >
-                  <option value="">Todos los objetivos</option>
+                  <option value="" disabled>
+                    Elija el objetivo…
+                  </option>
                   {objetivos.map((objetivo) => (
                     <option key={objetivo.id} value={objetivo.id}>
                       {objetivo.codigo} · {objetivo.nombre}
@@ -165,11 +169,16 @@ export function AccionesDelPlan({
                 />
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="b) Qué recursos se requerirán" htmlFor="recursos_necesarios">
+              <GrupoCampo
+                etiqueta="b) Qué recursos se requerirán"
+                htmlFor="recursos_necesarios"
+                requerido
+              >
                 <AreaTexto
                   id="recursos_necesarios"
                   name="recursos_necesarios"
                   rows={2}
+                  required
                   defaultValue={plan?.recursos_necesarios ?? ""}
                 />
               </GrupoCampo>
@@ -178,15 +187,19 @@ export function AccionesDelPlan({
                 <GrupoCampo
                   etiqueta="c) Quién será responsable"
                   htmlFor="responsable_id"
-                  ayuda="De la lista, si ya ingresó al sistema."
+                  requerido
+                  ayuda="De la lista de personas que ya ingresaron al sistema."
                 >
                   <Seleccion
                     id="responsable_id"
                     name="responsable_id"
+                    required
                     defaultValue={plan?.responsable_id ?? ""}
                     key={plan?.id ?? "nueva"}
                   >
-                    <option value="">Sin asignar</option>
+                    <option value="" disabled>
+                      Elija a la persona…
+                    </option>
                     {personas.map((persona) => (
                       <option key={persona.id} value={persona.id}>
                         {persona.nombre_completo}
@@ -195,10 +208,11 @@ export function AccionesDelPlan({
                   </Seleccion>
                 </GrupoCampo>
 
+                {/* El único campo que puede quedar vacío. */}
                 <GrupoCampo
-                  etiqueta="O el cargo, como lo dice la planilla"
+                  etiqueta="Puesto del responsable"
                   htmlFor="responsable_declarado"
-                  ayuda="Por ejemplo: Jefe de Capital Humano."
+                  ayuda="Opcional. Por ejemplo: Jefe de Capital Humano."
                 >
                   <Entrada
                     id="responsable_declarado"
@@ -208,97 +222,38 @@ export function AccionesDelPlan({
                 </GrupoCampo>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <GrupoCampo etiqueta="d) Cuándo se finalizará" htmlFor="fecha_finalizacion">
-                  <Entrada
-                    id="fecha_finalizacion"
-                    name="fecha_finalizacion"
-                    type="date"
-                    defaultValue={plan?.fecha_finalizacion ?? ""}
-                  />
-                </GrupoCampo>
-
-                <GrupoCampo
-                  etiqueta="Fecha real de finalización"
-                  htmlFor="fecha_real_finalizacion"
-                  requerido={estado === "cumplido"}
-                  ayuda={
-                    estado === "cumplido"
-                      ? "Obligatoria para marcarlo cumplido."
-                      : "Se carga al terminar."
-                  }
-                >
-                  <Entrada
-                    id="fecha_real_finalizacion"
-                    name="fecha_real_finalizacion"
-                    type="date"
-                    required={estado === "cumplido"}
-                    defaultValue={plan?.fecha_real_finalizacion ?? ""}
-                  />
-                </GrupoCampo>
-              </div>
+              <GrupoCampo
+                etiqueta="d) Cuándo se finalizará"
+                htmlFor="fecha_finalizacion"
+                requerido
+              >
+                <Entrada
+                  id="fecha_finalizacion"
+                  name="fecha_finalizacion"
+                  type="date"
+                  required
+                  defaultValue={plan?.fecha_finalizacion ?? ""}
+                />
+              </GrupoCampo>
 
               <GrupoCampo
                 etiqueta="e) Cómo se evaluarán los resultados"
                 htmlFor="como_se_evaluan_resultados"
+                requerido
               >
                 <AreaTexto
                   id="como_se_evaluan_resultados"
                   name="como_se_evaluan_resultados"
                   rows={2}
+                  required
                   defaultValue={plan?.como_se_evaluan_resultados ?? ""}
                 />
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="Resultado de la evaluación" htmlFor="resultado_evaluacion">
-                <AreaTexto
-                  id="resultado_evaluacion"
-                  name="resultado_evaluacion"
-                  rows={2}
-                  defaultValue={plan?.resultado_evaluacion ?? ""}
-                />
-              </GrupoCampo>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <GrupoCampo etiqueta="% de avance" htmlFor="avance_porcentaje">
-                  <Entrada
-                    id="avance_porcentaje"
-                    name="avance_porcentaje"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={1}
-                    defaultValue={plan ? Number(plan.avance_porcentaje) : 0}
-                  />
-                </GrupoCampo>
-
-                <GrupoCampo etiqueta="Estado" htmlFor="estado" requerido>
-                  <Seleccion
-                    id="estado"
-                    name="estado"
-                    required
-                    value={estado}
-                    onChange={(evento) =>
-                      definirEstado(evento.target.value as FilaPlan["estado"])
-                    }
-                  >
-                    {ESTADOS_PLAN.map((valor) => (
-                      <option key={valor} value={valor}>
-                        {ETIQUETAS_ESTADO_PLAN[valor]}
-                      </option>
-                    ))}
-                  </Seleccion>
-                </GrupoCampo>
-              </div>
-
-              <GrupoCampo etiqueta="Observaciones" htmlFor="observaciones">
-                <AreaTexto
-                  id="observaciones"
-                  name="observaciones"
-                  rows={2}
-                  defaultValue={plan?.observaciones ?? ""}
-                />
-              </GrupoCampo>
+              <p className="text-[11px] leading-relaxed text-atenuado-contraste">
+                El resultado se registra mes a mes en el calendario de Objetivos e Indicadores,
+                no acá.
+              </p>
             </div>
 
             <DialogoPie className="mt-5 sm:justify-between">

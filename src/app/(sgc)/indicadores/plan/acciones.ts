@@ -4,18 +4,32 @@ import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
-import { esEstadoDePlan } from "@/lib/objetivos";
+
 import type { ResultadoAccion } from "@/lib/tipos";
 
 /**
  * El plan de accion para el logro de los objetivos, hoja 6.2.2.
  *
- * Los cinco incisos del apartado 6.2.2 de la norma. De los cinco, dos se
- * exigen siempre —que se va a hacer y quien es responsable— y los otros
- * tres se pueden completar despues: la planilla de Calidad tiene filas a
- * medio llenar y esa es justamente la informacion que falta recoger.
- * Exigirlos todos desde el alta obligaria a inventarlos.
+ * TODO OBLIGATORIO MENOS EL PUESTO. Direccion lo pidio el 8 de octubre:
+ * los cinco incisos del apartado 6.2.2 se cargan completos. Una accion a
+ * medio llenar no se puede seguir ni auditar, y la planilla de Calidad
+ * ya tiene demasiadas filas asi. Lo unico opcional es el puesto del
+ * responsable, que es el nombre que le da la planilla y no siempre
+ * coincide con un cargo del organigrama.
+ *
+ * EL SEGUIMIENTO SALIO DE ACA. La fecha real, el resultado de la
+ * evaluacion, el avance, el estado y las observaciones ya no se cargan
+ * en la accion: el resultado se registra mes a mes en el calendario de
+ * la pantalla principal, que es donde Direccion lo va a mirar.
  */
+
+/** Los campos que se exigen completos, con el nombre que ve la persona. */
+const OBLIGATORIOS: { campo: string; nombre: string }[] = [
+  { campo: "recursos_necesarios", nombre: "qué recursos se requerirán" },
+  { campo: "responsable_id", nombre: "quién será responsable" },
+  { campo: "fecha_finalizacion", nombre: "cuándo se finalizará" },
+  { campo: "como_se_evaluan_resultados", nombre: "cómo se evaluarán los resultados" },
+];
 
 /** Devuelve el mensaje del primer problema, o null si esta todo bien. */
 function revisarCampos(datos: FormData): string | null {
@@ -23,26 +37,14 @@ function revisarCampos(datos: FormData): string | null {
     return "Describa qué se va a hacer, con al menos 10 caracteres.";
   }
 
-  const responsableId = String(datos.get("responsable_id") ?? "").trim();
-  const responsableTexto = String(datos.get("responsable_declarado") ?? "").trim();
-  if (!responsableId && !responsableTexto) {
-    return "Indique quién será responsable: elija una persona o escriba el cargo.";
+  if (!String(datos.get("objetivo_id") ?? "").trim()) {
+    return "Elija el objetivo al que responde la acción.";
   }
 
-  const estado = String(datos.get("estado") ?? "").trim();
-  if (!esEstadoDePlan(estado)) return "Elija un estado de la lista.";
-
-  const avance = Number(datos.get("avance_porcentaje") ?? 0);
-  if (!Number.isFinite(avance) || avance < 0 || avance > 100) {
-    return "El avance tiene que estar entre 0 y 100.";
-  }
-
-  // La base lo exige tambien, en `objetivo_planes_cierre_con_fecha`: una
-  // fila que dice que termino sin decir cuando no sirve para auditar.
-  const fechaReal = String(datos.get("fecha_real_finalizacion") ?? "").trim();
-  if (estado === "cumplido" && !fechaReal) {
-    return "Para marcarlo cumplido, cargue la fecha real de finalización.";
-  }
+  const faltante = OBLIGATORIOS.find(
+    (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
+  );
+  if (faltante) return `Falta completar ${faltante.nombre}.`;
 
   return null;
 }
@@ -59,13 +61,14 @@ function camposDelFormulario(datos: FormData) {
     fecha_finalizacion: String(datos.get("fecha_finalizacion") ?? "") || null,
     como_se_evaluan_resultados:
       String(datos.get("como_se_evaluan_resultados") ?? "").trim() || null,
-    fecha_real_finalizacion: String(datos.get("fecha_real_finalizacion") ?? "") || null,
-    resultado_evaluacion: String(datos.get("resultado_evaluacion") ?? "").trim() || null,
-    avance_porcentaje: Number(datos.get("avance_porcentaje") ?? 0),
-    estado: String(datos.get("estado") ?? "pendiente"),
-    observaciones: String(datos.get("observaciones") ?? "").trim() || null,
   };
 }
+
+// El seguimiento —fecha real, resultado de la evaluacion, avance, estado
+// y observaciones— ya no se carga desde el formulario, asi que tampoco
+// se escribe: mandarlo vacio al corregir una accion le borraria a la
+// planilla lo que ya tenia cargado. Las columnas quedan con su valor por
+// omision en el alta y sin tocar en la edicion.
 
 export async function crearPlanDeObjetivo(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();

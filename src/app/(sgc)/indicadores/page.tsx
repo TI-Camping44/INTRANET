@@ -7,21 +7,12 @@ import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { obtenerHoja } from "@/app/(sgc)/indicadores/hoja";
 import { TablaHoja } from "@/app/(sgc)/indicadores/tabla-hoja";
+import { CalendarioObjetivos } from "@/app/(sgc)/indicadores/calendario-objetivos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
-import { Insignia } from "@/components/ui/insignia";
-import { Tarjeta } from "@/components/ui/tarjeta";
-import {
-  Tabla,
-  TablaCabecera,
-  TablaCelda,
-  TablaCuerpo,
-  TablaEncabezado,
-  TablaFila,
-} from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
+import { hoyEnAsuncion } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
 import {
   ESTADOS_OBJETIVO,
@@ -30,10 +21,9 @@ import {
   ETIQUETAS_TIPO_RESULTADO,
   FRECUENCIAS_MEDICION,
   TIPOS_RESULTADO,
-  VARIANTE_ESTADO_OBJETIVO,
-  resultadoEsperado,
   type EstadoObjetivo,
   type FrecuenciaMedicion,
+  type MedicionMensual,
   type TipoResultadoObjetivo,
 } from "@/lib/objetivos";
 
@@ -162,7 +152,26 @@ export default async function PaginaIndicadores({
     );
   }
 
-  const nombreDeEmpresa = new Map(empresasDelGrupo.map((empresa) => [empresa.id, empresa.nombre]));
+  // Los resultados mensuales de los objetivos que quedaron en el
+  // listado. Una consulta, no una por fila.
+  const { data: datosMediciones } = objetivos.length
+    ? await supabase
+        .from("objetivo_mediciones")
+        .select("objetivo_id, anio, mes, valor_numerico, resultado_si_no, resultado_texto, comentario")
+        .eq("anio", anio)
+        .in(
+          "objetivo_id",
+          objetivos.map((objetivo) => objetivo.id),
+        )
+    : { data: [] };
+
+  const medicionesPorObjetivo = new Map<string, MedicionMensual[]>();
+  for (const fila of (datosMediciones as (MedicionMensual & { objetivo_id: string })[] | null) ??
+    []) {
+    const suyas = medicionesPorObjetivo.get(fila.objetivo_id) ?? [];
+    suyas.push(fila);
+    medicionesPorObjetivo.set(fila.objetivo_id, suyas);
+  }
 
   // Los gráficos se arman sobre lo que quedó en el listado y no sobre el
   // total: si alguien filtra, los porcentajes son de lo que está mirando.
@@ -264,6 +273,29 @@ export default async function PaginaIndicadores({
         </div>
       ) : null}
 
+      {/* EL AÑO DEL CALENDARIO. Enlaces y no un desplegable: así la
+          pantalla sigue siendo de servidor y el año queda en la
+          dirección, que se puede guardar y compartir. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-atenuado-contraste">
+          Año del calendario
+        </span>
+        {aniosConObjetivos.map((valor) => (
+          <Link
+            key={valor}
+            href={`/indicadores?anio=${valor}`}
+            className={cn(
+              "rounded border px-2 py-1 text-xs tabular transition-colors",
+              valor === anio
+                ? "border-primario bg-primario/10 font-medium text-primario"
+                : "border-borde text-atenuado-contraste hover:text-texto",
+            )}
+          >
+            {valor}
+          </Link>
+        ))}
+      </div>
+
       <FiltrosListado
         marcadorBusqueda="Buscar por código o denominación…"
         campos={[
@@ -310,159 +342,43 @@ export default async function PaginaIndicadores({
           }
         />
       ) : (
-        <Tarjeta>
-          <Tabla barraSuperior>
-            <TablaCabecera>
-              <TablaFila>
-                <TablaEncabezado className="w-[6.5rem]">Código</TablaEncabezado>
-                <TablaEncabezado className="w-[18rem]">Denominación</TablaEncabezado>
-                <TablaEncabezado className="hidden w-[11rem] lg:table-cell">
-                  Empresa
-                </TablaEncabezado>
-                <TablaEncabezado className="hidden w-[12rem] xl:table-cell">
-                  Responsable
-                </TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Período de medición</TablaEncabezado>
-                <TablaEncabezado className="hidden w-[7rem] lg:table-cell">
-                  Frecuencia
-                </TablaEncabezado>
-                <TablaEncabezado className="hidden w-[14rem] xl:table-cell">
-                  Resultado esperado
-                </TablaEncabezado>
-                <TablaEncabezado className="w-[6rem] text-center">Indicadores</TablaEncabezado>
-                <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
-                <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
-              </TablaFila>
-            </TablaCabecera>
-            <TablaCuerpo>
-              {objetivos.map((objetivo) => {
-                const cuantos = indicadoresPorObjetivo.get(objetivo.id) ?? 0;
-
-                return (
-                  <TablaFila key={objetivo.id}>
-                    <TablaCelda className="font-medium tabular">
-                      <Link
-                        href={`/indicadores/objetivos/${objetivo.id}`}
-                        className="hover:text-primario"
-                      >
-                        {objetivo.codigo}
-                      </Link>
-                    </TablaCelda>
-                    <TablaCelda>
-                      <Link
-                        href={`/indicadores/objetivos/${objetivo.id}`}
-                        className="block text-xs hover:text-primario"
-                      >
-                        {objetivo.nombre}
-                      </Link>
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {objetivo.empresa_objetivo_id
-                        ? (nombreDeEmpresa.get(objetivo.empresa_objetivo_id) ?? "—")
-                        : "—"}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
-                      {objetivo.responsable?.nombre_completo ?? "—"}
-                    </TablaCelda>
-                    <TablaCelda className="whitespace-nowrap text-xs tabular text-atenuado-contraste">
-                      {objetivo.fecha_inicio_medicion && objetivo.fecha_fin_medicion
-                        ? `${formatearFecha(objetivo.fecha_inicio_medicion)} al ${formatearFecha(objetivo.fecha_fin_medicion)}`
-                        : "—"}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {objetivo.frecuencia_medicion
-                        ? ETIQUETAS_FRECUENCIA_MEDICION[objetivo.frecuencia_medicion]
-                        : "—"}
-                    </TablaCelda>
-                    <TablaCelda
-                      className="hidden text-xs text-atenuado-contraste xl:table-cell"
-                      style={{ maxWidth: "14rem" }}
-                    >
-                      <span className="block truncate" title={resultadoEsperado(objetivo)}>
-                        {resultadoEsperado(objetivo)}
-                      </span>
-                    </TablaCelda>
-                    <TablaCelda className="text-center text-xs tabular">
-                      {cuantos > 0 ? (
-                        cuantos
-                      ) : (
-                        <span className="font-medium text-semaforo-medio">0</span>
-                      )}
-                    </TablaCelda>
-                    <TablaCelda>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <Insignia
-                          variante={
-                            VARIANTE_ESTADO_OBJETIVO[objetivo.estado] as "neutra" | "exito"
-                          }
-                        >
-                          {ETIQUETAS_ESTADO_OBJETIVO[objetivo.estado]}
-                        </Insignia>
-                        {objetivo.estado === "cerrado" && objetivo.objetivo_alcanzado !== null ? (
-                          <Insignia
-                            variante={objetivo.objetivo_alcanzado ? "exito" : "peligro"}
-                          >
-                            {objetivo.objetivo_alcanzado ? "Alcanzado" : "No alcanzado"}
-                          </Insignia>
-                        ) : null}
-                      </div>
-                    </TablaCelda>
-                    <TablaCelda className="text-right">
-                      <Link
-                        href={`/indicadores/objetivos/${objetivo.id}`}
-                        className="text-xs text-primario hover:underline"
-                      >
-                        Ver
-                      </Link>
-                    </TablaCelda>
-                  </TablaFila>
-                );
-              })}
-            </TablaCuerpo>
-          </Tabla>
-        </Tarjeta>
+        <CalendarioObjetivos
+          objetivos={objetivos.map((objetivo) => ({
+            id: objetivo.id,
+            codigo: objetivo.codigo,
+            nombre: objetivo.nombre,
+            fecha_inicio_medicion: objetivo.fecha_inicio_medicion,
+            fecha_fin_medicion: objetivo.fecha_fin_medicion,
+            frecuencia_medicion: objetivo.frecuencia_medicion,
+            tipo_resultado: objetivo.tipo_resultado,
+            resultado_esperado_si_no: objetivo.resultado_esperado_si_no,
+            valor_minimo: objetivo.valor_minimo,
+            valor_maximo: objetivo.valor_maximo,
+            unidad_valor: objetivo.unidad_valor,
+            mediciones: medicionesPorObjetivo.get(objetivo.id) ?? [],
+          }))}
+          anio={anio}
+          puedeEditar={gestiona}
+        />
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {objetivos.length} objetivo{objetivos.length === 1 ? "" : "s"} en el listado. «Ver» abre la
-        ficha, donde se cargan las acciones y los indicadores con los que se mide.
+        {objetivos.length} objetivo{objetivos.length === 1 ? "" : "s"} en el listado, con sus doce
+        meses de {anio}. Toque un mes para registrar o corregir el resultado; el nombre del
+        objetivo abre su ficha, donde se cargan las acciones y los indicadores.
       </p>
 
       {/* EL F-EST-01-05, ENTERO. Es la hoja que Calidad venía llevando en
           el Drive: cruza el objetivo con su indicador y los doce meses
           del año, que es lo que ninguna de las dos fichas muestra. */}
-      <div className="mb-3 mt-8 flex items-end justify-between gap-3 border-b border-borde pb-2">
-        <div>
-          <h2 className="text-sm font-semibold tracking-tight">
-            Objetivos de la calidad e indicadores · {anio}
-          </h2>
-          <p className="mt-0.5 text-xs text-atenuado-contraste">
-            F-EST-01-05. Las mismas columnas de la hoja: el resultado, el cumplimiento y el
-            semáforo los calcula el sistema a partir de los meses cargados.
-          </p>
-        </div>
-
-        {/* El año, cuando hay más de uno cargado. Enlaces y no un
-            desplegable: así la pantalla sigue siendo de servidor y el año
-            queda en la dirección, que se puede guardar y compartir. */}
-        {aniosConObjetivos.length > 1 ? (
-          <div className="flex shrink-0 items-center gap-1">
-            {aniosConObjetivos.map((valor) => (
-              <Link
-                key={valor}
-                href={`/indicadores?anio=${valor}`}
-                className={cn(
-                  "rounded border px-2 py-1 text-xs tabular transition-colors",
-                  valor === anio
-                    ? "border-primario bg-primario/10 font-medium text-primario"
-                    : "border-borde text-atenuado-contraste hover:text-texto",
-                )}
-              >
-                {valor}
-              </Link>
-            ))}
-          </div>
-        ) : null}
+      <div className="mb-3 mt-8 border-b border-borde pb-2">
+        <h2 className="text-sm font-semibold tracking-tight">
+          Objetivos de la calidad e indicadores · {anio}
+        </h2>
+        <p className="mt-0.5 text-xs text-atenuado-contraste">
+          F-EST-01-05. Las mismas columnas de la hoja: el resultado, el cumplimiento y el
+          semáforo los calcula el sistema a partir de los meses cargados del indicador.
+        </p>
       </div>
 
       <TablaHoja hoja={hoja} puedeEditar={gestiona} />

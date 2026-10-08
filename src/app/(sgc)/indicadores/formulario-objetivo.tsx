@@ -182,22 +182,24 @@ export function FormularioObjetivo({
 
           {tipo === "numerico" ? (
             <>
-              <GrupoCampo etiqueta="Valor mínimo esperable" htmlFor="valor_minimo">
+              <GrupoCampo etiqueta="Valor mínimo esperable" htmlFor="valor_minimo" requerido>
                 <Entrada
                   id="valor_minimo"
                   name="valor_minimo"
                   type="number"
                   step="any"
+                  required
                   className="tabular"
                 />
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="Valor máximo esperable" htmlFor="valor_maximo">
+              <GrupoCampo etiqueta="Valor máximo esperable" htmlFor="valor_maximo" requerido>
                 <Entrada
                   id="valor_maximo"
                   name="valor_maximo"
                   type="number"
                   step="any"
+                  required
                   className="tabular"
                 />
               </GrupoCampo>
@@ -206,9 +208,10 @@ export function FormularioObjetivo({
                 etiqueta="Unidad del valor"
                 htmlFor="unidad_valor"
                 className="sm:col-span-2"
+                requerido
                 ayuda="Por ejemplo %, días, reclamos, guaraníes."
               >
-                <Entrada id="unidad_valor" name="unidad_valor" placeholder="%" />
+                <Entrada id="unidad_valor" name="unidad_valor" required placeholder="%" />
               </GrupoCampo>
             </>
           ) : null}
@@ -228,30 +231,36 @@ export function FormularioObjetivo({
             </Seleccion>
           </GrupoCampo>
 
+          {/* TODO OBLIGATORIO. Lo pidió Dirección el 8 de octubre: un
+              objetivo a medio declarar no se puede medir ni llevar a la
+              Revisión por la Dirección. */}
           <GrupoCampo
             etiqueta="Fuente de datos"
             htmlFor="fuente_datos"
             className="sm:col-span-2"
+            requerido
             ayuda="De dónde sale la información, dónde se le hace seguimiento o dónde debe presentarse el resultado."
           >
-            <AreaTexto id="fuente_datos" name="fuente_datos" rows={2} />
+            <AreaTexto id="fuente_datos" name="fuente_datos" rows={2} required />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Recursos requeridos"
             htmlFor="recursos_requeridos"
             className="sm:col-span-2"
+            requerido
             ayuda="Qué hace falta para poder cumplirlo."
           >
-            <AreaTexto id="recursos_requeridos" name="recursos_requeridos" rows={2} />
+            <AreaTexto id="recursos_requeridos" name="recursos_requeridos" rows={2} required />
           </GrupoCampo>
 
           <GrupoCampo
             etiqueta="Quién provee los recursos"
             htmlFor="proveedor_recursos"
             className="sm:col-span-2"
+            requerido
           >
-            <Entrada id="proveedor_recursos" name="proveedor_recursos" />
+            <Entrada id="proveedor_recursos" name="proveedor_recursos" required />
           </GrupoCampo>
         </div>
 
