@@ -25,11 +25,14 @@ export function EliminarIndicador({
   codigo,
   mediciones,
   objetivos,
+  volverA,
 }: {
   indicadorId: string;
   codigo: string;
   mediciones: number;
   objetivos: number;
+  /** A dónde volver después de borrar. Por omisión, al listado. */
+  volverA?: string;
 }) {
   const router = useRouter();
   const [borrando, definirBorrando] = React.useState(false);
@@ -62,7 +65,7 @@ export function EliminarIndicador({
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Indicador eliminado.");
-      router.push("/indicadores");
+      router.push(volverA ?? "/indicadores");
       router.refresh();
     } else {
       toast.error(resultado.error);

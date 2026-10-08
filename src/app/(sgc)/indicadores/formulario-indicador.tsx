@@ -59,6 +59,8 @@ export function FormularioIndicador({
   usuarioActual,
   codigoSugerido,
   indicador,
+  objetivoFijo,
+  volverA,
 }: {
   procesos: Opcion[];
   usuarios: Opcion[];
@@ -66,6 +68,16 @@ export function FormularioIndicador({
   usuarioActual: string;
   codigoSugerido: string;
   indicador?: IndicadorEditable;
+  /**
+   * El objetivo desde cuya ficha se entró. Viene elegido y no se cambia
+   * acá: el indicador se carga desde el objetivo que mide.
+   */
+  objetivoFijo?: string;
+  /**
+   * A dónde volver al guardar o al eliminar. La arma el servidor con el
+   * id del objetivo; nunca llega una dirección escrita por nadie.
+   */
+  volverA?: string;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
@@ -88,7 +100,7 @@ export function FormularioIndicador({
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Guardado.");
-      router.push(`/indicadores/${indicador?.id ?? resultado.id}`);
+      router.push(volverA ?? `/indicadores/${indicador?.id ?? resultado.id}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -113,7 +125,7 @@ export function FormularioIndicador({
 
     if (resultado.exito) {
       toast.success(resultado.mensaje ?? "Indicador eliminado.");
-      router.push("/indicadores");
+      router.push(volverA ?? "/indicadores");
       router.refresh();
     } else {
       toast.error(resultado.error);
@@ -187,7 +199,8 @@ export function FormularioIndicador({
             <Seleccion
               id="objetivo_id"
               name="objetivo_id"
-              defaultValue={indicador?.objetivo_id ?? ""}
+              defaultValue={objetivoFijo ?? indicador?.objetivo_id ?? ""}
+              disabled={Boolean(objetivoFijo)}
             >
               <option value="">Sin objetivo asociado</option>
               {objetivos.map((objetivo) => (
@@ -196,6 +209,10 @@ export function FormularioIndicador({
                 </option>
               ))}
             </Seleccion>
+            {/* Un campo apagado no viaja en el formulario: va aparte. */}
+            {objetivoFijo ? (
+              <input type="hidden" name="objetivo_id" value={objetivoFijo} />
+            ) : null}
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">

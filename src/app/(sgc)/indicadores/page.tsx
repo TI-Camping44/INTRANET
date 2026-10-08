@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, TrendingUp } from "lucide-react";
+import { Plus, Target } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
+import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
-import { PanelObjetivos } from "@/app/(sgc)/indicadores/panel-objetivos";
 import { obtenerHoja } from "@/app/(sgc)/indicadores/hoja";
 import { TablaHoja } from "@/app/(sgc)/indicadores/tabla-hoja";
-import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
@@ -22,31 +21,86 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_FRECUENCIA, ETIQUETAS_SENTIDO } from "@/lib/constantes";
-import { formatearMes, formatearNumero, hoyEnAsuncion } from "@/lib/formato";
+import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
-import type { FrecuenciaMedicion, SentidoIndicador } from "@/lib/tipos";
+import {
+  ESTADOS_OBJETIVO,
+  ETIQUETAS_ESTADO_OBJETIVO,
+  ETIQUETAS_FRECUENCIA_MEDICION,
+  ETIQUETAS_TIPO_RESULTADO,
+  FRECUENCIAS_MEDICION,
+  TIPOS_RESULTADO,
+  VARIANTE_ESTADO_OBJETIVO,
+  resultadoEsperado,
+  type EstadoObjetivo,
+  type FrecuenciaMedicion,
+  type TipoResultadoObjetivo,
+} from "@/lib/objetivos";
 
 export const metadata: Metadata = { title: "Objetivos e Indicadores" };
 export const dynamic = "force-dynamic";
 
+/**
+ * La pantalla del módulo: los objetivos de la calidad.
+ *
+ * EL OBJETIVO ES LA UNIDAD, NO EL INDICADOR. Hasta el 8 de octubre esta
+ * pantalla era una lista de indicadores con los objetivos abajo, en un
+ * panel aparte, y el vínculo entre los dos quedaba librado a que alguien
+ * se acordara de elegir el objetivo al dar de alta el indicador. Ahora
+ * el objetivo manda: la tabla principal son los objetivos y los
+ * indicadores de cada uno se cargan, se editan y se eliminan dentro de
+ * su ficha.
+ *
+ * El F-EST-01-05 sigue abajo, entero. Es la hoja que Calidad venía
+ * llevando en el Drive y la que un auditor pide ver: cruza objetivo e
+ * indicador en la misma fila con los doce meses, que es lo que ninguna
+ * de las dos pantallas muestra por separado.
+ */
+const COLOR_ESTADO_OBJETIVO: Record<EstadoObjetivo, string> = {
+  identificado: "hsl(var(--atenuado-contraste))",
+  a_medir: "hsl(var(--semaforo-medio))",
+  en_medicion: "hsl(var(--primario))",
+  cerrado: "hsl(var(--semaforo-bajo))",
+};
+
+interface FilaObjetivo {
+  id: string;
+  codigo: string;
+  nombre: string;
+  estado: EstadoObjetivo;
+  empresa_objetivo_id: string | null;
+  fecha_inicio_medicion: string | null;
+  fecha_fin_medicion: string | null;
+  tipo_resultado: TipoResultadoObjetivo | null;
+  resultado_esperado_si_no: boolean | null;
+  resultado_esperado_texto: string | null;
+  valor_minimo: number | null;
+  valor_maximo: number | null;
+  unidad_valor: string | null;
+  frecuencia_medicion: FrecuenciaMedicion | null;
+  objetivo_alcanzado: boolean | null;
+  responsable: { nombre_completo: string } | null;
+}
+
 export default async function PaginaIndicadores({
   searchParams,
 }: {
-  searchParams: { q?: string; proceso?: string; cumplimiento?: string; anio?: string };
+  searchParams: {
+    q?: string;
+    estado?: string;
+    empresa?: string;
+    frecuencia?: string;
+    anio?: string;
+  };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
   // EL AÑO SE ELIGE, y los que se ofrecen son el de hoy y los que tengan
-  // objetivos declarados.
-  //
-  // El de hoy va siempre, aunque no haya objetivos declarados ese año:
-  // Calidad registra los objetivos una vez, con el año de la línea base,
-  // y los sigue midiendo los años siguientes. Los ocho del F-EST-01-05
-  // tienen su base en 2026 y se miden igual en 2027, así que en enero de
-  // 2027 el año tiene que estar en la lista aunque no haya un juego
-  // nuevo. Cuáles rigen en cada año lo resuelve `obtenerHoja`.
+  // objetivos declarados. El de hoy va siempre: Calidad registra el
+  // objetivo una vez, con el año de su línea base, y lo sigue midiendo
+  // los años siguientes. Cuáles rigen en cada año lo resuelve
+  // `obtenerHoja`; el año solo manda sobre la hoja del F-EST-01-05.
   const { data: anios } = await supabase
     .from("objetivos")
     .select("anio")
@@ -54,10 +108,7 @@ export default async function PaginaIndicadores({
 
   const anioDeHoy = Number(hoyEnAsuncion().slice(0, 4));
   const aniosConObjetivos = Array.from(
-    new Set([
-      anioDeHoy,
-      ...((anios as { anio: number }[] | null) ?? []).map((fila) => fila.anio),
-    ]),
+    new Set([anioDeHoy, ...((anios as { anio: number }[] | null) ?? []).map((fila) => fila.anio)]),
   ).sort((uno, otro) => otro - uno);
 
   const anioPedido = Number(searchParams.anio);
@@ -66,64 +117,104 @@ export default async function PaginaIndicadores({
       ? anioPedido
       : (aniosConObjetivos[0] ?? anioDeHoy);
 
+  // LOS OBJETIVOS NO SE FILTRAN POR AÑO. Un objetivo de 2026 que se mide
+  // hasta marzo de 2027 tiene que seguir viéndose en 2027: el período de
+  // medición es el que manda, y está en la tabla.
   let consulta = supabase
-    .from("indicadores")
+    .from("objetivos")
     .select(
-      "id, codigo, nombre, unidad, frecuencia, sentido, meta, meta_minima, meta_maxima, activo, " +
-        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
+      "id, codigo, nombre, estado, empresa_objetivo_id, fecha_inicio_medicion, " +
+        "fecha_fin_medicion, tipo_resultado, resultado_esperado_si_no, " +
+        "resultado_esperado_texto, valor_minimo, valor_maximo, unidad_valor, " +
+        "frecuencia_medicion, objetivo_alcanzado, responsable:responsable_id (nombre_completo)",
     )
-    .eq("activo", true)
     .order("codigo");
 
-  if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
+  if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
+  if (searchParams.empresa) consulta = consulta.eq("empresa_objetivo_id", searchParams.empresa);
+  if (searchParams.frecuencia) {
+    consulta = consulta.eq("frecuencia_medicion", searchParams.frecuencia);
+  }
   if (searchParams.q) {
     const texto = `%${searchParams.q}%`;
     consulta = consulta.or(`codigo.ilike.${texto},nombre.ilike.${texto}`);
   }
 
-  const [
-    hoja,
-    { data: indicadoresDatos },
-    { data: mediciones },
-    { data: objetivos },
-    { data: procesos },
-  ] = await Promise.all([
-    obtenerHoja(anio),
+  const [hoja, { data: datosObjetivos }, { data: datosEmpresas }, { data: datosIndicadores }] =
+    await Promise.all([
+      obtenerHoja(anio),
       consulta,
-      supabase
-        .from("vista_indicadores_looker")
-        .select("indicador_codigo, periodo, valor_real, meta, cumple_meta, unidad")
-        .order("periodo", { ascending: false })
-        .limit(400),
-      supabase
-        .from("objetivos")
-        .select("*, procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)")
-        .eq("anio", anio)
-        .order("codigo"),
-      supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
+      supabase.rpc("empresas_del_grupo"),
+      // Para decir cuántos indicadores mide cada objetivo. Una consulta,
+      // no una por fila.
+      supabase.from("indicadores").select("id, objetivo_id").eq("activo", true),
     ]);
 
-  const indicadores = (indicadoresDatos as any[] | null) ?? [];
-  const filas = (mediciones as any[] | null) ?? [];
+  const objetivos = (datosObjetivos as unknown as FilaObjetivo[] | null) ?? [];
+  const empresasDelGrupo = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
 
-  // Última medición de cada indicador.
-  const ultima = new Map<string, any>();
-  for (const fila of filas) {
-    if (!ultima.has(fila.indicador_codigo)) ultima.set(fila.indicador_codigo, fila);
+  const indicadoresPorObjetivo = new Map<string, number>();
+  for (const indicador of (datosIndicadores as { objetivo_id: string | null }[] | null) ?? []) {
+    if (!indicador.objetivo_id) continue;
+    indicadoresPorObjetivo.set(
+      indicador.objetivo_id,
+      (indicadoresPorObjetivo.get(indicador.objetivo_id) ?? 0) + 1,
+    );
   }
 
-  const visibles = indicadores.filter((indicador) => {
-    if (!searchParams.cumplimiento) return true;
-    const dato = ultima.get(indicador.codigo);
-    if (searchParams.cumplimiento === "fuera") return dato?.cumple_meta === false;
-    if (searchParams.cumplimiento === "en_meta") return dato?.cumple_meta === true;
-    return dato === undefined;
-  });
+  const nombreDeEmpresa = new Map(empresasDelGrupo.map((empresa) => [empresa.id, empresa.nombre]));
 
-  const delAnio = filas.filter((fila) => String(fila.periodo).startsWith(String(anio)));
-  const fueraDeMeta = delAnio.filter((fila) => fila.cumple_meta === false).length;
-  const enMeta = delAnio.filter((fila) => fila.cumple_meta === true).length;
-  const sinMedir = indicadores.filter((indicador) => !ultima.has(indicador.codigo)).length;
+  // Los gráficos se arman sobre lo que quedó en el listado y no sobre el
+  // total: si alguien filtra, los porcentajes son de lo que está mirando.
+  //
+  // El estado va en torta —son cuatro y se comparan de un vistazo— y la
+  // empresa, la frecuencia y el tipo en barras. Cada uno lleva su tabla
+  // de datos al lado, que la ponen los propios componentes.
+  const porEstado = ESTADOS_OBJETIVO.map((estado) => ({
+    etiqueta: ETIQUETAS_ESTADO_OBJETIVO[estado],
+    valor: objetivos.filter((objetivo) => objetivo.estado === estado).length,
+    color: COLOR_ESTADO_OBJETIVO[estado],
+  }));
+
+  const porEmpresa = [
+    ...empresasDelGrupo.map((empresa) => ({
+      etiqueta: empresa.nombre,
+      valor: objetivos.filter((objetivo) => objetivo.empresa_objetivo_id === empresa.id).length,
+    })),
+    {
+      etiqueta: "Sin empresa declarada",
+      valor: objetivos.filter((objetivo) => !objetivo.empresa_objetivo_id).length,
+    },
+  ];
+
+  const porFrecuencia = [
+    ...FRECUENCIAS_MEDICION.map((frecuencia) => ({
+      etiqueta: ETIQUETAS_FRECUENCIA_MEDICION[frecuencia],
+      valor: objetivos.filter((objetivo) => objetivo.frecuencia_medicion === frecuencia).length,
+    })),
+    {
+      etiqueta: "Sin frecuencia declarada",
+      valor: objetivos.filter((objetivo) => !objetivo.frecuencia_medicion).length,
+    },
+  ];
+
+  const porTipo = [
+    ...TIPOS_RESULTADO.map((tipo) => ({
+      etiqueta: ETIQUETAS_TIPO_RESULTADO[tipo],
+      valor: objetivos.filter((objetivo) => objetivo.tipo_resultado === tipo).length,
+    })),
+    {
+      etiqueta: "Sin tipo declarado",
+      valor: objetivos.filter((objetivo) => !objetivo.tipo_resultado).length,
+    },
+  ];
+
+  const enMedicion = objetivos.filter((objetivo) => objetivo.estado === "en_medicion").length;
+  const cerrados = objetivos.filter((objetivo) => objetivo.estado === "cerrado");
+  const alcanzados = cerrados.filter((objetivo) => objetivo.objetivo_alcanzado === true).length;
+  const sinIndicador = objetivos.filter(
+    (objetivo) => (indicadoresPorObjetivo.get(objetivo.id) ?? 0) === 0,
+  ).length;
 
   const gestiona = puedeGestionar(usuario);
 
@@ -131,22 +222,216 @@ export default async function PaginaIndicadores({
     <>
       <EncabezadoPagina
         titulo="Objetivos e Indicadores"
-        descripcion="Medición de desempeño por proceso, con meta contra real y tendencia. Las mediciones se exponen a Looker Studio sin duplicar la lógica del semáforo."
+        descripcion="Cada objetivo declara qué se quiere lograr, en qué período y contra qué resultado esperado. Los indicadores con los que se mide se cargan dentro de su ficha."
         acciones={
           gestiona ? (
             <Boton comoHijo>
-              <Link href="/indicadores/nuevo">
-                <Plus /> Nuevo indicador
+              <Link href="/indicadores/objetivos/nuevo">
+                <Plus /> Nuevo objetivo
               </Link>
             </Boton>
           ) : null
         }
       />
 
-      {/* El F-EST-01-05 completo, primero. Es la hoja que Calidad venía
-          llevando en el Drive y la razón por la que se entra acá: el
-          resto de la pantalla son cortes de lo mismo. */}
-      <div className="mb-3 flex items-end justify-between gap-3 border-b border-borde pb-2">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <TarjetaIndicador titulo="Objetivos" valor={objetivos.length} />
+        <TarjetaIndicador
+          titulo="En medición"
+          valor={enMedicion}
+          contexto="Con la medición en curso"
+          tono="exito"
+        />
+        <TarjetaIndicador
+          titulo="Cerrados"
+          valor={cerrados.length}
+          contexto={`${alcanzados} alcanzado${alcanzados === 1 ? "" : "s"}`}
+        />
+        <TarjetaIndicador
+          titulo="Sin indicador"
+          valor={sinIndicador}
+          contexto="Objetivos sin con qué medirse"
+          tono={sinIndicador > 0 ? "advertencia" : "exito"}
+        />
+      </div>
+
+      {objetivos.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por estado" porciones={porEstado} />
+          <BarrasPorcentaje titulo="Por empresa" filas={porEmpresa} />
+          <BarrasPorcentaje titulo="Por frecuencia de medición" filas={porFrecuencia} />
+          <BarrasPorcentaje titulo="Por tipo de objetivo" filas={porTipo} />
+        </div>
+      ) : null}
+
+      <FiltrosListado
+        marcadorBusqueda="Buscar por código o denominación…"
+        campos={[
+          {
+            nombre: "estado",
+            etiqueta: "Estado",
+            opciones: ESTADOS_OBJETIVO.map((valor) => ({
+              valor,
+              etiqueta: ETIQUETAS_ESTADO_OBJETIVO[valor],
+            })),
+          },
+          {
+            nombre: "empresa",
+            etiqueta: "Empresa",
+            opciones: empresasDelGrupo.map((empresa) => ({
+              valor: empresa.id,
+              etiqueta: empresa.nombre,
+            })),
+          },
+          {
+            nombre: "frecuencia",
+            etiqueta: "Frecuencia",
+            opciones: FRECUENCIAS_MEDICION.map((valor) => ({
+              valor,
+              etiqueta: ETIQUETAS_FRECUENCIA_MEDICION[valor],
+            })),
+          },
+        ]}
+      />
+
+      {objetivos.length === 0 ? (
+        <EstadoVacio
+          icono={<Target className="size-6" />}
+          titulo="No hay objetivos que coincidan"
+          descripcion="Ajuste los filtros o declare el primer objetivo de la calidad."
+          accion={
+            gestiona ? (
+              <Boton comoHijo tamano="pequeno">
+                <Link href="/indicadores/objetivos/nuevo">
+                  <Plus /> Nuevo objetivo
+                </Link>
+              </Boton>
+            ) : null
+          }
+        />
+      ) : (
+        <Tarjeta>
+          <Tabla barraSuperior>
+            <TablaCabecera>
+              <TablaFila>
+                <TablaEncabezado className="w-[6.5rem]">Código</TablaEncabezado>
+                <TablaEncabezado className="w-[18rem]">Denominación</TablaEncabezado>
+                <TablaEncabezado className="hidden w-[11rem] lg:table-cell">
+                  Empresa
+                </TablaEncabezado>
+                <TablaEncabezado className="hidden w-[12rem] xl:table-cell">
+                  Responsable
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[12rem]">Período de medición</TablaEncabezado>
+                <TablaEncabezado className="hidden w-[7rem] lg:table-cell">
+                  Frecuencia
+                </TablaEncabezado>
+                <TablaEncabezado className="hidden w-[14rem] xl:table-cell">
+                  Resultado esperado
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[6rem] text-center">Indicadores</TablaEncabezado>
+                <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
+                <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
+              </TablaFila>
+            </TablaCabecera>
+            <TablaCuerpo>
+              {objetivos.map((objetivo) => {
+                const cuantos = indicadoresPorObjetivo.get(objetivo.id) ?? 0;
+
+                return (
+                  <TablaFila key={objetivo.id}>
+                    <TablaCelda className="font-medium tabular">
+                      <Link
+                        href={`/indicadores/objetivos/${objetivo.id}`}
+                        className="hover:text-primario"
+                      >
+                        {objetivo.codigo}
+                      </Link>
+                    </TablaCelda>
+                    <TablaCelda>
+                      <Link
+                        href={`/indicadores/objetivos/${objetivo.id}`}
+                        className="block text-xs hover:text-primario"
+                      >
+                        {objetivo.nombre}
+                      </Link>
+                    </TablaCelda>
+                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
+                      {objetivo.empresa_objetivo_id
+                        ? (nombreDeEmpresa.get(objetivo.empresa_objetivo_id) ?? "—")
+                        : "—"}
+                    </TablaCelda>
+                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
+                      {objetivo.responsable?.nombre_completo ?? "—"}
+                    </TablaCelda>
+                    <TablaCelda className="whitespace-nowrap text-xs tabular text-atenuado-contraste">
+                      {objetivo.fecha_inicio_medicion && objetivo.fecha_fin_medicion
+                        ? `${formatearFecha(objetivo.fecha_inicio_medicion)} al ${formatearFecha(objetivo.fecha_fin_medicion)}`
+                        : "—"}
+                    </TablaCelda>
+                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
+                      {objetivo.frecuencia_medicion
+                        ? ETIQUETAS_FRECUENCIA_MEDICION[objetivo.frecuencia_medicion]
+                        : "—"}
+                    </TablaCelda>
+                    <TablaCelda
+                      className="hidden text-xs text-atenuado-contraste xl:table-cell"
+                      style={{ maxWidth: "14rem" }}
+                    >
+                      <span className="block truncate" title={resultadoEsperado(objetivo)}>
+                        {resultadoEsperado(objetivo)}
+                      </span>
+                    </TablaCelda>
+                    <TablaCelda className="text-center text-xs tabular">
+                      {cuantos > 0 ? (
+                        cuantos
+                      ) : (
+                        <span className="font-medium text-semaforo-medio">0</span>
+                      )}
+                    </TablaCelda>
+                    <TablaCelda>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Insignia
+                          variante={
+                            VARIANTE_ESTADO_OBJETIVO[objetivo.estado] as "neutra" | "exito"
+                          }
+                        >
+                          {ETIQUETAS_ESTADO_OBJETIVO[objetivo.estado]}
+                        </Insignia>
+                        {objetivo.estado === "cerrado" && objetivo.objetivo_alcanzado !== null ? (
+                          <Insignia
+                            variante={objetivo.objetivo_alcanzado ? "exito" : "peligro"}
+                          >
+                            {objetivo.objetivo_alcanzado ? "Alcanzado" : "No alcanzado"}
+                          </Insignia>
+                        ) : null}
+                      </div>
+                    </TablaCelda>
+                    <TablaCelda className="text-right">
+                      <Link
+                        href={`/indicadores/objetivos/${objetivo.id}`}
+                        className="text-xs text-primario hover:underline"
+                      >
+                        Ver
+                      </Link>
+                    </TablaCelda>
+                  </TablaFila>
+                );
+              })}
+            </TablaCuerpo>
+          </Tabla>
+        </Tarjeta>
+      )}
+
+      <p className="mt-3 text-[11px] text-atenuado-contraste">
+        {objetivos.length} objetivo{objetivos.length === 1 ? "" : "s"} en el listado. «Ver» abre la
+        ficha, donde se cargan las acciones y los indicadores con los que se mide.
+      </p>
+
+      {/* EL F-EST-01-05, ENTERO. Es la hoja que Calidad venía llevando en
+          el Drive: cruza el objetivo con su indicador y los doce meses
+          del año, que es lo que ninguna de las dos fichas muestra. */}
+      <div className="mb-3 mt-8 flex items-end justify-between gap-3 border-b border-borde pb-2">
         <div>
           <h2 className="text-sm font-semibold tracking-tight">
             Objetivos de la calidad e indicadores · {anio}
@@ -180,150 +465,7 @@ export default async function PaginaIndicadores({
         ) : null}
       </div>
 
-      <div className="mb-8">
-        <TablaHoja hoja={hoja} puedeEditar={gestiona} />
-      </div>
-
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <TarjetaIndicador titulo="Indicadores activos" valor={indicadores.length} />
-        <TarjetaIndicador
-          titulo={`En meta · ${anio}`}
-          valor={enMeta}
-          contexto={`De ${delAnio.length} mediciones`}
-          tono="exito"
-        />
-        <TarjetaIndicador
-          titulo={`Fuera de meta · ${anio}`}
-          valor={fueraDeMeta}
-          contexto={`De ${delAnio.length} mediciones`}
-          tono={fueraDeMeta > 0 ? "atencion" : "exito"}
-          enlace="/indicadores?cumplimiento=fuera"
-        />
-        <TarjetaIndicador
-          titulo="Sin medir"
-          valor={sinMedir}
-          contexto="Indicadores sin ninguna carga"
-          tono={sinMedir > 0 ? "advertencia" : "exito"}
-        />
-      </div>
-
-      <FiltrosListado
-        marcadorBusqueda="Buscar por código o nombre…"
-        campos={[
-          {
-            nombre: "cumplimiento",
-            etiqueta: "Cumplimiento",
-            opciones: [
-              { valor: "en_meta", etiqueta: "En meta" },
-              { valor: "fuera", etiqueta: "Fuera de meta" },
-              { valor: "sin_medir", etiqueta: "Sin medir" },
-            ],
-          },
-          {
-            nombre: "proceso",
-            etiqueta: "Proceso",
-            opciones: (procesos ?? []).map((proceso: { id: string; nombre: string }) => ({
-              valor: proceso.id,
-              etiqueta: proceso.nombre,
-            })),
-          },
-        ]}
-      />
-
-      {visibles.length === 0 ? (
-        <EstadoVacio
-          icono={<TrendingUp className="size-6" />}
-          titulo="No hay indicadores que coincidan"
-          descripcion="Ajuste los filtros o defina el primer indicador de desempeño."
-        />
-      ) : (
-        <Tarjeta>
-          <Tabla>
-            <TablaCabecera>
-              <TablaFila>
-                <TablaEncabezado className="w-[6.5rem]">Código</TablaEncabezado>
-                <TablaEncabezado>Indicador</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Frecuencia</TablaEncabezado>
-                <TablaEncabezado className="w-[6.5rem] text-right">Meta</TablaEncabezado>
-                <TablaEncabezado className="w-[7rem] text-right">Último real</TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">Período</TablaEncabezado>
-                <TablaEncabezado className="w-[7.5rem]">Cumple</TablaEncabezado>
-              </TablaFila>
-            </TablaCabecera>
-            <TablaCuerpo>
-              {visibles.map((indicador) => {
-                const dato = ultima.get(indicador.codigo);
-                const metaTexto =
-                  indicador.sentido === "rango"
-                    ? `${formatearNumero(indicador.meta_minima, 0)} a ${formatearNumero(indicador.meta_maxima, 0)}`
-                    : formatearNumero(indicador.meta, 0);
-
-                return (
-                  <TablaFila key={indicador.id}>
-                    <TablaCelda className="font-medium tabular">
-                      <Link href={`/indicadores/${indicador.id}`} className="hover:text-primario">
-                        {indicador.codigo}
-                      </Link>
-                    </TablaCelda>
-                    <TablaCelda>
-                      <Link href={`/indicadores/${indicador.id}`} className="hover:text-primario">
-                        <p className="text-xs font-medium">{indicador.nombre}</p>
-                        <p className="text-[11px] text-atenuado-contraste">
-                          {ETIQUETAS_SENTIDO[indicador.sentido as SentidoIndicador]}
-                        </p>
-                      </Link>
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {indicador.procesos?.nombre ?? "—"}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
-                      {ETIQUETAS_FRECUENCIA[indicador.frecuencia as FrecuenciaMedicion]}
-                    </TablaCelda>
-                    <TablaCelda className="text-right text-xs tabular">
-                      {metaTexto} {indicador.unidad}
-                    </TablaCelda>
-                    <TablaCelda className="text-right text-xs font-medium tabular">
-                      {dato ? `${formatearNumero(dato.valor_real)} ${indicador.unidad}` : "—"}
-                    </TablaCelda>
-                    <TablaCelda className="text-xs text-atenuado-contraste">
-                      {dato ? formatearMes(dato.periodo) : "Sin mediciones"}
-                    </TablaCelda>
-                    <TablaCelda>
-                      {dato?.cumple_meta === true ? (
-                        <Insignia variante="exito">En meta</Insignia>
-                      ) : dato?.cumple_meta === false ? (
-                        <Insignia variante="peligro">Fuera de meta</Insignia>
-                      ) : (
-                        <span className="text-xs text-atenuado-contraste">—</span>
-                      )}
-                    </TablaCelda>
-                  </TablaFila>
-                );
-              })}
-            </TablaCuerpo>
-          </Tabla>
-        </Tarjeta>
-      )}
-
-      <h2 className="mb-3 mt-6 text-sm font-semibold">Objetivos de calidad {anio}</h2>
-      <PanelObjetivos
-        objetivos={(objetivos as any[] | null) ?? []}
-        procesos={(procesos as { id: string; nombre: string }[] | null) ?? []}
-        anio={anio}
-        puedeEditar={gestiona}
-      />
-
-      <Aviso className="mt-5">
-        <div>
-          <AvisoTitulo>Consumo desde Looker Studio</AvisoTitulo>
-          <AvisoDescripcion>
-            La vista <code>vista_indicadores_looker</code> entrega el valor real, la meta del
-            período y si se cumplió, ya calculado. Looker se conecta a esa vista por PostgreSQL con
-            un usuario de solo lectura; los pasos están en <code>docs/despliegue.md</code>.
-          </AvisoDescripcion>
-        </div>
-      </Aviso>
+      <TablaHoja hoja={hoja} puedeEditar={gestiona} />
     </>
   );
 }

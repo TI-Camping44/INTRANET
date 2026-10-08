@@ -140,13 +140,16 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "TrendingUp",
         fase: "operativo",
         subentradas: [
-          { titulo: "Listado", ruta: "/indicadores" },
+          { titulo: "Todos", ruta: "/indicadores" },
           // La hoja 6.2.2 es otro formulario de Calidad —el F-EST-01-06—
           // y tiene una fila por accion, no por indicador: va en su
           // propia pantalla.
           { titulo: "Plan de Objetivos", ruta: "/indicadores/plan" },
           { titulo: "+ Nuevo Objetivo", ruta: "/indicadores/objetivos/nuevo", soloGestion: true },
-          { titulo: "+ Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
+          // «Nuevo indicador» salio del menu el 8 de octubre: el
+          // indicador se carga dentro de la ficha del objetivo que mide.
+          // Darlo de alta suelto era lo que dejaba indicadores colgados
+          // de ningun objetivo.
         ],
       },
       {

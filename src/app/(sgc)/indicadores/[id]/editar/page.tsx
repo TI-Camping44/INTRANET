@@ -26,8 +26,11 @@ export const dynamic = "force-dynamic";
  */
 export default async function PaginaEditarIndicador({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  /** `volver=objetivo` devuelve a la ficha del objetivo que mide. */
+  searchParams: { volver?: string };
 }) {
   const usuario = await requerirRol(ROLES_GESTION);
   const supabase = crearClienteServidor();
@@ -93,6 +96,11 @@ export default async function PaginaEditarIndicador({
         usuarioActual={usuario.id}
         codigoSugerido={indicador.codigo}
         indicador={{ ...indicador, mediciones: mediciones ?? 0 }}
+        volverA={
+          searchParams.volver === "objetivo" && indicador.objetivo_id
+            ? `/indicadores/objetivos/${indicador.objetivo_id}`
+            : undefined
+        }
       />
     </div>
   );

@@ -223,12 +223,12 @@ export default async function PaginaRiesgos({
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <Torta titulo="Por nivel" porciones={porNivel} />
           <Torta titulo="Por estado" porciones={porEstado} />
+          {/* Van de a dos por fila, como las tortas de arriba. El
+              tratamiento ocupaba el ancho entero porque al lado suyo
+              estaba «Por proceso», que salió el 8 de octubre: solo,
+              dejaba una barra de punta a punta debajo de otra. */}
           <BarrasPorcentaje titulo="Por origen" filas={porOrigen} />
-          <BarrasPorcentaje
-            titulo="Por opción de tratamiento"
-            filas={porTratamiento}
-            className="lg:col-span-2"
-          />
+          <BarrasPorcentaje titulo="Por opción de tratamiento" filas={porTratamiento} />
         </div>
       ) : null}
 
