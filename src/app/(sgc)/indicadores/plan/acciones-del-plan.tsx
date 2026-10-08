@@ -28,10 +28,15 @@ import type { FilaPlan } from "@/app/(sgc)/indicadores/plan/page";
  * falta: el botón del encabezado, el del estado vacío y el de cada fila.
  * Sin `plan` da de alta; con `plan` edita y ofrece eliminar.
  *
- * LOS CINCO INCISOS LLEVAN SU LETRA en la etiqueta —a) qué se va a
- * hacer, b) qué recursos…— porque es como los rotula la hoja de Calidad
- * y como los busca un auditor. No es decoración: es el vocabulario del
- * formulario que esta pantalla reemplaza.
+ * EL OBJETIVO VIENE DADO CUANDO SE ENTRA DESDE SU FICHA. Ahí llega uno
+ * solo y la acción es suya: se muestra y no se elige. Preguntarlo sería
+ * ofrecer cambiar de objetivo desde la ficha del que se está mirando.
+ * En la pantalla del plan, donde llegan todos, sí se elige.
+ *
+ * LOS INCISOS VAN SIN SU LETRA. Las llevaban porque así los rotula la
+ * hoja de Calidad —a) qué se va a hacer, b) qué recursos…—, y Dirección
+ * las sacó el 8 de octubre: en pantalla, donde los campos ya están uno
+ * debajo del otro, la letra no ordena nada y ensucia la etiqueta.
  *
  * TODO OBLIGATORIO MENOS EL PUESTO DEL RESPONSABLE. Lo pidió Dirección
  * el 8 de octubre: una acción a medio llenar no se puede seguir ni
@@ -61,6 +66,10 @@ export function AccionesDelPlan({
   const [procesando, definirProcesando] = React.useState(false);
 
   const editando = Boolean(plan) && !soloAlta;
+
+  // Se entró desde la ficha de un objetivo cuando llega uno solo: la
+  // acción es de ese y no hay nada que elegir.
+  const objetivoFijo = objetivos.length === 1 ? objetivos[0] : undefined;
 
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -128,29 +137,42 @@ export function AccionesDelPlan({
                   ocho objetivos a la vez, y eso una clave ajena no lo
                   puede decir. Por eso el desplegable tiene esa opción y
                   al lado queda el texto. */}
-              <GrupoCampo
-                etiqueta="Objetivo relacionado"
-                htmlFor="objetivo_id"
-                requerido
-                ayuda="A qué objetivo responde la acción."
-              >
-                <Seleccion
-                  id="objetivo_id"
-                  name="objetivo_id"
-                  required
-                  defaultValue={plan?.objetivo_id ?? objetivos[0]?.id ?? ""}
-                  key={plan?.id ?? "nueva"}
+              {objetivoFijo ? (
+                <GrupoCampo etiqueta="Objetivo relacionado" htmlFor="objetivo_visible">
+                  <p
+                    id="objetivo_visible"
+                    className="rounded-md border border-borde bg-acento/40 px-3 py-2 text-xs"
+                  >
+                    <span className="tabular text-atenuado-contraste">{objetivoFijo.codigo}</span>{" "}
+                    · {objetivoFijo.nombre}
+                  </p>
+                  <input type="hidden" name="objetivo_id" value={objetivoFijo.id} />
+                </GrupoCampo>
+              ) : (
+                <GrupoCampo
+                  etiqueta="Objetivo relacionado"
+                  htmlFor="objetivo_id"
+                  requerido
+                  ayuda="A qué objetivo responde la acción."
                 >
-                  <option value="" disabled>
-                    Elija el objetivo…
-                  </option>
-                  {objetivos.map((objetivo) => (
-                    <option key={objetivo.id} value={objetivo.id}>
-                      {objetivo.codigo} · {objetivo.nombre}
+                  <Seleccion
+                    id="objetivo_id"
+                    name="objetivo_id"
+                    required
+                    defaultValue={plan?.objetivo_id ?? ""}
+                    key={plan?.id ?? "nueva"}
+                  >
+                    <option value="" disabled>
+                      Elija el objetivo…
                     </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
+                    {objetivos.map((objetivo) => (
+                      <option key={objetivo.id} value={objetivo.id}>
+                        {objetivo.codigo} · {objetivo.nombre}
+                      </option>
+                    ))}
+                  </Seleccion>
+                </GrupoCampo>
+              )}
 
               <input
                 type="hidden"
@@ -158,7 +180,7 @@ export function AccionesDelPlan({
                 value={plan?.objetivo_declarado ?? ""}
               />
 
-              <GrupoCampo etiqueta="a) Qué se va a hacer" htmlFor="que_se_va_a_hacer" requerido>
+              <GrupoCampo etiqueta="Qué se va a hacer" htmlFor="que_se_va_a_hacer" requerido>
                 <AreaTexto
                   id="que_se_va_a_hacer"
                   name="que_se_va_a_hacer"
@@ -170,7 +192,7 @@ export function AccionesDelPlan({
               </GrupoCampo>
 
               <GrupoCampo
-                etiqueta="b) Qué recursos se requerirán"
+                etiqueta="Qué recursos se requerirán"
                 htmlFor="recursos_necesarios"
                 requerido
               >
@@ -185,7 +207,7 @@ export function AccionesDelPlan({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <GrupoCampo
-                  etiqueta="c) Quién será responsable"
+                  etiqueta="Quién será responsable"
                   htmlFor="responsable_id"
                   requerido
                   ayuda="De la lista de personas que ya ingresaron al sistema."
@@ -223,7 +245,7 @@ export function AccionesDelPlan({
               </div>
 
               <GrupoCampo
-                etiqueta="d) Cuándo se finalizará"
+                etiqueta="Cuándo se finalizará"
                 htmlFor="fecha_finalizacion"
                 requerido
               >
@@ -237,7 +259,7 @@ export function AccionesDelPlan({
               </GrupoCampo>
 
               <GrupoCampo
-                etiqueta="e) Cómo se evaluarán los resultados"
+                etiqueta="Cómo se evaluarán los resultados"
                 htmlFor="como_se_evaluan_resultados"
                 requerido
               >

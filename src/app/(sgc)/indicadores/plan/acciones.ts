@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
+import { archivosDelFormulario, quitarAdjunto, subirAdjuntos } from "@/lib/adjuntos-servidor";
+import { esEstadoDePlan } from "@/lib/objetivos";
+import { hoyEnAsuncion } from "@/lib/formato";
 
 import type { ResultadoAccion } from "@/lib/tipos";
 
@@ -183,4 +186,216 @@ async function avisarAlResponsable(
     entidad: "objetivo_planes",
     entidadId: null,
   });
+}
+
+// ---------------------------------------------------------------------
+// El seguimiento de la accion, al modelo de la accion correctiva
+// ---------------------------------------------------------------------
+// Direccion lo pidio el 8 de octubre: que una accion del plan se siga
+// como se sigue una accion correctiva. Tres cosas: evidencia adjunta,
+// estado que se mueve, y al final la eficacia.
+//
+// Va aparte del formulario de alta a proposito. El alta declara que se
+// va a hacer; el seguimiento cuenta que paso. Mezclarlos es lo que hacia
+// que al corregir una accion se pisara su seguimiento.
+
+/** Mueve el estado de la accion. */
+export async function cambiarEstadoDeLaAccion(
+  id: string,
+  estado: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+
+  if (!esEstadoDePlan(estado)) return { exito: false, error: "Elija un estado de la lista." };
+
+  const supabase = crearClienteServidor();
+
+  // La base exige la fecha real para marcarlo cumplido
+  // (`objetivo_planes_cierre_con_fecha`): se pone hoy, que es cuando se
+  // esta declarando. Al salir de «cumplido» se limpia, junto con la
+  // eficacia, que no puede sobrevivir a una accion que ya no esta
+  // cumplida: lo exige `objetivo_planes_eficacia_tras_cumplir`.
+  const cambios: Record<string, unknown> =
+    estado === "cumplido"
+      ? { estado, fecha_real_finalizacion: hoyEnAsuncion() }
+      : {
+          estado,
+          fecha_real_finalizacion: null,
+          eficacia: null,
+          fecha_evaluacion_eficacia: null,
+          observacion_eficacia: null,
+        };
+
+  const { data: actualizado, error } = await supabase
+    .from("objetivo_planes")
+    .update(cambios)
+    .eq("id", id)
+    .select("id, objetivo_id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo cambiar el estado: ${error.message}` };
+  if (!actualizado) {
+    return {
+      exito: false,
+      error: "No se pudo guardar: la acción no existe o su rol no puede moverla.",
+    };
+  }
+
+  revalidatePath("/indicadores/plan");
+  revalidatePath(`/indicadores/objetivos/${actualizado.objetivo_id}`);
+  return { exito: true, mensaje: "Estado de la acción actualizado." };
+}
+
+/** Declara si la accion sirvio para lo que se hizo. */
+export async function verificarEficaciaDeLaAccion(
+  id: string,
+  eficaz: boolean,
+  observacion: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data: accion } = await supabase
+    .from("objetivo_planes")
+    .select("id, objetivo_id, estado")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+  if ((accion as { estado: string }).estado !== "cumplido") {
+    return {
+      exito: false,
+      error:
+        "Primero marque la acción como cumplida. La eficacia se declara sobre lo que ya se hizo.",
+    };
+  }
+
+  // Un «no eficaz» sin explicacion no sirve para decidir nada: la
+  // Revision por la Direccion necesita saber por que no alcanzo.
+  if (!eficaz && observacion.trim().length < 10) {
+    return { exito: false, error: "Explique por qué la acción no fue eficaz." };
+  }
+
+  const { error } = await supabase
+    .from("objetivo_planes")
+    .update({
+      eficacia: eficaz ? "eficaz" : "no_eficaz",
+      fecha_evaluacion_eficacia: hoyEnAsuncion(),
+      observacion_eficacia: observacion.trim() || null,
+    })
+    .eq("id", id);
+
+  if (error) return { exito: false, error: `No se pudo registrar la eficacia: ${error.message}` };
+
+  revalidatePath("/indicadores/plan");
+  revalidatePath(`/indicadores/objetivos/${(accion as { objetivo_id: string }).objetivo_id}`);
+  return {
+    exito: true,
+    mensaje: eficaz ? "Acción registrada como eficaz." : "Acción registrada como no eficaz.",
+  };
+}
+
+/** Vuelve atras la eficacia, para corregir una declarada por error. */
+export async function reabrirEficaciaDeLaAccion(id: string): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data: actualizado, error } = await supabase
+    .from("objetivo_planes")
+    .update({ eficacia: null, fecha_evaluacion_eficacia: null, observacion_eficacia: null })
+    .eq("id", id)
+    .select("objetivo_id")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo reabrir: ${error.message}` };
+  if (!actualizado) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  revalidatePath(`/indicadores/objetivos/${actualizado.objetivo_id}`);
+  return { exito: true, mensaje: "Eficacia reabierta." };
+}
+
+/**
+ * Sube evidencia de la accion.
+ *
+ * `adjuntos` es generica —`entidad` + `entidad_id`— y su RLS no mira el
+ * valor de `entidad`, asi que no hizo falta tocar el esquema: alcanza
+ * con usar 'objetivo_planes', igual que la accion correctiva usa
+ * 'nc_acciones'.
+ */
+export async function adjuntarEvidenciaDeLaAccion(
+  id: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite subir evidencia." };
+  }
+
+  const archivos = archivosDelFormulario(datos, "archivos");
+  if (archivos.length === 0) return { exito: false, error: "Elija al menos un archivo." };
+
+  const supabase = crearClienteServidor();
+
+  // La accion se lee antes de subir nada, y de ella sale el objetivo
+  // para refrescar la pantalla: no se confia en un id del navegador.
+  const { data: accion } = await supabase
+    .from("objetivo_planes")
+    .select("id, objetivo_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  const { subidos, fallidos } = await subirAdjuntos(supabase, {
+    entidad: "objetivo_planes",
+    entidadId: id,
+    carpeta: "objetivos",
+    archivos,
+    descripcion: String(datos.get("descripcion") ?? ""),
+    empresaId: usuario.empresa_id,
+    usuarioId: usuario.id,
+  });
+
+  revalidatePath(`/indicadores/objetivos/${(accion as { objetivo_id: string }).objetivo_id}`);
+
+  if (subidos === 0) {
+    return { exito: false, error: fallidos[0] ?? "No se pudo subir la evidencia." };
+  }
+
+  return {
+    exito: true,
+    mensaje:
+      `Se subió ${subidos} archivo${subidos === 1 ? "" : "s"}.` +
+      (fallidos.length > 0 ? ` No entraron: ${fallidos.join(" ")}` : ""),
+  };
+}
+
+/** Quita un archivo de evidencia. */
+export async function quitarEvidenciaDeLaAccion(
+  adjuntoId: string,
+  accionId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite quitar evidencia." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // La entidad y el id van en el borrado: sin eso, un id de adjunto de
+  // otra pantalla borraria un archivo que no es de esta accion.
+  const resultado = await quitarAdjunto(supabase, adjuntoId, "objetivo_planes", accionId);
+  if (!resultado.ok) return { exito: false, error: resultado.error };
+
+  const { data: accion } = await supabase
+    .from("objetivo_planes")
+    .select("objetivo_id")
+    .eq("id", accionId)
+    .maybeSingle();
+
+  if (accion) {
+    revalidatePath(`/indicadores/objetivos/${(accion as { objetivo_id: string }).objetivo_id}`);
+  }
+
+  return { exito: true, mensaje: "Evidencia quitada." };
 }
