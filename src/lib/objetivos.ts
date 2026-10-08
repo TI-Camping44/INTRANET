@@ -168,3 +168,122 @@ export const CLASES_ESTADO_PLAN: Record<EstadoPlan, string> = {
 export function esEstadoDePlan(valor: string): valor is EstadoPlan {
   return (ESTADOS_PLAN as string[]).includes(valor);
 }
+
+// ---------------------------------------------------------------------
+// EL OBJETIVO SEGUN DIRECCION, 8 de octubre.
+//
+// Lo de arriba es el F-EST-01-05: codigo, año, meta escrita a mano y un
+// porcentaje de avance. Sigue vivo porque la hoja del plan lo usa.
+//
+// Lo de aca abajo es lo que Direccion pidio declarar al crear un
+// objetivo: que se mide, en que periodo, con que frecuencia, contra que
+// resultado esperado y con que recursos.
+//
+// LAS REGLAS VIVEN EN LOS DOS LADOS, como pide el proyecto: aca y en las
+// restricciones CHECK de `objetivos`. Si cambian, cambian en ambos.
+// ---------------------------------------------------------------------
+
+/** Cómo se declara el resultado del objetivo. */
+export type TipoResultadoObjetivo = "si_no" | "texto" | "numerico";
+
+export const TIPOS_RESULTADO: TipoResultadoObjetivo[] = ["si_no", "texto", "numerico"];
+
+export const ETIQUETAS_TIPO_RESULTADO: Record<TipoResultadoObjetivo, string> = {
+  si_no: "Sí / No",
+  texto: "Texto",
+  numerico: "Valor numérico",
+};
+
+/** Qué significa cada tipo, para que no se elija a ojo. */
+export const AYUDA_TIPO_RESULTADO: Record<TipoResultadoObjetivo, string> = {
+  si_no: "Se cumple o no se cumple. Hay que declarar cuál es el resultado esperado.",
+  texto: "El resultado se describe con palabras. Útil cuando no hay un número que lo resuma.",
+  numerico: "Se mide con un número, entre un mínimo y un máximo esperables.",
+};
+
+export type FrecuenciaMedicion = "semanal" | "mensual" | "trimestral" | "semestral" | "anual";
+
+export const FRECUENCIAS_MEDICION: FrecuenciaMedicion[] = [
+  "semanal",
+  "mensual",
+  "trimestral",
+  "semestral",
+  "anual",
+];
+
+export const ETIQUETAS_FRECUENCIA_MEDICION: Record<FrecuenciaMedicion, string> = {
+  semanal: "Semanal",
+  mensual: "Mensual",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
+};
+
+/**
+ * El ciclo del objetivo, en cuatro estados.
+ *
+ * Van en orden: se identifica, se agenda, se mide y se cierra. Cerrar
+ * exige declarar si se alcanzó o no —lo controla el `CHECK`
+ * `objetivos_cierre_declarado`—, porque un objetivo cerrado sin
+ * resultado no dice nada.
+ */
+export type EstadoObjetivo = "identificado" | "a_medir" | "en_medicion" | "cerrado";
+
+export const ESTADOS_OBJETIVO: EstadoObjetivo[] = [
+  "identificado",
+  "a_medir",
+  "en_medicion",
+  "cerrado",
+];
+
+export const ETIQUETAS_ESTADO_OBJETIVO: Record<EstadoObjetivo, string> = {
+  identificado: "Identificado",
+  a_medir: "A medir próximamente",
+  en_medicion: "En medición",
+  cerrado: "Cerrado",
+};
+
+export const VARIANTE_ESTADO_OBJETIVO: Record<EstadoObjetivo, string> = {
+  identificado: "neutra",
+  a_medir: "atencion",
+  en_medicion: "primaria",
+  cerrado: "exito",
+};
+
+/**
+ * El resultado esperado, dicho en una línea.
+ *
+ * Se arma al leer y no se guarda: es la misma información que ya está en
+ * las columnas del tipo, y guardarla duplicada seria tener dos versiones
+ * de la misma verdad.
+ */
+export function resultadoEsperado(objetivo: {
+  tipo_resultado: string | null;
+  resultado_esperado_si_no: boolean | null;
+  resultado_esperado_texto: string | null;
+  valor_minimo: number | string | null;
+  valor_maximo: number | string | null;
+  unidad_valor: string | null;
+}): string {
+  if (objetivo.tipo_resultado === "si_no") {
+    if (objetivo.resultado_esperado_si_no === null) return "Sin declarar";
+    return objetivo.resultado_esperado_si_no ? "Sí" : "No";
+  }
+
+  if (objetivo.tipo_resultado === "texto") {
+    return objetivo.resultado_esperado_texto?.trim() || "Sin declarar";
+  }
+
+  if (objetivo.tipo_resultado === "numerico") {
+    const unidad = objetivo.unidad_valor?.trim() ? ` ${objetivo.unidad_valor.trim()}` : "";
+    const minimo = objetivo.valor_minimo;
+    const maximo = objetivo.valor_maximo;
+
+    if (minimo === null && maximo === null) return "Sin declarar";
+    if (minimo !== null && maximo !== null) return `Entre ${minimo} y ${maximo}${unidad}`;
+    if (minimo !== null) return `Desde ${minimo}${unidad}`;
+    return `Hasta ${maximo}${unidad}`;
+  }
+
+  return "Sin declarar";
+}

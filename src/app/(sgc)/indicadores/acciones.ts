@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
+import { ESTADOS_OBJETIVO, type EstadoObjetivo } from "@/lib/objetivos";
 import type { FrecuenciaMedicion, ResultadoAccion, SentidoIndicador } from "@/lib/tipos";
 
 const FORMATO_CODIGO = /^[A-Z]{2,6}-[0-9]{2,3}$/;
@@ -338,36 +339,126 @@ export async function crearObjetivo(datos: FormData): Promise<ResultadoAccion> {
 
   const supabase = crearClienteServidor();
 
-  const codigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
-  const nombre = String(datos.get("nombre") ?? "").trim();
+  const campos = leerCamposDelObjetivo(datos);
+  const problema = revisarObjetivo(campos);
+  if (problema) return { exito: false, error: problema };
 
-  if (!codigo) return { exito: false, error: "Indique el código del objetivo." };
-  if (nombre.length < 5) {
-    return { exito: false, error: "El nombre debe tener al menos 5 caracteres." };
-  }
+  // EL CODIGO NO SE ESCRIBE, SE GENERA. Nadie quiere inventarlo al dar
+  // de alta, y a mano se repite o se saltea. El indice unico de la base
+  // decide; si dos altas coinciden, el mensaje lo dice.
+  const { data: existentes } = await supabase
+    .from("objetivos")
+    .select("codigo")
+    .eq("empresa_id", usuario.empresa_id)
+    .ilike("codigo", "OBJ-%");
 
-  const { error } = await supabase.from("objetivos").insert({
-    empresa_id: usuario.empresa_id,
-    codigo,
-    nombre,
-    descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-    proceso_id: String(datos.get("proceso_id") ?? "") || null,
-    responsable_id: String(datos.get("responsable_id") ?? "") || usuario.id,
-    anio: Number(datos.get("anio") ?? new Date().getFullYear()),
-    meta: String(datos.get("meta") ?? "").trim() || null,
-    avance_porcentaje: 0,
-    estado: "en_curso",
-  });
+  const secuencias = ((existentes as { codigo: string }[] | null) ?? [])
+    .map((fila) => Number.parseInt(fila.codigo.split("-")[1] ?? "", 10))
+    .filter((numero) => !Number.isNaN(numero));
+
+  const codigo = `OBJ-${String((secuencias.length ? Math.max(...secuencias) : 0) + 1).padStart(3, "0")}`;
+
+  const { data: objetivo, error } = await supabase
+    .from("objetivos")
+    .insert({
+      empresa_id: usuario.empresa_id,
+      codigo,
+      // El año sale de la fecha de inicio: es dato derivado y pedirlo
+      // aparte era una forma de que no coincidieran.
+      anio: Number(campos.fecha_inicio_medicion.slice(0, 4)),
+      avance_porcentaje: 0,
+      estado: "identificado",
+      ...campos,
+    })
+    .select("id, codigo")
+    .single();
 
   if (error) {
     if (error.code === "23505") {
-      return { exito: false, error: `Ya existe un objetivo con el código ${codigo}.` };
+      return {
+        exito: false,
+        error: "Dos altas al mismo tiempo tomaron el mismo código. Vuelva a intentar.",
+      };
     }
     return { exito: false, error: `No se pudo crear el objetivo: ${error.message}` };
   }
 
   revalidatePath("/indicadores");
-  return { exito: true, mensaje: `Objetivo ${codigo} creado.` };
+  return {
+    exito: true,
+    id: objetivo.id,
+    mensaje: `Objetivo ${objetivo.codigo} creado.`,
+  };
+}
+
+/** Los campos del objetivo que pidió Dirección, ya limpios. */
+function leerCamposDelObjetivo(datos: FormData) {
+  const tipo = String(datos.get("tipo_resultado") ?? "");
+  const esperadoSiNo = String(datos.get("resultado_esperado_si_no") ?? "");
+  const numero = (campo: string) => {
+    const crudo = String(datos.get(campo) ?? "").trim();
+    return crudo === "" ? null : Number(crudo);
+  };
+
+  return {
+    nombre: String(datos.get("nombre") ?? "").trim(),
+    empresa_objetivo_id: String(datos.get("empresa_objetivo_id") ?? "") || null,
+    fecha_inicio_medicion: String(datos.get("fecha_inicio_medicion") ?? ""),
+    fecha_fin_medicion: String(datos.get("fecha_fin_medicion") ?? ""),
+    tipo_resultado: tipo || null,
+    // Solo se guarda lo que corresponde al tipo elegido. Si no, un
+    // objetivo numerico se llevaria el texto que alguien tipeo antes de
+    // cambiar de opinion.
+    resultado_esperado_si_no: tipo === "si_no" ? esperadoSiNo === "si" : null,
+    resultado_esperado_texto:
+      tipo === "texto" ? String(datos.get("resultado_esperado_texto") ?? "").trim() || null : null,
+    valor_minimo: tipo === "numerico" ? numero("valor_minimo") : null,
+    valor_maximo: tipo === "numerico" ? numero("valor_maximo") : null,
+    unidad_valor:
+      tipo === "numerico" ? String(datos.get("unidad_valor") ?? "").trim() || null : null,
+    frecuencia_medicion: String(datos.get("frecuencia_medicion") ?? "") || null,
+    responsable_id: String(datos.get("responsable_id") ?? "") || null,
+    fuente_datos: String(datos.get("fuente_datos") ?? "").trim() || null,
+    recursos_requeridos: String(datos.get("recursos_requeridos") ?? "").trim() || null,
+    proveedor_recursos: String(datos.get("proveedor_recursos") ?? "").trim() || null,
+  };
+}
+
+/** El mensaje del primer problema, o null si está todo bien. */
+function revisarObjetivo(campos: ReturnType<typeof leerCamposDelObjetivo>): string | null {
+  if (campos.nombre.length < 5) {
+    return "La denominación del objetivo debe tener al menos 5 caracteres.";
+  }
+  if (!campos.empresa_objetivo_id) return "Indique a qué empresa del grupo corresponde.";
+  if (!campos.fecha_inicio_medicion) return "Indique la fecha de inicio de la medición.";
+  if (!campos.fecha_fin_medicion) return "Indique la fecha de fin de la medición.";
+  if (campos.fecha_fin_medicion < campos.fecha_inicio_medicion) {
+    return "La fecha de fin no puede ser anterior a la de inicio.";
+  }
+  if (!campos.tipo_resultado) return "Indique el tipo de objetivo.";
+
+  if (campos.tipo_resultado === "texto" && !campos.resultado_esperado_texto) {
+    return "Escriba el resultado esperado.";
+  }
+  if (
+    campos.tipo_resultado === "numerico" &&
+    campos.valor_minimo === null &&
+    campos.valor_maximo === null
+  ) {
+    return "Indique al menos uno de los dos valores esperables, el mínimo o el máximo.";
+  }
+  if (
+    campos.valor_minimo !== null &&
+    campos.valor_maximo !== null &&
+    campos.valor_maximo < campos.valor_minimo
+  ) {
+    return "El valor máximo no puede ser menor que el mínimo.";
+  }
+
+  if (!campos.frecuencia_medicion) return "Indique la frecuencia de medición.";
+  if (!campos.responsable_id) return "Indique el responsable del objetivo.";
+
+  return null;
 }
 
 /**
@@ -521,4 +612,67 @@ export async function actualizarAvanceObjetivo(
 
   revalidatePath("/indicadores");
   return { exito: true, mensaje: "Avance del objetivo actualizado." };
+}
+
+/**
+ * Cambia el estado del objetivo desde su ficha.
+ *
+ * CERRAR EXIGE DECLARAR EL RESULTADO. Un objetivo cerrado sin decir si
+ * se alcanzo o no es un registro que no dice nada, y la Revision por la
+ * Direccion se apoya justamente en eso. Lo controla ademas el `CHECK`
+ * `objetivos_cierre_declarado` de la base: la pantalla puede fallar, la
+ * restriccion no.
+ *
+ * Al reabrir un objetivo cerrado se limpian el resultado y el
+ * comentario: dejarlos seria afirmar un cierre que ya no existe.
+ */
+export async function cambiarEstadoObjetivo(
+  objetivoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite cambiar el estado de un objetivo." };
+  }
+
+  const estado = String(datos.get("estado") ?? "");
+  if (!ESTADOS_OBJETIVO.includes(estado as EstadoObjetivo)) {
+    return { exito: false, error: "Elija un estado válido." };
+  }
+
+  const cierra = estado === "cerrado";
+  const alcanzado = String(datos.get("objetivo_alcanzado") ?? "");
+
+  if (cierra && alcanzado !== "si" && alcanzado !== "no") {
+    return { exito: false, error: "Al cerrar, indique si el objetivo se alcanzó o no." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { data: objetivo, error } = await supabase
+    .from("objetivos")
+    .update({
+      estado,
+      objetivo_alcanzado: cierra ? alcanzado === "si" : null,
+      comentario_cierre: cierra
+        ? String(datos.get("comentario_cierre") ?? "").trim() || null
+        : null,
+    })
+    .eq("id", objetivoId)
+    .select("codigo")
+    .maybeSingle();
+
+  if (error) return { exito: false, error: `No se pudo cambiar el estado: ${error.message}` };
+  if (!objetivo) {
+    return { exito: false, error: "El objetivo no existe o su rol no puede editarlo." };
+  }
+
+  revalidatePath("/indicadores");
+  revalidatePath(`/indicadores/objetivos/${objetivoId}`);
+  return {
+    exito: true,
+    mensaje: cierra
+      ? `${(objetivo as { codigo: string }).codigo} cerrado.`
+      : "Estado actualizado.",
+  };
 }

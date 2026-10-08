@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Plus, Save, Target, Trash2 } from "lucide-react";
@@ -21,7 +22,6 @@ import { Tarjeta } from "@/components/ui/tarjeta";
 import {
   actualizarAvanceObjetivo,
   actualizarObjetivo,
-  crearObjetivo,
   eliminarObjetivo,
 } from "@/app/(sgc)/indicadores/acciones";
 
@@ -57,26 +57,10 @@ export function PanelObjetivos({
   puedeEditar: boolean;
 }) {
   const router = useRouter();
-  const [abierto, definirAbierto] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
   const [avances, definirAvances] = React.useState<Record<string, number>>({});
   // null = nadie en edición. Con un objetivo adentro, el mismo diálogo edita.
   const [editando, definirEditando] = React.useState<Objetivo | null>(null);
-
-  async function crear(evento: React.FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    definirProcesando(true);
-    const resultado = await crearObjetivo(new FormData(evento.currentTarget));
-    definirProcesando(false);
-
-    if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Objetivo creado.");
-      definirAbierto(false);
-      router.refresh();
-    } else {
-      toast.error(resultado.error);
-    }
-  }
 
   async function guardarEdicion(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -145,10 +129,15 @@ export function PanelObjetivos({
             <Tarjeta key={objetivo.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold">
+                  {/* El código y el nombre abren la ficha: ahí están el
+                      resumen, el estado y las acciones. */}
+                  <Link
+                    href={`/indicadores/objetivos/${objetivo.id}`}
+                    className="text-xs font-semibold hover:text-primario"
+                  >
                     <span className="tabular text-atenuado-contraste">{objetivo.codigo}</span>{" "}
                     {objetivo.nombre}
-                  </p>
+                  </Link>
                   {objetivo.meta ? (
                     <p className="mt-0.5 text-[11px] text-atenuado-contraste">
                       Meta: {objetivo.meta}
@@ -235,10 +224,15 @@ export function PanelObjetivos({
         </div>
       )}
 
+      {/* EL ALTA TIENE PANTALLA PROPIA desde el 8 de octubre. Pedía
+          tres datos y ahora pide doce —período, tipo de resultado,
+          frecuencia, fuente, recursos—: eso no entra en un diálogo. */}
       {puedeEditar ? (
         <div className="flex justify-end">
-          <Boton variante="contorno" tamano="pequeno" onClick={() => definirAbierto(true)}>
-            <Plus /> Nuevo objetivo
+          <Boton variante="contorno" tamano="pequeno" comoHijo>
+            <Link href="/indicadores/objetivos/nuevo">
+              <Plus /> Nuevo objetivo
+            </Link>
           </Boton>
         </div>
       ) : null}
@@ -336,78 +330,6 @@ export function PanelObjetivos({
         </DialogoContenido>
       </Dialogo>
 
-      <Dialogo open={abierto} onOpenChange={definirAbierto}>
-        <DialogoContenido>
-          <form onSubmit={crear}>
-            <DialogoCabecera>
-              <DialogoTitulo>Nuevo objetivo de calidad</DialogoTitulo>
-              <DialogoDescripcion>
-                Los objetivos se acuerdan por ejercicio y se miden con los indicadores del
-                sistema.
-              </DialogoDescripcion>
-            </DialogoCabecera>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <GrupoCampo etiqueta="Código" htmlFor="codigo" requerido>
-                <Entrada id="codigo" name="codigo" placeholder="OBJ-04" required className="tabular" />
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Año" htmlFor="anio" requerido>
-                <Entrada
-                  id="anio"
-                  name="anio"
-                  type="number"
-                  min={2000}
-                  max={2100}
-                  defaultValue={anio}
-                  required
-                  className="tabular"
-                />
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Nombre" htmlFor="nombre" requerido className="sm:col-span-2">
-                <Entrada
-                  id="nombre"
-                  name="nombre"
-                  required
-                  minLength={5}
-                  placeholder="Elevar la exactitud de inventario al 99 %"
-                />
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Descripción" htmlFor="descripcion" className="sm:col-span-2">
-                <AreaTexto id="descripcion" name="descripcion" rows={2} />
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Meta" htmlFor="meta" className="sm:col-span-2">
-                <Entrada id="meta" name="meta" placeholder="99 % de exactitud sostenida" />
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">
-                <Seleccion id="proceso_id" name="proceso_id">
-                  <option value="">Sin proceso</option>
-                  {procesos.map((proceso) => (
-                    <option key={proceso.id} value={proceso.id}>
-                      {proceso.nombre}
-                    </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
-            </div>
-
-            <DialogoPie className="mt-5">
-              <DialogoCierre asChild>
-                <Boton type="button" variante="contorno">
-                  Cancelar
-                </Boton>
-              </DialogoCierre>
-              <Boton type="submit" disabled={procesando}>
-                Crear objetivo
-              </Boton>
-            </DialogoPie>
-          </form>
-        </DialogoContenido>
-      </Dialogo>
     </div>
   );
 }

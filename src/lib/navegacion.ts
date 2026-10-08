@@ -145,7 +145,8 @@ export const NAVEGACION: GrupoNavegacion[] = [
           // y tiene una fila por accion, no por indicador: va en su
           // propia pantalla.
           { titulo: "Plan de Objetivos", ruta: "/indicadores/plan" },
-          { titulo: "Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
+          { titulo: "+ Nuevo Objetivo", ruta: "/indicadores/objetivos/nuevo", soloGestion: true },
+          { titulo: "+ Nuevo indicador", ruta: "/indicadores/nuevo", soloGestion: true },
         ],
       },
       {
