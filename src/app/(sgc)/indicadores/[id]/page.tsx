@@ -5,6 +5,7 @@ import { ArrowLeft, Pencil } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { GraficoTendencia, type PuntoTendencia } from "@/components/comunes/grafico-tendencia";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
+import { EliminarIndicador } from "@/app/(sgc)/indicadores/[id]/eliminar-indicador";
 import { PanelMediciones } from "@/app/(sgc)/indicadores/[id]/panel-mediciones";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { Boton } from "@/components/ui/boton";
@@ -69,7 +70,8 @@ export default async function PaginaIndicador({ params }: { params: { id: string
   const indicador = consulta as unknown as IndicadorDetalle | null;
   if (!indicador) notFound();
 
-  const [{ data: mediciones }, { data: vista }] = await Promise.all([
+  const [{ data: mediciones }, { data: vista }, { count: objetivosVinculados }] =
+    await Promise.all([
     supabase
       .from("indicador_mediciones")
       .select("*, cargado:cargado_por (nombre_completo)")
@@ -80,6 +82,12 @@ export default async function PaginaIndicador({ params }: { params: { id: string
       .select("periodo, valor_real, meta, cumple_meta")
       .eq("indicador_codigo", indicador.codigo)
       .order("periodo", { ascending: true }),
+    // Cuántos objetivos de la calidad lo usan. Va en el aviso de
+    // borrado: el vínculo cae con el indicador.
+    supabase
+      .from("objetivo_indicadores")
+      .select("objetivo_id", { count: "exact", head: true })
+      .eq("indicador_id", params.id),
   ]);
 
   const filasVista = (vista as any[] | null) ?? [];
@@ -131,13 +139,25 @@ export default async function PaginaIndicador({ params }: { params: { id: string
         titulo={indicador.nombre}
         descripcion={indicador.descripcion ?? undefined}
         acciones={
-          gestiona ? (
-            <Boton variante="contorno" tamano="pequeno" comoHijo>
-              <Link href={`/indicadores/${indicador.id}/editar`}>
-                <Pencil /> Editar indicador
-              </Link>
-            </Boton>
-          ) : null
+          <>
+            {gestiona ? (
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                <Link href={`/indicadores/${indicador.id}/editar`}>
+                  <Pencil /> Editar indicador
+                </Link>
+              </Boton>
+            ) : null}
+            {/* Borrar es del Administrador SGC: se lleva la serie de
+                mediciones, que es la evidencia de cómo se midió. */}
+            {usuario.rol === "administrador_sgc" ? (
+              <EliminarIndicador
+                indicadorId={indicador.id}
+                codigo={indicador.codigo}
+                mediciones={listaMediciones.length}
+                objetivos={objetivosVinculados ?? 0}
+              />
+            ) : null}
+          </>
         }
       />
 

@@ -44,6 +44,7 @@ interface AuditoriaDetalle {
   auditor_lider_id: string | null;
   proceso_id: string | null;
   procesos_segun_plan: boolean;
+  empresa_auditada_id: string | null;
   fecha_aviso: string | null;
   programa_id: string | null;
   plan_aprobacion_solicitada_a: string | null;
@@ -92,6 +93,7 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
     { data: equipo },
     { data: personas },
     { data: procesos },
+    { data: datosEmpresas },
     { data: archivosDelPlan },
   ] = await Promise.all([
       supabase
@@ -118,6 +120,10 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
         .eq("activo", true)
         .order("nombre_completo"),
       supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
+      // Las dos empresas del grupo, para resolver el nombre de la
+      // auditada. Por la función y no por un embed a `empresas`: esa
+      // tabla la acota RLS a la propia.
+      supabase.rpc("empresas_del_grupo"),
       // Los PDF del plan: el documento firmado que pide la auditoría de
       // certificación.
       supabase
@@ -130,6 +136,10 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
         .eq("entidad_id", params.id)
         .order("creado_en", { ascending: false }),
     ]);
+
+  const empresaAuditada = ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).find(
+    (empresa) => empresa.id === auditoria.empresa_auditada_id,
+  )?.nombre;
 
   // Cada hallazgo con sus evidencias adjuntas.
   const porHallazgo = new Map<string, { id: string; nombre_archivo: string; tamano_bytes: number }[]>();
@@ -238,6 +248,7 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
                 auditoria={auditoria}
                 procesos={(procesos as { id: string; nombre: string }[] | null) ?? []}
                 personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
+                empresas={(datosEmpresas as { id: string; nombre: string }[] | null) ?? []}
                   puedeEditar={gestiona}
                 />
               </span>
@@ -314,8 +325,13 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
                       : (auditoria.procesos?.nombre ?? "—")
                   }
                 />
-                <Dato etiqueta="Sede" valor={auditoria.sedes?.nombre ?? "—"} />
-                <Dato etiqueta="Norma" valor={auditoria.normas?.codigo ?? "—"} />
+                {/* LA EMPRESA, NO LA SEDE. Lo pidió Dirección el 8 de
+                    octubre: la sede nunca se cargó en ninguna auditoría y
+                    lo que importa es a cuál de las dos empresas del grupo
+                    se audita. La norma salió de la ficha: está en
+                    «Criterios», donde Calidad la escribe junto con la
+                    legislación y los procedimientos. */}
+                <Dato etiqueta="Empresa" valor={empresaAuditada ?? "—"} />
                 <Dato
                   etiqueta="Auditor líder"
                   valor={auditoria.auditor?.nombre_completo ?? "—"}

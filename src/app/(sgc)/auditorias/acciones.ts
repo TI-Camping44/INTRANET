@@ -400,6 +400,9 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
       codigo,
       tipo: String(datos.get("tipo") ?? "por_proceso"),
       proceso_id: null,
+      // A QUE EMPRESA DEL GRUPO SE AUDITA. Reemplaza a la sede en la
+      // ficha: la sede nunca se cargo en ninguna auditoria.
+      empresa_auditada_id: String(datos.get("empresa_auditada_id") ?? "") || null,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: auditorLiderId,
@@ -514,6 +517,9 @@ export async function actualizarAuditoria(
       // columna propia, y es excluyente con el proceso suelto.
       proceso_id: procesoElegido === SEGUN_EL_PLAN ? null : procesoElegido || null,
       procesos_segun_plan: procesoElegido === SEGUN_EL_PLAN,
+      // A QUE EMPRESA DEL GRUPO SE AUDITA. Reemplaza a la sede en la
+      // ficha: la sede nunca se cargo en ninguna auditoria.
+      empresa_auditada_id: String(datos.get("empresa_auditada_id") ?? "") || null,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: String(datos.get("auditor_lider_id") ?? "") || null,

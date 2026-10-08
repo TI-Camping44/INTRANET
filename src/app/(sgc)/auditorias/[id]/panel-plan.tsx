@@ -29,6 +29,7 @@ export interface AuditoriaDelPlan {
   criterios: string | null;
   proceso_id: string | null;
   procesos_segun_plan: boolean;
+  empresa_auditada_id: string | null;
   auditor_lider_id: string | null;
   fecha_planificada: string | null;
   fecha_aviso: string | null;
@@ -52,11 +53,14 @@ export function PanelPlan({
   auditoria,
   procesos,
   personas,
+  empresas,
   puedeEditar,
 }: {
   auditoria: AuditoriaDelPlan;
   procesos: { id: string; nombre: string }[];
   personas: { id: string; nombre_completo: string }[];
+  /** Las dos empresas del grupo, como las devuelve `empresas_del_grupo()`. */
+  empresas: { id: string; nombre: string }[];
   puedeEditar: boolean;
 }) {
   const router = useRouter();
@@ -180,6 +184,34 @@ export function PanelPlan({
               </GrupoCampo>
 
               <div className="grid gap-3 sm:grid-cols-2">
+                {/* LA EMPRESA AUDITADA TIENE QUE ESTAR ACÁ. No es un
+                    adorno: `actualizarAuditoria` la escribe, y un
+                    formulario que no la mandara la dejaría en null al
+                    guardar el plan. */}
+                <GrupoCampo
+                  etiqueta="Empresa"
+                  htmlFor="empresa_auditada_id"
+                  requerido
+                  className="sm:col-span-2"
+                  ayuda="Cuál de las dos empresas del grupo se audita."
+                >
+                  <Seleccion
+                    id="empresa_auditada_id"
+                    name="empresa_auditada_id"
+                    required
+                    defaultValue={auditoria.empresa_auditada_id ?? empresas[0]?.id ?? ""}
+                  >
+                    <option value="" disabled>
+                      Elija la empresa…
+                    </option>
+                    {empresas.map((empresa) => (
+                      <option key={empresa.id} value={empresa.id}>
+                        {empresa.nombre}
+                      </option>
+                    ))}
+                  </Seleccion>
+                </GrupoCampo>
+
                 {/* «Procesos declarados en el Plan» es lo que pasa en
                     la práctica casi siempre: el alcance son los procesos
                     que el propio Plan enumera más arriba, no uno suelto.

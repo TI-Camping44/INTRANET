@@ -24,12 +24,15 @@ interface Opcion {
 export function FormularioAuditoria({
   documentos,
   usuarios,
+  empresas,
   usuarioActual,
   programaId,
 }: {
   /** La informacion documentada. Puede venir vacia: el modulo recien se carga. */
   documentos: { id: string; codigo: string | null; titulo: string }[];
   usuarios: Opcion[];
+  /** Las dos empresas del grupo, como las devuelve `empresas_del_grupo()`. */
+  empresas: { id: string; nombre: string }[];
   usuarioActual: string;
   /**
    * El programa anual al que entra la auditoría, cuando el alta se abre
@@ -90,6 +93,33 @@ export function FormularioAuditoria({
               {TIPOS_AUDITORIA_VIGENTES.map((valor) => (
                 <option key={valor} value={valor}>
                   {ETIQUETAS_TIPO_AUDITORIA[valor]}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
+          {/* A QUÉ EMPRESA DEL GRUPO SE AUDITA. No es `empresa_id`:
+              esa acota el acceso por RLS y siempre vale Camping 44,
+              porque la misma gente administra las dos. */}
+          <GrupoCampo
+            etiqueta="Empresa"
+            htmlFor="empresa_auditada_id"
+            requerido
+            className="sm:col-span-2"
+            ayuda="Cuál de las dos empresas del grupo se audita."
+          >
+            <Seleccion
+              id="empresa_auditada_id"
+              name="empresa_auditada_id"
+              required
+              defaultValue={empresas[0]?.id ?? ""}
+            >
+              <option value="" disabled>
+                Elija la empresa…
+              </option>
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.nombre}
                 </option>
               ))}
             </Seleccion>
