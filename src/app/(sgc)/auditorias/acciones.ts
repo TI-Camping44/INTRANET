@@ -8,11 +8,15 @@ import {
   nombreDeArchivoLegible,
   rutaDeEvidencia,
 } from "@/lib/adjuntos";
-import { quitarAdjunto } from "@/lib/adjuntos-servidor";
+import {
+  archivosDelFormulario,
+  quitarAdjunto,
+  subirAdjuntos,
+} from "@/lib/adjuntos-servidor";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar, notificarAVarios } from "@/lib/notificaciones";
 import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
-import { DIAS_LIMITE_CIERRE_NC } from "@/lib/constantes";
+import { DIAS_LIMITE_CIERRE_NC, SEGUN_EL_PLAN } from "@/lib/constantes";
 import type { EstadoAuditoria, ResultadoAccion, TipoHallazgo } from "@/lib/tipos";
 
 /** Programa anual de auditorias. Hay uno por empresa y por ano. */
@@ -497,6 +501,8 @@ export async function actualizarAuditoria(
     .eq("id", id)
     .maybeSingle();
 
+  const procesoElegido = String(datos.get("proceso_id") ?? "");
+
   const { error } = await supabase
     .from("auditorias")
     .update({
@@ -504,7 +510,10 @@ export async function actualizarAuditoria(
       objetivo,
       alcance: String(datos.get("alcance") ?? "").trim() || null,
       criterios: String(datos.get("criterios") ?? "").trim() || null,
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      // «Procesos declarados en el Plan» no es un proceso: es una
+      // columna propia, y es excluyente con el proceso suelto.
+      proceso_id: procesoElegido === SEGUN_EL_PLAN ? null : procesoElegido || null,
+      procesos_segun_plan: procesoElegido === SEGUN_EL_PLAN,
       norma_id: String(datos.get("norma_id") ?? "") || null,
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: String(datos.get("auditor_lider_id") ?? "") || null,
@@ -1081,4 +1090,140 @@ export async function generarNoConformidad(
     id: ncId as string,
     mensaje: `${noConformidad?.codigo ?? "No conformidad"} generada desde el hallazgo.`,
   };
+}
+
+// ---------------------------------------------------------------------
+// LOS ARCHIVOS DEL PLAN Y DEL PROGRAMA.
+//
+// El plan y el programa anual existen en papel antes que en el sistema:
+// se redactan, se firman y se archivan. Sin donde ponerlos, el PDF
+// firmado queda en el Drive de quien lo armo y la auditoria de
+// certificacion pide justamente ese archivo.
+//
+// Se guardan en la tabla `adjuntos`, que ya es generica —`entidad` +
+// `entidad_id`— y ya tiene su RLS y su tope de 20 MB, y se entregan por
+// la ruta /adjuntos/[id], que firma el enlace en el momento del clic. No
+// hizo falta tocar el esquema.
+//
+// SOLO PDF. Lo pidio Direccion el 8 de octubre: es un documento firmado
+// que se entrega como esta, no un archivo que se sigue editando.
+// ---------------------------------------------------------------------
+
+/** Rechaza lo que no sea PDF, con el motivo listo para mostrar. */
+function noEsPdf(archivo: File): string | null {
+  return archivo.name.toLowerCase().endsWith(".pdf")
+    ? null
+    : `${archivo.name}: solo se admiten archivos PDF.`;
+}
+
+async function adjuntarPdf(
+  entidad: "auditorias" | "programas_auditoria",
+  entidadId: string,
+  carpeta: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite adjuntar archivos de auditoría." };
+  }
+
+  const archivos = archivosDelFormulario(datos, "archivos");
+  if (archivos.length === 0) return { exito: false, error: "Elija al menos un archivo." };
+
+  const rechazados = archivos.map(noEsPdf).filter((motivo): motivo is string => motivo !== null);
+  if (rechazados.length > 0) {
+    return { exito: false, error: rechazados.join("; ") };
+  }
+
+  const supabase = crearClienteServidor();
+
+  // Se comprueba que el registro exista y sea visible ANTES de subir
+  // nada: sin esto un id equivocado deja archivos en el bucket que no
+  // cuelgan de ningun registro.
+  const { data: existe } = await supabase
+    .from(entidad)
+    .select("id")
+    .eq("id", entidadId)
+    .maybeSingle();
+
+  if (!existe) return { exito: false, error: "El registro no existe o no tiene acceso." };
+
+  const { subidos, fallidos } = await subirAdjuntos(supabase, {
+    entidad,
+    entidadId,
+    carpeta,
+    archivos,
+    descripcion: String(datos.get("descripcion") ?? ""),
+    empresaId: usuario.empresa_id,
+    usuarioId: usuario.id,
+  });
+
+  revalidatePath("/auditorias");
+  revalidatePath(`/auditorias/${entidadId}`);
+
+  if (subidos === 0) return { exito: false, error: `No se pudo adjuntar: ${fallidos.join("; ")}.` };
+
+  if (fallidos.length > 0) {
+    return {
+      exito: true,
+      mensaje: `Se adjuntaron ${subidos} de ${archivos.length}. Faltaron: ${fallidos.join("; ")}.`,
+    };
+  }
+
+  return {
+    exito: true,
+    mensaje: subidos === 1 ? "Archivo adjuntado." : `Se adjuntaron ${subidos} archivos.`,
+  };
+}
+
+/** Sube el PDF del plan de la auditoría. */
+export async function adjuntarArchivosAuditoria(
+  auditoriaId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  return adjuntarPdf("auditorias", auditoriaId, "auditorias", datos);
+}
+
+/** Sube el PDF del programa anual. */
+export async function adjuntarArchivosPrograma(
+  programaId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  return adjuntarPdf("programas_auditoria", programaId, "programas-auditoria", datos);
+}
+
+/** Quita un archivo del plan de la auditoría. */
+export async function eliminarAdjuntoAuditoria(
+  adjuntoId: string,
+  auditoriaId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite quitar archivos de auditoría." };
+  }
+
+  const supabase = crearClienteServidor();
+  const resultado = await quitarAdjunto(supabase, adjuntoId, "auditorias", auditoriaId);
+  if (!resultado.ok) return { exito: false, error: resultado.error };
+
+  revalidatePath(`/auditorias/${auditoriaId}`);
+  return { exito: true, mensaje: `«${resultado.nombre}» eliminado.` };
+}
+
+/** Quita un archivo del programa anual. */
+export async function eliminarAdjuntoPrograma(
+  adjuntoId: string,
+  programaId: string,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (!puedeGestionarAuditorias(usuario)) {
+    return { exito: false, error: "Su rol no permite quitar archivos de auditoría." };
+  }
+
+  const supabase = crearClienteServidor();
+  const resultado = await quitarAdjunto(supabase, adjuntoId, "programas_auditoria", programaId);
+  if (!resultado.ok) return { exito: false, error: resultado.error };
+
+  revalidatePath("/auditorias");
+  return { exito: true, mensaje: `«${resultado.nombre}» eliminado.` };
 }

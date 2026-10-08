@@ -29,6 +29,10 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_TIPO_AUDITORIA } from "@/lib/constantes";
 import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 import { PanelFichaPrograma } from "@/app/(sgc)/auditorias/programas/[id]/panel-ficha-programa";
+import {
+  PanelArchivosAuditoria,
+  type ArchivoDeAuditoria,
+} from "@/app/(sgc)/auditorias/panel-archivos";
 import { PanelAprobacion } from "@/app/(sgc)/auditorias/panel-aprobacion";
 import type { EstadoAuditoria } from "@/lib/tipos";
 
@@ -97,7 +101,12 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
   const gestiona = puedeGestionarAuditorias(usuario);
   const hoy = hoyEnAsuncion();
 
-  const [{ data: consulta }, { data: datosAuditorias }, { data: personas }] = await Promise.all([
+  const [
+    { data: consulta },
+    { data: datosAuditorias },
+    { data: personas },
+    { data: archivosDelPrograma },
+  ] = await Promise.all([
     supabase
       .from("programas_auditoria")
       .select(
@@ -119,6 +128,16 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    // Los PDF del programa anual: el documento firmado.
+    supabase
+      .from("adjuntos")
+      .select(
+        "id, nombre_archivo, tamano_bytes, descripcion, creado_en, " +
+          "autor:subido_por (nombre_completo)",
+      )
+      .eq("entidad", "programas_auditoria")
+      .eq("entidad_id", params.id)
+      .order("creado_en", { ascending: false }),
   ]);
 
   const programa = consulta as Programa | null;
@@ -212,6 +231,17 @@ export default async function PaginaPrograma({ params }: { params: { id: string 
             Sin solicitar aprobación
           </span>
         )}
+      </div>
+
+      <div className="mb-4">
+        <PanelArchivosAuditoria
+          entidad="programa"
+          entidadId={params.id}
+          titulo="Archivos del programa"
+          ayuda="Todavía no hay archivos. Acá va el PDF del programa anual firmado."
+          archivos={(archivosDelPrograma as unknown as ArchivoDeAuditoria[] | null) ?? []}
+          puedeGestionar={gestiona}
+        />
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3">

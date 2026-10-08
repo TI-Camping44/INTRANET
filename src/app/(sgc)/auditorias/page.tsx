@@ -279,10 +279,12 @@ export default async function PaginaAuditorias({
             <TablaCabecera>
               <TablaFila>
                 <TablaEncabezado className="w-[8.5rem]">Código</TablaEncabezado>
-                <TablaEncabezado>Objetivo</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">
-                  Documentos auditados
-                </TablaEncabezado>
+                {/* EL TIPO, NO EL OBJETIVO. El objetivo es un párrafo:
+                    recortado no decía nada y entero rompía la tabla. El
+                    tipo es lo que se declara al planificar y lo que
+                    distingue una auditoría de otra de un vistazo; el
+                    objetivo está entero en la ficha. */}
+                <TablaEncabezado>Tipo</TablaEncabezado>
                 <TablaEncabezado className="hidden xl:table-cell">Auditor líder</TablaEncabezado>
                 <TablaEncabezado className="w-[6rem] text-center">Hallazgos</TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
@@ -309,35 +311,9 @@ export default async function PaginaAuditorias({
                       </Link>
                     </TablaCelda>
                     <TablaCelda>
-                      <Link
-                        href={`/auditorias/${auditoria.id}`}
-                        className="hover:text-primario"
-                      >
-                        {recortar(auditoria.objetivo, 75) || "—"}
+                      <Link href={`/auditorias/${auditoria.id}`} className="hover:text-primario">
+                        {ETIQUETAS_TIPO_AUDITORIA[auditoria.tipo] ?? "—"}
                       </Link>
-                    </TablaCelda>
-                    {/* Lo que la auditoría abarca. Desde el 6 de octubre
-                        se declara por documento; los procesos quedan como
-                        respaldo para las auditorías cargadas antes, que no
-                        tienen documentos. `CeldaTexto` recorta a una línea
-                        y deja el listado completo al señalar. */}
-                    <TablaCelda className="hidden max-w-[16rem] lg:table-cell">
-                      <CeldaTexto>
-                        {(auditoria.auditoria_documentos ?? [])
-                          .map((fila) =>
-                            [fila.documentos?.codigo, fila.documentos?.titulo]
-                              .filter(Boolean)
-                              .join(" "),
-                          )
-                          .filter(Boolean)
-                          .join(" · ") ||
-                          (auditoria.auditoria_procesos ?? [])
-                            .map((fila) => fila.procesos?.nombre)
-                            .filter(Boolean)
-                            .join(" · ") ||
-                          auditoria.procesos?.nombre ||
-                          null}
-                      </CeldaTexto>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
                       {auditoria.auditor?.nombre_completo ?? "—"}

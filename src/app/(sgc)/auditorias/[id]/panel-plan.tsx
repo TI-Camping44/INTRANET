@@ -19,6 +19,7 @@ import {
   actualizarAuditoria,
   eliminarAuditoria,
 } from "@/app/(sgc)/auditorias/acciones";
+import { SEGUN_EL_PLAN } from "@/lib/constantes";
 
 export interface AuditoriaDelPlan {
   id: string;
@@ -27,6 +28,7 @@ export interface AuditoriaDelPlan {
   alcance: string | null;
   criterios: string | null;
   proceso_id: string | null;
+  procesos_segun_plan: boolean;
   auditor_lider_id: string | null;
   fecha_planificada: string | null;
   fecha_aviso: string | null;
@@ -178,12 +180,22 @@ export function PanelPlan({
               </GrupoCampo>
 
               <div className="grid gap-3 sm:grid-cols-2">
+                {/* «Procesos declarados en el Plan» es lo que pasa en
+                    la práctica casi siempre: el alcance son los procesos
+                    que el propio Plan enumera más arriba, no uno suelto.
+                    «Sin proceso definido» se leía como un dato que falta,
+                    y no falta nada. */}
                 <GrupoCampo etiqueta="Proceso auditado" htmlFor="proceso_id">
                   <Seleccion
                     id="proceso_id"
                     name="proceso_id"
-                    defaultValue={auditoria.proceso_id ?? ""}
+                    defaultValue={
+                      auditoria.procesos_segun_plan
+                        ? SEGUN_EL_PLAN
+                        : (auditoria.proceso_id ?? "")
+                    }
                   >
+                    <option value={SEGUN_EL_PLAN}>Procesos declarados en el Plan</option>
                     <option value="">Sin proceso definido</option>
                     {procesos.map((proceso) => (
                       <option key={proceso.id} value={proceso.id}>

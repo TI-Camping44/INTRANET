@@ -389,6 +389,16 @@ export const CORREO_RECEPCION = "recepcion@camping44.com.py";
  * 'proveedor' y 'seguimiento' siguen en el enumerado de la base porque de
  * un tipo de PostgreSQL no se saca un valor, pero no se ofrecen.
  */
+/**
+ * El valor con el que el desplegable del proceso auditado dice «son los
+ * que declara el Plan».
+ *
+ * No es un id de proceso: `proceso_id` es una clave foranea y no admite
+ * centinelas. Viaja en el formulario con este texto y la accion de
+ * servidor lo traduce a la columna `procesos_segun_plan`.
+ */
+export const SEGUN_EL_PLAN = "segun-el-plan";
+
 export const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
   // Calidad lo renombro el 6 de octubre. El valor del enumerado sigue
   // siendo `por_proceso` —en PostgreSQL un valor no se puede quitar— y

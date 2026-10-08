@@ -8,6 +8,10 @@ import { InsigniaEstadoAuditoria } from "@/components/comunes/insignias-estado";
 import { PanelEjecucion } from "@/app/(sgc)/auditorias/[id]/panel-ejecucion";
 import { PanelHallazgos } from "@/app/(sgc)/auditorias/[id]/panel-hallazgos";
 import { PanelPlan } from "@/app/(sgc)/auditorias/[id]/panel-plan";
+import {
+  PanelArchivosAuditoria,
+  type ArchivoDeAuditoria,
+} from "@/app/(sgc)/auditorias/panel-archivos";
 import { PanelAprobacion } from "@/app/(sgc)/auditorias/panel-aprobacion";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -39,6 +43,7 @@ interface AuditoriaDetalle {
   estado: EstadoAuditoria;
   auditor_lider_id: string | null;
   proceso_id: string | null;
+  procesos_segun_plan: boolean;
   fecha_aviso: string | null;
   programa_id: string | null;
   plan_aprobacion_solicitada_a: string | null;
@@ -87,6 +92,7 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
     { data: equipo },
     { data: personas },
     { data: procesos },
+    { data: archivosDelPlan },
   ] = await Promise.all([
       supabase
         .from("auditoria_hallazgos")
@@ -112,6 +118,17 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
         .eq("activo", true)
         .order("nombre_completo"),
       supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
+      // Los PDF del plan: el documento firmado que pide la auditoría de
+      // certificación.
+      supabase
+        .from("adjuntos")
+        .select(
+          "id, nombre_archivo, tamano_bytes, descripcion, creado_en, " +
+            "autor:subido_por (nombre_completo)",
+        )
+        .eq("entidad", "auditorias")
+        .eq("entidad_id", params.id)
+        .order("creado_en", { ascending: false }),
     ]);
 
   // Cada hallazgo con sus evidencias adjuntas.
@@ -232,6 +249,15 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
             </TarjetaContenido>
           </Tarjeta>
 
+          <PanelArchivosAuditoria
+            entidad="auditoria"
+            entidadId={params.id}
+            titulo="Archivos del plan"
+            ayuda="Todavía no hay archivos. Acá va el PDF del plan firmado."
+            archivos={(archivosDelPlan as unknown as ArchivoDeAuditoria[] | null) ?? []}
+            puedeGestionar={gestiona}
+          />
+
           <Tarjeta>
             <TarjetaCabecera className="flex-row items-center justify-between">
               <TarjetaTitulo>Hallazgos</TarjetaTitulo>
@@ -280,7 +306,14 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
-                <Dato etiqueta="Proceso auditado" valor={auditoria.procesos?.nombre ?? "—"} />
+                <Dato
+                  etiqueta="Proceso auditado"
+                  valor={
+                    auditoria.procesos_segun_plan
+                      ? "Procesos declarados en el Plan"
+                      : (auditoria.procesos?.nombre ?? "—")
+                  }
+                />
                 <Dato etiqueta="Sede" valor={auditoria.sedes?.nombre ?? "—"} />
                 <Dato etiqueta="Norma" valor={auditoria.normas?.codigo ?? "—"} />
                 <Dato
