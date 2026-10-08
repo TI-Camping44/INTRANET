@@ -425,7 +425,6 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
-                <Dato etiqueta="Proceso" valor={riesgo.procesos?.nombre ?? "—"} />
                 <Dato etiqueta="Responsable" valor={riesgo.responsable?.nombre_completo ?? "—"} />
                 <Dato
                   etiqueta="Tratamiento"

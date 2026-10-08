@@ -24,15 +24,16 @@ import {
   DialogoTitulo,
 } from "@/components/ui/dialogo";
 import {
+  actualizarALaSiguienteVersion,
   aprobarYPublicar,
   confirmarRevisionSinCambios,
-  crearNuevaVersion,
   eliminarDocumento,
   enviarAValidacion,
   marcarObsoleto,
   validarDocumento,
 } from "@/app/(sgc)/documentos/acciones";
-import type { EstadoDocumento, ResultadoAccion } from "@/lib/tipos";
+import { extensionesAdmitidas, FORMATO_POR_TIPO, motivoDeRechazo } from "@/lib/adjuntos";
+import type { EstadoDocumento, ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
 interface Persona {
   id: string;
@@ -45,6 +46,8 @@ interface Persona {
  */
 export function AccionesDocumento({
   documentoId,
+  tipoDocumento,
+  versionActual,
   estadoDocumento,
   versionEditableId,
   versionEnRevisionId,
@@ -55,6 +58,10 @@ export function AccionesDocumento({
   fechaValidacion,
 }: {
   documentoId: string;
+  /** Decide qué formato admite el archivo de la versión nueva. */
+  tipoDocumento: TipoDocumento;
+  /** La versión que rige hoy: la siguiente es esta más uno. */
+  versionActual: number;
   estadoDocumento: EstadoDocumento;
   versionEditableId: string | null;
   versionEnRevisionId: string | null;
@@ -73,6 +80,37 @@ export function AccionesDocumento({
   const [validador, definirValidador] = React.useState("");
   const [aprobador, definirAprobador] = React.useState("");
   const [resumen, definirResumen] = React.useState("");
+  const [archivo, definirArchivo] = React.useState<File | null>(null);
+
+  const etiquetaActual = `Ver.${String(versionActual).padStart(2, "0")}`;
+  const etiquetaSiguiente = `Ver.${String(versionActual + 1).padStart(2, "0")}`;
+
+  function elegirArchivo(evento: React.ChangeEvent<HTMLInputElement>) {
+    const elegido = evento.target.files?.[0] ?? null;
+    if (!elegido) {
+      definirArchivo(null);
+      return;
+    }
+
+    // Se avisa acá para no hacerle esperar la subida de un archivo que la
+    // acción va a rechazar igual. El control que vale es el del servidor.
+    const motivo = motivoDeRechazo(tipoDocumento, elegido.name, elegido.size);
+    if (motivo) {
+      toast.error(motivo);
+      evento.target.value = "";
+      definirArchivo(null);
+      return;
+    }
+
+    definirArchivo(elegido);
+  }
+
+  async function subirLaSiguienteVersion() {
+    const datos = new FormData();
+    datos.set("resumen_cambios", resumen);
+    if (archivo) datos.set("archivo", archivo);
+    return actualizarALaSiguienteVersion(documentoId, datos);
+  }
 
   async function ejecutar(operacion: () => Promise<ResultadoAccion>, alTerminar?: () => void) {
     definirProcesando(true);
@@ -127,16 +165,24 @@ export function AccionesDocumento({
         </Boton>
       ) : null}
 
+      {/* ACTUALIZAR A LA SIGUIENTE VERSIÓN. Está siempre, no solo sobre
+          un documento vigente: lo que reemplaza es borrar el documento
+          anterior y volver a cargarlo, y eso se hacía en cualquier
+          estado. */}
+      {estadoDocumento !== "obsoleto" ? (
+        <Boton
+          tamano="pequeno"
+          variante="contorno"
+          disabled={procesando}
+          onClick={() => definirDialogoVersion(true)}
+          title={`Pasa el documento de ${etiquetaActual} a ${etiquetaSiguiente} con un archivo nuevo`}
+        >
+          <FilePlus2 /> Actualizar a la siguiente versión
+        </Boton>
+      ) : null}
+
       {estadoDocumento === "vigente" ? (
         <>
-          <Boton
-            tamano="pequeno"
-            variante="contorno"
-            disabled={procesando || !!versionEditableId || !!versionEnRevisionId}
-            onClick={() => definirDialogoVersion(true)}
-          >
-            <FilePlus2 /> Nueva versión
-          </Boton>
           <Boton
             tamano="pequeno"
             variante="contorno"
@@ -193,8 +239,9 @@ export function AccionesDocumento({
           <DialogoCabecera>
             <DialogoTitulo>Enviar a validar y aprobar</DialogoTitulo>
             <DialogoDescripcion>
-              Dos personas: una valida el contenido y otra lo aprueba. Puede ser la misma en los
-              dos lugares. Las dos reciben el aviso en el sistema y por correo.
+              Dos personas distintas: una valida el contenido y la otra lo aprueba. Primero se
+              valida y después se aprueba; sin la validación, la aprobación se niega. Las dos
+              reciben el aviso en el sistema y por correo.
             </DialogoDescripcion>
           </DialogoCabecera>
 
@@ -244,9 +291,8 @@ export function AccionesDocumento({
             </GrupoCampo>
 
             {validador && validador === aprobador ? (
-              <p className="text-[11px] text-atenuado-contraste">
-                La misma persona valida y aprueba. Está permitido: recibe un solo aviso y hace
-                los dos pasos.
+              <p className="text-[11px] text-semaforo-critico">
+                No puede ser la misma persona en los dos lugares: quien valida no aprueba.
               </p>
             ) : null}
           </div>
@@ -257,7 +303,9 @@ export function AccionesDocumento({
             </DialogoCierre>
             <Boton
               cargando={procesando}
-              disabled={!validador || !aprobador || !versionEditableId}
+              disabled={
+                !validador || !aprobador || validador === aprobador || !versionEditableId
+              }
               onClick={() =>
                 ejecutar(
                   () => enviarAValidacion(versionEditableId!, validador, aprobador),
@@ -275,48 +323,75 @@ export function AccionesDocumento({
         </DialogoContenido>
       </Dialogo>
 
-      {/* Nueva versión */}
+      {/* Actualizar a la siguiente versión */}
       <Dialogo open={dialogoVersion} onOpenChange={definirDialogoVersion}>
         <DialogoContenido>
           <DialogoCabecera>
-            <DialogoTitulo>Nueva versión</DialogoTitulo>
+            <DialogoTitulo>
+              Actualizar a {etiquetaSiguiente}
+            </DialogoTitulo>
             <DialogoDescripcion>
-              La versión vigente se mantiene en circulación hasta que la nueva sea aprobada.
+              Suba el archivo nuevo y diga qué cambió. {etiquetaActual} queda obsoleta —se
+              conserva con su archivo y sus firmas— y el documento pasa a {etiquetaSiguiente} en
+              borrador, para validarse y aprobarse como cualquier versión.
             </DialogoDescripcion>
           </DialogoCabecera>
 
-          <GrupoCampo
-            etiqueta="Resumen de cambios"
-            htmlFor="resumen"
-            requerido
-            ayuda="Queda registrado en el historial de versiones del documento."
-          >
-            <AreaTexto
-              id="resumen"
-              rows={3}
-              value={resumen}
-              onChange={(evento) => definirResumen(evento.target.value)}
-              placeholder="Se incorpora el control de temperatura en la recepción."
-            />
-          </GrupoCampo>
+          <div className="mt-4 space-y-3">
+            <GrupoCampo
+              etiqueta="Archivo de la versión nueva"
+              htmlFor="archivo-version"
+              ayuda={FORMATO_POR_TIPO[tipoDocumento].explicacion}
+            >
+              <input
+                id="archivo-version"
+                type="file"
+                accept={extensionesAdmitidas(tipoDocumento)}
+                onChange={elegirArchivo}
+                className="w-full cursor-pointer rounded-md border border-borde bg-fondo
+                           text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
+                           file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
+                           file:text-texto"
+              />
+              {archivo ? (
+                <p className="mt-1.5 text-[11px] text-atenuado-contraste">
+                  Se va a subir <span className="font-medium text-texto">{archivo.name}</span>.
+                </p>
+              ) : null}
+            </GrupoCampo>
+
+            <GrupoCampo
+              etiqueta="Qué cambió"
+              htmlFor="resumen"
+              requerido
+              ayuda="Queda registrado en el historial de versiones del documento."
+            >
+              <AreaTexto
+                id="resumen"
+                rows={3}
+                value={resumen}
+                onChange={(evento) => definirResumen(evento.target.value)}
+                placeholder="Se incorpora el control de temperatura en la recepción."
+              />
+            </GrupoCampo>
+          </div>
 
           <DialogoPie>
             <DialogoCierre asChild>
               <Boton variante="contorno">Cancelar</Boton>
             </DialogoCierre>
             <Boton
-              disabled={procesando || resumen.trim().length < 5}
+              cargando={procesando}
+              disabled={resumen.trim().length < 5}
               onClick={() =>
-                ejecutar(
-                  () => crearNuevaVersion(documentoId, resumen),
-                  () => {
-                    definirDialogoVersion(false);
-                    definirResumen("");
-                  },
-                )
+                ejecutar(subirLaSiguienteVersion, () => {
+                  definirDialogoVersion(false);
+                  definirResumen("");
+                  definirArchivo(null);
+                })
               }
             >
-              Crear versión
+              Actualizar a {etiquetaSiguiente}
             </Boton>
           </DialogoPie>
         </DialogoContenido>

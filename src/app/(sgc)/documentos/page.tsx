@@ -58,8 +58,7 @@ interface FilaDocumento {
   version_actual: number;
   fecha_vigencia: string | null;
   fecha_proxima_revision: string | null;
-  procesos: { nombre: string } | null;
-  responsable: { nombre_completo: string } | null;
+  proceso_documento_id: string | null;
   es_demostracion: boolean;
   categoria: string | null;
   orden: number | null;
@@ -122,9 +121,8 @@ export default async function PaginaDocumentos({
   const limiteRevision = sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO);
   const { estados } = VISTAS[vista];
 
-  const [{ data: procesos }, { data: responsables }, { data: todos }, { data: datosEmpresas }] =
+  const [{ data: responsables }, { data: todos }, { data: datosEmpresas }] =
     await Promise.all([
-    supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "00").order("nombre"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
@@ -171,7 +169,7 @@ export default async function PaginaDocumentos({
     .select(
       "id, codigo, titulo, tipo, estado, version_actual, fecha_vigencia, " +
         "fecha_proxima_revision, es_demostracion, categoria, orden, orden_categoria, " +
-        "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
+        "proceso_documento_id",
     )
     .in("estado", estados);
 
@@ -214,7 +212,6 @@ export default async function PaginaDocumentos({
   }
 
   if (searchParams.tipo) consulta = consulta.eq("tipo", searchParams.tipo);
-  if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
   if (searchParams.responsable) {
     consulta = consulta.eq("responsable_id", searchParams.responsable);
   }
@@ -412,14 +409,6 @@ export default async function PaginaDocumentos({
             })),
           },
           {
-            nombre: "proceso",
-            etiqueta: "Proceso",
-            opciones: (procesos ?? []).map((proceso: { id: string; nombre: string }) => ({
-              valor: proceso.id,
-              etiqueta: proceso.nombre,
-            })),
-          },
-          {
             nombre: "responsable",
             etiqueta: "Responsable",
             opciones: (responsables ?? []).map(
@@ -490,7 +479,6 @@ export default async function PaginaDocumentos({
                 <EncabezadoOrdenable campo="tipo" className="hidden md:table-cell">
                   Tipo
                 </EncabezadoOrdenable>
-                <TablaEncabezado className="hidden lg:table-cell">Proceso</TablaEncabezado>
                 <EncabezadoOrdenable campo="version" className="w-[5rem]">
                   Versión
                 </EncabezadoOrdenable>
@@ -500,7 +488,6 @@ export default async function PaginaDocumentos({
                 <TablaEncabezado className="hidden w-[8rem] lg:table-cell">
                   Próxima revisión
                 </TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">Responsable</TablaEncabezado>
                 {/* En «Vigentes» la columna de estado diría lo mismo en
                     todas las filas: la pestaña ya lo dice. */}
                 {vista === "vigentes" ? null : (
@@ -536,7 +523,7 @@ export default async function PaginaDocumentos({
                     {abreCategoria ? (
                       <FilaCategoria categoria={documento.categoria}>
                         <td
-                          colSpan={12}
+                          colSpan={10}
                           className="px-3 py-1.5 text-[11px] font-semibold uppercase
                                      tracking-wide text-atenuado-contraste"
                         >
@@ -596,11 +583,8 @@ export default async function PaginaDocumentos({
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                       {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo]}
                     </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
-                      {documento.procesos?.nombre ?? "—"}
-                    </TablaCelda>
                     <TablaCelda className="tabular text-xs">
-                      v{String(documento.version_actual).padStart(2, "0")}
+                      Ver.{String(documento.version_actual).padStart(2, "0")}
                     </TablaCelda>
                     <TablaCelda className="hidden whitespace-nowrap text-xs xl:table-cell">
                       {documento.fecha_vigencia ? (
@@ -617,9 +601,6 @@ export default async function PaginaDocumentos({
                       ) : (
                         <span className="text-atenuado-contraste">—</span>
                       )}
-                    </TablaCelda>
-                    <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
-                      {documento.responsable?.nombre_completo ?? "—"}
                     </TablaCelda>
                     {vista === "vigentes" ? null : (
                       <TablaCelda>

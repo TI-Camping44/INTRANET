@@ -18,7 +18,6 @@ import {
 import {
   CLASES_NIVEL_RIESGO,
   DECISION_POR_NIVEL,
-  diasReevaluacion,
   EFECTO_DEL_TRATAMIENTO,
   etiquetaNivelRiesgo,
   ORIGENES_RIESGO,
@@ -163,7 +162,6 @@ export function FormularioRiesgo({
   const valorado = probabilidad > 0 && severidad > 0;
   const nivel = valorado ? probabilidad * severidad : 0;
   const etiqueta = valorado ? etiquetaNivelRiesgo(nivel)! : null;
-  const dias = valorado ? diasReevaluacion(nivel) : null;
   const exigeAcciones = valorado ? requiereAcciones(nivel) : null;
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
@@ -353,7 +351,7 @@ export function FormularioRiesgo({
             </GrupoCampo>
           </div>
 
-          {etiqueta && dias !== null ? (
+          {etiqueta ? (
             <div
               className={cn(
                 "mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3",
@@ -367,7 +365,7 @@ export function FormularioRiesgo({
                 </p>
               </div>
               <p className="max-w-md text-[11px] opacity-90">
-                {DECISION_POR_NIVEL[etiqueta]} Reevaluación cada {dias} días.
+                {DECISION_POR_NIVEL[etiqueta]}
               </p>
             </div>
           ) : (
@@ -460,41 +458,27 @@ export function FormularioRiesgo({
           ) : null}
         </div>
 
-        {/* El plan y el dueño. Quedan aparte de la ficha de
-            identificacion, que es la que Calidad reordeno, porque son el
-            paso siguiente: el plan se exige cuando el nivel lo exige
-            —medio para arriba—, y para un riesgo bajo pedirlo seria
-            pedir que se invente algo que nadie va a ejecutar.
+        {/* LOS CONTROLES EXISTENTES, SOLOS. Dirección sacó de acá el
+            bloque «Responsable y plan» el 8 de octubre: el dueño y el
+            plazo ya se cargan en cada acción de tratamiento, que son
+            ilimitadas, y pedirlos otra vez acá era pedir dos veces lo
+            mismo con riesgo de que no coincidieran.
 
-            El responsable si va siempre: es quien recibe el aviso de
-            reevaluacion, y un riesgo sin dueño no se revisa nunca. */}
+            El riesgo igual necesita un dueño —es quien recibe el aviso
+            de reevaluación—, así que queda quien lo carga, o el que ya
+            tenía si se está editando. Se cambia desde la ficha. */}
         <div className="mt-5 rounded-md border border-borde p-4">
-          <p className="text-xs font-semibold">Responsable y plan</p>
-          <p className="mb-3 mt-0.5 text-[11px] text-atenuado-contraste">
-            {exigeAcciones
-              ? "El nivel exige acciones: la acción planificada y su plazo son obligatorios."
-              : "Para un riesgo bajo el plan es opcional. Se puede dejar vacío y cargarlo después desde la ficha."}
-          </p>
+          <input
+            type="hidden"
+            name="responsable_id"
+            value={inicial?.responsable_id ?? usuarioActual}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <GrupoCampo etiqueta="Responsable" htmlFor="responsable_id" requerido>
-              <Seleccion
-                id="responsable_id"
-                name="responsable_id"
-                required
-                defaultValue={inicial?.responsable_id ?? usuarioActual}
-              >
-                {usuarios.map((persona) => (
-                  <option key={persona.id} value={persona.id}>
-                    {persona.nombre_completo}
-                  </option>
-                ))}
-              </Seleccion>
-            </GrupoCampo>
-
             <GrupoCampo
               etiqueta="Controles existentes"
               htmlFor="controles_existentes"
+              className="sm:col-span-2"
               ayuda="Qué se hace hoy para contener el riesgo. Justifica la evaluación."
             >
               <AreaTexto

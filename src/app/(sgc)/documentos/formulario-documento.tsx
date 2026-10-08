@@ -209,7 +209,7 @@ export function FormularioDocumento({
             ayuda={
               sinCodigo
                 ? "Este documento va sin código controlado."
-                : "Escríbalo como lo usa Calidad. Ya no hay formato impuesto."
+                : "Escríbalo conforme al documento original."
             }
           >
             <div className="flex gap-2">

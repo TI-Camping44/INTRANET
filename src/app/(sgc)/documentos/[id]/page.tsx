@@ -191,6 +191,8 @@ export default async function PaginaDocumento({ params }: { params: { id: string
           ) : null}
           <AccionesDocumento
             documentoId={documento.id}
+            tipoDocumento={documento.tipo}
+            versionActual={documento.version_actual}
             estadoDocumento={documento.estado}
             versionEditableId={versionEditable?.id ?? null}
             versionEnRevisionId={versionEnRevision?.id ?? null}
@@ -217,7 +219,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
           {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo as keyof typeof ETIQUETAS_TIPO_DOCUMENTO]}
         </Insignia>
         <Insignia variante="neutra" className="tabular">
-          Versión vigente v{String(documento.version_actual).padStart(2, "0")}
+          Versión vigente Ver.{String(documento.version_actual).padStart(2, "0")}
         </Insignia>
         {documento.es_demostracion ? <InsigniaDemostracion /> : null}
       </div>
@@ -226,7 +228,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
         <div className="mb-4">
           <PanelRevision
             revisionId={miRevision.id}
-            etiquetaVersion={`v${String(versionEnRevision?.version ?? 0).padStart(2, "0")}`}
+            etiquetaVersion={`Ver.${String(versionEnRevision?.version ?? 0).padStart(2, "0")}`}
           />
         </div>
       ) : null}
@@ -246,7 +248,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             <Tarjeta>
               <TarjetaCabecera>
                 <TarjetaTitulo>
-                  Revisiones de la versión v
+                  Revisiones de la versión Ver.
                   {String(versionEnRevision?.version ?? 0).padStart(2, "0")}
                 </TarjetaTitulo>
               </TarjetaCabecera>
@@ -319,7 +321,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
                       <li key={version.id} className="py-3 first:pt-0 last:pb-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="tabular text-xs font-semibold">
-                            v{String(version.version).padStart(2, "0")}
+                            Ver.{String(version.version).padStart(2, "0")}
                           </span>
                           <InsigniaEstadoDocumento estado={version.estado} />
                           {version.etiqueta ? (
@@ -441,7 +443,6 @@ export default async function PaginaDocumento({ params }: { params: { id: string
                     en la ficha es tener dos fuentes que se pueden
                     contradecir. Queda quién lo hizo, quién lo validó y
                     quién lo aprobó, que es lo que la ficha agrega. */}
-                <Dato etiqueta="Proceso" valor={documento.procesos?.nombre ?? "—"} />
                 <Dato etiqueta="Categoría" valor={documento.categoria ?? "—"} />
                 <Dato
                   etiqueta="Elaborado por"

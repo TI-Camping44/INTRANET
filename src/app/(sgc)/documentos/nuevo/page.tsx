@@ -36,7 +36,7 @@ export default async function PaginaNuevoDocumento() {
     <div className="mx-auto max-w-3xl">
       <EncabezadoPagina
         titulo="Nuevo documento"
-        descripcion="El documento se crea en borrador con su versión v00. Luego se envía a revisión y se aprueba para dejarlo vigente."
+        descripcion="El documento se crea en borrador con su versión Ver.00. Luego se envía a revisión y se aprueba para dejarlo vigente."
       />
       <FormularioDocumento
         manuales={

@@ -264,8 +264,11 @@ en la base de datos y en `src/lib/`.
 | Reevaluación: crítico 30 días, alto 90, medio 180, bajo anual | `dias_reevaluacion_riesgo()` y `lib/riesgos.ts` |
 | Escalamiento de acciones: 10 días al líder inmediato, 20 al nivel siguiente | `lib/constantes.ts` y `api/cron/alertas` |
 | Aviso de revisión de documentos: 30 días antes | `DIAS_AVISO_REVISION_DOCUMENTO` |
-| Versionado: v00 inicial, sube en cada aprobación | `sincronizar_documento_al_aprobar()` |
-| Código de documento: `MP-SOP-01`, `F-SOP-08-01`, `P-SOP-01-01`. Los de contexto y las políticas no llevan: la columna admite vacío | `CHECK` en `documentos` y `sugerirCodigoDocumento()` |
+| Versionado: Ver.00 inicial, sube en cada aprobación. Se escribe **`Ver.00`**, no `v00` | `sincronizar_documento_al_aprobar()` |
+| **Actualizar a la siguiente versión reemplaza a «borrar y volver a cargar»**: sube el archivo nuevo y el motivo, deja obsoletas las versiones anteriores —no las borra—, pone el documento en Ver.NN+1 y lo devuelve a borrador para que se valide y apruebe de nuevo | `actualizarALaSiguienteVersion()` |
+| **El circuito documental es lineal y de dos personas**: sin validación no hay aprobación, y quien valida no aprueba. Vale también para el Administrador SGC: su atajo sirve para destrabar un documento cuyo validador no está, no para firmar los dos pasos | `enviarAValidacion()`, `validarDocumento()` y `aprobarYPublicar()` |
+| **El código del documento es libre**, se escribe conforme al documento original. El formato impuesto salió el 8 de octubre: la codificación real de Calidad no lo seguía. Los de contexto y las políticas siguen pudiendo ir sin código | `LARGO_MAXIMO_CODIGO` en `documentos/acciones.ts` y `sugerirCodigoDocumento()` |
+| **Un documento cuelga del proceso que declaró**, no del que diga su código: `proceso_documento_id` apunta al manual de proceso y manda sobre `claveDeProceso()`. Hizo falta porque la Política de Garantía depende de Servicio Técnico y va sin código | `armarJerarquia()` en `lib/documentos.ts` |
 | Perfil de puesto: formulario `R-02-01`, con revisión | Columnas de `puestos` y `datos-reales/20-perfiles-de-puesto.sql` |
 | Adjuntos: 20 MB máximo | `CHECK` en `adjuntos`, bucket y `TAMANO_MAXIMO_ADJUNTO` |
 | Hallazgo de NC genera no conformidad; sin eso la auditoría no cierra | `generar_no_conformidad_desde_hallazgo()` y `cambiarEstadoAuditoria()` |
@@ -301,7 +304,8 @@ Quedaron así por falta de definición explícita. Son reversibles:
 
 - **Sin acuse de lectura** de documentos: la difusión notifica, pero no
   exige confirmación.
-- **Flujo documental**: un elaborador, uno o más revisores, un aprobador.
+- **Flujo documental**: un elaborador, un validador y un aprobador, en
+  ese orden y nunca la misma persona en dos de los tres.
 - **Alta de usuarios**: el perfil se crea en el primer ingreso con rol
   Colaborador; el Administrador SGC ajusta rol y líder inmediato.
 - **Adjuntos**: 20 MB, PDF, Office e imágenes.

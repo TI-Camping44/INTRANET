@@ -86,7 +86,7 @@ export function redactarAnuncioDeDocumento(documento: {
 }): { titulo: string; cuerpo: string } {
   const identificacion = documento.codigo ? `${documento.codigo} · ` : "";
   const esNuevo = documento.version_actual <= 0;
-  const version = `v${String(documento.version_actual).padStart(2, "0")}`;
+  const version = `Ver.${String(documento.version_actual).padStart(2, "0")}`;
 
   const titulo = esNuevo
     ? `Nuevo documento vigente: ${documento.titulo}`

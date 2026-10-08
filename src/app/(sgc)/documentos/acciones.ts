@@ -16,7 +16,16 @@ import { indexarDocumentosPendientes, resumirIndexacion } from "@/lib/indexar-do
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
-const FORMATO_CODIGO = /^[A-Z]{1,4}(-[A-Z0-9]{1,4}){1,4}$/;
+/**
+ * EL CODIGO ES LIBRE. Se escribe conforme al documento original: la
+ * codificacion real de Calidad no sigue el formato que habia asumido el
+ * proyecto —el perfil de puesto es `R-02-01`— y rechazar lo que esta
+ * impreso en la caratula del documento es rechazar el dato bueno.
+ *
+ * Lo unico que se controla es que entre: sin saltos de linea y de largo
+ * razonable, para que no termine un parrafo en la columna del codigo.
+ */
+const LARGO_MAXIMO_CODIGO = 40;
 
 /**
  * Propone el siguiente codigo controlado disponible.
@@ -92,12 +101,18 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
   // decirlo, en vez de dejar el campo en blanco y que parezca un olvido.
   const sinCodigo = datos.get("sin_codigo") === "on";
 
-  if (!sinCodigo && (!codigo || !FORMATO_CODIGO.test(codigo))) {
+  if (!sinCodigo && !codigo) {
     return {
       exito: false,
       error:
-        "El código no cumple el formato controlado. Use por ejemplo MP-SOP-01 o F-COM-01-02, " +
+        "Escriba el código conforme al documento original, " +
         "o marque «No aplica» si este documento va sin código.",
+    };
+  }
+  if (codigo.length > LARGO_MAXIMO_CODIGO) {
+    return {
+      exito: false,
+      error: `El código no puede pasar de ${LARGO_MAXIMO_CODIGO} caracteres.`,
     };
   }
   if (titulo.length < 4) {
@@ -219,12 +234,10 @@ export async function actualizarDocumento(
   const sinCodigo = datos.get("sin_codigo") === "on";
   const codigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
 
-  if (!sinCodigo && codigo && !FORMATO_CODIGO.test(codigo)) {
+  if (codigo.length > LARGO_MAXIMO_CODIGO) {
     return {
       exito: false,
-      error:
-        "El código no cumple el formato controlado. Use por ejemplo MP-SOP-01 o F-COM-01-02, " +
-        "o marque «No aplica» si este documento va sin código.",
+      error: `El código no puede pasar de ${LARGO_MAXIMO_CODIGO} caracteres.`,
     };
   }
 
@@ -277,13 +290,56 @@ export async function actualizarDocumento(
   return { exito: true, mensaje: "Documento actualizado." };
 }
 
-/** Crea la siguiente version en borrador sobre un documento ya vigente. */
-export async function crearNuevaVersion(
+/**
+ * Sube el documento a la version siguiente con un archivo nuevo.
+ *
+ * ES EL REEMPLAZO DE «BORRAR Y VOLVER A CARGAR». Hasta ahora, cuando
+ * llegaba la revision nueva de un documento, lo que se hacia era eliminar
+ * el anterior y dar de alta otro: se perdia el historial, la trazabilidad
+ * y la lista de difusion, que es justo lo que una auditoria pide ver.
+ * Direccion lo pidio el 8 de octubre: un solo boton que pase de Ver.00 a
+ * Ver.01 pidiendo lo mismo que el alta —el archivo y el motivo— sin que
+ * nadie tenga que borrar nada.
+ *
+ * Que pasa al apretarlo:
+ *   - Todas las versiones anteriores quedan OBSOLETAS. Se conservan, con
+ *     su archivo y sus firmas: obsoleto no es borrado.
+ *   - Se crea la version siguiente en borrador y el documento pasa a
+ *     mostrarla, asi aparece en el listado con Ver.01 desde el primer
+ *     momento.
+ *   - El documento vuelve a borrador y se limpia el circuito anterior:
+ *     la version nueva tiene que validarse y aprobarse como cualquier
+ *     otra. Una version que nadie valido no puede quedar vigente.
+ *   - El archivo nuevo se adjunta al documento y es el que abre el
+ *     listado, que muestra el ultimo subido. El anterior queda en la
+ *     ficha, en Archivos.
+ */
+export async function actualizarALaSiguienteVersion(
   documentoId: string,
-  resumenCambios: string,
+  datos: FormData,
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
+  if (!puedeGestionar(usuario)) {
+    return { exito: false, error: "Su rol no permite versionar documentos." };
+  }
+
+  const resumen = String(datos.get("resumen_cambios") ?? "").trim();
+  if (resumen.length < 5) {
+    return {
+      exito: false,
+      error: "Escriba el motivo del cambio: queda en el historial de versiones del documento.",
+    };
+  }
+
   const supabase = crearClienteServidor();
+
+  const { data: documento } = await supabase
+    .from("documentos")
+    .select("id, codigo, titulo, version_actual")
+    .eq("id", documentoId)
+    .maybeSingle();
+
+  if (!documento) return { exito: false, error: "El documento no existe o no tiene acceso." };
 
   const { data: ultima } = await supabase
     .from("documento_versiones")
@@ -293,30 +349,86 @@ export async function crearNuevaVersion(
     .limit(1)
     .maybeSingle();
 
-  const siguiente = (ultima?.version ?? -1) + 1;
+  // Se toma la mayor de las dos. Si una quedara atras —un alta a medio
+  // hacer, una version cargada a mano— repetir un numero romperia el
+  // historial, que es lo unico que no se puede reconstruir despues.
+  const siguiente = Math.max(ultima?.version ?? -1, documento.version_actual ?? -1) + 1;
 
-  const { error } = await supabase.from("documento_versiones").insert({
+  // Lo anterior queda obsoleto: es lo que se pidio y lo que evita que
+  // dos versiones figuren vigentes a la vez.
+  await supabase
+    .from("documento_versiones")
+    .update({ estado: "obsoleto" })
+    .eq("documento_id", documentoId)
+    .neq("estado", "obsoleto");
+
+  const { error: errorVersion } = await supabase.from("documento_versiones").insert({
     documento_id: documentoId,
     version: siguiente,
     estado: "borrador",
-    resumen_cambios: resumenCambios.trim() || "Sin detalle de cambios.",
+    resumen_cambios: resumen,
     elaborado_por: usuario.id,
   });
 
-  if (error) return { exito: false, error: `No se pudo crear la versión: ${error.message}` };
+  if (errorVersion) {
+    return { exito: false, error: `No se pudo crear la versión: ${errorVersion.message}` };
+  }
+
+  const { error: errorDocumento } = await supabase
+    .from("documentos")
+    .update({
+      version_actual: siguiente,
+      estado: "borrador",
+      elaborador_id: usuario.id,
+      // Circuito limpio: la version nueva se valida y se aprueba de nuevo.
+      validador_id: null,
+      aprobador_id: null,
+      fecha_validacion: null,
+    })
+    .eq("id", documentoId);
+
+  if (errorDocumento) {
+    return { exito: false, error: `No se pudo actualizar el documento: ${errorDocumento.message}` };
+  }
+
+  const etiqueta = `Ver.${String(siguiente).padStart(2, "0")}`;
+
+  // El archivo viaja en el mismo envio, igual que en el alta. Si falla,
+  // la version ya quedo creada y el mensaje lo dice: perderla seria peor.
+  const archivo = datos.get("archivo");
+  if (archivo instanceof File && archivo.size > 0) {
+    const resultado = await subirArchivoDocumento(documentoId, datos);
+    if (!resultado.exito) {
+      revalidatePath(`/documentos/${documentoId}`);
+      revalidatePath("/documentos");
+      return {
+        exito: true,
+        mensaje:
+          `El documento quedó en ${etiqueta}, pero el archivo no se pudo subir: ` +
+          `${resultado.error} Puede cargarlo desde la ficha, en Archivos.`,
+      };
+    }
+  }
 
   revalidatePath(`/documentos/${documentoId}`);
-  return { exito: true, mensaje: `Versión v${String(siguiente).padStart(2, "0")} creada en borrador.` };
+  revalidatePath("/documentos");
+  return {
+    exito: true,
+    mensaje:
+      `El documento quedó en ${etiqueta}, en borrador. La versión anterior pasó a obsoleta. ` +
+      "Envíelo a validar y aprobar para dejarlo vigente.",
+  };
 }
 
 /** Envia una version a revision y avisa a los revisores asignados. */
 /**
  * Manda el borrador a validar y aprobar.
  *
- * Calidad lo pidio asi: dos personas, una valida el contenido y otra lo
- * aprueba, y pueden ser la misma sin ninguna traba —en un documento
- * chico suele serlo, y obligar a poner dos nombres distintos termina en
- * un nombre puesto de relleno—.
+ * EL CIRCUITO ES LINEAL Y DE DOS PERSONAS. Primero se valida, despues se
+ * aprueba, y quien valida no puede aprobar. Hasta el 8 de octubre la
+ * misma persona podia hacer las dos cosas —se habia dejado asi para no
+ * trabar los documentos chicos— y Direccion lo cambio: una firma que se
+ * da a si misma no es un control, y es lo primero que mira una auditoria.
  *
  * Reemplaza a la lista de revisores. Revisar era una lista de gente que
  * opinaba; validar y aprobar son dos cargos con nombre y apellido, que
@@ -332,6 +444,16 @@ export async function enviarAValidacion(
 
   if (!validadorId || !aprobadorId) {
     return { exito: false, error: "Elija quién valida y quién aprueba." };
+  }
+
+  // El control no vale si lo hace una sola persona.
+  if (validadorId === aprobadorId) {
+    return {
+      exito: false,
+      error:
+        "Quien valida no puede ser quien aprueba. Elija dos personas distintas: " +
+        "una revisa que el contenido sea correcto y la otra lo aprueba.",
+    };
   }
 
   const { data: version } = await supabase
@@ -386,7 +508,7 @@ export async function enviarAValidacion(
     titulo: `Documento para validar y aprobar: ${documento?.codigo ?? documento?.titulo ?? ""}`,
     mensaje:
       `${documento?.titulo ?? ""} está listo para su validación y aprobación. ` +
-      `Versión v${String(version.version).padStart(2, "0")}.`,
+      `Versión Ver.${String(version.version).padStart(2, "0")}.`,
     enlace: `/documentos/${version.documento_id}`,
     entidad: "documentos",
     entidadId: version.documento_id,
@@ -402,6 +524,10 @@ export async function enviarAValidacion(
  *
  * La hace quien fue designado validador, o Calidad. Es el paso previo a
  * la aprobacion: sin esto, `aprobarYPublicar` se niega.
+ *
+ * QUIEN APRUEBA NO VALIDA. Vale tambien para Calidad: el atajo del
+ * Administrador SGC existe para destrabar un documento cuyo validador no
+ * esta, no para firmar los dos pasos.
  */
 export async function validarDocumento(documentoId: string): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
@@ -423,6 +549,15 @@ export async function validarDocumento(documentoId: string): Promise<ResultadoAc
     return {
       exito: false,
       error: "La validación la registra quien fue designado validador, o Calidad.",
+    };
+  }
+
+  if (documento.aprobador_id === usuario.id) {
+    return {
+      exito: false,
+      error:
+        "Usted figura como quien aprueba este documento, así que no puede validarlo. " +
+        "La validación y la aprobación las hacen dos personas distintas.",
     };
   }
 
@@ -527,7 +662,7 @@ export async function enviarARevision(
     titulo: `Revisión solicitada: ${documento?.codigo ?? ""}`,
     mensaje:
       `${usuario.nombre_completo} solicita su revisión de la versión ` +
-      `v${String(version.version).padStart(2, "0")} de "${documento?.titulo ?? ""}".`,
+      `Ver.${String(version.version).padStart(2, "0")} de "${documento?.titulo ?? ""}".`,
     enlace: `/documentos/${version.documento_id}`,
     entidad: "documentos",
     entidadId: version.documento_id,
@@ -712,7 +847,10 @@ export async function aprobarYPublicar(versionId: string): Promise<ResultadoAcci
     return { exito: false, error: "Esta versión ya está vigente." };
   }
 
-  // Sin validacion no hay aprobacion: es el circuito que fijo Calidad.
+  // SIN VALIDACION NO HAY APROBACION. El circuito es lineal y no admite
+  // saltearse el paso: antes esto solo se exigia cuando habia un
+  // validador designado, asi que un documento mandado sin validador se
+  // aprobaba de una. Ahora se exige siempre.
   const { data: documento } = await supabase
     .from("documentos")
     .select("id, validador_id, aprobador_id, fecha_validacion")
@@ -721,14 +859,28 @@ export async function aprobarYPublicar(versionId: string): Promise<ResultadoAcci
 
   const esCalidad = usuario.rol === "administrador_sgc";
 
-  if (documento?.validador_id && !documento.fecha_validacion) {
+  if (!documento?.fecha_validacion) {
     return {
       exito: false,
-      error: "Falta la validación del contenido. Primero tiene que validarse, después aprobarse.",
+      error:
+        "Falta la validación del contenido. Primero se valida y después se aprueba: " +
+        (documento?.validador_id
+          ? "el documento espera la validación de quien fue designado."
+          : "envíe el documento a validar y aprobar para designar a las dos personas."),
     };
   }
 
-  if (documento?.aprobador_id && documento.aprobador_id !== usuario.id && !esCalidad) {
+  // Quien valido no aprueba, ni siquiera siendo Calidad.
+  if (documento.validador_id === usuario.id) {
+    return {
+      exito: false,
+      error:
+        "Usted validó este documento, así que no puede aprobarlo. " +
+        "La aprobación la registra la otra persona del circuito.",
+    };
+  }
+
+  if (documento.aprobador_id && documento.aprobador_id !== usuario.id && !esCalidad) {
     return {
       exito: false,
       error: "La aprobación la registra quien fue designado aprobador, o Calidad.",
@@ -775,7 +927,7 @@ export async function aprobarYPublicar(versionId: string): Promise<ResultadoAcci
   return {
     exito: true,
     mensaje:
-      `Versión v${String(version.version).padStart(2, "0")} publicada.` +
+      `Versión Ver.${String(version.version).padStart(2, "0")} publicada.` +
       (cantidad > 0 ? ` Se notificó a ${cantidad} persona${cantidad === 1 ? "" : "s"}.` : ""),
   };
 }

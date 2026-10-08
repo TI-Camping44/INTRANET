@@ -7,7 +7,6 @@ import { CeldaSiNo, CeldaTexto } from "@/components/comunes/celda-texto";
 import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import {
   InsigniaDemostracion,
-  InsigniaEstadoRiesgo,
   InsigniaNivelRiesgo,
 } from "@/components/comunes/insignias-estado";
 import { Boton } from "@/components/ui/boton";
@@ -87,16 +86,10 @@ interface FilaRiesgo {
 export default async function PaginaRiesgos({
   searchParams,
 }: {
-  searchParams: { q?: string; estado?: string; tipo?: string; proceso?: string; nivel?: string };
+  searchParams: { q?: string; estado?: string; tipo?: string; nivel?: string };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
-
-  const { data: procesos } = await supabase
-    .from("procesos")
-    .select("id, nombre")
-    .eq("activo", true).eq("version", "01")
-    .order("nombre");
 
   let consulta = supabase
     .from("riesgos")
@@ -118,7 +111,6 @@ export default async function PaginaRiesgos({
   consulta = consulta.eq("tipo", "riesgo");
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
-  if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
   // «Requieren accion» arranca en medio (5): el bajo llega hasta 4 y se
   // asume. Misma regla que `requiereAcciones` y que la columna generada
   // de la base. 9 es alto y 15 critico, como en el instructivo.
@@ -155,27 +147,6 @@ export default async function PaginaRiesgos({
     valor: riesgos.filter((riesgo) => riesgo.estado === valor).length,
     color: COLOR_ESTADO_RIESGO[valor] ?? "hsl(var(--primario))",
   }));
-
-  // Los que no tienen proceso entran como una fila mas. Sin eso, con uno
-  // solo clasificado el grafico diria «100%» al lado de un total de
-  // siete: el porcentaje tiene que ser sobre lo que se esta mirando.
-  const nombresDeProceso = Array.from(
-    new Set(
-      riesgos
-        .map((riesgo) => riesgo.procesos?.nombre)
-        .filter((nombre): nombre is string => Boolean(nombre)),
-    ),
-  );
-  const porProceso = [
-    ...nombresDeProceso.map((nombre) => ({
-      etiqueta: nombre,
-      valor: riesgos.filter((riesgo) => riesgo.procesos?.nombre === nombre).length,
-    })),
-    {
-      etiqueta: "Sin proceso asignado",
-      valor: riesgos.filter((riesgo) => !riesgo.procesos?.nombre).length,
-    },
-  ];
 
   const porOrigen = [
     ...ORIGENES_RIESGO.map((origen) => ({
@@ -245,14 +216,6 @@ export default async function PaginaRiesgos({
               etiqueta,
             })),
           },
-          {
-            nombre: "proceso",
-            etiqueta: "Proceso",
-            opciones: (procesos ?? []).map((proceso: { id: string; nombre: string }) => ({
-              valor: proceso.id,
-              etiqueta: proceso.nombre,
-            })),
-          },
         ]}
       />
 
@@ -260,11 +223,6 @@ export default async function PaginaRiesgos({
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <Torta titulo="Por nivel" porciones={porNivel} />
           <Torta titulo="Por estado" porciones={porEstado} />
-          <BarrasPorcentaje
-            titulo="Por proceso"
-            filas={porProceso}
-            vacio="Ninguno tiene proceso asignado."
-          />
           <BarrasPorcentaje titulo="Por origen" filas={porOrigen} />
           <BarrasPorcentaje
             titulo="Por opción de tratamiento"
@@ -299,7 +257,6 @@ export default async function PaginaRiesgos({
                   Código
                 </TablaEncabezado>
                 <TablaEncabezado className="w-[6rem]">Fecha</TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Proceso</TablaEncabezado>
                 <TablaEncabezado className="w-[11rem]">Origen</TablaEncabezado>
                 <TablaEncabezado className="w-[16rem]">Descripción del riesgo</TablaEncabezado>
                 <TablaEncabezado className="w-[14rem]">Causa potencial</TablaEncabezado>
@@ -313,16 +270,13 @@ export default async function PaginaRiesgos({
                   ¿Requiere acción?
                 </TablaEncabezado>
                 <TablaEncabezado className="w-[12rem]">Opción de tratamiento</TablaEncabezado>
-                <TablaEncabezado className="w-[16rem]">Acción planificada</TablaEncabezado>
                 <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Proceso de la acción</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Prob. res.</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Sev. res.</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Nivel residual</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Se mide el</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">¿Acción eficaz?</TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -342,13 +296,6 @@ export default async function PaginaRiesgos({
                   <TablaCelda className="text-xs tabular text-atenuado-contraste">
                     {formatearFecha(riesgo.fecha_identificacion)}
                   </TablaCelda>
-
-                  {/* El proceso de la matriz de Calidad va primero: el de
-                      `procesos` es el del mapa de la intranet, que todavía
-                      no coincide. */}
-                  <CeldaTexto ancho="12rem">
-                    {riesgo.proceso_declarado ?? riesgo.procesos?.nombre}
-                  </CeldaTexto>
 
                   <CeldaTexto ancho="11rem">{riesgo.origen}</CeldaTexto>
 
@@ -387,20 +334,6 @@ export default async function PaginaRiesgos({
                     {riesgo.tratamiento ? ETIQUETAS_TRATAMIENTO_RIESGO[riesgo.tratamiento] : null}
                   </CeldaTexto>
 
-                  {/* Un riesgo que exige plan y no lo tiene es lo primero
-                      que mira una auditoría. */}
-                  {riesgo.accion_planificada ? (
-                    <CeldaTexto ancho="16rem">{riesgo.accion_planificada}</CeldaTexto>
-                  ) : (
-                    <TablaCelda className="text-xs">
-                      {riesgo.requiere_accion ? (
-                        <span className="font-medium text-semaforo-critico">Falta el plan</span>
-                      ) : (
-                        <span className="text-atenuado-contraste">Se asume</span>
-                      )}
-                    </TablaCelda>
-                  )}
-
                   <CeldaTexto ancho="12rem">
                     {riesgo.responsable_declarado ?? riesgo.responsable?.nombre_completo}
                   </CeldaTexto>
@@ -414,8 +347,6 @@ export default async function PaginaRiesgos({
                         ? formatearFecha(riesgo.plazo_accion)
                         : "—"}
                   </TablaCelda>
-
-                  <CeldaTexto ancho="12rem">{riesgo.proceso_accion_declarado}</CeldaTexto>
 
                   <TablaCelda className="text-center text-xs tabular">
                     {riesgo.probabilidad_residual ?? "—"}
@@ -441,9 +372,6 @@ export default async function PaginaRiesgos({
                     {riesgo.eficacia_accion ? ETIQUETAS_EFICACIA[riesgo.eficacia_accion] : "—"}
                   </TablaCelda>
 
-                  <TablaCelda>
-                    <InsigniaEstadoRiesgo estado={riesgo.estado} />
-                  </TablaCelda>
                 </TablaFila>
               ))}
             </TablaCuerpo>
