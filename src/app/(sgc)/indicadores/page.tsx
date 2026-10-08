@@ -10,15 +10,16 @@ import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
-import { Insignia } from "@/components/ui/insignia";
+import { hoyEnAsuncion } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
 import {
   ESTADOS_OBJETIVO,
   ETIQUETAS_ESTADO_OBJETIVO,
   ETIQUETAS_FRECUENCIA_MEDICION,
+  COLOR_ESTADO_PLAN,
+  ESTADOS_PLAN_ABIERTOS,
+  ESTADOS_PLAN_CERRADOS,
   ETIQUETAS_ESTADO_PLAN,
-  CLASES_ESTADO_PLAN,
   FRECUENCIAS_MEDICION,
   type EstadoObjetivo,
   type EstadoPlan,
@@ -194,32 +195,30 @@ export default async function PaginaIndicadores({
   const { data: datosAcciones } = objetivos.length
     ? await supabase
         .from("objetivo_planes")
-        .select(
-          "id, objetivo_id, que_se_va_a_hacer, fecha_finalizacion, estado, eficacia, " +
-            "responsable_declarado, responsable:responsable_id (nombre_completo)",
-        )
+        // Solo el estado: las tortas no necesitan nada mas, y traer la
+        // accion entera para contarla seria traer texto que no se dibuja.
+        .select("id, estado")
         .in(
           "objetivo_id",
           objetivos.map((objetivo) => objetivo.id),
         )
-        .order("fecha_finalizacion", { nullsFirst: false })
     : { data: [] };
 
-  const acciones =
-    (datosAcciones as unknown as {
-      id: string;
-      objetivo_id: string | null;
-      que_se_va_a_hacer: string;
-      fecha_finalizacion: string | null;
-      estado: EstadoPlan;
-      eficacia: "eficaz" | "no_eficaz" | null;
-      responsable_declarado: string | null;
-      responsable: { nombre_completo: string } | null;
-    }[] | null) ?? [];
+  const acciones = (datosAcciones as { id: string; estado: EstadoPlan }[] | null) ?? [];
 
-  const codigoDelObjetivo = new Map(
-    objetivos.map((objetivo) => [objetivo.id, objetivo.codigo]),
-  );
+  // Las dos tortas de acciones: abiertas por un lado, cerradas por el
+  // otro, cada una partida por su estado.
+  const accionesAbiertas = ESTADOS_PLAN_ABIERTOS.map((estado) => ({
+    etiqueta: ETIQUETAS_ESTADO_PLAN[estado],
+    valor: acciones.filter((accion) => accion.estado === estado).length,
+    color: COLOR_ESTADO_PLAN[estado],
+  }));
+
+  const accionesCerradas = ESTADOS_PLAN_CERRADOS.map((estado) => ({
+    etiqueta: ETIQUETAS_ESTADO_PLAN[estado],
+    valor: acciones.filter((accion) => accion.estado === estado).length,
+    color: COLOR_ESTADO_PLAN[estado],
+  }));
 
   const enMedicion = objetivos.filter((objetivo) => objetivo.estado === "en_medicion").length;
   const cerrados = objetivos.filter((objetivo) => objetivo.estado === "cerrado");
@@ -267,65 +266,25 @@ export default async function PaginaIndicadores({
       </div>
 
       {objetivos.length > 0 ? (
-        <div className="mb-4 grid gap-3 lg:grid-cols-2">
-          <Torta titulo="Por estado" porciones={porEstado} />
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <Torta titulo="Objetivos por estado" porciones={porEstado} />
 
-          {/* LAS ACCIONES PLANIFICADAS, en el lugar de las tres barras.
-              Es lo que hay que hacer para que el objetivo se alcance:
-              con su dueño, su plazo y en qué quedó. Tocarla abre la
-              ficha del objetivo, que es donde se le hace el
-              seguimiento. */}
-          <div className="rounded-lg border border-borde bg-fondo p-4">
-            <p className="mb-3 text-xs font-semibold">
-              Acciones planificadas{" "}
-              <span className="font-normal text-atenuado-contraste">({acciones.length})</span>
-            </p>
-
-            {acciones.length === 0 ? (
-              <p className="text-[11px] leading-relaxed text-atenuado-contraste">
-                Todavía no hay acciones cargadas. Se cargan en la ficha de cada objetivo: qué se
-                va a hacer para alcanzarlo, con su responsable y su plazo.
-              </p>
-            ) : (
-              <ul className="divide-y divide-borde">
-                {acciones.map((accion) => (
-                  <li key={accion.id} className="py-2 first:pt-0 last:pb-0">
-                    <Link
-                      href={`/indicadores/objetivos/${accion.objetivo_id}`}
-                      className="block hover:text-primario"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="min-w-0 flex-1 text-xs">{accion.que_se_va_a_hacer}</p>
-                        <span className="flex shrink-0 items-center gap-1">
-                          <Insignia className={cn("border", CLASES_ESTADO_PLAN[accion.estado])}>
-                            {ETIQUETAS_ESTADO_PLAN[accion.estado]}
-                          </Insignia>
-                          {accion.eficacia ? (
-                            <Insignia
-                              variante={accion.eficacia === "eficaz" ? "exito" : "peligro"}
-                            >
-                              {accion.eficacia === "eficaz" ? "Eficaz" : "No eficaz"}
-                            </Insignia>
-                          ) : null}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-atenuado-contraste">
-                        {accion.objetivo_id
-                          ? `${codigoDelObjetivo.get(accion.objetivo_id) ?? ""} · `
-                          : ""}
-                        {accion.responsable?.nombre_completo ??
-                          accion.responsable_declarado ??
-                          "Sin responsable"}
-                        {accion.fecha_finalizacion
-                          ? ` · Plazo ${formatearFecha(accion.fecha_finalizacion)}`
-                          : ""}
-                      </p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {/* LAS ACCIONES, EN DOS TORTAS: lo que falta hacer y lo que
+              ya terminó. Separadas y no en una sola porque son dos
+              preguntas distintas —qué queda pendiente, y cómo salió lo
+              que se hizo— y juntas la segunda se pierde detrás de la
+              primera. Cada una lleva su tabla de datos al lado, que la
+              pone el propio componente. */}
+          <Torta
+            titulo="Acciones abiertas"
+            porciones={accionesAbiertas}
+            vacio="No hay acciones abiertas."
+          />
+          <Torta
+            titulo="Acciones cerradas"
+            porciones={accionesCerradas}
+            vacio="Todavía no hay acciones cerradas."
+          />
         </div>
       ) : null}
 
@@ -403,6 +362,8 @@ export default async function PaginaIndicadores({
             id: objetivo.id,
             codigo: objetivo.codigo,
             nombre: objetivo.nombre,
+            estado: objetivo.estado,
+            responsable: objetivo.responsable?.nombre_completo ?? null,
             fecha_inicio_medicion: objetivo.fecha_inicio_medicion,
             fecha_fin_medicion: objetivo.fecha_fin_medicion,
             frecuencia_medicion: objetivo.frecuencia_medicion,

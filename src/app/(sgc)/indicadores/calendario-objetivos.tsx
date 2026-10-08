@@ -15,6 +15,7 @@ import {
   DialogoPie,
   DialogoTitulo,
 } from "@/components/ui/dialogo";
+import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
   borrarMedicionDelObjetivo,
@@ -23,10 +24,13 @@ import {
 import {
   estadoDelMes,
   ETIQUETAS_ESTADO_DEL_MES,
+  ETIQUETAS_ESTADO_OBJETIVO,
+  VARIANTE_ESTADO_OBJETIVO,
   MESES_ABREVIADOS,
   MESES,
   resumenDelMes,
   type EstadoDelMes,
+  type EstadoObjetivo,
   type FrecuenciaMedicion,
   type MedicionMensual,
   type TipoResultadoObjetivo,
@@ -38,6 +42,8 @@ export interface ObjetivoDelCalendario {
   id: string;
   codigo: string;
   nombre: string;
+  estado: EstadoObjetivo;
+  responsable: string | null;
   fecha_inicio_medicion: string | null;
   fecha_fin_medicion: string | null;
   frecuencia_medicion: FrecuenciaMedicion | null;
@@ -157,6 +163,18 @@ export function CalendarioObjetivos({
                 >
                   Objetivo
                 </th>
+                <th
+                  className="min-w-[8rem] px-3 py-2 text-left text-[11px] font-semibold
+                             uppercase tracking-wide text-atenuado-contraste"
+                >
+                  Estado
+                </th>
+                <th
+                  className="min-w-[11rem] px-3 py-2 text-left text-[11px] font-semibold
+                             uppercase tracking-wide text-atenuado-contraste"
+                >
+                  Responsable
+                </th>
                 {MESES_ABREVIADOS.map((mes) => (
                   <th
                     key={mes}
@@ -182,6 +200,18 @@ export function CalendarioObjetivos({
                       </span>
                       <span className="block font-medium">{objetivo.nombre}</span>
                     </Link>
+                  </td>
+
+                  <td className="px-3 py-2 align-top">
+                    <Insignia
+                      variante={VARIANTE_ESTADO_OBJETIVO[objetivo.estado] as "neutra" | "exito"}
+                    >
+                      {ETIQUETAS_ESTADO_OBJETIVO[objetivo.estado]}
+                    </Insignia>
+                  </td>
+
+                  <td className="px-3 py-2 align-top text-[11px] text-atenuado-contraste">
+                    {objetivo.responsable ?? "—"}
                   </td>
 
                   {MESES.map((nombreMes, indice) => {

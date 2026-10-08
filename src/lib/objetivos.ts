@@ -454,3 +454,37 @@ export function resumenDelMes(
   }
   return medicion.resultado_texto?.trim() ? "✓" : "";
 }
+
+// ---------------------------------------------------------------------
+// Acciones abiertas y cerradas
+// ---------------------------------------------------------------------
+// La pantalla principal las muestra en dos tortas, una al lado de la
+// otra: lo que falta hacer y lo que ya terminó. Que estado cae de cada
+// lado se decide aca y no en la pantalla, para que los dos graficos y
+// cualquier conteo futuro usen la misma linea.
+
+/** Los estados de una accion que todavia esta en curso. */
+export const ESTADOS_PLAN_ABIERTOS: EstadoPlan[] = ["pendiente", "en_curso"];
+
+/** Los estados de una accion que ya termino, salga como salga. */
+export const ESTADOS_PLAN_CERRADOS: EstadoPlan[] = ["cumplido", "no_cumplido", "cancelado"];
+
+export function estaAbiertaLaAccion(estado: EstadoPlan): boolean {
+  return ESTADOS_PLAN_ABIERTOS.includes(estado);
+}
+
+/**
+ * El color de cada estado del plan, para las tortas.
+ *
+ * Sale de las variables del tema, asi funciona igual en claro y en
+ * oscuro, y acompaña a `CLASES_ESTADO_PLAN`: «no cumplido» en rojo
+ * porque es el unico que significa que algo quedo sin hacer, «cumplido»
+ * en verde, «en curso» en ambar y los neutros en gris.
+ */
+export const COLOR_ESTADO_PLAN: Record<EstadoPlan, string> = {
+  pendiente: "hsl(var(--atenuado-contraste))",
+  en_curso: "hsl(var(--semaforo-medio))",
+  cumplido: "hsl(var(--semaforo-bajo))",
+  no_cumplido: "hsl(var(--semaforo-critico))",
+  cancelado: "hsl(var(--borde))",
+};
