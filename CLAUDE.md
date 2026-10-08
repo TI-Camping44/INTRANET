@@ -258,7 +258,9 @@ en la base de datos y en `src/lib/`.
 | Regla | Dónde vive |
 | --- | --- |
 | Matriz de riesgos 5×5, nivel = P × I | `etiqueta_nivel_riesgo()` en SQL y `lib/riesgos.ts` |
-| Semáforo: 1-4 bajo, 5-9 medio, 10-14 alto, 15-25 crítico | Los mismos dos lugares |
+| Semáforo: 1-4 bajo, 5-9 **moderado**, 10-14 alto, 15-25 crítico. El valor del enumerado sigue siendo `medio`; lo que cambió el 8 de octubre es la etiqueta | Los mismos dos lugares y `ETIQUETAS_NIVEL_RIESGO` |
+| **Solo el riesgo alto o crítico exige acción de tratamiento.** El moderado y el bajo se aceptan sin acción inmediata y se reevalúan en cada Revisión por la Dirección. Antes el corte estaba en 5 | `requiereAcciones()` y la columna generada `riesgos.requiere_accion`, las dos en `>= 10` |
+| **El riesgo se identifica contra Información Documentada, no contra una lista de procesos**, y admite uno o varios: no siempre es un proceso, puede ser una política o un instructivo. Y admite **acciones ilimitadas**, cada una con acción, responsable y plazo | `riesgo_documentos`, `riesgo_accion_documentos` y `selector-documentos.tsx` |
 | Reevaluación: crítico 30 días, alto 90, medio 180, bajo anual | `dias_reevaluacion_riesgo()` y `lib/riesgos.ts` |
 | Escalamiento de acciones: 10 días al líder inmediato, 20 al nivel siguiente | `lib/constantes.ts` y `api/cron/alertas` |
 | Aviso de revisión de documentos: 30 días antes | `DIAS_AVISO_REVISION_DOCUMENTO` |

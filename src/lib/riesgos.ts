@@ -31,28 +31,28 @@ export function etiquetaNivelRiesgo(nivel: number | null | undefined): NivelRies
   return "critico";
 }
 
-/** Qué decide cada nivel, con las palabras del instructivo. */
+/** Qué decide cada nivel, con las palabras de Dirección. */
 export const DECISION_POR_NIVEL: Record<NivelRiesgo, string> = {
-  bajo: "Se asume. Solo se mantiene bajo vigilancia; no requiere acción planificada.",
-  medio: "Requiere acción planificada con responsable y plazo, dentro del ciclo anual.",
-  alto: "Requiere acción prioritaria, con plazo definido y seguimiento en el comité de calidad.",
+  bajo: "Se acepta sin acción inmediata. Se reevalúa en cada Revisión por la Dirección.",
+  medio: "Se acepta sin acción inmediata. Se reevalúa en cada Revisión por la Dirección.",
+  alto: "Exige una acción de tratamiento, con responsable y plazo.",
   critico:
-    "Requiere acción inmediata y aprobación de la alta dirección. Se revisa en la primera reunión disponible.",
+    "Exige una acción de tratamiento, con responsable y plazo, y aprobación de la alta dirección.",
 };
 
 /**
- * ¿Requiere acciones? Medio, alto y critico si; bajo no.
+ * ¿Requiere acciones? Alto y critico si; moderado y bajo no.
  *
- * El corte es el del semaforo del proyecto: 1-4 es bajo. Lo fijo Calidad
- * el 5 de octubre de 2026, y cambio lo que el instructivo decia antes
- * —«de nivel 4 para arriba hace falta plan»—, que dejaba un riesgo de
- * nivel 4, bajo, pidiendo plan.
+ * LO CAMBIO DIRECCION EL 8 DE OCTUBRE. Antes el corte estaba en 5 —el
+ * moderado tambien pedia plan—; ahora el moderado y el bajo se aceptan
+ * sin accion inmediata y se reevaluan en cada Revision por la Direccion.
+ * Solo el alto y el critico exigen tratamiento.
  *
  * LA MISMA REGLA ESTA EN LA BASE, en la columna generada
  * `riesgos.requiere_accion`. Si cambia, cambia en los dos lados.
  */
 export function requiereAcciones(nivel: number | null | undefined): boolean {
-  return nivel !== null && nivel !== undefined && nivel >= 5;
+  return nivel !== null && nivel !== undefined && nivel >= 10;
 }
 
 /** Clases de Tailwind para el semaforo, con contraste suficiente en ambos temas. */

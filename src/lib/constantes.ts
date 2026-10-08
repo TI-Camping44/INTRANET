@@ -507,7 +507,10 @@ export const TRATAMIENTOS_VIGENTES: TratamientoRiesgo[] = [
 
 export const ETIQUETAS_NIVEL_RIESGO: Record<NivelRiesgo, string> = {
   bajo: "Bajo",
-  medio: "Medio",
+  // «Moderado» desde el 8 de octubre. El valor del enumerado sigue
+  // siendo `medio` —en PostgreSQL un valor no se quita— y lo que cambia
+  // es la etiqueta, como con los origenes de la NC.
+  medio: "Moderado",
   alto: "Alto",
   critico: "Crítico",
 };

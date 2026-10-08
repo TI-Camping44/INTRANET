@@ -20,27 +20,73 @@ function validarEscala(valor: number): boolean {
  * corregir, la obligatoriedad del alta seria decorativa.
  */
 const OBLIGATORIOS: { campo: string; nombre: string }[] = [
-  { campo: "proceso_id", nombre: "el proceso donde se identifica el riesgo" },
+  // EL PROCESO SALIO DE LA LISTA. Desde el 8 de octubre el riesgo se
+  // identifica contra Informacion Documentada —que puede ser un proceso,
+  // una politica o un instructivo—, y esa tabla todavia esta vacia:
+  // exigirlo dejaria el modulo sin poder registrar nada.
+  //
+  // EL TRATAMIENTO TAMBIEN: pasa al plan, porque solo se pide cuando el
+  // nivel lo exige.
   { campo: "descripcion", nombre: "la descripción" },
   { campo: "causas", nombre: "la causa potencial" },
   { campo: "consecuencias", nombre: "la consecuencia potencial" },
   { campo: "asociado_disrupcion", nombre: "si está asociado a una disrupción" },
-  { campo: "tratamiento", nombre: "la opción de tratamiento" },
   { campo: "responsable_id", nombre: "el responsable" },
 ];
 
 /**
  * El plan, que se exige solo cuando el nivel lo exige.
  *
- * Medio para arriba requiere acciones —misma regla que
- * `requiereAcciones` y que la columna generada de la base—. Para un
- * riesgo bajo, pedir accion y plazo seria pedir que se invente un plan
- * que nadie va a ejecutar: se asume y se vigila.
+ * SOLO ALTO Y CRITICO, desde el 8 de octubre —misma regla que
+ * `requiereAcciones` y que la columna generada de la base—. El moderado
+ * y el bajo se aceptan sin accion inmediata y se reevaluan en cada
+ * Revision por la Direccion: pedirles un plan seria pedir que se invente
+ * algo que nadie va a ejecutar.
  */
 const OBLIGATORIOS_PLAN_RIESGO: { campo: string; nombre: string }[] = [
-  { campo: "accion_planificada", nombre: "la acción planificada" },
-  { campo: "plazo_accion", nombre: "el plazo de la acción" },
+  { campo: "tratamiento", nombre: "la opción de tratamiento" },
 ];
+
+/** Una accion de tratamiento tal como llega del formulario. */
+interface AccionEnviada {
+  descripcion: string;
+  responsable_id: string;
+  plazo: string;
+  documentos: string[];
+}
+
+/**
+ * Lee las acciones del formulario.
+ *
+ * Viajan como un JSON en un campo oculto y no como listas paralelas de
+ * `FormData`: con listas paralelas, una accion sin responsable corre los
+ * indices y los plazos terminan en la accion equivocada.
+ */
+function leerAcciones(datos: FormData): AccionEnviada[] {
+  const crudo = String(datos.get("acciones") ?? "").trim();
+  if (!crudo) return [];
+
+  try {
+    const lista = JSON.parse(crudo) as AccionEnviada[];
+    if (!Array.isArray(lista)) return [];
+    return lista.filter((accion) => accion && typeof accion.descripcion === "string");
+  } catch {
+    return [];
+  }
+}
+
+/** Lee los documentos elegidos, que viajan igual que las acciones. */
+function leerDocumentos(datos: FormData, campo: string): string[] {
+  const crudo = String(datos.get(campo) ?? "").trim();
+  if (!crudo) return [];
+
+  try {
+    const lista = JSON.parse(crudo) as string[];
+    return Array.isArray(lista) ? lista.filter((id) => typeof id === "string" && id) : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Los campos que Calidad pide completos en una oportunidad.
@@ -97,7 +143,83 @@ function revisarCamposDeOportunidad(datos: FormData): string | null {
   const faltante = pedidos.find(
     (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
   );
-  return faltante ? `Falta completar ${faltante.nombre}.` : null;
+  if (faltante) return `Falta completar ${faltante.nombre}.`;
+
+  // UN RIESGO ALTO O CRITICO EXIGE AL MENOS UNA ACCION COMPLETA. Sin
+  // esto, el nivel pedia tratamiento pero el plan podia quedar vacio.
+  if (pedidos === OBLIGATORIOS) return null;
+
+  const acciones = leerAcciones(datos);
+  if (acciones.length === 0) {
+    return "Un riesgo alto o crítico exige al menos una acción de tratamiento.";
+  }
+
+  const incompleta = acciones.findIndex(
+    (accion) => !accion.descripcion.trim() || !accion.responsable_id || !accion.plazo,
+  );
+  if (incompleta >= 0) {
+    return `Complete la acción ${incompleta + 1}: necesita qué se hace, responsable y plazo.`;
+  }
+
+  return null;
+}
+
+/**
+ * Guarda los documentos del riesgo y sus acciones de tratamiento.
+ *
+ * Se reemplaza todo lo anterior y se vuelve a escribir: es lo mismo para
+ * el alta que para la correccion, y evita tener que calcular que se
+ * agrego y que se quito.
+ */
+async function guardarDocumentosYAcciones(
+  supabase: ReturnType<typeof crearClienteServidor>,
+  riesgoId: string,
+  datos: FormData,
+  tratamiento: string | null,
+) {
+  const documentos = leerDocumentos(datos, "documentos");
+
+  await supabase.from("riesgo_documentos").delete().eq("riesgo_id", riesgoId);
+  if (documentos.length > 0) {
+    await supabase
+      .from("riesgo_documentos")
+      .insert(documentos.map((documentoId) => ({ riesgo_id: riesgoId, documento_id: documentoId })));
+  }
+
+  const acciones = leerAcciones(datos);
+
+  // Las acciones ya ejecutadas no se tocan: su evidencia y su eficacia
+  // son registro, y rehacerlas las borraria.
+  await supabase
+    .from("riesgo_acciones")
+    .delete()
+    .eq("riesgo_id", riesgoId)
+    .eq("estado", "pendiente");
+
+  for (const accion of acciones) {
+    const { data: creada } = await supabase
+      .from("riesgo_acciones")
+      .insert({
+        riesgo_id: riesgoId,
+        descripcion: accion.descripcion.trim(),
+        tratamiento: tratamiento ?? "cambiar_probabilidad",
+        responsable_id: accion.responsable_id || null,
+        fecha_limite: accion.plazo || null,
+      })
+      .select("id")
+      .single();
+
+    if (creada && accion.documentos?.length > 0) {
+      await supabase
+        .from("riesgo_accion_documentos")
+        .insert(
+          accion.documentos.map((documentoId) => ({
+            accion_id: creada.id,
+            documento_id: documentoId,
+          })),
+        );
+    }
+  }
 }
 
 /**
@@ -198,6 +320,13 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
 
   if (error) return { exito: false, error: `No se pudo crear el riesgo: ${error.message}` };
 
+  await guardarDocumentosYAcciones(
+    supabase,
+    riesgo.id,
+    datos,
+    String(datos.get("tratamiento") ?? "") || null,
+  );
+
   // Primera evaluación registrada en el historial.
   await supabase.from("riesgo_evaluaciones").insert({
     riesgo_id: riesgo.id,
@@ -264,6 +393,13 @@ export async function actualizarRiesgo(id: string, datos: FormData): Promise<Res
       error: "No se pudo guardar: el riesgo no existe o su rol no puede editarlo.",
     };
   }
+
+  await guardarDocumentosYAcciones(
+    supabase,
+    id,
+    datos,
+    String(datos.get("tratamiento") ?? "") || null,
+  );
 
   revalidatePath("/riesgos");
   revalidatePath(`/riesgos/${id}`);

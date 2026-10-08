@@ -15,13 +15,17 @@ export default async function PaginaNuevoRiesgo() {
 
   // Los procesos salen de los manuales cargados en Informacion
   // Documentada, no de una lista propia. Ver `lib/procesos-documentados.ts`.
-  const [procesos, { data: usuarios }] = await Promise.all([
+  const [procesos, { data: usuarios }, { data: documentos }] = await Promise.all([
     procesosDocumentados(supabase),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    // La informacion documentada contra la que se identifica el riesgo.
+    // Hoy la tabla esta vacia y el selector lo dice; a medida que Calidad
+    // cargue documentos aparecen solos.
+    supabase.from("documentos").select("id, codigo, titulo").order("codigo"),
   ]);
 
   return (
@@ -30,6 +34,9 @@ export default async function PaginaNuevoRiesgo() {
         titulo="Nuevo Riesgo"
       />
       <FormularioRiesgo
+        documentos={
+          (documentos as { id: string; codigo: string | null; titulo: string }[] | null) ?? []
+        }
         procesos={procesos}
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}

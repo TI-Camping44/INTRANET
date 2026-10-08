@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
@@ -24,6 +25,10 @@ import {
   requiereAcciones,
 } from "@/lib/riesgos";
 import { agruparPorCategoria, type ProcesoDocumentado } from "@/lib/procesos-documentados";
+import {
+  SelectorDocumentos,
+  type DocumentoElegible,
+} from "@/app/(sgc)/riesgos/selector-documentos";
 import { cn } from "@/lib/utilidades";
 import type { TratamientoRiesgo } from "@/lib/tipos";
 
@@ -32,9 +37,22 @@ interface Persona {
   nombre_completo?: string;
 }
 
+/** Una acción de tratamiento, mientras se la escribe en el formulario. */
+export interface AccionDelRiesgo {
+  /** Solo de la pantalla: ordena las filas y no viaja al servidor. */
+  clave: string;
+  descripcion: string;
+  responsable_id: string;
+  plazo: string;
+  documentos: string[];
+}
+
 /** Lo que trae un riesgo ya cargado cuando se lo abre para corregir. */
 export interface RiesgoInicial {
   id: string;
+  /** Los documentos ya vinculados, para que la edición los traiga marcados. */
+  documentos?: string[];
+  acciones?: AccionDelRiesgo[];
   descripcion: string | null;
   origen: string | null;
   proceso_id: string | null;
@@ -82,11 +100,14 @@ export interface RiesgoInicial {
  */
 export function FormularioRiesgo({
   procesos,
+  documentos,
   usuarios,
   usuarioActual,
   inicial,
 }: {
   procesos: ProcesoDocumentado[];
+  /** La información documentada. Puede venir vacía: el módulo recién se carga. */
+  documentos: DocumentoElegible[];
   usuarios: Persona[];
   usuarioActual: string;
   inicial?: RiesgoInicial;
@@ -102,6 +123,39 @@ export function FormularioRiesgo({
   );
 
   const grupos = React.useMemo(() => agruparPorCategoria(procesos), [procesos]);
+
+  const [documentosDelRiesgo, definirDocumentosDelRiesgo] = React.useState<string[]>(
+    inicial?.documentos ?? [],
+  );
+
+  // Las acciones del riesgo. `clave` es solo de la pantalla: ordena las
+  // filas y no viaja al servidor.
+  const [acciones, definirAcciones] = React.useState<AccionDelRiesgo[]>(
+    inicial?.acciones ?? [],
+  );
+
+  function agregarAccion() {
+    definirAcciones((actuales) => [
+      ...actuales,
+      {
+        clave: `accion-${Date.now()}-${actuales.length}`,
+        descripcion: "",
+        responsable_id: usuarioActual,
+        plazo: "",
+        documentos: [],
+      },
+    ]);
+  }
+
+  function quitarAccion(clave: string) {
+    definirAcciones((actuales) => actuales.filter((accion) => accion.clave !== clave));
+  }
+
+  function cambiarAccion(clave: string, cambios: Partial<AccionDelRiesgo>) {
+    definirAcciones((actuales) =>
+      actuales.map((accion) => (accion.clave === clave ? { ...accion, ...cambios } : accion)),
+    );
+  }
 
   // Mientras no se eligieron las dos escalas no hay nivel que mostrar.
   // Poner 3 × 3 por defecto, como estaba antes, hacia que el formulario
@@ -141,37 +195,30 @@ export function FormularioRiesgo({
               formulario porque no se valoran igual. */}
           <input type="hidden" name="tipo" value="riesgo" />
 
-          {/* 1 · Donde se identifica. Agrupado por categoria, como la
-              lista maestra, para que no sea un listado plano de
-              diecinueve renglones. */}
-          <GrupoCampo
-            etiqueta="Proceso donde se identifica el riesgo"
-            htmlFor="proceso_id"
-            requerido
-            className="sm:col-span-2"
-            ayuda="Son los procesos con manual cargado en Información Documentada."
-          >
-            <Seleccion
-              id="proceso_id"
-              name="proceso_id"
-              required
-              defaultValue={inicial?.proceso_id ?? ""}
-            >
-              <option value="" disabled>
-                Elija el proceso
-              </option>
-              {grupos.map((grupo) => (
-                <optgroup key={grupo.categoria} label={grupo.categoria}>
-                  {grupo.procesos.map((proceso) => (
-                    <option key={proceso.id} value={proceso.id}>
-                      {proceso.codigo ? `${proceso.codigo} · ` : ""}
-                      {proceso.nombre}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
+          {/* 1 · DONDE SE IDENTIFICA, CONTRA INFORMACION DOCUMENTADA.
+              Antes era un desplegable con la lista fija de procesos del
+              mapa. Direccion lo cambio el 8 de octubre: no siempre es un
+              proceso —puede ser una politica, un instructivo o un
+              formulario—, asi que se elige de lo que hay cargado en
+              Informacion Documentada, y se puede elegir mas de uno.
+
+              Va en una lista de casillas y no en un `<select multiple>`:
+              en un celular el multiple obliga a mantener apretada una
+              tecla que no existe. */}
+          <SelectorDocumentos
+            etiqueta="Dónde se identifica el riesgo"
+            ayuda="Elija uno o varios de Información Documentada. No siempre es un proceso: puede ser una política o un instructivo."
+            documentos={documentos}
+            elegidos={documentosDelRiesgo}
+            alAlternar={(id) =>
+              definirDocumentosDelRiesgo((actuales) =>
+                actuales.includes(id)
+                  ? actuales.filter((otro) => otro !== id)
+                  : [...actuales, id],
+              )
+            }
+          />
+          <input type="hidden" name="documentos" value={JSON.stringify(documentosDelRiesgo)} />
 
           {/* 2 · Origen. Lista cerrada y no texto libre: ver
               `ORIGENES_RIESGO`. La opcion vacia esta deshabilitada, asi
@@ -348,15 +395,19 @@ export function FormularioRiesgo({
               {exigeAcciones === null
                 ? "Se completa solo con la clasificación del riesgo."
                 : exigeAcciones
-                  ? "Lo determina la clasificación: medio, alto y crítico requieren acciones. Complete el plan más abajo."
-                  : "Lo determina la clasificación: el riesgo bajo se asume y se vigila."}
+                  ? "Lo determina la clasificación: alto y crítico exigen una acción de tratamiento. Complete el plan más abajo."
+                  : "Lo determina la clasificación: moderado y bajo se aceptan sin acción inmediata y se reevalúan en cada Revisión por la Dirección."}
             </p>
           </div>
         </div>
 
-        {/* 11 · Que se hace con el. Va al final porque es la unica
-            pregunta que necesita todas las anteriores contestadas. */}
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {/* 11 · QUE SE HACE CON EL, SOLO SI EL NIVEL LO EXIGE. Direccion
+            lo fijo el 8 de octubre: el riesgo alto o critico exige una
+            accion de tratamiento; el moderado y el bajo se aceptan sin
+            accion inmediata y se reevaluan en cada Revision por la
+            Direccion. Para esos dos el bloque entero no aparece: pedir un
+            tratamiento que nadie va a ejecutar es ruido. */}
+        <div className={exigeAcciones ? "mt-5 grid gap-4 sm:grid-cols-2" : "hidden"}>
           <GrupoCampo
             etiqueta="Opción de tratamiento"
             htmlFor="tratamiento"
@@ -454,60 +505,134 @@ export function FormularioRiesgo({
               />
             </GrupoCampo>
 
-            <GrupoCampo
-              etiqueta="Acción planificada"
-              htmlFor="accion_planificada"
-              requerido={exigeAcciones === true}
-              className="sm:col-span-2"
-              ayuda="Qué se va a hacer para tratar el riesgo."
-            >
-              <AreaTexto
-                id="accion_planificada"
-                name="accion_planificada"
-                rows={2}
-                required={exigeAcciones === true}
-                defaultValue={inicial?.accion_planificada ?? ""}
-              />
-            </GrupoCampo>
-
-            <GrupoCampo
-              etiqueta="Plazo de la acción"
-              htmlFor="plazo_accion"
-              requerido={exigeAcciones === true}
-            >
-              <Entrada
-                id="plazo_accion"
-                name="plazo_accion"
-                type="date"
-                required={exigeAcciones === true}
-                defaultValue={inicial?.plazo_accion ?? ""}
-              />
-            </GrupoCampo>
-
-            <GrupoCampo
-              etiqueta="Proceso donde se integra la acción"
-              htmlFor="proceso_accion_id"
-              ayuda="No siempre es el proceso donde se identificó el riesgo."
-            >
-              <Seleccion
-                id="proceso_accion_id"
-                name="proceso_accion_id"
-                defaultValue={inicial?.proceso_accion_id ?? ""}
-              >
-                <option value="">El mismo proceso del riesgo</option>
-                {grupos.map((grupo) => (
-                  <optgroup key={grupo.categoria} label={grupo.categoria}>
-                    {grupo.procesos.map((proceso) => (
-                      <option key={proceso.id} value={proceso.id}>
-                        {proceso.codigo ? `${proceso.codigo} · ` : ""}
-                        {proceso.nombre}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </Seleccion>
-            </GrupoCampo>
           </div>
+
+          {/* UN RIESGO ADMITE TODAS LAS ACCIONES QUE HAGAN FALTA. Antes
+              el alta cargaba una sola, escrita en columnas del propio
+              riesgo. Direccion pidio el 8 de octubre que sean ilimitadas,
+              y lo esencial de cada una es accion, responsable y plazo.
+              Van a `riesgo_acciones`, que es la tabla que la ficha ya
+              usaba para las que se agregaban despues. */}
+          {exigeAcciones ? (
+            <div className="mt-4 space-y-3 border-t border-borde pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold">Acciones de tratamiento</p>
+                <Boton
+                  type="button"
+                  variante="contorno"
+                  tamano="pequeno"
+                  onClick={agregarAccion}
+                >
+                  <Plus /> Agregar acción
+                </Boton>
+              </div>
+
+              {acciones.length === 0 ? (
+                <p className="text-[11px] text-atenuado-contraste">
+                  El nivel exige al menos una acción. Use «Agregar acción».
+                </p>
+              ) : null}
+
+              {acciones.map((accion, indice) => (
+                <div key={accion.clave} className="rounded-md border border-borde p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium text-atenuado-contraste">
+                      Acción {indice + 1}
+                    </p>
+                    <Boton
+                      type="button"
+                      variante="fantasma"
+                      tamano="iconoPequeno"
+                      aria-label={`Quitar la acción ${indice + 1}`}
+                      onClick={() => quitarAccion(accion.clave)}
+                      className="text-atenuado-contraste hover:text-semaforo-critico"
+                    >
+                      <Trash2 />
+                    </Boton>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <GrupoCampo
+                      etiqueta="Acción"
+                      htmlFor={`accion-${accion.clave}`}
+                      requerido
+                      className="sm:col-span-2"
+                      ayuda="Qué se va a hacer para tratar el riesgo."
+                    >
+                      <AreaTexto
+                        id={`accion-${accion.clave}`}
+                        rows={2}
+                        value={accion.descripcion}
+                        onChange={(evento) =>
+                          cambiarAccion(accion.clave, { descripcion: evento.target.value })
+                        }
+                      />
+                    </GrupoCampo>
+
+                    <GrupoCampo
+                      etiqueta="Responsable"
+                      htmlFor={`responsable-${accion.clave}`}
+                      requerido
+                    >
+                      <Seleccion
+                        id={`responsable-${accion.clave}`}
+                        value={accion.responsable_id}
+                        onChange={(evento) =>
+                          cambiarAccion(accion.clave, { responsable_id: evento.target.value })
+                        }
+                      >
+                        <option value="">Elija el responsable</option>
+                        {usuarios.map((persona) => (
+                          <option key={persona.id} value={persona.id}>
+                            {persona.nombre_completo}
+                          </option>
+                        ))}
+                      </Seleccion>
+                    </GrupoCampo>
+
+                    <GrupoCampo
+                      etiqueta="Plazo de ejecución"
+                      htmlFor={`plazo-${accion.clave}`}
+                      requerido
+                    >
+                      <Entrada
+                        id={`plazo-${accion.clave}`}
+                        type="date"
+                        value={accion.plazo}
+                        onChange={(evento) =>
+                          cambiarAccion(accion.clave, { plazo: evento.target.value })
+                        }
+                      />
+                    </GrupoCampo>
+
+                    <div className="sm:col-span-2">
+                      <SelectorDocumentos
+                        etiqueta="Dónde se integra la acción"
+                        ayuda="Opcional. No siempre es donde se identificó el riesgo."
+                        documentos={documentos}
+                        elegidos={accion.documentos}
+                        alAlternar={(id) =>
+                          cambiarAccion(accion.clave, {
+                            documentos: accion.documentos.includes(id)
+                              ? accion.documentos.filter((otro) => otro !== id)
+                              : [...accion.documentos, id],
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <input
+                type="hidden"
+                name="acciones"
+                value={JSON.stringify(
+                  acciones.map(({ clave: _clave, ...resto }) => resto),
+                )}
+              />
+            </div>
+          ) : null}
         </div>
 
         {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
