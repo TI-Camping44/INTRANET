@@ -6,7 +6,6 @@ import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
 import {
   InsigniaDemostracion,
-  InsigniaEstadoRiesgo,
 } from "@/components/comunes/insignias-estado";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -86,16 +85,10 @@ interface FilaOportunidad {
 export default async function PaginaOportunidades({
   searchParams,
 }: {
-  searchParams: { q?: string; estado?: string; prioridad?: string; proceso?: string };
+  searchParams: { q?: string; estado?: string; prioridad?: string };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
-
-  const { data: procesos } = await supabase
-    .from("procesos")
-    .select("id, nombre")
-    .eq("activo", true).eq("version", "01")
-    .order("nombre");
 
   let consulta = supabase
     .from("riesgos")
@@ -114,7 +107,6 @@ export default async function PaginaOportunidades({
     .order("indice", { ascending: false, nullsFirst: false });
 
   if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
-  if (searchParams.proceso) consulta = consulta.eq("proceso_id", searchParams.proceso);
   if (searchParams.prioridad === "alta") consulta = consulta.gte("indice", 15);
   if (searchParams.prioridad === "media") {
     consulta = consulta.gte("indice", 7).lte("indice", 14);
@@ -161,30 +153,6 @@ export default async function PaginaOportunidades({
     valor: oportunidades.filter((fila) => fila.estado === valor).length,
     color: COLOR_ESTADO_RIESGO[valor] ?? "hsl(var(--primario))",
   }));
-
-  // El proceso que nombra la planilla de Calidad va primero; el de la
-  // relación, después. Es el mismo orden que usa la tabla.
-  const nombreDeProceso = (fila: FilaOportunidad) =>
-    fila.proceso_declarado ?? fila.procesos?.nombre ?? null;
-
-  const nombresDeProceso = Array.from(
-    new Set(
-      oportunidades
-        .map(nombreDeProceso)
-        .filter((nombre): nombre is string => Boolean(nombre)),
-    ),
-  ).sort((uno, otro) => uno.localeCompare(otro, "es"));
-
-  const porProceso = [
-    ...nombresDeProceso.map((nombre) => ({
-      etiqueta: nombre,
-      valor: oportunidades.filter((fila) => nombreDeProceso(fila) === nombre).length,
-    })),
-    {
-      etiqueta: "Sin proceso asignado",
-      valor: oportunidades.filter((fila) => !nombreDeProceso(fila)).length,
-    },
-  ];
 
   // La decisión, con la palabra exacta de la planilla —Sí, No, Diferida—
   // cuando está escrita ahí.
@@ -267,14 +235,6 @@ export default async function PaginaOportunidades({
               etiqueta,
             })),
           },
-          {
-            nombre: "proceso",
-            etiqueta: "Proceso",
-            opciones: (procesos ?? []).map((proceso: { id: string; nombre: string }) => ({
-              valor: proceso.id,
-              etiqueta: proceso.nombre,
-            })),
-          },
         ]}
       />
 
@@ -282,17 +242,11 @@ export default async function PaginaOportunidades({
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <Torta titulo="Por prioridad" porciones={porPrioridad} />
           <Torta titulo="Por estado" porciones={porEstado} />
-          <BarrasPorcentaje
-            titulo="Por proceso"
-            filas={porProceso}
-            vacio="Ninguna tiene proceso asignado."
-          />
+          {/* De a dos por fila, como las tortas de arriba: «Por
+              proceso» salió el 8 de octubre junto con la columna, y
+              dejaba a la alineación ocupando el ancho entero. */}
           <BarrasPorcentaje titulo="¿Se decide abordar?" filas={porDecision} />
-          <BarrasPorcentaje
-            titulo="Por alineación estratégica"
-            filas={porAlineacion}
-            className="lg:col-span-2"
-          />
+          <BarrasPorcentaje titulo="Por alineación estratégica" filas={porAlineacion} />
         </div>
       ) : null}
 
@@ -324,7 +278,6 @@ export default async function PaginaOportunidades({
                   Código
                 </TablaEncabezado>
                 <TablaEncabezado className="w-[6rem]">Fecha</TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Proceso</TablaEncabezado>
                 <TablaEncabezado className="w-[11rem]">Origen</TablaEncabezado>
                 <TablaEncabezado className="w-[16rem]">
                   Descripción de la oportunidad
@@ -336,15 +289,12 @@ export default async function PaginaOportunidades({
                 <TablaEncabezado className="w-[6rem]">Prioridad</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Alineación</TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">¿Se decide abordar?</TablaEncabezado>
-                <TablaEncabezado className="w-[16rem]">Acción planificada</TablaEncabezado>
                 <TablaEncabezado className="w-[13rem]">Recursos necesarios</TablaEncabezado>
                 <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Proceso de la acción</TablaEncabezado>
                 <TablaEncabezado className="w-[13rem]">Resultado obtenido</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Se mide el</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">¿Acción eficaz?</TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -374,9 +324,6 @@ export default async function PaginaOportunidades({
                       {formatearFecha(fila.fecha_identificacion)}
                     </TablaCelda>
 
-                    <CeldaTexto ancho="12rem">
-                      {fila.proceso_declarado ?? fila.procesos?.nombre}
-                    </CeldaTexto>
                     <CeldaTexto ancho="11rem">{fila.origen}</CeldaTexto>
 
                     <TablaCelda className="text-xs" style={{ maxWidth: "16rem" }}>
@@ -451,7 +398,6 @@ export default async function PaginaOportunidades({
                       )}
                     </TablaCelda>
 
-                    <CeldaTexto ancho="16rem">{fila.accion_planificada}</CeldaTexto>
                     <CeldaTexto ancho="13rem">{fila.recursos_necesarios}</CeldaTexto>
                     <CeldaTexto ancho="12rem">
                       {fila.responsable_declarado ?? fila.responsable?.nombre_completo}
@@ -465,7 +411,6 @@ export default async function PaginaOportunidades({
                           : "—"}
                     </TablaCelda>
 
-                    <CeldaTexto ancho="12rem">{fila.proceso_accion_declarado}</CeldaTexto>
                     <CeldaTexto ancho="13rem">{fila.resultado_obtenido}</CeldaTexto>
 
                     <TablaCelda className="text-xs tabular text-atenuado-contraste">
@@ -478,9 +423,6 @@ export default async function PaginaOportunidades({
                       {fila.eficacia_accion ? ETIQUETAS_EFICACIA[fila.eficacia_accion] : "—"}
                     </TablaCelda>
 
-                    <TablaCelda>
-                      <InsigniaEstadoRiesgo estado={fila.estado} />
-                    </TablaCelda>
                   </TablaFila>
                 );
               })}

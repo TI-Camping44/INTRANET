@@ -96,18 +96,25 @@ function leerDocumentos(datos: FormData, campo: string): string[] {
  * abordar seria pedir que se invente un plan que nadie va a ejecutar.
  */
 const OBLIGATORIOS_OPORTUNIDAD: { campo: string; nombre: string }[] = [
+  // MISMO MODELO QUE EL RIESGO. El proceso salio de la lista: la
+  // oportunidad se identifica contra Informacion Documentada, igual que
+  // el riesgo, y esa tabla todavia esta vacia.
   { campo: "descripcion", nombre: "la descripción" },
   { campo: "efecto_deseado", nombre: "el efecto deseado esperado" },
-  { campo: "proceso_id", nombre: "el proceso" },
   { campo: "responsable_id", nombre: "el responsable" },
   { campo: "alineacion_estrategica", nombre: "la alineación con la dirección estratégica" },
   { campo: "fundamento_decision", nombre: "el fundamento de la decisión" },
 ];
 
+/**
+ * El plan, que se exige solo cuando se decide abordar la oportunidad.
+ *
+ * La accion, su responsable y su plazo ya no estan acá: son ilimitadas y
+ * van a `riesgo_acciones`, igual que las del riesgo. Lo que queda es lo
+ * que no es por accion sino de la oportunidad entera.
+ */
 const OBLIGATORIOS_PLAN_OPORTUNIDAD: { campo: string; nombre: string }[] = [
-  { campo: "accion_planificada", nombre: "la acción planificada" },
   { campo: "recursos_necesarios", nombre: "los recursos necesarios" },
-  { campo: "plazo_accion", nombre: "el plazo" },
 ];
 
 /**
@@ -145,14 +152,27 @@ function revisarCamposDeOportunidad(datos: FormData): string | null {
   );
   if (faltante) return `Falta completar ${faltante.nombre}.`;
 
-  // UN RIESGO ALTO O CRITICO EXIGE AL MENOS UNA ACCION COMPLETA. Sin
-  // esto, el nivel pedia tratamiento pero el plan podia quedar vacio.
-  if (pedidos === OBLIGATORIOS) return null;
+  // Una oportunidad que se decide abordar exige al menos una accion
+  // completa, igual que un riesgo alto o critico. La que se decide no
+  // abordar no: para eso esta el fundamento de la decision.
+  if (datos.get("se_decide_abordar") !== "si") return null;
 
+  return revisarAcciones(
+    datos,
+    "Una oportunidad que se decide abordar exige al menos una acción.",
+  );
+}
+
+/**
+ * Revisa las acciones cargadas: al menos una, y todas completas.
+ *
+ * La comparten el riesgo y la oportunidad. Lo unico que cambia es el
+ * mensaje de cuando no hay ninguna, porque la razon por la que se exigen
+ * no es la misma.
+ */
+function revisarAcciones(datos: FormData, sinNinguna: string): string | null {
   const acciones = leerAcciones(datos);
-  if (acciones.length === 0) {
-    return "Un riesgo alto o crítico exige al menos una acción de tratamiento.";
-  }
+  if (acciones.length === 0) return sinNinguna;
 
   const incompleta = acciones.findIndex(
     (accion) => !accion.descripcion.trim() || !accion.responsable_id || !accion.plazo,
@@ -202,7 +222,11 @@ async function guardarDocumentosYAcciones(
       .insert({
         riesgo_id: riesgoId,
         descripcion: accion.descripcion.trim(),
-        tratamiento: tratamiento ?? "cambiar_probabilidad",
+        // La opcion de tratamiento es del riesgo. Una oportunidad no
+        // tiene: se deja el valor por omision de la columna en vez de
+        // inventarle uno que despues alguien lea como si lo hubiera
+        // elegido.
+        ...(tratamiento ? { tratamiento } : {}),
         responsable_id: accion.responsable_id || null,
         fecha_limite: accion.plazo || null,
       })
@@ -254,7 +278,16 @@ function revisarCamposDeRiesgo(datos: FormData): string | null {
   const faltante = pedidos.find(
     (obligatorio) => String(datos.get(obligatorio.campo) ?? "").trim() === "",
   );
-  return faltante ? `Falta completar ${faltante.nombre}.` : null;
+  if (faltante) return `Falta completar ${faltante.nombre}.`;
+
+  // UN RIESGO ALTO O CRITICO EXIGE AL MENOS UNA ACCION COMPLETA. Sin
+  // esto, el nivel pide tratamiento pero el plan puede quedar vacio.
+  if (pedidos === OBLIGATORIOS) return null;
+
+  return revisarAcciones(
+    datos,
+    "Un riesgo alto o crítico exige al menos una acción de tratamiento.",
+  );
 }
 
 /** Alta de un riesgo u oportunidad en la matriz. */
@@ -1024,7 +1057,6 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
       titulo,
       tipo: "oportunidad",
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || usuario.id,
       origen: String(datos.get("origen") ?? "").trim(),
       efecto_deseado: String(datos.get("efecto_deseado") ?? "").trim() || null,
@@ -1033,10 +1065,7 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
       alineacion_estrategica: String(datos.get("alineacion_estrategica") ?? "") || null,
       se_decide_abordar: datos.get("se_decide_abordar") === "si",
       fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
-      accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
       recursos_necesarios: String(datos.get("recursos_necesarios") ?? "").trim() || null,
-      plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
-      proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
       estado: "identificado",
       creado_por: usuario.id,
     })
@@ -1046,6 +1075,11 @@ export async function crearOportunidad(datos: FormData): Promise<ResultadoAccion
   if (error) {
     return { exito: false, error: `No se pudo registrar la oportunidad: ${error.message}` };
   }
+
+  // Los documentos contra los que se identifico y las acciones, igual
+  // que en el riesgo: son las mismas tablas, porque la oportunidad vive
+  // en `riesgos` con `tipo = oportunidad`.
+  await guardarDocumentosYAcciones(supabase, oportunidad.id, datos, null);
 
   revalidatePath("/oportunidades");
   return {
@@ -1096,7 +1130,6 @@ export async function actualizarOportunidad(
     .update({
       titulo: tituloDesdeLaDescripcion(String(datos.get("descripcion") ?? "")),
       descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
       origen: String(datos.get("origen") ?? "").trim(),
       efecto_deseado: String(datos.get("efecto_deseado") ?? "").trim() || null,
@@ -1105,10 +1138,7 @@ export async function actualizarOportunidad(
       alineacion_estrategica: String(datos.get("alineacion_estrategica") ?? "") || null,
       se_decide_abordar: datos.get("se_decide_abordar") === "si",
       fundamento_decision: String(datos.get("fundamento_decision") ?? "").trim() || null,
-      accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
       recursos_necesarios: String(datos.get("recursos_necesarios") ?? "").trim() || null,
-      plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
-      proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
     })
     .eq("id", id)
     .select("codigo")
@@ -1121,6 +1151,8 @@ export async function actualizarOportunidad(
       error: "No se pudo guardar: la oportunidad no existe o su rol no puede editarla.",
     };
   }
+
+  await guardarDocumentosYAcciones(supabase, id, datos, null);
 
   revalidatePath("/oportunidades");
   revalidatePath(`/riesgos/${id}`);

@@ -33,23 +33,36 @@ export default async function PaginaEditarOportunidad({
 
   const supabase = crearClienteServidor();
 
-  const [{ data: consulta }, { data: procesos }, { data: usuarios }] = await Promise.all([
+  const [
+    { data: consulta },
+    { data: usuarios },
+    { data: documentos },
+    { data: vinculados },
+    { data: accionesCargadas },
+  ] = await Promise.all([
     supabase
       .from("riesgos")
       .select(
-        "id, codigo, tipo, titulo, descripcion, origen, efecto_deseado, proceso_id, " +
+        "id, codigo, tipo, titulo, descripcion, origen, efecto_deseado, " +
           "responsable_id, beneficio, factibilidad, alineacion_estrategica, " +
-          "se_decide_abordar, fundamento_decision, accion_planificada, " +
-          "recursos_necesarios, plazo_accion, proceso_accion_id",
+          "se_decide_abordar, fundamento_decision, recursos_necesarios",
       )
       .eq("id", params.id)
       .maybeSingle(),
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("nombre"),
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    supabase.from("documentos").select("id, codigo, titulo").order("codigo"),
+    // Los documentos ya vinculados, para traerlos marcados.
+    supabase.from("riesgo_documentos").select("documento_id").eq("riesgo_id", params.id),
+    // Las acciones ya cargadas, con los documentos de cada una.
+    supabase
+      .from("riesgo_acciones")
+      .select("id, descripcion, responsable_id, fecha_limite, riesgo_accion_documentos (documento_id)")
+      .eq("riesgo_id", params.id)
+      .order("creado_en"),
   ]);
 
   const oportunidad = consulta as (OportunidadInicial & { codigo: string; tipo: string }) | null;
@@ -70,10 +83,32 @@ export default async function PaginaEditarOportunidad({
       />
 
       <FormularioOportunidad
-        procesos={procesos ?? []}
+        documentos={
+          (documentos as { id: string; codigo: string | null; titulo: string }[] | null) ?? []
+        }
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}
-        inicial={oportunidad}
+        inicial={{
+          ...oportunidad,
+          documentos: ((vinculados as { documento_id: string }[] | null) ?? []).map(
+            (fila) => fila.documento_id,
+          ),
+          acciones: (
+            (accionesCargadas as unknown as {
+              id: string;
+              descripcion: string;
+              responsable_id: string | null;
+              fecha_limite: string | null;
+              riesgo_accion_documentos: { documento_id: string }[];
+            }[] | null) ?? []
+          ).map((accion) => ({
+            clave: accion.id,
+            descripcion: accion.descripcion ?? "",
+            responsable_id: accion.responsable_id ?? "",
+            plazo: accion.fecha_limite ?? "",
+            documentos: (accion.riesgo_accion_documentos ?? []).map((fila) => fila.documento_id),
+          })),
+        }}
       />
     </div>
   );

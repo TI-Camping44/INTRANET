@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
@@ -16,6 +17,10 @@ import {
   ORIGENES_OPORTUNIDAD,
   prioridadOportunidad,
 } from "@/lib/riesgos";
+import {
+  SelectorDocumentos,
+  type DocumentoElegible,
+} from "@/app/(sgc)/riesgos/selector-documentos";
 import { cn } from "@/lib/utilidades";
 
 interface Opcion {
@@ -37,32 +42,42 @@ interface Opcion {
  * oportunidad que necesita una sola cosa imposible no es factible,
  * aunque todo lo demás esté resuelto.
  */
+/** Una acción de la oportunidad, mientras se la escribe en el formulario. */
+export interface AccionDeLaOportunidad {
+  /** Solo de la pantalla: ordena las filas y no viaja al servidor. */
+  clave: string;
+  descripcion: string;
+  responsable_id: string;
+  plazo: string;
+  documentos: string[];
+}
+
 /** Lo que trae una oportunidad ya cargada cuando se la abre para corregir. */
 export interface OportunidadInicial {
   id: string;
+  /** Los documentos ya vinculados, para que la edición los traiga marcados. */
+  documentos?: string[];
+  acciones?: AccionDeLaOportunidad[];
   descripcion: string | null;
   origen: string | null;
   efecto_deseado: string | null;
-  proceso_id: string | null;
   responsable_id: string | null;
   beneficio: number | null;
   factibilidad: number | null;
   alineacion_estrategica: string | null;
   se_decide_abordar: boolean | null;
   fundamento_decision: string | null;
-  accion_planificada: string | null;
   recursos_necesarios: string | null;
-  plazo_accion: string | null;
-  proceso_accion_id: string | null;
 }
 
 export function FormularioOportunidad({
-  procesos,
+  documentos,
   usuarios,
   usuarioActual,
   inicial,
 }: {
-  procesos: Opcion[];
+  /** La información documentada. Puede venir vacía: el módulo recién se carga. */
+  documentos: DocumentoElegible[];
   usuarios: Opcion[];
   usuarioActual: string;
   inicial?: OportunidadInicial;
@@ -77,6 +92,39 @@ export function FormularioOportunidad({
     inicial?.alineacion_estrategica ?? "media",
   );
   const [seAborda, definirSeAborda] = React.useState(inicial?.se_decide_abordar ?? true);
+
+  const [documentosDeLaOportunidad, definirDocumentosDeLaOportunidad] = React.useState<string[]>(
+    inicial?.documentos ?? [],
+  );
+
+  // Las acciones. `clave` es solo de la pantalla: ordena las filas y no
+  // viaja al servidor.
+  const [acciones, definirAcciones] = React.useState<AccionDeLaOportunidad[]>(
+    inicial?.acciones ?? [],
+  );
+
+  function agregarAccion() {
+    definirAcciones((actuales) => [
+      ...actuales,
+      {
+        clave: `accion-${Date.now()}-${actuales.length}`,
+        descripcion: "",
+        responsable_id: usuarioActual,
+        plazo: "",
+        documentos: [],
+      },
+    ]);
+  }
+
+  function quitarAccion(clave: string) {
+    definirAcciones((actuales) => actuales.filter((accion) => accion.clave !== clave));
+  }
+
+  function cambiarAccion(clave: string, cambios: Partial<AccionDeLaOportunidad>) {
+    definirAcciones((actuales) =>
+      actuales.map((accion) => (accion.clave === clave ? { ...accion, ...cambios } : accion)),
+    );
+  }
 
   const indice = beneficio * factibilidad;
   const prioridad = prioridadOportunidad(indice)!;
@@ -107,6 +155,31 @@ export function FormularioOportunidad({
     <form onSubmit={enviar}>
       <Tarjeta className="p-5">
         <div className="grid gap-4 sm:grid-cols-2">
+          {/* 1 · DONDE SE IDENTIFICA, CONTRA INFORMACION DOCUMENTADA.
+              Mismo modelo que el riesgo: antes era un desplegable con la
+              lista fija de procesos del mapa, y no siempre es un proceso
+              —puede ser una politica, un instructivo o un formulario—.
+              Se elige de lo que hay cargado en Informacion Documentada y
+              admite mas de uno. */}
+          <SelectorDocumentos
+            etiqueta="Dónde se identifica la oportunidad"
+            ayuda="Elija uno o varios de Información Documentada. No siempre es un proceso: puede ser una política o un instructivo."
+            documentos={documentos}
+            elegidos={documentosDeLaOportunidad}
+            alAlternar={(id) =>
+              definirDocumentosDeLaOportunidad((actuales) =>
+                actuales.includes(id)
+                  ? actuales.filter((otro) => otro !== id)
+                  : [...actuales, id],
+              )
+            }
+          />
+          <input
+            type="hidden"
+            name="documentos"
+            value={JSON.stringify(documentosDeLaOportunidad)}
+          />
+
           {/* Lista cerrada y propia, no la de riesgos: ver
               `ORIGENES_OPORTUNIDAD`. La opcion vacia esta deshabilitada,
               asi obliga a elegir en vez de dejar la primera por
@@ -158,37 +231,15 @@ export function FormularioOportunidad({
             />
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id" requerido>
-            <Seleccion
-              id="proceso_id"
-              name="proceso_id"
-              required
-              defaultValue={inicial?.proceso_id ?? ""}
-            >
-              <option value="" disabled>
-                Elija el proceso
-              </option>
-              {procesos.map((proceso) => (
-                <option key={proceso.id} value={proceso.id}>
-                  {proceso.codigo} · {proceso.nombre}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Responsable" htmlFor="responsable_id" requerido>
-            <Seleccion
-              id="responsable_id"
-              name="responsable_id"
-              defaultValue={inicial?.responsable_id ?? usuarioActual}
-            >
-              {usuarios.map((persona) => (
-                <option key={persona.id} value={persona.id}>
-                  {persona.nombre_completo}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
+          {/* El dueño de la oportunidad no se pregunta acá, igual que
+              en el riesgo: cada acción lleva el suyo. Queda quien la
+              carga —es quien recibe los avisos— y se cambia desde la
+              ficha. */}
+          <input
+            type="hidden"
+            name="responsable_id"
+            value={inicial?.responsable_id ?? usuarioActual}
+          />
         </div>
 
         {/* Valoración */}
@@ -300,25 +351,20 @@ export function FormularioOportunidad({
           </GrupoCampo>
         </div>
 
-        {/* Plan, solo si se aborda */}
+        {/* EL PLAN, SOLO SI SE ABORDA, Y CON ACCIONES ILIMITADAS. Es el
+            mismo modelo que el riesgo alto o crítico: antes se cargaba
+            una sola acción, escrita en columnas de la propia
+            oportunidad. Van a `riesgo_acciones`, que es la misma tabla
+            porque la oportunidad vive en `riesgos` con
+            `tipo = oportunidad`. */}
         {seAborda ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 rounded-md border border-borde p-4">
             <GrupoCampo
-              etiqueta="Acción planificada"
-              htmlFor="accion_planificada"
+              etiqueta="Recursos necesarios"
+              htmlFor="recursos_necesarios"
               requerido
-              className="sm:col-span-2"
+              ayuda="Qué hace falta para concretarla. Es de la oportunidad entera, no de cada acción."
             >
-              <AreaTexto
-                id="accion_planificada"
-                name="accion_planificada"
-                rows={2}
-                required
-                defaultValue={inicial?.accion_planificada ?? ""}
-              />
-            </GrupoCampo>
-
-            <GrupoCampo etiqueta="Recursos necesarios" htmlFor="recursos_necesarios" requerido>
               <AreaTexto
                 id="recursos_necesarios"
                 name="recursos_necesarios"
@@ -328,35 +374,124 @@ export function FormularioOportunidad({
               />
             </GrupoCampo>
 
-            <div className="grid gap-4">
-              <GrupoCampo etiqueta="Plazo" htmlFor="plazo_accion" requerido>
-                <Entrada
-                  id="plazo_accion"
-                  name="plazo_accion"
-                  type="date"
-                  required
-                  defaultValue={inicial?.plazo_accion ?? ""}
-                />
-              </GrupoCampo>
-
-              <GrupoCampo
-                etiqueta="Proceso donde se integra la acción"
-                htmlFor="proceso_accion_id"
-                requerido
-              >
-                <Seleccion
-                  id="proceso_accion_id"
-                  name="proceso_accion_id"
-                  defaultValue={inicial?.proceso_accion_id ?? ""}
+            <div className="mt-4 space-y-3 border-t border-borde pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold">Acciones</p>
+                <Boton
+                  type="button"
+                  variante="contorno"
+                  tamano="pequeno"
+                  onClick={agregarAccion}
                 >
-                  <option value="">El mismo proceso</option>
-                  {procesos.map((proceso) => (
-                    <option key={proceso.id} value={proceso.id}>
-                      {proceso.codigo} · {proceso.nombre}
-                    </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
+                  <Plus /> Agregar acción
+                </Boton>
+              </div>
+
+              {acciones.length === 0 ? (
+                <p className="text-[11px] text-atenuado-contraste">
+                  Una oportunidad que se decide abordar exige al menos una acción. Use «Agregar
+                  acción».
+                </p>
+              ) : null}
+
+              {acciones.map((accion, indiceAccion) => (
+                <div key={accion.clave} className="rounded-md border border-borde p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium text-atenuado-contraste">
+                      Acción {indiceAccion + 1}
+                    </p>
+                    <Boton
+                      type="button"
+                      variante="fantasma"
+                      tamano="iconoPequeno"
+                      aria-label={`Quitar la acción ${indiceAccion + 1}`}
+                      onClick={() => quitarAccion(accion.clave)}
+                      className="text-atenuado-contraste hover:text-semaforo-critico"
+                    >
+                      <Trash2 />
+                    </Boton>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <GrupoCampo
+                      etiqueta="Acción"
+                      htmlFor={`accion-${accion.clave}`}
+                      requerido
+                      className="sm:col-span-2"
+                      ayuda="Qué se va a hacer para concretar la oportunidad."
+                    >
+                      <AreaTexto
+                        id={`accion-${accion.clave}`}
+                        rows={2}
+                        value={accion.descripcion}
+                        onChange={(evento) =>
+                          cambiarAccion(accion.clave, { descripcion: evento.target.value })
+                        }
+                      />
+                    </GrupoCampo>
+
+                    <GrupoCampo
+                      etiqueta="Responsable"
+                      htmlFor={`responsable-${accion.clave}`}
+                      requerido
+                    >
+                      <Seleccion
+                        id={`responsable-${accion.clave}`}
+                        value={accion.responsable_id}
+                        onChange={(evento) =>
+                          cambiarAccion(accion.clave, { responsable_id: evento.target.value })
+                        }
+                      >
+                        <option value="">Elija el responsable</option>
+                        {usuarios.map((persona) => (
+                          <option key={persona.id} value={persona.id}>
+                            {persona.nombre_completo}
+                          </option>
+                        ))}
+                      </Seleccion>
+                    </GrupoCampo>
+
+                    <GrupoCampo
+                      etiqueta="Plazo de ejecución"
+                      htmlFor={`plazo-${accion.clave}`}
+                      requerido
+                    >
+                      <Entrada
+                        id={`plazo-${accion.clave}`}
+                        type="date"
+                        value={accion.plazo}
+                        onChange={(evento) =>
+                          cambiarAccion(accion.clave, { plazo: evento.target.value })
+                        }
+                      />
+                    </GrupoCampo>
+
+                    <div className="sm:col-span-2">
+                      <SelectorDocumentos
+                        etiqueta="Dónde se integra la acción"
+                        ayuda="Opcional. No siempre es donde se identificó la oportunidad."
+                        documentos={documentos}
+                        elegidos={accion.documentos}
+                        alAlternar={(id) =>
+                          cambiarAccion(accion.clave, {
+                            documentos: accion.documentos.includes(id)
+                              ? accion.documentos.filter((otro) => otro !== id)
+                              : [...accion.documentos, id],
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <input
+                type="hidden"
+                name="acciones"
+                value={JSON.stringify(
+                  acciones.map(({ clave: _clave, ...resto }) => resto),
+                )}
+              />
             </div>
           </div>
         ) : null}

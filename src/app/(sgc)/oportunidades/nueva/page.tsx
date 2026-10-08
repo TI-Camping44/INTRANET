@@ -14,13 +14,16 @@ export default async function PaginaNuevaOportunidad() {
 
   const supabase = crearClienteServidor();
 
-  const [{ data: procesos }, { data: usuarios }] = await Promise.all([
-    supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "01").order("codigo"),
+  const [{ data: usuarios }, { data: documentos }] = await Promise.all([
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    // La informacion documentada contra la que se identifica la
+    // oportunidad, igual que en el riesgo. Hoy la tabla puede estar
+    // vacia y el selector lo dice.
+    supabase.from("documentos").select("id, codigo, titulo").order("codigo"),
   ]);
 
   return (
@@ -29,7 +32,9 @@ export default async function PaginaNuevaOportunidad() {
         titulo="Nueva Oportunidad"
       />
       <FormularioOportunidad
-        procesos={procesos ?? []}
+        documentos={
+          (documentos as { id: string; codigo: string | null; titulo: string }[] | null) ?? []
+        }
         usuarios={usuarios ?? []}
         usuarioActual={usuario.id}
       />
