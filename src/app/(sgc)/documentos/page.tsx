@@ -76,26 +76,24 @@ interface FilaDocumento {
  * equivocada.
  */
 const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> = {
-  // «Todos» es la pestaña de entrada desde el 6 de octubre, y es la que
-  // el menú nombra. Antes se entraba en «Vigentes», y un documento en
-  // elaboración o anulado no aparecía hasta cambiar de pestaña: quien no
-  // supiera que las pestañas existen no lo encontraba nunca.
+  // «Todos» es la pestaña de entrada y la que el menú nombra. Incluye
+  // los anulados: Dirección sacó su pestaña el 8 de octubre, y un estado
+  // que existe y no aparece en ninguna lista es un registro escondido.
   todos: {
     etiqueta: "Todos",
     estados: ["borrador", "en_revision", "en_aprobacion", "vigente", "obsoleto", "anulado"],
   },
   vigentes: { etiqueta: "Vigentes", estados: ["vigente"] },
-  // «En elaboración» junta todo lo que todavía no rige: el borrador, lo
-  // que está con los revisores y lo que espera la firma del aprobador.
-  "en-proceso": {
-    etiqueta: "En elaboración",
-    estados: ["borrador", "en_revision", "en_aprobacion"],
-  },
+  // LAS TRES ETAPAS, SEPARADAS. Antes iban juntas en «En elaboración» y
+  // no se veía en qué escritorio estaba parado un documento. Dirección
+  // las separó el 8 de octubre: en elaboración es el borrador, en
+  // validación está con los revisores y en aprobación espera la firma.
+  // Un documento sale solo de cada lista cuando el paso se cumple: el
+  // validado pasa a aprobación, el aprobado pasa a vigente.
+  "en-proceso": { etiqueta: "En elaboración", estados: ["borrador"] },
+  "en-validacion": { etiqueta: "En validación", estados: ["en_revision"] },
+  "en-aprobacion": { etiqueta: "En aprobación", estados: ["en_aprobacion"] },
   obsoletos: { etiqueta: "Obsoletos", estados: ["obsoleto"] },
-  // Calidad nombra tres listas. Los anulados llevan la suya porque un
-  // documento anulado se conserva para poder consultarlo, y un estado que
-  // existe y no aparece en ninguna pestaña es un registro escondido.
-  anulados: { etiqueta: "Anulados", estados: ["anulado"] },
 };
 
 export default async function PaginaDocumentos({
@@ -107,6 +105,7 @@ export default async function PaginaDocumentos({
     tipo?: string;
     proceso?: string;
     responsable?: string;
+    empresa?: string;
     filtro?: string;
     orden?: string;
     dir?: string;
@@ -123,7 +122,8 @@ export default async function PaginaDocumentos({
   const limiteRevision = sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO);
   const { estados } = VISTAS[vista];
 
-  const [{ data: procesos }, { data: responsables }, { data: todos }] = await Promise.all([
+  const [{ data: procesos }, { data: responsables }, { data: todos }, { data: datosEmpresas }] =
+    await Promise.all([
     supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "00").order("nombre"),
     supabase
       .from("usuarios")
@@ -136,12 +136,16 @@ export default async function PaginaDocumentos({
     // maestra entera y no la pestaña abierta.
     supabase
       .from("documentos")
-      .select("id, codigo, titulo, estado, categoria, orden, orden_categoria")
+      .select("id, codigo, titulo, estado, categoria, orden, orden_categoria, empresa_documento_id")
       .order("orden_categoria", { nullsFirst: true })
       .order("categoria", { nullsFirst: true })
       .order("orden", { nullsFirst: false })
       .order("codigo", { nullsFirst: false }),
+    // Las dos empresas del grupo, para los botones que parten la lista.
+    supabase.rpc("empresas_del_grupo"),
   ]);
+
+  const empresasDelGrupo = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
 
   const maestra =
     (todos as
@@ -152,6 +156,7 @@ export default async function PaginaDocumentos({
           estado: EstadoDocumento;
           categoria: string | null;
           orden_categoria: number | null;
+          empresa_documento_id: string | null;
         }[]
       | null) ?? [];
 
@@ -169,6 +174,12 @@ export default async function PaginaDocumentos({
         "procesos:proceso_id (nombre), responsable:responsable_id (nombre_completo)",
     )
     .in("estado", estados);
+
+  // LA EMPRESA DEL GRUPO. Es el corte de los dos botones de arriba:
+  // misma vista, distinta empresa.
+  if (searchParams.empresa) {
+    consulta = consulta.eq("empresa_documento_id", searchParams.empresa);
+  }
 
   // Las columnas por las que se puede ordenar al tocar el encabezado.
   // Es una lista cerrada a proposito: `orden` viene de la direccion, o
@@ -332,6 +343,53 @@ export default async function PaginaDocumentos({
           ) : null
         }
       />
+
+      {/* LOS DOS BOTONES DE EMPRESA, debajo del título. Misma vista,
+          distinta empresa: solo parten la lista maestra en dos. El rojo
+          es el institucional de Camping 44 y el naranja el de Vitalica,
+          que son los de sus logotipos: acá el color identifica a la
+          empresa, así que va fijo y no sale de las variables del tema.
+          El texto dice lo mismo que el color. */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {[{ id: "", nombre: "Todas las empresas" }, ...empresasDelGrupo].map((empresa) => {
+          const elegida = (searchParams.empresa ?? "") === empresa.id;
+          const parametros = new URLSearchParams(
+            Object.entries(searchParams).filter(
+              ([clave, valor]) => clave !== "empresa" && typeof valor === "string" && valor,
+            ) as [string, string][],
+          );
+          if (empresa.id) parametros.set("empresa", empresa.id);
+          const cola = parametros.toString();
+
+          const deCamping = empresa.nombre.toLowerCase().startsWith("camping");
+          const color = !empresa.id
+            ? "border-borde text-atenuado-contraste hover:bg-acento"
+            : deCamping
+              ? "border-[#E01E37] text-[#E01E37] hover:bg-[#E01E37]/10"
+              : "border-[#F47B20] text-[#F47B20] hover:bg-[#F47B20]/10";
+          const elegidaColor = !empresa.id
+            ? "border-primario bg-primario/10 text-primario"
+            : deCamping
+              ? "border-[#E01E37] bg-[#E01E37]/10 text-[#E01E37]"
+              : "border-[#F47B20] bg-[#F47B20]/10 text-[#F47B20]";
+
+          const cuantos = empresa.id
+            ? maestra.filter((documento) => documento.empresa_documento_id === empresa.id).length
+            : maestra.length;
+
+          return (
+            <Link
+              key={empresa.id || "todas"}
+              href={cola ? `/documentos?${cola}` : "/documentos"}
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                elegida ? elegidaColor : color
+              }`}
+            >
+              {empresa.nombre} ({cuantos})
+            </Link>
+          );
+        })}
+      </div>
 
       <PestanasListado
         nombre="vista"

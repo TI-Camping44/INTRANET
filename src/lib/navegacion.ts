@@ -101,8 +101,19 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/documentos",
         icono: "FileText",
         fase: "operativo",
+        // Las dos empresas del grupo. Los ids son fijos: estan en el
+        // seed y no cambian. Un `select` no serviria, porque el menu se
+        // arma en un archivo de configuracion sin acceso a la base.
         subentradas: [
           { titulo: "Todos", ruta: "/documentos" },
+          {
+            titulo: "Camping 44 S.A.",
+            ruta: "/documentos?empresa=11111111-1111-4111-8111-111111111111",
+          },
+          {
+            titulo: "Vitalica E.A.S.",
+            ruta: "/documentos?empresa=22222222-2222-4222-8222-222222222222",
+          },
           {
             titulo: "+ Nuevo Documento",
             ruta: "/documentos/nuevo",

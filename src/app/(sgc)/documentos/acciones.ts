@@ -141,6 +141,11 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
       // fuera de la carpeta a la que pertenece.
       orden_categoria: posicionDeCategoria,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      // A QUE EMPRESA DEL GRUPO PERTENECE, y a que manual de proceso.
+      // Ninguna de las dos es `empresa_id` ni `proceso_id`: esas son el
+      // acotamiento de RLS y la lista vieja del mapa.
+      empresa_documento_id: String(datos.get("empresa_documento_id") ?? "") || null,
+      proceso_documento_id: String(datos.get("proceso_documento_id") ?? "") || null,
       responsable_id: responsableId,
       elaborador_id: usuario.id,
       creado_por: usuario.id,
@@ -250,6 +255,8 @@ export async function actualizarDocumento(
     tipo: String(datos.get("tipo") ?? "manual"),
     categoria,
     proceso_id: String(datos.get("proceso_id") ?? "") || null,
+    empresa_documento_id: String(datos.get("empresa_documento_id") ?? "") || null,
+    proceso_documento_id: String(datos.get("proceso_documento_id") ?? "") || null,
     responsable_id: String(datos.get("responsable_id") ?? "") || null,
     periodicidad_revision_meses: Number(datos.get("periodicidad_revision_meses") ?? 12),
   };

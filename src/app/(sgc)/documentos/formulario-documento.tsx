@@ -37,6 +37,8 @@ import type { TipoDocumento } from "@/lib/tipos";
 export interface DocumentoInicial {
   id: string;
   codigo: string | null;
+  empresa_documento_id?: string | null;
+  proceso_documento_id?: string | null;
   titulo: string;
   tipo: TipoDocumento;
   categoria: string | null;
@@ -49,6 +51,8 @@ export function FormularioDocumento({
   usuarioActual,
   categorias,
   procesos,
+  manuales,
+  empresas,
   personas = [],
   inicial,
 }: {
@@ -56,6 +60,10 @@ export function FormularioDocumento({
   /** Las categorías ya usadas, para ofrecerlas y no duplicarlas. */
   categorias: string[];
   procesos: { id: string; nombre: string; codigo: string }[];
+  /** Los manuales de proceso ya cargados. Es a lo que se ata el documento. */
+  manuales: { id: string; codigo: string | null; titulo: string }[];
+  /** Las dos empresas del grupo, como las devuelve `empresas_del_grupo()`. */
+  empresas: { id: string; nombre: string }[];
   /** Solo hace falta al editar: en el alta el responsable es quien carga. */
   personas?: { id: string; nombre_completo: string }[];
   /** Cuando viene, el formulario edita ese documento en vez de crear uno. */
@@ -164,6 +172,32 @@ export function FormularioDocumento({
             </Seleccion>
           </GrupoCampo>
 
+          {/* A QUE EMPRESA DEL GRUPO PERTENECE EL DOCUMENTO. No es
+              `empresa_id`: esa acota el acceso por RLS y siempre vale
+              Camping 44, porque la misma gente administra las dos. */}
+          <GrupoCampo
+            etiqueta="Empresa"
+            htmlFor="empresa_documento_id"
+            requerido
+            ayuda="A cuál de las dos empresas del grupo corresponde."
+          >
+            <Seleccion
+              id="empresa_documento_id"
+              name="empresa_documento_id"
+              required
+              defaultValue={inicial?.empresa_documento_id ?? empresas[0]?.id ?? ""}
+            >
+              <option value="" disabled>
+                Elija la empresa…
+              </option>
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.nombre}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
           {/* No todo documento lleva código controlado: los de contexto
               y las políticas no lo tienen. Antes había que dejarlo en
               blanco, y un campo obligatorio vacío se lee como un olvido.
@@ -175,7 +209,7 @@ export function FormularioDocumento({
             ayuda={
               sinCodigo
                 ? "Este documento va sin código controlado."
-                : "Formato MP-SOP-01 o F-COM-01-02. Puede editarlo."
+                : "Escríbalo como lo usa Calidad. Ya no hay formato impuesto."
             }
           >
             <div className="flex gap-2">
@@ -217,25 +251,33 @@ export function FormularioDocumento({
               le sirva al auditor, y una lista cerrada obligaría a pedirle
               a TI cada categoría nueva. Las ya usadas se ofrecen para no
               terminar con «Compras» y «compras» como dos carpetas. */}
-          {/* Vuelve al alta. Lo habíamos sacado porque se completaba
-              siempre igual, pero entonces la ficha mostraba «Proceso —» y
-              Calidad necesita ese dato: es lo que ata el documento al
-              mapa de procesos. */}
+          {/* EL PROCESO ES UN DOCUMENTO CARGADO, NO UNA LISTA FIJA.
+              Hasta el 8 de octubre esto ofrecía los diecinueve procesos
+              del mapa, estuvieran o no en Información Documentada. Lo que
+              sirve es atar un instructivo, un protocolo o un formulario a
+              SU manual de proceso, y ese manual es un documento más: si
+              todavía no se cargó ninguno, no hay a qué atarlo y se dice. */}
           <GrupoCampo
-            etiqueta="Proceso"
-            htmlFor="proceso_id"
+            etiqueta="Proceso al que pertenece"
+            htmlFor="proceso_documento_id"
             className="sm:col-span-2"
-            ayuda="A qué proceso del mapa pertenece. Se ve en la ficha del documento."
+            ayuda={
+              manuales.length > 0
+                ? "El manual de proceso del que depende este documento."
+                : "Todavía no hay ningún manual de proceso cargado. Cargue primero el manual y después vuelva a vincularlo."
+            }
           >
             <Seleccion
-              id="proceso_id"
-              name="proceso_id"
-              defaultValue={inicial?.proceso_id ?? ""}
+              id="proceso_documento_id"
+              name="proceso_documento_id"
+              defaultValue={inicial?.proceso_documento_id ?? ""}
+              disabled={manuales.length === 0}
             >
               <option value="">Sin proceso asociado</option>
-              {procesos.map((proceso) => (
-                <option key={proceso.id} value={proceso.id}>
-                  {proceso.codigo} · {proceso.nombre}
+              {manuales.map((manual) => (
+                <option key={manual.id} value={manual.id}>
+                  {manual.codigo ? `${manual.codigo} · ` : ""}
+                  {manual.titulo}
                 </option>
               ))}
             </Seleccion>

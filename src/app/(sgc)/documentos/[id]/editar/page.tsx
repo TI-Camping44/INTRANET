@@ -43,6 +43,8 @@ export default async function PaginaEditarDocumento({
     { data: documento },
     { data: usadas },
     { data: procesos },
+    { data: manuales },
+    { data: datosEmpresas },
     { data: personas },
     { data: archivos },
   ] = await Promise.all([
@@ -56,6 +58,14 @@ export default async function PaginaEditarDocumento({
         .maybeSingle(),
       supabase.from("documentos").select("categoria").not("categoria", "is", null),
       supabase.from("procesos").select("id, nombre, codigo").eq("activo", true).eq("version", "00").order("codigo"),
+      // Los manuales de proceso ya cargados: es a lo que se ata un
+      // instructivo, un protocolo o un formulario.
+      supabase
+        .from("documentos")
+        .select("id, codigo, titulo")
+        .eq("tipo", "manual")
+        .order("codigo"),
+      supabase.rpc("empresas_del_grupo"),
       supabase
         .from("usuarios")
         .select("id, nombre_completo")
@@ -91,6 +101,10 @@ export default async function PaginaEditarDocumento({
       />
 
       <FormularioDocumento
+        manuales={
+          (manuales as { id: string; codigo: string | null; titulo: string }[] | null) ?? []
+        }
+        empresas={(datosEmpresas as { id: string; nombre: string }[] | null) ?? []}
         usuarioActual={usuario.id}
         categorias={categorias}
         procesos={procesos ?? []}
