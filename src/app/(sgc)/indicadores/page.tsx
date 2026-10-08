@@ -3,23 +3,25 @@ import Link from "next/link";
 import { Plus, Target } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
-import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
+import { Torta } from "@/components/comunes/graficos";
 import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { CalendarioObjetivos } from "@/app/(sgc)/indicadores/calendario-objetivos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { hoyEnAsuncion } from "@/lib/formato";
+import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
+import { Insignia } from "@/components/ui/insignia";
 import { cn } from "@/lib/utilidades";
 import {
   ESTADOS_OBJETIVO,
   ETIQUETAS_ESTADO_OBJETIVO,
   ETIQUETAS_FRECUENCIA_MEDICION,
-  ETIQUETAS_TIPO_RESULTADO,
+  ETIQUETAS_ESTADO_PLAN,
+  CLASES_ESTADO_PLAN,
   FRECUENCIAS_MEDICION,
-  TIPOS_RESULTADO,
   type EstadoObjetivo,
+  type EstadoPlan,
   type FrecuenciaMedicion,
   type MedicionMensual,
   type TipoResultadoObjetivo,
@@ -172,50 +174,52 @@ export default async function PaginaIndicadores({
     medicionesPorObjetivo.set(fila.objetivo_id, suyas);
   }
 
-  // Los gráficos se arman sobre lo que quedó en el listado y no sobre el
-  // total: si alguien filtra, los porcentajes son de lo que está mirando.
+  // El estado va en torta: son cuatro y se comparan de un vistazo. Se
+  // arma sobre lo que quedó en el listado y no sobre el total, así que
+  // si alguien filtra, los porcentajes son de lo que está mirando.
   //
-  // El estado va en torta —son cuatro y se comparan de un vistazo— y la
-  // empresa, la frecuencia y el tipo en barras. Cada uno lleva su tabla
-  // de datos al lado, que la ponen los propios componentes.
+  // Las tres barras que había al lado —por empresa, por frecuencia y por
+  // tipo— salieron el 8 de octubre: con tres objetivos cargados decían
+  // «100 %» de cosas que ya están en la tabla, y el lugar lo necesitaba
+  // lo que de verdad se sigue, que son las acciones planificadas.
   const porEstado = ESTADOS_OBJETIVO.map((estado) => ({
     etiqueta: ETIQUETAS_ESTADO_OBJETIVO[estado],
     valor: objetivos.filter((objetivo) => objetivo.estado === estado).length,
     color: COLOR_ESTADO_OBJETIVO[estado],
   }));
 
-  const porEmpresa = [
-    ...empresasDelGrupo.map((empresa) => ({
-      etiqueta: empresa.nombre,
-      valor: objetivos.filter((objetivo) => objetivo.empresa_objetivo_id === empresa.id).length,
-    })),
-    {
-      etiqueta: "Sin empresa declarada",
-      valor: objetivos.filter((objetivo) => !objetivo.empresa_objetivo_id).length,
-    },
-  ];
+  // LAS ACCIONES PLANIFICADAS de los objetivos del listado. Es lo que
+  // reemplazó a las barras: lo que hay que hacer para que el objetivo se
+  // alcance, con su dueño, su plazo y en qué quedó.
+  const { data: datosAcciones } = objetivos.length
+    ? await supabase
+        .from("objetivo_planes")
+        .select(
+          "id, objetivo_id, que_se_va_a_hacer, fecha_finalizacion, estado, eficacia, " +
+            "responsable_declarado, responsable:responsable_id (nombre_completo)",
+        )
+        .in(
+          "objetivo_id",
+          objetivos.map((objetivo) => objetivo.id),
+        )
+        .order("fecha_finalizacion", { nullsFirst: false })
+    : { data: [] };
 
-  const porFrecuencia = [
-    ...FRECUENCIAS_MEDICION.map((frecuencia) => ({
-      etiqueta: ETIQUETAS_FRECUENCIA_MEDICION[frecuencia],
-      valor: objetivos.filter((objetivo) => objetivo.frecuencia_medicion === frecuencia).length,
-    })),
-    {
-      etiqueta: "Sin frecuencia declarada",
-      valor: objetivos.filter((objetivo) => !objetivo.frecuencia_medicion).length,
-    },
-  ];
+  const acciones =
+    (datosAcciones as unknown as {
+      id: string;
+      objetivo_id: string | null;
+      que_se_va_a_hacer: string;
+      fecha_finalizacion: string | null;
+      estado: EstadoPlan;
+      eficacia: "eficaz" | "no_eficaz" | null;
+      responsable_declarado: string | null;
+      responsable: { nombre_completo: string } | null;
+    }[] | null) ?? [];
 
-  const porTipo = [
-    ...TIPOS_RESULTADO.map((tipo) => ({
-      etiqueta: ETIQUETAS_TIPO_RESULTADO[tipo],
-      valor: objetivos.filter((objetivo) => objetivo.tipo_resultado === tipo).length,
-    })),
-    {
-      etiqueta: "Sin tipo declarado",
-      valor: objetivos.filter((objetivo) => !objetivo.tipo_resultado).length,
-    },
-  ];
+  const codigoDelObjetivo = new Map(
+    objetivos.map((objetivo) => [objetivo.id, objetivo.codigo]),
+  );
 
   const enMedicion = objetivos.filter((objetivo) => objetivo.estado === "en_medicion").length;
   const cerrados = objetivos.filter((objetivo) => objetivo.estado === "cerrado");
@@ -265,9 +269,63 @@ export default async function PaginaIndicadores({
       {objetivos.length > 0 ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <Torta titulo="Por estado" porciones={porEstado} />
-          <BarrasPorcentaje titulo="Por empresa" filas={porEmpresa} />
-          <BarrasPorcentaje titulo="Por frecuencia de medición" filas={porFrecuencia} />
-          <BarrasPorcentaje titulo="Por tipo de objetivo" filas={porTipo} />
+
+          {/* LAS ACCIONES PLANIFICADAS, en el lugar de las tres barras.
+              Es lo que hay que hacer para que el objetivo se alcance:
+              con su dueño, su plazo y en qué quedó. Tocarla abre la
+              ficha del objetivo, que es donde se le hace el
+              seguimiento. */}
+          <div className="rounded-lg border border-borde bg-fondo p-4">
+            <p className="mb-3 text-xs font-semibold">
+              Acciones planificadas{" "}
+              <span className="font-normal text-atenuado-contraste">({acciones.length})</span>
+            </p>
+
+            {acciones.length === 0 ? (
+              <p className="text-[11px] leading-relaxed text-atenuado-contraste">
+                Todavía no hay acciones cargadas. Se cargan en la ficha de cada objetivo: qué se
+                va a hacer para alcanzarlo, con su responsable y su plazo.
+              </p>
+            ) : (
+              <ul className="divide-y divide-borde">
+                {acciones.map((accion) => (
+                  <li key={accion.id} className="py-2 first:pt-0 last:pb-0">
+                    <Link
+                      href={`/indicadores/objetivos/${accion.objetivo_id}`}
+                      className="block hover:text-primario"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <p className="min-w-0 flex-1 text-xs">{accion.que_se_va_a_hacer}</p>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <Insignia className={cn("border", CLASES_ESTADO_PLAN[accion.estado])}>
+                            {ETIQUETAS_ESTADO_PLAN[accion.estado]}
+                          </Insignia>
+                          {accion.eficacia ? (
+                            <Insignia
+                              variante={accion.eficacia === "eficaz" ? "exito" : "peligro"}
+                            >
+                              {accion.eficacia === "eficaz" ? "Eficaz" : "No eficaz"}
+                            </Insignia>
+                          ) : null}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-atenuado-contraste">
+                        {accion.objetivo_id
+                          ? `${codigoDelObjetivo.get(accion.objetivo_id) ?? ""} · `
+                          : ""}
+                        {accion.responsable?.nombre_completo ??
+                          accion.responsable_declarado ??
+                          "Sin responsable"}
+                        {accion.fecha_finalizacion
+                          ? ` · Plazo ${formatearFecha(accion.fecha_finalizacion)}`
+                          : ""}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       ) : null}
 
