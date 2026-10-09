@@ -75,15 +75,6 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
     };
   }
 
-  const propuestas = datos
-    .getAll("propuestas_mejora")
-    .map((valor) => String(valor).trim())
-    .filter((propuesta) => propuesta.length > 0);
-
-  if (propuestas.length === 0) {
-    return { exito: false, error: "Cargue al menos una propuesta de mejora." };
-  }
-
   // El correlativo NC-AAAA-NNN lo calcula la base de datos.
   const { data: codigo, error: errorCodigo } = await supabase.rpc(
     "siguiente_codigo_no_conformidad",
@@ -122,13 +113,6 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
       empresa_afectada_id: String(datos.get("empresa_afectada_id") ?? "") || usuario.empresa_id,
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       correccion_inmediata: String(datos.get("correccion_inmediata") ?? "").trim() || null,
-      // Las propuestas llegan como varios campos con el mismo nombre. Se
-      // descartan las vacias: el formulario abre con un cuadro en blanco
-      // y quien no tenga ninguna idea simplemente no lo completa.
-      propuestas_mejora: datos
-        .getAll("propuestas_mejora")
-        .map((propuesta) => String(propuesta).trim())
-        .filter((propuesta) => propuesta.length > 0),
       detectado_por: usuario.id,
       responsable_id: responsableId,
       fecha_deteccion: String(datos.get("fecha_deteccion") ?? hoyEnAsuncion()),
@@ -249,15 +233,6 @@ export async function actualizarNoConformidad(
     };
   }
 
-  const propuestas = datos
-    .getAll("propuestas_mejora")
-    .map((valor) => String(valor).trim())
-    .filter((propuesta) => propuesta.length > 0);
-
-  if (propuestas.length === 0) {
-    return { exito: false, error: "Cargue al menos una propuesta de mejora." };
-  }
-
   const { error } = await supabase
     .from("no_conformidades")
     .update({
@@ -271,10 +246,9 @@ export async function actualizarNoConformidad(
       proceso_id: String(datos.get("proceso_id") ?? "") || null,
       responsable_id: String(datos.get("responsable_id") ?? "") || null,
       correccion_inmediata: correccion,
-      // Las propuestas y la fecha de deteccion tambien se editan: el
-      // formulario de alta las pide y el de edicion es el mismo, asi que
-      // si no se guardaran, editar cualquier cosa las borraria.
-      propuestas_mejora: propuestas,
+      // `propuestas_mejora` NO se toca. El campo salio del formulario el
+      // 9 de octubre y la columna quedo: si se escribiera aca, editar
+      // una no conformidad vieja le borraria las propuestas que tiene.
       fecha_deteccion: String(datos.get("fecha_deteccion") ?? "") || undefined,
     })
     .eq("id", id);

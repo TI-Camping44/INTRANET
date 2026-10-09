@@ -7,7 +7,6 @@ import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { ACEPTA_EVIDENCIA, describirTamano, TAMANO_MAXIMO_ADJUNTO } from "@/lib/adjuntos";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { CampoPropuestas } from "@/app/(sgc)/no-conformidades/campo-propuestas";
 import {
   actualizarNoConformidad,
   crearNoConformidad,
@@ -274,15 +273,6 @@ export function FormularioNoConformidad({
               required
               minLength={5}
             />
-          </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Propuestas de mejora"
-            requerido
-            className="sm:col-span-2"
-            ayuda="Ideas para que no vuelva a pasar. Puede cargar más de una."
-          >
-            <CampoPropuestas iniciales={inicial?.propuestas_mejora ?? []} requerido />
           </GrupoCampo>
 
           {/* LA EVIDENCIA SE ADJUNTA ACA, antes de guardar. Antes habia que

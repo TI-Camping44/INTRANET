@@ -8,6 +8,12 @@ import { AreaTexto } from "@/components/ui/campo";
 /**
  * Propuestas de mejora de la no conformidad: una o varias.
  *
+ * HOY NO LA USA NADIE. El campo salio del formulario el 9 de octubre
+ * por pedido de Calidad. El componente queda armado —y la columna
+ * `propuestas_mejora` con sus datos— por si se vuelve a pedir; la
+ * ficha sigue mostrando las propuestas de las no conformidades que
+ * ya las tienen.
+ *
  * De una misma desviación suelen salir dos o tres ideas, y hasta ahora
  * terminaban apiladas en un solo párrafo. Acá cada una va en su propio
  * cuadro y se guarda por separado, así se pueden leer una por una y
