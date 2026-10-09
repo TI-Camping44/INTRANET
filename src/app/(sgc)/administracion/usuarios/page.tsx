@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FilaUsuario } from "@/app/(sgc)/administracion/usuarios/fila-usuario";
+import { FormularioPuesto } from "@/app/(sgc)/recursos-humanos/puestos/formulario-puesto";
 import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
@@ -12,7 +13,11 @@ import {
 } from "@/components/ui/tabla";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { DESCRIPCION_ROL, DOMINIOS_AUTORIZADOS_TEXTO, ETIQUETAS_ROL } from "@/lib/constantes";
+import {
+  DESCRIPCION_ROL,
+  DOMINIOS_AUTORIZADOS_TEXTO,
+  ETIQUETAS_ROL,
+} from "@/lib/constantes";
 import type { RolUsuario } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Usuarios y roles" };
@@ -22,34 +27,63 @@ export default async function PaginaUsuarios() {
   await requerirRol(["administrador_sgc"]);
   const supabase = crearClienteServidor();
 
-  const [{ data: usuarios }, { data: procesos }, { data: puestos }] = await Promise.all([
+  // Las empresas van por `empresas_del_grupo()` y no por un select a
+  // `empresas`: esa tabla solo deja ver la propia, asi que Vitalica
+  // volveria vacia.
+  const [
+    { data: usuarios },
+    { data: procesos },
+    { data: puestos },
+    { data: datosEmpresas },
+  ] = await Promise.all([
     supabase
       .from("usuarios")
       .select(
-        "id, nombre_completo, correo, rol, superior_id, proceso_id, puesto_id, "
-        + "vendedor_planilla, ventas_canales, activo, ultimo_ingreso",
+        "id, nombre_completo, correo, rol, superior_id, proceso_id, puesto_id, " +
+          "vendedor_planilla, ventas_canales, activo, ultimo_ingreso",
       )
       .order("nombre_completo"),
-    supabase.from("procesos").select("id, nombre").eq("activo", true).eq("version", "01").order("nombre"),
-    supabase.from("puestos").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase
+      .from("procesos")
+      .select("id, nombre")
+      .eq("activo", true)
+      .eq("version", "01")
+      .order("nombre"),
+    supabase
+      .from("puestos")
+      .select("id, nombre")
+      .eq("activo", true)
+      .order("nombre"),
+    supabase.rpc("empresas_del_grupo"),
   ]);
 
   const lista = (usuarios ?? []) as any[];
+  const empresas =
+    (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
 
   return (
     <>
       <EncabezadoPagina
         titulo="Usuarios y roles"
-        descripcion={`El perfil se crea solo en el primer ingreso con Google. Aquí se asigna el rol, el líder inmediato y el proceso a cargo.`}
+        descripcion="El perfil se crea solo en el primer ingreso con Google. Aquí se asigna el rol, el líder inmediato, el proceso a cargo y el puesto."
+        acciones={
+          /* El alta de puesto vive acá además de en Recursos Humanos. Si
+             el puesto de alguien todavía no existe, obligar a irse a otro
+             módulo, crearlo y volver es la forma más rápida de que nadie
+             lo asigne. Es el mismo formulario y la misma acción: no hay
+             dos lugares donde se cree un puesto, hay dos puertas. */
+          <FormularioPuesto empresas={empresas} />
+        }
       />
 
       <Aviso className="mb-4">
         <div>
           <AvisoTitulo>Cómo se dan de alta los usuarios</AvisoTitulo>
           <AvisoDescripcion>
-            Cualquier cuenta de {DOMINIOS_AUTORIZADOS_TEXTO} puede ingresar; el sistema crea su
-            perfil con rol Colaborador. Desde esta pantalla se ajusta el rol y se define el jefe
-            inmediato, que es a quien escala una acción correctiva vencida.
+            Cualquier cuenta de {DOMINIOS_AUTORIZADOS_TEXTO} puede ingresar; el
+            sistema crea su perfil con rol Colaborador. Desde esta pantalla se
+            ajusta el rol y se define el jefe inmediato, que es a quien escala
+            una acción correctiva vencida.
           </AvisoDescripcion>
         </div>
       </Aviso>
@@ -60,7 +94,9 @@ export default async function PaginaUsuarios() {
           {(Object.keys(ETIQUETAS_ROL) as RolUsuario[]).map((rol) => (
             <div key={rol}>
               <dt className="font-medium">{ETIQUETAS_ROL[rol]}</dt>
-              <dd className="text-atenuado-contraste">{DESCRIPCION_ROL[rol]}</dd>
+              <dd className="text-atenuado-contraste">
+                {DESCRIPCION_ROL[rol]}
+              </dd>
             </div>
           ))}
         </dl>

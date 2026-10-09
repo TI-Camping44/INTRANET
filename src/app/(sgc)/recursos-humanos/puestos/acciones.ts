@@ -77,6 +77,9 @@ export async function crearPuestoDePerfil(datos: FormData): Promise<ResultadoAcc
   }
 
   revalidatePath("/recursos-humanos/puestos");
+  // El puesto tambien se crea desde Administracion -> Usuarios, y el
+  // selector de cada fila tiene que mostrarlo sin recargar a mano.
+  revalidatePath("/administracion/usuarios");
   return { exito: true, id: creado.id, mensaje: `Puesto «${creado.nombre}» creado.` };
 }
 
