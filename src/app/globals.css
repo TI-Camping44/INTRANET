@@ -240,3 +240,99 @@
     margin: 12mm 16mm;
   }
 }
+
+@layer components {
+  /* ------------------------------------------------------------------
+     EL ORGANIGRAMA.
+     Un arbol de cajas unidas por lineas. Va en CSS y no en SVG porque
+     el navegador ya sabe repartir el ancho de los hermanos: con SVG
+     habria que calcular a mano la posicion de 55 cajas, y recalcularla
+     cada vez que alguien cambia de jefe.
+     Las lineas se dibujan con `::before` y `::after` de cada hoja; los
+     extremos de cada fila se recortan para que la linea horizontal no
+     sobresalga del primero ni del ultimo.
+     ------------------------------------------------------------------ */
+  .organigrama ul {
+    display: flex;
+    justify-content: center;
+    padding-top: 1.25rem;
+    position: relative;
+  }
+
+  /* La bajada desde el padre hasta la linea horizontal de sus hijos. */
+  .organigrama ul ul::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 0;
+    height: 1.25rem;
+    border-left: 1px solid hsl(var(--borde));
+  }
+
+  .organigrama li {
+    position: relative;
+    padding: 1.25rem 0.375rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    list-style: none;
+  }
+
+  /* Las dos mitades de la linea horizontal, y la subida de cada hijo. */
+  .organigrama li::before,
+  .organigrama li::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 50%;
+    width: 50%;
+    height: 1.25rem;
+    border-top: 1px solid hsl(var(--borde));
+  }
+
+  .organigrama li::after {
+    right: auto;
+    left: 50%;
+    border-left: 1px solid hsl(var(--borde));
+  }
+
+  /* Hijo unico: no hay fila que cruzar, solo la bajada. */
+  .organigrama li:only-child::before,
+  .organigrama li:only-child::after {
+    display: none;
+  }
+
+  .organigrama li:only-child {
+    padding-top: 1.25rem;
+  }
+
+  /* Los extremos no estiran la linea hacia afuera. */
+  .organigrama li:first-child::before,
+  .organigrama li:last-child::after {
+    border: 0 none;
+  }
+
+  .organigrama li:last-child::before {
+    border-right: 1px solid hsl(var(--borde));
+    border-radius: 0 6px 0 0;
+  }
+
+  .organigrama li:first-child::after {
+    border-radius: 6px 0 0 0;
+  }
+
+  /* La raiz no cuelga de nadie. */
+  .organigrama > ul {
+    padding-top: 0;
+  }
+
+  .organigrama > ul > li {
+    padding-top: 0;
+  }
+
+  .organigrama > ul > li::before,
+  .organigrama > ul > li::after {
+    display: none;
+  }
+}

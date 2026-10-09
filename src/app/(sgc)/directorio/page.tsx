@@ -3,6 +3,8 @@ import Link from "next/link";
 import { FileText, Mail, Phone, Users } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
+import { PestanasListado } from "@/components/comunes/pestanas-listado";
+import { Organigrama } from "@/app/(sgc)/directorio/organigrama";
 import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
@@ -27,6 +29,7 @@ interface FilaDirectorio {
   departamento: string | null;
   empresa_del_puesto: string | null;
   ingreso: boolean;
+  lider_clave: string | null;
 }
 
 /**
@@ -67,8 +70,10 @@ function areaDelDepartamento(departamento: string | null): string | null {
 export default async function PaginaDirectorio({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: { q?: string; vista?: string };
 }) {
+  const vista =
+    searchParams.vista === "organigrama" ? "organigrama" : "personas";
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
@@ -77,26 +82,36 @@ export default async function PaginaDirectorio({
   // PostgREST no puede embeberlos.
   const [{ data }, { data: puestosCargados }] = await Promise.all([
     supabase.from("vista_directorio").select("*").order("nombre_completo"),
-    supabase.from("puestos").select("id, nombre, area").eq("activo", true).order("nombre"),
+    supabase
+      .from("puestos")
+      .select("id, nombre, area")
+      .eq("activo", true)
+      .order("nombre"),
   ]);
 
   const puestos =
-    (puestosCargados as { id: string; nombre: string; area: string | null }[] | null) ?? [];
+    (puestosCargados as
+      | { id: string; nombre: string; area: string | null }[]
+      | null) ?? [];
   const puestoPorId = new Map(puestos.map((puesto) => [puesto.id, puesto]));
 
-  const personas = ((data ?? []) as unknown as FilaDirectorio[]).map((persona) => {
-    const puesto = persona.puesto_id ? puestoPorId.get(persona.puesto_id) : undefined;
-    const segundo = persona.puesto_secundario_id
-      ? puestoPorId.get(persona.puesto_secundario_id)
-      : undefined;
+  const personas = ((data ?? []) as unknown as FilaDirectorio[]).map(
+    (persona) => {
+      const puesto = persona.puesto_id
+        ? puestoPorId.get(persona.puesto_id)
+        : undefined;
+      const segundo = persona.puesto_secundario_id
+        ? puestoPorId.get(persona.puesto_secundario_id)
+        : undefined;
 
-    return {
-      ...persona,
-      puesto: puesto ?? null,
-      segundo: segundo ?? null,
-      area: puesto?.area ?? areaDelDepartamento(persona.departamento),
-    };
-  });
+      return {
+        ...persona,
+        puesto: puesto ?? null,
+        segundo: segundo ?? null,
+        area: puesto?.area ?? areaDelDepartamento(persona.departamento),
+      };
+    },
+  );
 
   const pendientes = personas.filter((persona) => !persona.ingreso).length;
 
@@ -127,112 +142,173 @@ export default async function PaginaDirectorio({
         descripcion="Quién es quién en Camping 44 y el perfil de su puesto."
       />
 
-      <div className="mb-3">
-        <FiltrosListado campos={[]} marcadorBusqueda="Buscar por nombre, puesto o departamento…" />
-      </div>
+      <PestanasListado
+        nombre="vista"
+        actual={vista}
+        ruta="/directorio"
+        parametros={{ q: searchParams.q }}
+        vistas={[
+          {
+            valor: "personas",
+            etiqueta: "Personas",
+            cantidad: personas.length,
+          },
+          { valor: "organigrama", etiqueta: "Organigrama" },
+        ]}
+      />
 
-      {filtradas.length === 0 ? (
-        <EstadoVacio
-          icono={<Users className="size-6" />}
-          titulo={
-            personas.length === 0 ? "Sin personas cargadas" : "Nadie coincide con esa búsqueda"
-          }
-          descripcion={
-            personas.length === 0
-              ? "La nómina se carga desde la exportación de Odoo, en Administración · Padrón de la nómina."
-              : "Pruebe con otro nombre, puesto o departamento."
-          }
-        />
+      {/* El buscador acota la grilla. En el organigrama no tiene sentido:
+          sacar a una persona del árbol le corta la rama a su gente. */}
+      {vista === "personas" ? (
+        <div className="mb-3 mt-3">
+          <FiltrosListado
+            campos={[]}
+            marcadorBusqueda="Buscar por nombre, puesto o departamento…"
+          />
+        </div>
+      ) : null}
+
+      {vista === "organigrama" ? (
+        <div className="mt-3">
+          <Organigrama
+            nodos={personas.map((persona) => ({
+              clave: persona.clave,
+              nombre_completo: persona.nombre_completo,
+              puesto_id: persona.puesto_id,
+              puesto: persona.puesto?.nombre ?? null,
+              area: persona.area,
+              url_avatar: persona.url_avatar,
+              ingreso: persona.ingreso,
+              lider_clave: persona.lider_clave,
+            }))}
+          />
+        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filtradas.map((persona) => (
-            <Tarjeta key={persona.clave} className="p-3">
-              <div className="flex gap-3">
-                <Avatar className="size-10 shrink-0">
-                  {persona.url_avatar ? (
-                    <AvatarImagen src={persona.url_avatar} alt={persona.nombre_completo} />
-                  ) : null}
-                  <AvatarRespaldo className="text-xs">
-                    {iniciales(persona.nombre_completo)}
-                  </AvatarRespaldo>
-                </Avatar>
+        <>
+          {filtradas.length === 0 ? (
+            <EstadoVacio
+              icono={<Users className="size-6" />}
+              titulo={
+                personas.length === 0
+                  ? "Sin personas cargadas"
+                  : "Nadie coincide con esa búsqueda"
+              }
+              descripcion={
+                personas.length === 0
+                  ? "La nómina se carga desde la exportación de Odoo, en Administración · Padrón de la nómina."
+                  : "Pruebe con otro nombre, puesto o departamento."
+              }
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filtradas.map((persona) => (
+                <Tarjeta key={persona.clave} className="p-3">
+                  <div className="flex gap-3">
+                    <Avatar className="size-10 shrink-0">
+                      {persona.url_avatar ? (
+                        <AvatarImagen
+                          src={persona.url_avatar}
+                          alt={persona.nombre_completo}
+                        />
+                      ) : null}
+                      <AvatarRespaldo className="text-xs">
+                        {iniciales(persona.nombre_completo)}
+                      </AvatarRespaldo>
+                    </Avatar>
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold">{persona.nombre_completo}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold">
+                        {persona.nombre_completo}
+                      </p>
 
-                  {persona.puesto_id && persona.puesto ? (
-                    <Link
-                      href={`/recursos-humanos/puestos/${persona.puesto_id}`}
-                      className="flex items-center gap-1 truncate text-[11px]
+                      {persona.puesto_id && persona.puesto ? (
+                        <Link
+                          href={`/recursos-humanos/puestos/${persona.puesto_id}`}
+                          className="flex items-center gap-1 truncate text-[11px]
                                  text-atenuado-contraste hover:text-primario"
-                      title="Ver el perfil del puesto"
-                    >
-                      <span className="truncate">{persona.puesto.nombre}</span>
-                      <FileText className="size-3 shrink-0" />
-                    </Link>
-                  ) : (
-                    <p className="truncate text-[11px] text-atenuado-contraste">
-                      Sin puesto asignado
-                    </p>
-                  )}
+                          title="Ver el perfil del puesto"
+                        >
+                          <span className="truncate">
+                            {persona.puesto.nombre}
+                          </span>
+                          <FileText className="size-3 shrink-0" />
+                        </Link>
+                      ) : (
+                        <p className="truncate text-[11px] text-atenuado-contraste">
+                          Sin puesto asignado
+                        </p>
+                      )}
 
-                  {/* El segundo puesto, cuando ocupa dos. */}
-                  {persona.puesto_secundario_id && persona.segundo ? (
-                    <Link
-                      href={`/recursos-humanos/puestos/${persona.puesto_secundario_id}`}
-                      className="flex items-center gap-1 truncate text-[11px]
+                      {/* El segundo puesto, cuando ocupa dos. */}
+                      {persona.puesto_secundario_id && persona.segundo ? (
+                        <Link
+                          href={`/recursos-humanos/puestos/${persona.puesto_secundario_id}`}
+                          className="flex items-center gap-1 truncate text-[11px]
                                  text-atenuado-contraste hover:text-primario"
-                      title="Segundo puesto. Ver su perfil"
-                    >
-                      <span className="truncate">y {persona.segundo.nombre}</span>
-                      <FileText className="size-3 shrink-0" />
-                    </Link>
-                  ) : null}
+                          title="Segundo puesto. Ver su perfil"
+                        >
+                          <span className="truncate">
+                            y {persona.segundo.nombre}
+                          </span>
+                          <FileText className="size-3 shrink-0" />
+                        </Link>
+                      ) : null}
 
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {persona.area ? (
-                      <Insignia variante="contorno">{persona.area}</Insignia>
-                    ) : null}
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {persona.area ? (
+                          <Insignia variante="contorno">
+                            {persona.area}
+                          </Insignia>
+                        ) : null}
 
-                    {/* Quién todavía no se conectó. Es dato útil para
+                        {/* Quién todavía no se conectó. Es dato útil para
                         seguir la puesta en marcha, no un reproche: va
                         en gris, del mismo tamaño que el resto. */}
-                    {!persona.ingreso ? (
-                      <Insignia variante="neutra" title="Figura en la nómina y todavía no ingresó">
-                        Sin ingresar
-                      </Insignia>
-                    ) : null}
-                  </div>
+                        {!persona.ingreso ? (
+                          <Insignia
+                            variante="neutra"
+                            title="Figura en la nómina y todavía no ingresó"
+                          >
+                            Sin ingresar
+                          </Insignia>
+                        ) : null}
+                      </div>
 
-                  <div className="mt-2 space-y-0.5">
-                    <a
-                      href={`mailto:${persona.correo}`}
-                      className="flex items-center gap-1.5 text-[11px] text-atenuado-contraste hover:text-primario"
-                    >
-                      <Mail className="size-3 shrink-0" />
-                      <span className="truncate">{persona.correo}</span>
-                    </a>
-                    {persona.telefono ? (
-                      <a
-                        href={`tel:${persona.telefono}`}
-                        className="flex items-center gap-1.5 text-[11px] text-atenuado-contraste hover:text-primario"
-                      >
-                        <Phone className="size-3 shrink-0" />
-                        {persona.telefono}
-                      </a>
-                    ) : null}
+                      <div className="mt-2 space-y-0.5">
+                        <a
+                          href={`mailto:${persona.correo}`}
+                          className="flex items-center gap-1.5 text-[11px] text-atenuado-contraste hover:text-primario"
+                        >
+                          <Mail className="size-3 shrink-0" />
+                          <span className="truncate">{persona.correo}</span>
+                        </a>
+                        {persona.telefono ? (
+                          <a
+                            href={`tel:${persona.telefono}`}
+                            className="flex items-center gap-1.5 text-[11px] text-atenuado-contraste hover:text-primario"
+                          >
+                            <Phone className="size-3 shrink-0" />
+                            {persona.telefono}
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </Tarjeta>
-          ))}
-        </div>
+                </Tarjeta>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {filtradas.length} de {personas.length} persona{personas.length === 1 ? "" : "s"}
-        {pendientes > 0 ? ` · ${pendientes} todavía no ingresaron al sistema` : ""}. El perfil de
-        cada puesto se adjunta en Personas · Perfil de Resultados de Puesto.
+        {filtradas.length} de {personas.length} persona
+        {personas.length === 1 ? "" : "s"}
+        {pendientes > 0
+          ? ` · ${pendientes} todavía no ingresaron al sistema`
+          : ""}
+        . El perfil de cada puesto se adjunta en Personas · Perfil de Resultados
+        de Puesto.
       </p>
     </>
   );
