@@ -133,9 +133,9 @@ export function PanelCategorias({
         <DialogoCabecera>
           <DialogoTitulo>Agrupar la lista maestra</DialogoTitulo>
           <DialogoDescripcion>
-            Escriba el nombre de la categoría y marque los documentos que van adentro. Si elige
-            una que ya existe, llega con los suyos marcados: desmarcar uno lo saca de la
-            categoría.
+            Escriba el nombre de la categoría y, si quiere, marque los documentos que van
+            adentro. Puede crearla vacía y llenarla después. Si elige una que ya existe, llega
+            con los suyos marcados: desmarcar uno lo saca de la categoría.
           </DialogoDescripcion>
         </DialogoCabecera>
 

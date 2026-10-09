@@ -59,15 +59,26 @@ export function VisorWord({ documento, titulo }: { documento: string; titulo: st
     };
   }, [medir, documento]);
 
+  // LA BARRA DE DESPLAZAMIENTO VA ADENTRO DEL VISOR, no en la página,
+  // igual que en el PDF: leer el final del documento no tiene por qué
+  // dejar fuera de vista el encabezado con el título y los botones.
+  //
+  // El marco conserva su alto medido —es lo que evita la doble barra,
+  // una del marco y otra de la caja— y la caja lo recorta al alto que
+  // le queda a la ventana. Se descuenta de la ventana y no se fija en
+  // píxeles para que en un celular siga entrando.
   return (
-    <iframe
-      ref={marco}
-      sandbox="allow-same-origin"
-      srcDoc={documento}
-      title={titulo}
-      onLoad={medir}
-      style={{ height: alto }}
-      className="w-full rounded-lg border border-borde bg-white"
-    />
+    <div className="max-h-[calc(100vh-14rem)] overflow-y-auto overscroll-contain
+                    rounded-lg border border-borde bg-white">
+      <iframe
+        ref={marco}
+        sandbox="allow-same-origin"
+        srcDoc={documento}
+        title={titulo}
+        onLoad={medir}
+        style={{ height: alto }}
+        className="w-full border-0 bg-white"
+      />
+    </div>
   );
 }

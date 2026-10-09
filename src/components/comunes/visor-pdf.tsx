@@ -145,9 +145,19 @@ export function VisorPdf({ url, nombre }: { url: string; nombre: string }) {
         </div>
       ) : null}
 
+      {/* LA BARRA DE DESPLAZAMIENTO VA ADENTRO DEL VISOR, no en la
+          página. Con el documento entero creciendo hacia abajo, leer la
+          página seis obligaba a dejar fuera de vista el encabezado con
+          el título y los botones. Acá el visor ocupa el alto que le
+          queda a la ventana y se desplaza por dentro, así el encabezado
+          y la cuenta de páginas quedan siempre a la vista.
+
+          El alto se descuenta de la ventana —no es fijo en píxeles— para
+          que en un celular siga entrando. */}
       <div
         ref={contenedor}
-        className="flex flex-col gap-3"
+        className="flex max-h-[calc(100vh-14rem)] flex-col gap-3 overflow-y-auto
+                   overscroll-contain"
         aria-busy={estado === "cargando"}
       />
 

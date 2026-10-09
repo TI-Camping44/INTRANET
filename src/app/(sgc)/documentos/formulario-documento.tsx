@@ -79,6 +79,10 @@ export function FormularioDocumento({
     Boolean(inicial) && !inicial?.codigo,
   );
 
+  // Un manual de proceso ES el proceso, así que no cuelga de otro; y si
+  // todavía no hay ninguno cargado no hay de dónde elegir.
+  const exigeProceso = tipo !== "manual" && manuales.length > 0;
+
   async function sugerirCodigo() {
     const sugerido = await sugerirCodigoDocumento(tipo, null);
     definirCodigo(sugerido);
@@ -257,23 +261,33 @@ export function FormularioDocumento({
               sirve es atar un instructivo, un protocolo o un formulario a
               SU manual de proceso, y ese manual es un documento más: si
               todavía no se cargó ninguno, no hay a qué atarlo y se dice. */}
+          {/* OBLIGATORIO, MENOS PARA UN MANUAL DE PROCESO. Un manual
+              ES el proceso: pedirle que cuelgue de otro manual sería
+              circular. Tampoco se exige cuando todavía no hay ninguno
+              cargado, que es el caso del primero. */}
           <GrupoCampo
             etiqueta="Proceso al que pertenece"
             htmlFor="proceso_documento_id"
             className="sm:col-span-2"
+            requerido={exigeProceso}
             ayuda={
-              manuales.length > 0
-                ? "El manual de proceso del que depende este documento."
-                : "Todavía no hay ningún manual de proceso cargado. Cargue primero el manual y después vuelva a vincularlo."
+              manuales.length === 0
+                ? "Todavía no hay ningún manual de proceso cargado. Cargue primero el manual y después vuelva a vincularlo."
+                : exigeProceso
+                  ? "El manual de proceso del que depende este documento."
+                  : "Un manual de proceso es el proceso: no cuelga de otro."
             }
           >
             <Seleccion
               id="proceso_documento_id"
               name="proceso_documento_id"
+              required={exigeProceso}
               defaultValue={inicial?.proceso_documento_id ?? ""}
               disabled={manuales.length === 0}
             >
-              <option value="">Sin proceso asociado</option>
+              <option value="" disabled={exigeProceso}>
+                Sin proceso asociado
+              </option>
               {manuales.map((manual) => (
                 <option key={manual.id} value={manual.id}>
                   {manual.codigo ? `${manual.codigo} · ` : ""}
@@ -287,14 +301,16 @@ export function FormularioDocumento({
             etiqueta="Categoría"
             htmlFor="categoria"
             className="sm:col-span-2"
+            requerido
             ayuda="Cómo se agrupa en la carpeta. Puede escribir una nueva o elegir una ya usada."
           >
             <Entrada
               id="categoria"
               name="categoria"
               list="categorias-usadas"
+              required
               defaultValue={inicial?.categoria ?? ""}
-              placeholder="Sin categoría"
+              placeholder="Políticas"
             />
             <datalist id="categorias-usadas">
               {categorias.map((nombre) => (
@@ -319,14 +335,18 @@ export function FormularioDocumento({
               <GrupoCampo
                 etiqueta="Responsable"
                 htmlFor="responsable_id"
+                requerido
                 ayuda="Quien mantiene el documento al día."
               >
                 <Seleccion
                   id="responsable_id"
                   name="responsable_id"
+                  required
                   defaultValue={inicial.responsable_id ?? ""}
                 >
-                  <option value="">Sin responsable</option>
+                  <option value="" disabled>
+                    Elija a la persona…
+                  </option>
                   {personas.map((persona) => (
                     <option key={persona.id} value={persona.id}>
                       {persona.nombre_completo}
@@ -338,6 +358,7 @@ export function FormularioDocumento({
               <GrupoCampo
                 etiqueta="Periodicidad de revisión"
                 htmlFor="periodicidad_revision_meses"
+                requerido
                 ayuda="Cada cuántos meses se revisa."
               >
                 <Entrada
@@ -346,6 +367,7 @@ export function FormularioDocumento({
                   type="number"
                   min={1}
                   max={60}
+                  required
                   defaultValue={inicial.periodicidad_revision_meses}
                 />
               </GrupoCampo>
@@ -357,6 +379,7 @@ export function FormularioDocumento({
             etiqueta="Archivo del documento"
             htmlFor="archivo"
             className="sm:col-span-2"
+            requerido
             ayuda={FORMATO_POR_TIPO[tipo].explicacion}
           >
             {/* Los dos orígenes terminan en el mismo lugar: el archivo
@@ -367,10 +390,15 @@ export function FormularioDocumento({
                 onElegir={(elegido) => definirArchivo(elegido)}
                 deshabilitado={enviando}
               />
+              {/* `required` solo mientras no haya archivo elegido: el
+                  que viene de Drive no pasa por este campo —lo bajó el
+                  navegador y vive en memoria—, y dejarlo obligatorio
+                  trabaría el envío sin decir por qué. */}
               <input
                 id="archivo"
                 name="archivo"
                 type="file"
+                required={!archivo}
                 accept={extensionesAdmitidas(tipo)}
                 onChange={elegirArchivo}
                 className="min-w-0 flex-1 cursor-pointer rounded-md border border-borde

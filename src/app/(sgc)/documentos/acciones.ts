@@ -122,7 +122,31 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
     return { exito: false, error: "La periodicidad de revisión debe estar entre 1 y 60 meses." };
   }
 
+  // TODO OBLIGATORIO, desde el 9 de octubre. Lo pidio Direccion: un
+  // documento a medio cargar es un codigo en una tabla. El navegador ya
+  // los pide, pero eso es comodidad; el control es este.
   const categoria = String(datos.get("categoria") ?? "").trim() || null;
+  if (!categoria) return { exito: false, error: "Indique la categoría del documento." };
+
+  // El proceso, menos para un manual: un manual ES el proceso y no
+  // cuelga de otro. Tampoco se exige cuando no hay ninguno cargado, que
+  // es el caso del primero.
+  const procesoDocumento = String(datos.get("proceso_documento_id") ?? "") || null;
+  if (tipo !== "manual" && !procesoDocumento) {
+    const { count } = await supabase
+      .from("documentos")
+      .select("id", { count: "exact", head: true })
+      .eq("tipo", "manual");
+
+    if ((count ?? 0) > 0) {
+      return { exito: false, error: "Indique el proceso al que pertenece el documento." };
+    }
+  }
+
+  const archivoDelAlta = datos.get("archivo");
+  if (!(archivoDelAlta instanceof File) || archivoDelAlta.size === 0) {
+    return { exito: false, error: "Elija el archivo del documento." };
+  }
 
   // La posicion que ya tiene esa categoria en el listado, si existe. En
   // SQL `categoria = null` no es falso sino nulo y no alcanza ninguna
@@ -160,7 +184,7 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
       // Ninguna de las dos es `empresa_id` ni `proceso_id`: esas son el
       // acotamiento de RLS y la lista vieja del mapa.
       empresa_documento_id: String(datos.get("empresa_documento_id") ?? "") || null,
-      proceso_documento_id: String(datos.get("proceso_documento_id") ?? "") || null,
+      proceso_documento_id: procesoDocumento,
       responsable_id: responsableId,
       elaborador_id: usuario.id,
       creado_por: usuario.id,
@@ -242,6 +266,11 @@ export async function actualizarDocumento(
   }
 
   const categoria = String(datos.get("categoria") ?? "").trim() || null;
+  if (!categoria) return { exito: false, error: "Indique la categoría del documento." };
+
+  if (!String(datos.get("responsable_id") ?? "").trim()) {
+    return { exito: false, error: "Indique quién es el responsable del documento." };
+  }
 
   // Si cambia de categoria, hereda la posicion de la nueva: si no,
   // quedaria con la posicion de la carpeta de la que salio y apareceria
@@ -1408,9 +1437,9 @@ export async function guardarCategoria(
   if (nombre.length > 60) {
     return { exito: false, error: "El nombre de la categoría no puede pasar de 60 caracteres." };
   }
-  if (dentro.length === 0 && fuera.length === 0) {
-    return { exito: false, error: "Marque los documentos que van en la categoría." };
-  }
+  // UNA CATEGORIA VACIA ES VALIDA. Calidad arma la carpeta antes de
+  // tener los documentos adentro: exigir al menos uno obligaba a meter
+  // cualquiera para poder crearla. Lo unico obligatorio es el nombre.
 
   const supabase = crearClienteServidor();
 
