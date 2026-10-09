@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { crearObjetivo } from "@/app/(sgc)/indicadores/acciones";
+import { actualizarObjetivo, crearObjetivo } from "@/app/(sgc)/indicadores/acciones";
 import {
   AYUDA_TIPO_RESULTADO,
   ETIQUETAS_FRECUENCIA_MEDICION,
@@ -17,8 +17,28 @@ import {
   type TipoResultadoObjetivo,
 } from "@/lib/objetivos";
 
+export interface ObjetivoInicial {
+  id: string;
+  codigo: string;
+  nombre: string;
+  empresa_objetivo_id: string | null;
+  responsable_id: string | null;
+  fecha_inicio_medicion: string | null;
+  fecha_fin_medicion: string | null;
+  tipo_resultado: string | null;
+  resultado_esperado_si_no: boolean | null;
+  resultado_esperado_texto: string | null;
+  valor_minimo: number | null;
+  valor_maximo: number | null;
+  unidad_valor: string | null;
+  frecuencia_medicion: string | null;
+  fuente_datos: string | null;
+  recursos_requeridos: string | null;
+  proveedor_recursos: string | null;
+}
+
 /**
- * Alta de un objetivo de la calidad.
+ * Alta y edición de un objetivo de la calidad.
  *
  * ES LO QUE DIRECCIÓN PIDIÓ DECLARAR el 8 de octubre: qué se mide, de
  * qué empresa, en qué período, contra qué resultado esperado, con qué
@@ -31,33 +51,49 @@ import {
  * EL TIPO DE RESULTADO ABRE SOLO LO SUYO. Pedir a la vez el texto
  * esperado y el rango numérico obliga a dejar vacío lo que no
  * corresponde, y un campo vacío se lee como un olvido.
+ *
+ * EL ALTA Y LA EDICIÓN SON EL MISMO FORMULARIO. Con dos distintos, el
+ * de edición termina pidiendo menos campos que el de alta —pasó— y
+ * guardar le borra al objetivo lo que no le preguntó.
+ *
+ * Lo que la edición no toca: el código y el año. El código identifica
+ * al objetivo en la hoja de Calidad y en los informes ya emitidos; el
+ * año es el de su línea base, y moverlo haría aparecer y desaparecer
+ * objetivos de la hoja de un año para otro sin que nadie lo pidiera.
  */
 export function FormularioObjetivo({
   empresas,
   usuarios,
   usuarioActual,
+  inicial,
 }: {
   empresas: { id: string; nombre: string }[];
   usuarios: { id: string; nombre_completo: string }[];
   usuarioActual: string;
+  inicial?: ObjetivoInicial;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
-  const [tipo, definirTipo] = React.useState<TipoResultadoObjetivo | "">("");
+  const [tipo, definirTipo] = React.useState<TipoResultadoObjetivo | "">(
+    (inicial?.tipo_resultado as TipoResultadoObjetivo | undefined) ?? "",
+  );
 
   async function enviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     definirEnviando(true);
     definirError(null);
 
-    const resultado = await crearObjetivo(new FormData(evento.currentTarget));
+    const datos = new FormData(evento.currentTarget);
+    const resultado = inicial
+      ? await actualizarObjetivo(inicial.id, datos)
+      : await crearObjetivo(datos);
 
     if (resultado.exito) {
-      toast.success(resultado.mensaje ?? "Objetivo creado.");
+      toast.success(resultado.mensaje ?? "Objetivo guardado.");
       // Se abre la ficha directamente: es donde se cargan las acciones y
       // se mueve el estado, que es el paso siguiente natural.
-      router.push(`/indicadores/objetivos/${resultado.id}`);
+      router.push(`/indicadores/objetivos/${inicial?.id ?? resultado.id}`);
       router.refresh();
     } else {
       definirError(resultado.error);
@@ -77,7 +113,7 @@ export function FormularioObjetivo({
             className="sm:col-span-2"
             ayuda="Cómo se lo nombra. Es lo que se lee en el listado y en la Revisión por la Dirección."
           >
-            <Entrada id="nombre" name="nombre" required minLength={5} />
+            <Entrada id="nombre" name="nombre" required minLength={5} defaultValue={inicial?.nombre} />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Empresa" htmlFor="empresa_objetivo_id" requerido>
@@ -85,7 +121,7 @@ export function FormularioObjetivo({
               id="empresa_objetivo_id"
               name="empresa_objetivo_id"
               required
-              defaultValue={empresas[0]?.id ?? ""}
+              defaultValue={inicial?.empresa_objetivo_id ?? empresas[0]?.id ?? ""}
             >
               <option value="" disabled>
                 Elija la empresa…
@@ -103,7 +139,7 @@ export function FormularioObjetivo({
               id="responsable_id"
               name="responsable_id"
               required
-              defaultValue={usuarioActual}
+              defaultValue={inicial?.responsable_id ?? usuarioActual}
             >
               {usuarios.map((persona) => (
                 <option key={persona.id} value={persona.id}>
@@ -114,11 +150,23 @@ export function FormularioObjetivo({
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Inicio de la medición" htmlFor="fecha_inicio_medicion" requerido>
-            <Entrada id="fecha_inicio_medicion" name="fecha_inicio_medicion" type="date" required />
+            <Entrada
+              id="fecha_inicio_medicion"
+              name="fecha_inicio_medicion"
+              type="date"
+              required
+              defaultValue={inicial?.fecha_inicio_medicion ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo etiqueta="Fin de la medición" htmlFor="fecha_fin_medicion" requerido>
-            <Entrada id="fecha_fin_medicion" name="fecha_fin_medicion" type="date" required />
+            <Entrada
+              id="fecha_fin_medicion"
+              name="fecha_fin_medicion"
+              type="date"
+              required
+              defaultValue={inicial?.fecha_fin_medicion ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -160,7 +208,7 @@ export function FormularioObjetivo({
                 id="resultado_esperado_si_no"
                 name="resultado_esperado_si_no"
                 required
-                defaultValue="si"
+                defaultValue={inicial?.resultado_esperado_si_no === false ? "no" : "si"}
               >
                 <option value="si">Sí</option>
                 <option value="no">No</option>
@@ -176,7 +224,13 @@ export function FormularioObjetivo({
               className="sm:col-span-2"
               ayuda="Descríbalo con palabras."
             >
-              <AreaTexto id="resultado_esperado_texto" name="resultado_esperado_texto" rows={2} required />
+              <AreaTexto
+                id="resultado_esperado_texto"
+                name="resultado_esperado_texto"
+                rows={2}
+                required
+                defaultValue={inicial?.resultado_esperado_texto ?? ""}
+              />
             </GrupoCampo>
           ) : null}
 
@@ -190,6 +244,7 @@ export function FormularioObjetivo({
                   step="any"
                   required
                   className="tabular"
+                  defaultValue={inicial?.valor_minimo ?? ""}
                 />
               </GrupoCampo>
 
@@ -201,6 +256,7 @@ export function FormularioObjetivo({
                   step="any"
                   required
                   className="tabular"
+                  defaultValue={inicial?.valor_maximo ?? ""}
                 />
               </GrupoCampo>
 
@@ -211,7 +267,13 @@ export function FormularioObjetivo({
                 requerido
                 ayuda="Por ejemplo %, días, reclamos, guaraníes."
               >
-                <Entrada id="unidad_valor" name="unidad_valor" required placeholder="%" />
+                <Entrada
+                  id="unidad_valor"
+                  name="unidad_valor"
+                  required
+                  placeholder="%"
+                  defaultValue={inicial?.unidad_valor ?? ""}
+                />
               </GrupoCampo>
             </>
           ) : null}
@@ -221,7 +283,7 @@ export function FormularioObjetivo({
               id="frecuencia_medicion"
               name="frecuencia_medicion"
               required
-              defaultValue="mensual"
+              defaultValue={inicial?.frecuencia_medicion ?? "mensual"}
             >
               {FRECUENCIAS_MEDICION.map((valor) => (
                 <option key={valor} value={valor}>
@@ -241,7 +303,13 @@ export function FormularioObjetivo({
             requerido
             ayuda="De dónde sale la información, dónde se le hace seguimiento o dónde debe presentarse el resultado."
           >
-            <AreaTexto id="fuente_datos" name="fuente_datos" rows={2} required />
+            <AreaTexto
+              id="fuente_datos"
+              name="fuente_datos"
+              rows={2}
+              required
+              defaultValue={inicial?.fuente_datos ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -251,7 +319,13 @@ export function FormularioObjetivo({
             requerido
             ayuda="Qué hace falta para poder cumplirlo."
           >
-            <AreaTexto id="recursos_requeridos" name="recursos_requeridos" rows={2} required />
+            <AreaTexto
+              id="recursos_requeridos"
+              name="recursos_requeridos"
+              rows={2}
+              required
+              defaultValue={inicial?.recursos_requeridos ?? ""}
+            />
           </GrupoCampo>
 
           <GrupoCampo
@@ -260,7 +334,12 @@ export function FormularioObjetivo({
             className="sm:col-span-2"
             requerido
           >
-            <Entrada id="proveedor_recursos" name="proveedor_recursos" required />
+            <Entrada
+              id="proveedor_recursos"
+              name="proveedor_recursos"
+              required
+              defaultValue={inicial?.proveedor_recursos ?? ""}
+            />
           </GrupoCampo>
         </div>
 
@@ -271,7 +350,7 @@ export function FormularioObjetivo({
             Cancelar
           </Boton>
           <Boton type="submit" cargando={enviando}>
-            Crear objetivo
+            {inicial ? "Guardar cambios" : "Crear objetivo"}
           </Boton>
         </div>
       </Tarjeta>

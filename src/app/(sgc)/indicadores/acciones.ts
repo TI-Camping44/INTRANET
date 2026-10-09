@@ -489,33 +489,22 @@ export async function actualizarObjetivo(
     return { exito: false, error: "Su rol no permite editar objetivos." };
   }
 
-  const nombre = String(datos.get("nombre") ?? "").trim();
-  if (nombre.length < 5) {
-    return { exito: false, error: "El nombre debe tener al menos 5 caracteres." };
-  }
+  // LAS MISMAS REGLAS QUE EL ALTA, porque es el mismo formulario. Antes
+  // esta accion escribia cinco campos de los catorce que el alta pide:
+  // alcanzaba para la pantalla de edicion que existia entonces, que
+  // tambien pedia cinco. Con el formulario completo, guardar con las
+  // reglas viejas le borraba al objetivo todo lo demas.
+  const campos = leerCamposDelObjetivo(datos);
+  const problema = revisarObjetivo(campos);
+  if (problema) return { exito: false, error: problema };
 
   const supabase = crearClienteServidor();
 
-  // SOLO LO QUE EL FORMULARIO MANDA. Con `datos.get()` a secas, un campo
-  // que el formulario no incluye llega como nulo y borra lo que habia:
-  // el formulario de edicion no pide el responsable, y sin este recaudo
-  // cada guardado lo dejaba sin nadie a cargo.
-  const cambios: Record<string, string | null> = {
-    nombre,
-    descripcion: String(datos.get("descripcion") ?? "").trim() || null,
-    meta: String(datos.get("meta") ?? "").trim() || null,
-  };
-
-  if (datos.has("proceso_id")) {
-    cambios.proceso_id = String(datos.get("proceso_id") ?? "") || null;
-  }
-  if (datos.has("responsable_id")) {
-    cambios.responsable_id = String(datos.get("responsable_id") ?? "") || null;
-  }
-
   const { data: actualizado, error } = await supabase
     .from("objetivos")
-    .update(cambios)
+    // Sin `codigo` y sin `anio`: los dos quedan como nacieron, por lo
+    // que explica el comentario de arriba.
+    .update(campos)
     .eq("id", objetivoId)
     .select("codigo")
     .maybeSingle();
@@ -525,6 +514,7 @@ export async function actualizarObjetivo(
 
   revalidatePath("/indicadores");
   revalidatePath("/indicadores/plan");
+  revalidatePath(`/indicadores/objetivos/${objetivoId}`);
   return {
     exito: true,
     mensaje: `Objetivo ${(actualizado as { codigo: string }).codigo} actualizado.`,

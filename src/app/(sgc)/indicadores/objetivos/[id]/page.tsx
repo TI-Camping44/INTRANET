@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
@@ -14,6 +14,7 @@ import {
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
 import { AccionesDelPlan } from "@/app/(sgc)/indicadores/plan/acciones-del-plan";
+import { EliminarObjetivo } from "@/app/(sgc)/indicadores/objetivos/[id]/eliminar-objetivo";
 import { EstadoDelObjetivo } from "@/app/(sgc)/indicadores/objetivos/[id]/estado-del-objetivo";
 import {
   SeguimientoDeLaAccion,
@@ -106,6 +107,20 @@ export default async function PaginaObjetivo({ params }: { params: { id: string 
   const lista = (planes as any[] | null) ?? [];
   const gestiona = puedeGestionar(usuario);
 
+  // QUÉ SE LLEVA UN BORRADO. Se cuenta acá para que el aviso lo diga con
+  // números: «se borran 12 mediciones» frena a quien «¿Está seguro?» no
+  // frena. Son dos `head: true`, así que no traen filas.
+  const [{ count: medicionesCargadas }, { count: indicadoresColgando }] = await Promise.all([
+    supabase
+      .from("objetivo_mediciones")
+      .select("id", { count: "exact", head: true })
+      .eq("objetivo_id", params.id),
+    supabase
+      .from("indicadores")
+      .select("id", { count: "exact", head: true })
+      .eq("objetivo_id", params.id),
+  ]);
+
   // LA EVIDENCIA DE CADA ACCIÓN. Una sola consulta para todas, acotada a
   // las de este objetivo, y se reparte por `entidad_id`. Va después y no
   // en el lote de arriba porque necesita los ids que ese lote trae.
@@ -137,7 +152,27 @@ export default async function PaginaObjetivo({ params }: { params: { id: string 
         </Link>
       </Boton>
 
-      <EncabezadoPagina titulo={objetivo.nombre} />
+      <EncabezadoPagina
+        titulo={objetivo.nombre}
+        acciones={
+          gestiona ? (
+            <>
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                <Link href={`/indicadores/objetivos/${params.id}/editar`}>
+                  <Pencil /> Editar
+                </Link>
+              </Boton>
+              <EliminarObjetivo
+                objetivoId={params.id}
+                codigo={objetivo.codigo}
+                acciones={lista.length}
+                mediciones={medicionesCargadas ?? 0}
+                indicadores={indicadoresColgando ?? 0}
+              />
+            </>
+          ) : null
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Insignia variante="primaria" className="tabular text-xs">
