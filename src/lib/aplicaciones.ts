@@ -113,6 +113,16 @@ export const APLICACIONES: Aplicacion[] = [
     publico: "solicitudes",
   },
   {
+    nombre: "Tickets de solicitud para Comercial",
+    descripcion:
+      "La solicitud de crédito por QR: el asesor comparte el enlace con el " +
+      "cliente y la solicitud entra a la base que revisa Créditos y Cobranzas.",
+    url:
+      "https://script.google.com/a/macros/camping44.com.py/s/" +
+      "AKfycbxx2Onr73QveCXss_qmyzTu6qd2GQe6g5j6ki2wzbphqWbKo9o50FbwRyEu4tq9cy_vJQ/exec",
+    publico: "solicitudes",
+  },
+  {
     nombre: "Tickets de solicitud de compra interna",
     descripcion: "Para pedir la compra de insumos o equipamiento del departamento.",
     url:

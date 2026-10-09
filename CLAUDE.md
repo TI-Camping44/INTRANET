@@ -322,6 +322,8 @@ en la base de datos y en `src/lib/`.
 | **El riesgo se carga completo.** Todo obligatorio menos la primera viñeta —**dónde se identifica**—, que puede quedar vacía porque Información Documentada recién se está cargando. Los **controles existentes** entran a la lista: son lo que justifica la evaluación, y sin ellos la probabilidad y la severidad quedan dichas sin respaldo | `OBLIGATORIOS` en `riesgos/acciones.ts` y `formulario-riesgo.tsx` |
 | **El objetivo y la acción del plan se cargan completos.** Todo obligatorio, con una sola excepción: el **puesto del responsable** de la acción, que es el nombre que le da la planilla y no siempre coincide con un cargo del organigrama | `revisarObjetivo()` y `revisarCampos()` del plan |
 | Causa raíz: los cinco porqués, los cinco obligatorios. Sin Ishikawa | `guardarPorques()` y `analisis-causa-raiz.tsx` |
+| **El organigrama se corrige arrastrando.** La línea de reporte sale de Odoo y no siempre es la real: a alguien le falta el gerente, a otro Odoo lo declara su propio jefe. El Administrador SGC arrastra una caja sobre otra y el cambio se guarda en `personas_nomina.lider_manual_id`, que la próxima carga del padrón no pisa. Hacen falta **dos** columnas, no una: `lider_manual_fijado` distingue «todavía nadie lo movió» de «se decidió que no cuelga de nadie», que con un solo nulo se verían igual. Precedencia, de más fuerte a más débil: el ajuste a mano, `usuarios.superior_id`, el gerente de Odoo. **Los ciclos se cortan en la acción de servidor antes de escribir**: colgar a un jefe de su propio subordinado vuelve el árbol infinito y la pantalla deja de dibujarse. Quien no cuelga de nadie va al panel «Sin líder declarado», que es también zona de descarga: soltar una caja ahí la desprende | `moverEnOrganigrama()` y `organigrama.tsx` |
+| **Del alta del reclamo salieron tres campos** el 9 de octubre: el gestor del caso, «Involucra material controlado» y los otros departamentos intervinientes. Las tres columnas **quedan** en la base y la ficha las sigue mostrando —hay casos cargados con el dato, y la política `reclamos_edicion` usa `gestor_id`—; lo que se saca es la pregunta al registrar, que es cuando todavía no se sabe la respuesta. El aviso de asignación pasó a ir al **responsable del área**, que es el único asignado al registrar: atado al gestor, nadie se enteraba de que tenía un reclamo con el plazo corriendo. La regla de imparcialidad —el gestor no puede ser quien originó la falla— queda en el `CHECK` de la base | `formulario-reclamo.tsx` y `avisarAlAsignado()` |
 | Archivo del documento: PDF para manual, procedimiento, instructivo, política y plan; formato editable para formulario y registro | `FORMATO_POR_TIPO` en `lib/adjuntos.ts` |
 
 ### Decisiones tomadas por defecto
@@ -346,9 +348,12 @@ Quedaron así por falta de definición explícita. Son reversibles:
   invitaba a confundir cuál rige. El **Panel de NPS** salió de «Comercial y marketing» al
   grupo «Para toda la empresa»: lo lleva Marketing, pero mide a toda la empresa y lo
   consulta cualquiera.
-- **Las solicitudes por área NO se absorben**: los seis formularios de
-  Apps Script —TI, Logística, Marketing, Administración, Calidad y compra
-  interna— se enlazan desde Aplicaciones y siguen viviendo en Workspace.
+- **Las solicitudes por área NO se absorben**: los siete formularios de
+  Apps Script —TI, Logística, Marketing, Administración, Calidad,
+  Comercial y compra interna— se enlazan desde Aplicaciones y siguen
+  viviendo en Workspace. El de Comercial es la solicitud de crédito por
+  QR: el asesor comparte el enlace con el cliente y la solicitud entra a
+  la base que revisa Créditos y Cobranzas.
   Se evaluó traerlos adentro y se decidió que no: funcionan, están en uso
   y reemplazarlos era mucho trabajo para no cambiar nada que la gente
   note. La razón está escrita en `lib/aplicaciones.ts`.
