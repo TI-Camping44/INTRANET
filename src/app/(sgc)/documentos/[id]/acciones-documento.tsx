@@ -127,21 +127,45 @@ export function AccionesDocumento({
     definirArchivo(elegido);
   }
 
-  // CADA CAMPO ARRANCA EN «SE MANTIENE IGUAL». Vacío quiere decir
-  // exactamente eso: el servidor no toca lo que no viene. Hizo falta
-  // porque una versión nueva no siempre es el mismo documento con otro
-  // contenido —puede cambiarle el código, el nombre o hasta la empresa—
-  // y hasta ahora el nombre viejo quedaba pegado al archivo nuevo.
-  const [nuevoTipo, definirNuevoTipo] = React.useState("");
-  const [nuevaEmpresa, definirNuevaEmpresa] = React.useState("");
-  const [nuevoProceso, definirNuevoProceso] = React.useState("");
+  // TODOS LOS CAMPOS SON OBLIGATORIOS, y «Se mantiene igual» es una de
+  // las respuestas válidas. No es lo mismo que dejarlo vacío: obliga a
+  // decidir campo por campo qué pasa con la cabecera, en vez de que lo
+  // viejo se arrastre por descuido. Eso fue lo que pasó la primera vez
+  // que se versionó: se cargó un archivo distinto y el nombre siguió
+  // siendo el anterior.
+  //
+  // Los tres de texto llevan su propio desplegable —«Se mantiene igual»
+  // o «Cambiar»— porque una caja vacía no distingue entre «no lo toco»
+  // y «me olvidé de escribirlo».
+  const IGUAL = "igual";
+
+  const [nuevoTipo, definirNuevoTipo] = React.useState(IGUAL);
+  const [nuevaEmpresa, definirNuevaEmpresa] = React.useState(IGUAL);
+  const [nuevoProceso, definirNuevoProceso] = React.useState(IGUAL);
+
+  const [modoCodigo, definirModoCodigo] = React.useState(IGUAL);
+  const [modoCategoria, definirModoCategoria] = React.useState(IGUAL);
+  const [modoTitulo, definirModoTitulo] = React.useState(IGUAL);
+
   const [nuevoCodigo, definirNuevoCodigo] = React.useState("");
   const [nuevaCategoria, definirNuevaCategoria] = React.useState("");
   const [nuevoTitulo, definirNuevoTitulo] = React.useState("");
 
+  // Está listo cuando hay archivo y cada campo que se eligió cambiar
+  // tiene su valor. El diálogo no es un formulario —el botón no hace
+  // `submit`—, así que el control vive acá y no en el `required` del
+  // navegador, que sin formulario no hace nada.
+  const laVersionEstaLista =
+    Boolean(archivo) &&
+    (modoCodigo === IGUAL || nuevoCodigo.trim().length > 0) &&
+    (modoCategoria === IGUAL || nuevaCategoria.trim().length > 0) &&
+    (modoTitulo === IGUAL || nuevoTitulo.trim().length >= 4);
+
   // El formato admitido lo decide el tipo que va a quedar, no el que
   // tiene hoy: si la versión nueva cambia de tipo, cambia el formato.
-  const tipoQueQueda = (nuevoTipo || tipoDocumento) as typeof tipoDocumento;
+  const tipoQueQueda = (nuevoTipo === IGUAL
+    ? tipoDocumento
+    : nuevoTipo) as typeof tipoDocumento;
 
   // Lo que el documento dice hoy, para que «Se mantiene igual» diga qué
   // es lo que se mantiene en vez de dejarlo adivinar.
@@ -155,9 +179,12 @@ export function AccionesDocumento({
   function limpiarLaVersion() {
     definirDialogoVersion(false);
     definirArchivo(null);
-    definirNuevoTipo("");
-    definirNuevaEmpresa("");
-    definirNuevoProceso("");
+    definirModoCodigo(IGUAL);
+    definirModoCategoria(IGUAL);
+    definirModoTitulo(IGUAL);
+    definirNuevoTipo(IGUAL);
+    definirNuevaEmpresa(IGUAL);
+    definirNuevoProceso(IGUAL);
     definirNuevoCodigo("");
     definirNuevaCategoria("");
     definirNuevoTitulo("");
@@ -165,13 +192,14 @@ export function AccionesDocumento({
 
   async function subirLaSiguienteVersion() {
     const datos = new FormData();
+    // «Se mantiene igual» no viaja: el servidor no toca lo que no llega.
     if (archivo) datos.set("archivo", archivo);
-    if (nuevoTipo) datos.set("tipo", nuevoTipo);
-    if (nuevaEmpresa) datos.set("empresa_documento_id", nuevaEmpresa);
-    if (nuevoProceso) datos.set("proceso_documento_id", nuevoProceso);
-    if (nuevoCodigo.trim()) datos.set("codigo", nuevoCodigo.trim());
-    if (nuevaCategoria.trim()) datos.set("categoria", nuevaCategoria.trim());
-    if (nuevoTitulo.trim()) datos.set("titulo", nuevoTitulo.trim());
+    if (nuevoTipo !== IGUAL) datos.set("tipo", nuevoTipo);
+    if (nuevaEmpresa !== IGUAL) datos.set("empresa_documento_id", nuevaEmpresa);
+    if (nuevoProceso !== IGUAL) datos.set("proceso_documento_id", nuevoProceso);
+    if (modoCodigo !== IGUAL) datos.set("codigo", nuevoCodigo.trim());
+    if (modoCategoria !== IGUAL) datos.set("categoria", nuevaCategoria.trim());
+    if (modoTitulo !== IGUAL) datos.set("titulo", nuevoTitulo.trim());
     return actualizarALaSiguienteVersion(documentoId, datos);
   }
 
@@ -510,18 +538,18 @@ export function AccionesDocumento({
                 Cada campo arranca en «Se mantiene igual» y lo que se
                 deja así no viaja: el servidor no toca lo que no llega. */}
             <p className="border-t border-borde pt-3 text-[11px] text-atenuado-contraste">
-              Lo de abajo, solo si la versión nueva lo cambia. Lo que deje en «Se mantiene
-              igual» queda como está.
+              Los seis campos son obligatorios, y «Se mantiene igual» es una respuesta válida:
+              se contesta uno por uno qué pasa con la cabecera.
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <GrupoCampo etiqueta="Tipo de documento" htmlFor="tipo-version">
+              <GrupoCampo etiqueta="Tipo de documento" htmlFor="tipo-version" requerido>
                 <Seleccion
                   id="tipo-version"
                   value={nuevoTipo}
                   onChange={(evento) => definirNuevoTipo(evento.target.value)}
                 >
-                  <option value="">
+                  <option value={IGUAL}>
                     Se mantiene igual ({ETIQUETAS_TIPO_DOCUMENTO[tipoDocumento]})
                   </option>
                   {TIPOS_DOCUMENTO_VIGENTES.map((valor) => (
@@ -532,13 +560,13 @@ export function AccionesDocumento({
                 </Seleccion>
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="Empresa" htmlFor="empresa-version">
+              <GrupoCampo etiqueta="Empresa" htmlFor="empresa-version" requerido>
                 <Seleccion
                   id="empresa-version"
                   value={nuevaEmpresa}
                   onChange={(evento) => definirNuevaEmpresa(evento.target.value)}
                 >
-                  <option value="">
+                  <option value={IGUAL}>
                     Se mantiene igual
                     {empresaDeHoy ? ` (${empresaDeHoy.nombre})` : ""}
                   </option>
@@ -553,44 +581,70 @@ export function AccionesDocumento({
               <GrupoCampo
                 etiqueta="Código controlado"
                 htmlFor="codigo-version"
-                ayuda="Escríbalo conforme al documento original."
+                requerido
+                ayuda={
+                  modoCodigo === IGUAL
+                    ? undefined
+                    : "Escríbalo conforme al documento original."
+                }
               >
-                <Entrada
+                <Seleccion
                   id="codigo-version"
-                  value={nuevoCodigo}
-                  onChange={(evento) => definirNuevoCodigo(evento.target.value.toUpperCase())}
-                  placeholder={
-                    cabecera.codigo
-                      ? `Se mantiene igual (${cabecera.codigo})`
-                      : "Se mantiene igual"
-                  }
-                  className="tabular"
-                />
+                  value={modoCodigo}
+                  onChange={(evento) => definirModoCodigo(evento.target.value)}
+                >
+                  <option value={IGUAL}>
+                    Se mantiene igual{cabecera.codigo ? ` (${cabecera.codigo})` : " (sin código)"}
+                  </option>
+                  <option value="cambiar">Cambiar</option>
+                </Seleccion>
+                {modoCodigo === IGUAL ? null : (
+                  <Entrada
+                    value={nuevoCodigo}
+                    onChange={(evento) => definirNuevoCodigo(evento.target.value.toUpperCase())}
+                    placeholder="MP-SOP-01"
+                    aria-label="Código controlado nuevo"
+                    className="mt-1.5 tabular"
+                  />
+                )}
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="Categoría" htmlFor="categoria-version">
-                <Entrada
+              <GrupoCampo etiqueta="Categoría" htmlFor="categoria-version" requerido>
+                <Seleccion
                   id="categoria-version"
-                  list="categorias-de-la-version"
-                  value={nuevaCategoria}
-                  onChange={(evento) => definirNuevaCategoria(evento.target.value)}
-                  placeholder={
-                    cabecera.categoria
-                      ? `Se mantiene igual (${cabecera.categoria})`
-                      : "Se mantiene igual"
-                  }
-                />
-                <datalist id="categorias-de-la-version">
-                  {categorias.map((nombre) => (
-                    <option key={nombre} value={nombre} />
-                  ))}
-                </datalist>
+                  value={modoCategoria}
+                  onChange={(evento) => definirModoCategoria(evento.target.value)}
+                >
+                  <option value={IGUAL}>
+                    Se mantiene igual
+                    {cabecera.categoria ? ` (${cabecera.categoria})` : " (sin categoría)"}
+                  </option>
+                  <option value="cambiar">Cambiar</option>
+                </Seleccion>
+                {modoCategoria === IGUAL ? null : (
+                  <>
+                    <Entrada
+                      list="categorias-de-la-version"
+                      value={nuevaCategoria}
+                      onChange={(evento) => definirNuevaCategoria(evento.target.value)}
+                      placeholder="Políticas"
+                      aria-label="Categoría nueva"
+                      className="mt-1.5"
+                    />
+                    <datalist id="categorias-de-la-version">
+                      {categorias.map((nombre) => (
+                        <option key={nombre} value={nombre} />
+                      ))}
+                    </datalist>
+                  </>
+                )}
               </GrupoCampo>
 
               <GrupoCampo
                 etiqueta="Proceso al que pertenece"
                 htmlFor="proceso-version"
                 className="sm:col-span-2"
+                requerido
               >
                 <Seleccion
                   id="proceso-version"
@@ -598,7 +652,7 @@ export function AccionesDocumento({
                   onChange={(evento) => definirNuevoProceso(evento.target.value)}
                   disabled={manuales.length === 0}
                 >
-                  <option value="">
+                  <option value={IGUAL}>
                     Se mantiene igual
                     {procesoDeHoy ? ` (${procesoDeHoy.titulo})` : ""}
                   </option>
@@ -613,13 +667,30 @@ export function AccionesDocumento({
                 </Seleccion>
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="Título" htmlFor="titulo-version" className="sm:col-span-2">
-                <Entrada
+              <GrupoCampo
+                etiqueta="Título"
+                htmlFor="titulo-version"
+                className="sm:col-span-2"
+                requerido
+                ayuda={modoTitulo === IGUAL ? undefined : "Al menos 4 caracteres."}
+              >
+                <Seleccion
                   id="titulo-version"
-                  value={nuevoTitulo}
-                  onChange={(evento) => definirNuevoTitulo(evento.target.value)}
-                  placeholder={`Se mantiene igual (${cabecera.titulo})`}
-                />
+                  value={modoTitulo}
+                  onChange={(evento) => definirModoTitulo(evento.target.value)}
+                >
+                  <option value={IGUAL}>Se mantiene igual ({cabecera.titulo})</option>
+                  <option value="cambiar">Cambiar</option>
+                </Seleccion>
+                {modoTitulo === IGUAL ? null : (
+                  <Entrada
+                    value={nuevoTitulo}
+                    onChange={(evento) => definirNuevoTitulo(evento.target.value)}
+                    placeholder="Manual de recepción de mercadería"
+                    aria-label="Título nuevo"
+                    className="mt-1.5"
+                  />
+                )}
               </GrupoCampo>
             </div>
           </div>
@@ -630,7 +701,7 @@ export function AccionesDocumento({
             </DialogoCierre>
             <Boton
               cargando={procesando}
-              disabled={!archivo}
+              disabled={!laVersionEstaLista}
               onClick={() => ejecutar(subirLaSiguienteVersion, limpiarLaVersion)}
             >
               Actualizar a {etiquetaSiguiente}
