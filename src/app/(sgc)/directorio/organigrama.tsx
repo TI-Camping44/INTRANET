@@ -21,6 +21,20 @@ export interface NodoOrganigrama {
   ingreso: boolean;
   lider_clave: string | null;
   lider_manual: boolean;
+  /** La empresa del puesto, tal como la declara el padrón. */
+  empresa: string | null;
+}
+
+/**
+ * Si el puesto es de la otra empresa del grupo.
+ *
+ * Se mira la empresa DEL PUESTO, no `empresa_id`, que siempre vale
+ * Camping 44 porque es el inquilino de RLS. La gente de Vitalica entra
+ * con su propio dominio pero vive bajo el mismo inquilino: si se la
+ * marcara por `empresa_id` no se marcaría nunca.
+ */
+function esDeVitalica(empresa: string | null): boolean {
+  return (empresa ?? "").trim().toLowerCase().startsWith("vitalica");
 }
 
 interface Rama extends NodoOrganigrama {
@@ -124,6 +138,7 @@ function Caja({
 }) {
   const recibiendo = edicion?.sobre === nodo.clave;
   const moviendose = edicion?.arrastrado === nodo.clave;
+  const vitalica = esDeVitalica(nodo.empresa);
 
   return (
     <div
@@ -140,16 +155,26 @@ function Caja({
         evento.preventDefault();
         edicion?.colgarDe(nodo.clave);
       }}
-      className={`flex w-[10.5rem] flex-col items-center gap-1 rounded-lg border bg-tarjeta px-2
-                  py-2 text-center ${edicion ? "cursor-grab" : ""} ${
+      className={`relative flex w-[10.5rem] flex-col items-center gap-1 overflow-hidden
+                  rounded-lg border bg-tarjeta px-2 py-2 text-center ${
+                    edicion ? "cursor-grab" : ""
+                  } ${
                     recibiendo
                       ? "border-primario ring-2 ring-primario/30"
                       : moviendose
                         ? "border-dashed border-primario/60 opacity-60"
-                        : "border-borde"
+                        : vitalica
+                          ? "border-vitalica/50"
+                          : "border-borde"
                   }`}
       title={edicion ? "Arrastre esta caja sobre otra para cambiar de quién depende" : undefined}
     >
+      {/* UNA FRANJA, NO UN RELLENO. El color tiene que distinguir sin
+          competir con el texto, que es lo que se viene a leer. */}
+      {vitalica ? (
+        <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-vitalica" />
+      ) : null}
+
       <Avatar className="size-7">
         {nodo.url_avatar ? (
           <AvatarImagen src={nodo.url_avatar} alt={nodo.nombre_completo} />
@@ -175,8 +200,22 @@ function Caja({
         )
       ) : null}
 
+      {/* EL ÁREA, que es la otra mitad de la jerarquía: mover una caja
+          dice de quién depende y dónde queda ubicada. */}
+      {nodo.area ? (
+        <span className="rounded-sm bg-atenuado px-1 py-px text-[9px] leading-tight text-atenuado-contraste">
+          {nodo.area}
+        </span>
+      ) : null}
+
       {!nodo.ingreso ? (
         <span className="text-[9px] text-atenuado-contraste">Sin ingresar</span>
+      ) : null}
+
+      {vitalica ? (
+        <span className="text-[9px] font-semibold uppercase tracking-wide text-vitalica">
+          Vitalica
+        </span>
       ) : null}
 
       {nodo.lider_manual ? (
@@ -285,6 +324,8 @@ export function Organigrama({
   const [arrastrado, definirArrastrado] = React.useState<string | null>(null);
   const [sobre, definirSobre] = React.useState<string | null>(null);
   const [guardando, definirGuardando] = React.useState(false);
+
+  const deVitalica = nodos.filter((nodo) => esDeVitalica(nodo.empresa)).length;
 
   const edicion: Edicion | null = puedeEditar
     ? {
@@ -405,6 +446,15 @@ export function Organigrama({
             <Maximize2 />
           </Boton>
         </div>
+
+        {/* La referencia del color. Un color sin su referencia es una
+            mancha: hay que decir qué significa. */}
+        {deVitalica > 0 ? (
+          <span className="flex items-center gap-1.5 text-[11px] text-atenuado-contraste">
+            <span aria-hidden className="h-2.5 w-4 rounded-sm bg-vitalica" />
+            {deVitalica} de Vitalica E.A.S.
+          </span>
+        ) : null}
 
         <p className="text-[11px] text-atenuado-contraste">
           Arrastre el fondo para moverse. Toque el número de una caja para abrir o cerrar su

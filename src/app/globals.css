@@ -43,6 +43,11 @@
     --semaforo-alto: 25 95% 48%;
     --semaforo-critico: 352 76% 50%;
 
+    /* La otra empresa del grupo. No es un semaforo: el naranja no dice
+       «cuidado», dice «esto es de Vitalica». Por eso es un color aparte
+       y no `--semaforo-alto`, que casualmente es del mismo tono. */
+    --vitalica: 24 88% 42%;
+
     --radio: 0.375rem;
   }
 
@@ -79,6 +84,8 @@
     --semaforo-medio: 38 85% 55%;
     --semaforo-alto: 25 90% 58%;
     --semaforo-critico: 352 76% 58%;
+
+    --vitalica: 26 90% 58%;
   }
 }
 

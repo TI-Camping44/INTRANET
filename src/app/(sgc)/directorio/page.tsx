@@ -9,7 +9,7 @@ import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { requerirUsuario } from "@/lib/sesion";
+import { puedeEditarElOrganigrama, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { iniciales } from "@/lib/utilidades";
 
@@ -182,8 +182,9 @@ export default async function PaginaDirectorio({
               ingreso: persona.ingreso,
               lider_clave: persona.lider_clave,
               lider_manual: persona.lider_manual,
+              empresa: persona.empresa_del_puesto,
             }))}
-            puedeEditar={usuario.rol === "administrador_sgc"}
+            puedeEditar={puedeEditarElOrganigrama(usuario)}
           />
         </div>
       ) : (
@@ -198,7 +199,7 @@ export default async function PaginaDirectorio({
               }
               descripcion={
                 personas.length === 0
-                  ? "La nómina se carga desde la exportación de Odoo, en Administración · Padrón de la nómina."
+                  ? "La nómina se carga desde la exportación de Odoo, en Configuraciones · Padrón de la nómina."
                   : "Pruebe con otro nombre, puesto o departamento."
               }
             />

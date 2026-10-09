@@ -60,6 +60,8 @@ const configuracion: Config = {
           alto: "hsl(var(--semaforo-alto))",
           critico: "hsl(var(--semaforo-critico))",
         },
+        // La otra empresa del grupo, para distinguirla de un vistazo.
+        vitalica: "hsl(var(--vitalica))",
       },
       borderRadius: {
         lg: "var(--radio)",

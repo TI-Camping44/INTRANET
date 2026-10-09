@@ -101,6 +101,22 @@ export function esSoloLectura(usuario: Usuario | null): boolean {
   return usuario?.rol === "direccion";
 }
 
+/**
+ * Quien puede mover el organigrama: Calidad y Dirección.
+ *
+ * ES LA ÚNICA ESCRITURA DE DIRECCIÓN EN TODO EL SISTEMA. El rol es de
+ * solo lectura en los demás módulos y sigue siéndolo; esta es la
+ * excepción, y es deliberada: la línea de reporte la conoce Dirección,
+ * no Calidad, y el dato que trae Odoo no siempre es el real.
+ *
+ * El permiso de verdad está en `mover_en_organigrama()`, que es
+ * `SECURITY DEFINER` y vuelve a comprobarlo. Esto solo decide si la
+ * pantalla deja arrastrar: ocultar un botón no es un control de acceso.
+ */
+export function puedeEditarElOrganigrama(usuario: Usuario | null): boolean {
+  return usuario?.rol === "administrador_sgc" || usuario?.rol === "direccion";
+}
+
 /** Gestiona el programa de auditorias: Calidad y los auditores internos. */
 export function puedeGestionarAuditorias(usuario: Usuario | null): boolean {
   return usuario?.rol === "administrador_sgc" || usuario?.rol === "auditor";

@@ -282,7 +282,12 @@ export const NAVEGACION: GrupoNavegacion[] = [
     ],
   },
   {
-    titulo: "Administración",
+    // Se llamaba «Administración» y pasó a «Configuraciones» el 9 de
+    // octubre. Administración es además un área de la empresa, así que
+    // el menú se leía como «las pantallas del área de Administración»,
+    // que no es lo que hay adentro: lo que hay es la configuración del
+    // sistema.
+    titulo: "Configuraciones",
     entradas: [
       {
         titulo: "Usuarios y roles",
