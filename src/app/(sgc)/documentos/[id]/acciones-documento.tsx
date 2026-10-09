@@ -81,7 +81,6 @@ export function AccionesDocumento({
   const [dialogoVersion, definirDialogoVersion] = React.useState(false);
   const [validador, definirValidador] = React.useState("");
   const [aprobador, definirAprobador] = React.useState("");
-  const [resumen, definirResumen] = React.useState("");
   const [archivo, definirArchivo] = React.useState<File | null>(null);
   const [dialogoAnular, definirDialogoAnular] = React.useState(false);
   const [motivoAnulacion, definirMotivoAnulacion] = React.useState("");
@@ -111,7 +110,6 @@ export function AccionesDocumento({
 
   async function subirLaSiguienteVersion() {
     const datos = new FormData();
-    datos.set("resumen_cambios", resumen);
     if (archivo) datos.set("archivo", archivo);
     return actualizarALaSiguienteVersion(documentoId, datos);
   }
@@ -407,9 +405,9 @@ export function AccionesDocumento({
               Actualizar a {etiquetaSiguiente}
             </DialogoTitulo>
             <DialogoDescripcion>
-              Suba el archivo nuevo y diga qué cambió. {etiquetaActual} queda obsoleta —se
-              conserva con su archivo y sus firmas— y el documento pasa a {etiquetaSiguiente} en
-              borrador, para validarse y aprobarse como cualquier versión.
+              Suba el archivo nuevo y nada más. {etiquetaActual} queda obsoleta —se conserva con
+              su archivo y sus firmas, y se ve en la pestaña «Obsoletos»— y el documento pasa a{" "}
+              {etiquetaSiguiente}, para validarse y aprobarse como cualquier versión.
             </DialogoDescripcion>
           </DialogoCabecera>
 
@@ -436,20 +434,6 @@ export function AccionesDocumento({
               ) : null}
             </GrupoCampo>
 
-            <GrupoCampo
-              etiqueta="Qué cambió"
-              htmlFor="resumen"
-              requerido
-              ayuda="Queda registrado en el historial de versiones del documento."
-            >
-              <AreaTexto
-                id="resumen"
-                rows={3}
-                value={resumen}
-                onChange={(evento) => definirResumen(evento.target.value)}
-                placeholder="Se incorpora el control de temperatura en la recepción."
-              />
-            </GrupoCampo>
           </div>
 
           <DialogoPie>
@@ -458,11 +442,10 @@ export function AccionesDocumento({
             </DialogoCierre>
             <Boton
               cargando={procesando}
-              disabled={resumen.trim().length < 5}
+              disabled={!archivo}
               onClick={() =>
                 ejecutar(subirLaSiguienteVersion, () => {
                   definirDialogoVersion(false);
-                  definirResumen("");
                   definirArchivo(null);
                 })
               }

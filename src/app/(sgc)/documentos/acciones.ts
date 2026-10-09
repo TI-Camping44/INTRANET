@@ -352,13 +352,17 @@ export async function actualizarALaSiguienteVersion(
     return { exito: false, error: "Su rol no permite versionar documentos." };
   }
 
-  const resumen = String(datos.get("resumen_cambios") ?? "").trim();
-  if (resumen.length < 5) {
-    return {
-      exito: false,
-      error: "Escriba el motivo del cambio: queda en el historial de versiones del documento.",
-    };
+  // SOLO SE PIDE EL ARCHIVO. Direccion lo definio el 9 de octubre:
+  // actualizar de version es cargar el contenido nuevo y nada mas. El
+  // motivo queda como texto por omision en el historial; quien quiera
+  // escribirlo lo corrige despues desde la ficha.
+  const archivo = datos.get("archivo");
+  if (!(archivo instanceof File) || archivo.size === 0) {
+    return { exito: false, error: "Elija el archivo de la versión nueva." };
   }
+
+  const resumen =
+    String(datos.get("resumen_cambios") ?? "").trim() || "Actualización de contenido.";
 
   const supabase = crearClienteServidor();
 
@@ -424,19 +428,16 @@ export async function actualizarALaSiguienteVersion(
 
   // El archivo viaja en el mismo envio, igual que en el alta. Si falla,
   // la version ya quedo creada y el mensaje lo dice: perderla seria peor.
-  const archivo = datos.get("archivo");
-  if (archivo instanceof File && archivo.size > 0) {
-    const resultado = await subirArchivoDocumento(documentoId, datos);
-    if (!resultado.exito) {
-      revalidatePath(`/documentos/${documentoId}`);
-      revalidatePath("/documentos");
-      return {
-        exito: true,
-        mensaje:
-          `El documento quedó en ${etiqueta}, pero el archivo no se pudo subir: ` +
-          `${resultado.error} Puede cargarlo desde la ficha, en Archivos.`,
-      };
-    }
+  const resultado = await subirArchivoDocumento(documentoId, datos);
+  if (!resultado.exito) {
+    revalidatePath(`/documentos/${documentoId}`);
+    revalidatePath("/documentos");
+    return {
+      exito: true,
+      mensaje:
+        `El documento quedó en ${etiqueta}, pero el archivo no se pudo subir: ` +
+        `${resultado.error} Puede cargarlo desde la ficha, en Archivos.`,
+    };
   }
 
   revalidatePath(`/documentos/${documentoId}`);
@@ -444,8 +445,8 @@ export async function actualizarALaSiguienteVersion(
   return {
     exito: true,
     mensaje:
-      `El documento quedó en ${etiqueta}, en borrador. La versión anterior pasó a obsoleta. ` +
-      "Envíelo a validar y aprobar para dejarlo vigente.",
+      `El documento quedó en ${etiqueta}. La versión anterior pasó a obsoleta y se ve en ` +
+      "la pestaña «Obsoletos». Envíelo a validar y aprobar para dejarlo vigente.",
   };
 }
 
