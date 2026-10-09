@@ -291,6 +291,7 @@ en la base de datos y en `src/lib/`.
 | Un mes con menos de 5 respuestas no se grafica: el índice deja de significar algo | `RESPUESTAS_MINIMAS_NPS` |
 | Solo puede haber una publicación fijada a la vez | `fijarPublicacion()` |
 | Plazo para cerrar una NC: **5 días corridos desde la detección, siempre**. No se escribe a mano | Disparador `completar_no_conformidad()` y `DIAS_LIMITE_CIERRE_NC` |
+| **Definir el plan del reclamo es cargar sus acciones**: el paso pide acción, responsable y plazo, y admite las que hagan falta. Antes el paso solo pedía la fecha y después rechazaba el cambio pidiendo cargarlas en otra tarjeta, que es una vuelta que nadie adivina | `cambiarEstadoReclamo()` y `panel-caso.tsx` |
 | Origen de la NC: los seis del formulario de Calidad. Los valores del enumerado conservan su nombre viejo; lo que cambió es la etiqueta | `ETIQUETAS_ORIGEN_NC` y `ORIGENES_NC_VIGENTES` |
 | Severidad de la NC: Menor, Mayor, Observación/Recomendación. «Crítica» no existe en Camping 44 | `ETIQUETAS_SEVERIDAD_NC` y el enumerado `severidad_no_conformidad` |
 | Ciclo de la NC en tres estados: abierta, en tratamiento, cerrada | `ESTADOS_NC_VIGENTES` |

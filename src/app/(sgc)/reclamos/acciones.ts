@@ -413,6 +413,32 @@ export async function cambiarEstadoReclamo(
   }
 
   if (nuevoEstado === "plan_definido") {
+    // LAS ACCIONES SE CARGAN EN ESTE MISMO PASO. Definir el plan ES
+    // decir que se hace, quien lo hace y cuando: antes el paso solo
+    // pedia la fecha y despues rechazaba el cambio pidiendo que las
+    // acciones se cargaran en otra tarjeta, que es una vuelta que nadie
+    // adivina. Las que vengan en el formulario se agregan; las que ya
+    // estaban no se tocan.
+    const { filas, error: problema } = leerAccionesDelPlan(datos);
+    if (problema) return { exito: false, error: problema };
+
+    if (filas.length > 0) {
+      const { error: alGuardar } = await supabase.from("reclamo_acciones").insert(
+        filas.map((fila) => ({
+          reclamo_id: id,
+          descripcion: fila.descripcion,
+          responsable_id: fila.responsable_id,
+          fecha_limite: fila.fecha_limite,
+        })),
+      );
+      if (alGuardar) {
+        return {
+          exito: false,
+          error: `No se pudieron guardar las acciones del plan: ${alGuardar.message}`,
+        };
+      }
+    }
+
     const { count } = await supabase
       .from("reclamo_acciones")
       .select("id", { count: "exact", head: true })
@@ -556,17 +582,27 @@ export async function cambiarEstadoReclamo(
 }
 
 /** Las acciones del plan: que se hace, quien lo hace y cuando. */
-export async function guardarAccionesDelPlan(
-  reclamoId: string,
-  datos: FormData,
-): Promise<ResultadoAccion> {
-  const usuario = await requerirUsuario();
-  if (esSoloLectura(usuario)) {
-    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
-  }
+/** Una accion del plan tal como llega del formulario. */
+interface AccionEnviada {
+  id: string | null;
+  descripcion: string;
+  responsable_id: string | null;
+  fecha_limite: string | null;
+  ejecutada_en: string | null;
+}
 
-  const supabase = crearClienteServidor();
-
+/**
+ * Lee las acciones del formulario y las revisa.
+ *
+ * La comparten la tarjeta de acciones y el paso «Definir el plan de
+ * accion»: el procedimiento pide lo mismo en los dos lados —que se
+ * hace, quien lo hace y cuando— y tener dos lecturas distintas era
+ * tener dos reglas que se iban a separar.
+ */
+function leerAccionesDelPlan(datos: FormData): {
+  filas: AccionEnviada[];
+  error: string | null;
+} {
   const ids = datos.getAll("accion_id").map(String);
   const descripciones = datos.getAll("accion_descripcion").map((v) => String(v).trim());
   const responsables = datos.getAll("accion_responsable").map(String);
@@ -583,20 +619,36 @@ export async function guardarAccionesDelPlan(
     }))
     .filter((fila) => fila.descripcion.length > 0);
 
-  if (filas.length === 0) {
-    return { exito: false, error: "Cargue al menos una acción." };
-  }
-
   for (const fila of filas) {
     if (fila.descripcion.length < 10) {
-      return { exito: false, error: "Describa cada acción con al menos 10 caracteres." };
+      return { filas, error: "Describa cada acción con al menos 10 caracteres." };
     }
     if (!fila.responsable_id) {
-      return { exito: false, error: "Cada acción necesita un responsable." };
+      return { filas, error: "Cada acción necesita un responsable." };
     }
     if (!fila.fecha_limite) {
-      return { exito: false, error: "Cada acción necesita una fecha límite." };
+      return { filas, error: "Cada acción necesita una fecha límite." };
     }
+  }
+
+  return { filas, error: null };
+}
+
+export async function guardarAccionesDelPlan(
+  reclamoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const { filas, error: problema } = leerAccionesDelPlan(datos);
+  if (problema) return { exito: false, error: problema };
+  if (filas.length === 0) {
+    return { exito: false, error: "Cargue al menos una acción." };
   }
 
   // Las que se sacaron del formulario se borran primero, para que la

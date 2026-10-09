@@ -84,6 +84,23 @@ export function PanelCaso({
   const [monto, definirMonto] = React.useState("");
   const [factura, definirFactura] = React.useState("");
 
+  // LAS ACCIONES SE CARGAN AL DEFINIR EL PLAN. Definir el plan ES decir
+  // qué se hace, quién lo hace y cuándo: antes el paso solo pedía la
+  // fecha y después rechazaba el cambio pidiendo cargarlas en la
+  // tarjeta de arriba, que es una vuelta que nadie adivina.
+  const [nuevasAcciones, definirNuevasAcciones] = React.useState([{ clave: 0 }]);
+  const claveSiguiente = React.useRef(1);
+
+  function agregarAccionDelPaso() {
+    definirNuevasAcciones((actuales) => [...actuales, { clave: claveSiguiente.current++ }]);
+  }
+
+  function quitarAccionDelPaso(clave: number) {
+    definirNuevasAcciones((actuales) =>
+      actuales.length === 1 ? actuales : actuales.filter((fila) => fila.clave !== clave),
+    );
+  }
+
   const posibles = TRANSICIONES_RECLAMO[estado];
 
   const etiquetas: Partial<Record<EstadoReclamo, string>> = {
@@ -116,6 +133,7 @@ export function PanelCaso({
 
     toast.success(respuesta.mensaje ?? "Actualizado.");
     definirDestino(null);
+    definirNuevasAcciones([{ clave: 0 }]);
     router.refresh();
   }
 
@@ -197,6 +215,75 @@ export function PanelCaso({
                       defaultValue={hoyEnAsuncion()}
                     />
                   </GrupoCampo>
+
+                  <div className="rounded-md border border-borde p-3">
+                    <p className="text-xs font-semibold">Acciones del plan</p>
+                    <p className="mb-2 mt-0.5 text-[11px] text-atenuado-contraste">
+                      Qué se hace, quién lo hace y cuándo. Al menos una; agregue las que hagan
+                      falta.
+                    </p>
+
+                    <div className="space-y-2">
+                      {nuevasAcciones.map((fila, indice) => (
+                        <div key={fila.clave} className="rounded-md border border-borde p-2.5">
+                          <div className="flex items-start gap-2">
+                            <AreaTexto
+                              name="accion_descripcion"
+                              rows={2}
+                              required={indice === 0}
+                              placeholder="Retirar el artículo equivocado y entregar el correcto"
+                              className="text-xs"
+                              aria-label={`Acción ${indice + 1}`}
+                            />
+                            <Boton
+                              type="button"
+                              tamano="iconoPequeno"
+                              variante="fantasma"
+                              aria-label={`Quitar la acción ${indice + 1}`}
+                              onClick={() => quitarAccionDelPaso(fila.clave)}
+                            >
+                              <X />
+                            </Boton>
+                          </div>
+
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <Seleccion
+                              name="accion_responsable"
+                              required={indice === 0}
+                              defaultValue=""
+                              className="text-xs"
+                              aria-label={`Responsable de la acción ${indice + 1}`}
+                            >
+                              <option value="">Responsable…</option>
+                              {personas.map((persona) => (
+                                <option key={persona.id} value={persona.id}>
+                                  {persona.nombre_completo}
+                                </option>
+                              ))}
+                            </Seleccion>
+                            <Entrada
+                              name="accion_fecha_limite"
+                              type="date"
+                              required={indice === 0}
+                              className="text-xs"
+                              aria-label={`Plazo de la acción ${indice + 1}`}
+                              title="Plazo"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Boton
+                      type="button"
+                      tamano="pequeno"
+                      variante="contorno"
+                      className="mt-2"
+                      onClick={agregarAccionDelPaso}
+                    >
+                      <Plus /> Agregar acción
+                    </Boton>
+                  </div>
 
                   <label className="flex items-start gap-2 text-[11px] leading-relaxed">
                     <input type="checkbox" name="tramite_digemabel" className="mt-0.5 size-3.5 accent-[#E01E37]" />
