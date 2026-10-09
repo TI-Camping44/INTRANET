@@ -23,7 +23,6 @@ import {
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
-  ETIQUETAS_EFICACIA,
   ETIQUETAS_ESTADO_RIESGO,
   ETIQUETAS_NIVEL_RIESGO,
   ETIQUETAS_TRATAMIENTO_RIESGO,
@@ -124,6 +123,28 @@ export default async function PaginaRiesgos({
 
   const { data } = await consulta;
   const riesgos = (data as FilaRiesgo[] | null) ?? [];
+
+  // El plazo de cada riesgo: el más lejano de sus acciones de
+  // tratamiento, que es cuando el tratamiento termina de operar. Una
+  // sola consulta con los ids de la página, no una por fila.
+  const { data: datosPlazos } = riesgos.length
+    ? await supabase
+        .from("riesgo_acciones")
+        .select("riesgo_id, fecha_limite")
+        .in(
+          "riesgo_id",
+          riesgos.map((riesgo) => riesgo.id),
+        )
+        .not("fecha_limite", "is", null)
+    : { data: [] };
+
+  const plazoPorRiesgo = new Map<string, string>();
+  for (const fila of (datosPlazos as { riesgo_id: string; fecha_limite: string }[] | null) ?? []) {
+    const actual = plazoPorRiesgo.get(fila.riesgo_id);
+    if (!actual || fila.fecha_limite > actual) {
+      plazoPorRiesgo.set(fila.riesgo_id, fila.fecha_limite);
+    }
+  }
 
   // Los graficos se arman sobre lo que quedo en el listado y no sobre el
   // total: si alguien filtra por proceso, los porcentajes son de ese
@@ -269,14 +290,12 @@ export default async function PaginaRiesgos({
                 <TablaEncabezado className="w-[6rem] text-center">
                   ¿Requiere acción?
                 </TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Opción de tratamiento</TablaEncabezado>
                 <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Prob. res.</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Sev. res.</TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Nivel residual</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Se mide el</TablaEncabezado>
-                <TablaEncabezado className="w-[8rem]">¿Acción eficaz?</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -331,21 +350,19 @@ export default async function PaginaRiesgos({
                   <CeldaSiNo valor={riesgo.requiere_accion} />
 
                   <CeldaTexto ancho="12rem">
-                    {riesgo.tratamiento ? ETIQUETAS_TRATAMIENTO_RIESGO[riesgo.tratamiento] : null}
-                  </CeldaTexto>
-
-                  <CeldaTexto ancho="12rem">
                     {riesgo.responsable_declarado ?? riesgo.responsable?.nombre_completo}
                   </CeldaTexto>
 
-                  {/* «Permanente» es la palabra de la matriz para los
-                      controles que no terminan: no es una fecha. */}
+                  {/* EL PLAZO SALE DE LAS ACCIONES DE LA FICHA, no de la
+                      columna vieja del riesgo, que quedó sin usar cuando
+                      las acciones pasaron a ser ilimitadas y por eso la
+                      columna mostraba siempre «—». Se toma el más
+                      lejano: es cuando el tratamiento termina de operar,
+                      y hasta entonces no hay residual que medir. */}
                   <TablaCelda className="text-xs tabular text-atenuado-contraste">
-                    {riesgo.plazo_accion_permanente
-                      ? "Permanente"
-                      : riesgo.plazo_accion
-                        ? formatearFecha(riesgo.plazo_accion)
-                        : "—"}
+                    {plazoPorRiesgo.get(riesgo.id)
+                      ? formatearFecha(plazoPorRiesgo.get(riesgo.id)!)
+                      : "—"}
                   </TablaCelda>
 
                   <TablaCelda className="text-center text-xs tabular">
@@ -366,10 +383,6 @@ export default async function PaginaRiesgos({
                     {riesgo.fecha_evaluacion_eficacia
                       ? formatearFecha(riesgo.fecha_evaluacion_eficacia)
                       : "—"}
-                  </TablaCelda>
-
-                  <TablaCelda className="text-xs text-atenuado-contraste">
-                    {riesgo.eficacia_accion ? ETIQUETAS_EFICACIA[riesgo.eficacia_accion] : "—"}
                   </TablaCelda>
 
                 </TablaFila>
