@@ -14,22 +14,48 @@ import { iniciales } from "@/lib/utilidades";
 export const metadata: Metadata = { title: "Directorio" };
 export const dynamic = "force-dynamic";
 
-interface Persona {
-  id: string;
+interface FilaDirectorio {
+  clave: string;
+  usuario_id: string | null;
   nombre_completo: string;
   correo: string;
   telefono: string | null;
   url_avatar: string | null;
   puesto_id: string | null;
-  puestos: { nombre: string; area: string | null } | null;
-  /** El segundo puesto, cuando la persona ocupa dos. */
   puesto_secundario_id: string | null;
-  segundo: { nombre: string; area: string | null } | null;
-  procesos: { nombre: string } | null;
+  proceso_nombre: string | null;
+  departamento: string | null;
+  empresa_del_puesto: string | null;
+  ingreso: boolean;
+}
+
+/**
+ * El departamento de Odoo viene como una ruta entera —«Presidencia /
+ * Comercial y Marketing / Ventas / Mayorista»— y en una tarjeta no
+ * entra. Se muestra el último tramo, que es el que ubica a la persona.
+ */
+function areaDelDepartamento(departamento: string | null): string | null {
+  if (!departamento) return null;
+  const tramos = departamento
+    .split("/")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return tramos.at(-1) ?? null;
 }
 
 /**
  * El directorio: quién es quién, y nada más.
+ *
+ * SALE DEL PADRÓN, NO DE QUIÉN SE CONECTÓ. Leía `usuarios`, que solo
+ * tiene a quien entró alguna vez con Google, así que con dos cuentas
+ * creadas mostraba dos personas y no servía para nada. El dato ya
+ * estaba: el padrón de la nómina tiene a todos con su puesto y su área.
+ * Ahora las dos fuentes se unen en `vista_directorio`, que para quien ya
+ * ingresó usa su perfil —el que el Administrador SGC pudo haber
+ * ajustado— y para el resto, el padrón.
+ *
+ * La vista deja afuera la cédula y la fecha de ingreso: el directorio lo
+ * abre cualquiera y eso no es para cualquiera.
  *
  * TENÍA TRES PESTAÑAS Y QUEDÓ CON UNA. Dirección pidió el 5 de octubre
  * sacar el organigrama y la lista de perfiles de puesto. Los perfiles
@@ -46,41 +72,33 @@ export default async function PaginaDirectorio({
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  // Los puestos se traen solo para resolver el nombre del segundo puesto
-  // de cada persona. `usuarios` tiene dos claves foráneas a `puestos` y
-  // embeber las dos en el mismo select depende de cómo PostgREST
-  // desambigüe el enlace; con la lista a mano no hace falta.
+  // Los puestos se traen aparte para resolver el nombre y el área de
+  // cada uno: la vista no es una tabla con claves foráneas, así que
+  // PostgREST no puede embeberlos.
   const [{ data }, { data: puestosCargados }] = await Promise.all([
-    supabase
-      .from("usuarios")
-      .select(
-        "id, nombre_completo, correo, telefono, url_avatar, puesto_id," +
-          " puesto_secundario_id, puestos:puesto_id (nombre, area)," +
-          " procesos:proceso_id (nombre)",
-      )
-      .eq("activo", true)
-      .order("nombre_completo"),
-    supabase
-      .from("puestos")
-      .select("id, nombre, area")
-      .eq("activo", true)
-      .order("nombre"),
+    supabase.from("vista_directorio").select("*").order("nombre_completo"),
+    supabase.from("puestos").select("id, nombre, area").eq("activo", true).order("nombre"),
   ]);
 
   const puestos =
     (puestosCargados as { id: string; nombre: string; area: string | null }[] | null) ?? [];
   const puestoPorId = new Map(puestos.map((puesto) => [puesto.id, puesto]));
 
-  const personas: Persona[] = ((data ?? []) as unknown as Persona[]).map((persona) => {
+  const personas = ((data ?? []) as unknown as FilaDirectorio[]).map((persona) => {
+    const puesto = persona.puesto_id ? puestoPorId.get(persona.puesto_id) : undefined;
     const segundo = persona.puesto_secundario_id
       ? puestoPorId.get(persona.puesto_secundario_id)
       : undefined;
 
     return {
       ...persona,
-      segundo: segundo ? { nombre: segundo.nombre, area: segundo.area } : null,
+      puesto: puesto ?? null,
+      segundo: segundo ?? null,
+      area: puesto?.area ?? areaDelDepartamento(persona.departamento),
     };
   });
+
+  const pendientes = personas.filter((persona) => !persona.ingreso).length;
 
   // El buscador filtra en el servidor sobre lo que RLS ya dejo ver.
   const texto = (searchParams.q ?? "").trim().toLowerCase();
@@ -89,10 +107,12 @@ export default async function PaginaDirectorio({
         [
           persona.nombre_completo,
           persona.correo,
-          persona.puestos?.nombre ?? "",
-          persona.puestos?.area ?? "",
+          persona.puesto?.nombre ?? "",
+          persona.area ?? "",
+          persona.departamento ?? "",
           persona.segundo?.nombre ?? "",
-          persona.procesos?.nombre ?? "",
+          persona.proceso_nombre ?? "",
+          persona.empresa_del_puesto ?? "",
         ]
           .join(" ")
           .toLowerCase()
@@ -119,14 +139,14 @@ export default async function PaginaDirectorio({
           }
           descripcion={
             personas.length === 0
-              ? "Los perfiles se crean solos cuando cada persona ingresa por primera vez."
+              ? "La nómina se carga desde la exportación de Odoo, en Administración · Padrón de la nómina."
               : "Pruebe con otro nombre, puesto o departamento."
           }
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtradas.map((persona) => (
-            <Tarjeta key={persona.id} className="p-3">
+            <Tarjeta key={persona.clave} className="p-3">
               <div className="flex gap-3">
                 <Avatar className="size-10 shrink-0">
                   {persona.url_avatar ? (
@@ -139,14 +159,15 @@ export default async function PaginaDirectorio({
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold">{persona.nombre_completo}</p>
-                  {persona.puesto_id && persona.puestos ? (
+
+                  {persona.puesto_id && persona.puesto ? (
                     <Link
                       href={`/recursos-humanos/puestos/${persona.puesto_id}`}
                       className="flex items-center gap-1 truncate text-[11px]
                                  text-atenuado-contraste hover:text-primario"
                       title="Ver el perfil del puesto"
                     >
-                      <span className="truncate">{persona.puestos.nombre}</span>
+                      <span className="truncate">{persona.puesto.nombre}</span>
                       <FileText className="size-3 shrink-0" />
                     </Link>
                   ) : (
@@ -168,11 +189,20 @@ export default async function PaginaDirectorio({
                     </Link>
                   ) : null}
 
-                  {persona.puestos?.area ? (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      <Insignia variante="contorno">{persona.puestos.area}</Insignia>
-                    </div>
-                  ) : null}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {persona.area ? (
+                      <Insignia variante="contorno">{persona.area}</Insignia>
+                    ) : null}
+
+                    {/* Quién todavía no se conectó. Es dato útil para
+                        seguir la puesta en marcha, no un reproche: va
+                        en gris, del mismo tamaño que el resto. */}
+                    {!persona.ingreso ? (
+                      <Insignia variante="neutra" title="Figura en la nómina y todavía no ingresó">
+                        Sin ingresar
+                      </Insignia>
+                    ) : null}
+                  </div>
 
                   <div className="mt-2 space-y-0.5">
                     <a
@@ -200,8 +230,9 @@ export default async function PaginaDirectorio({
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {filtradas.length} de {personas.length} persona{personas.length === 1 ? "" : "s"}. El
-        perfil de cada puesto se adjunta en Personas · Perfil de Resultados de Puesto.
+        {filtradas.length} de {personas.length} persona{personas.length === 1 ? "" : "s"}
+        {pendientes > 0 ? ` · ${pendientes} todavía no ingresaron al sistema` : ""}. El perfil de
+        cada puesto se adjunta en Personas · Perfil de Resultados de Puesto.
       </p>
     </>
   );
