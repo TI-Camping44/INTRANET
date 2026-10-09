@@ -75,12 +75,19 @@ interface FilaDocumento {
  * equivocada.
  */
 const VISTAS: Record<string, { etiqueta: string; estados: EstadoDocumento[] }> = {
-  // «Todos» es la pestaña de entrada y la que el menú nombra. Incluye
-  // los anulados: Dirección sacó su pestaña el 8 de octubre, y un estado
-  // que existe y no aparece en ninguna lista es un registro escondido.
+  // «Todos» es la pestaña de entrada y la que el menú nombra: es la
+  // lista maestra, o sea lo que está en uso.
+  //
+  // NO LLEVA LOS OBSOLETOS. Dirección lo pidió el 9 de octubre: un
+  // documento que se retiró de circulación mezclado con los vigentes es
+  // justo lo que hace que alguien trabaje con la versión equivocada.
+  // Tienen su propia pestaña, que es donde la norma pide conservarlos.
+  //
+  // Los anulados tampoco: están fuera de uso y se consultan por la
+  // ficha, que sigue abierta, y por la bitácora.
   todos: {
     etiqueta: "Todos",
-    estados: ["borrador", "en_revision", "en_aprobacion", "vigente", "obsoleto", "anulado"],
+    estados: ["borrador", "en_revision", "en_aprobacion", "vigente"],
   },
   vigentes: { etiqueta: "Vigentes", estados: ["vigente"] },
   // LAS TRES ETAPAS, SEPARADAS. Antes iban juntas en «En elaboración» y

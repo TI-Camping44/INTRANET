@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Archive,
+  Ban,
   CheckCircle2,
   FilePlus2,
   RefreshCw,
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/dialogo";
 import {
   actualizarALaSiguienteVersion,
+  anularDocumentos,
   aprobarYPublicar,
   confirmarRevisionSinCambios,
   eliminarDocumento,
@@ -81,6 +83,8 @@ export function AccionesDocumento({
   const [aprobador, definirAprobador] = React.useState("");
   const [resumen, definirResumen] = React.useState("");
   const [archivo, definirArchivo] = React.useState<File | null>(null);
+  const [dialogoAnular, definirDialogoAnular] = React.useState(false);
+  const [motivoAnulacion, definirMotivoAnulacion] = React.useState("");
 
   const etiquetaActual = `Ver.${String(versionActual).padStart(2, "0")}`;
   const etiquetaSiguiente = `Ver.${String(versionActual + 1).padStart(2, "0")}`;
@@ -210,6 +214,27 @@ export function AccionesDocumento({
         </Boton>
       ) : null}
 
+      {/* ANULAR ES EL BORRADO DE UN OBSOLETO, sin borrarlo. Lo pidió
+          Dirección el 9 de octubre: un documento que se retiró y que ya
+          no se quiere ver en ninguna lista. Sale de todas —incluida la
+          de obsoletos— y queda la ficha, el motivo, quién lo anuló y la
+          bitácora, que es lo que una auditoría pide.
+
+          Solo sobre un obsoleto: anular algo que todavía está en
+          circulación sería retirarlo sin haberlo retirado. */}
+      {puedeEliminar && estadoDocumento === "obsoleto" ? (
+        <Boton
+          tamano="pequeno"
+          variante="contorno"
+          disabled={procesando}
+          onClick={() => definirDialogoAnular(true)}
+          className="border-semaforo-critico/40 text-semaforo-critico
+                     hover:bg-semaforo-critico/10"
+        >
+          <Ban /> Anular
+        </Boton>
+      ) : null}
+
       {/* Eliminar es para lo que no deberia haberse cargado: una prueba,
           un duplicado, un error. Retirar un documento que estuvo en uso
           es «Marcar obsoleto», que lo conserva con su historial. */}
@@ -318,6 +343,57 @@ export function AccionesDocumento({
               }
             >
               Enviar
+            </Boton>
+          </DialogoPie>
+        </DialogoContenido>
+      </Dialogo>
+
+      {/* Anular */}
+      <Dialogo open={dialogoAnular} onOpenChange={definirDialogoAnular}>
+        <DialogoContenido>
+          <DialogoCabecera>
+            <DialogoTitulo>Anular el documento</DialogoTitulo>
+            <DialogoDescripcion>
+              Sale de todas las listas, incluida la de obsoletos. No se borra: la ficha, el
+              motivo y la bitácora quedan, que es lo que una auditoría pide ver.
+            </DialogoDescripcion>
+          </DialogoCabecera>
+
+          <GrupoCampo
+            etiqueta="Motivo de la anulación"
+            htmlFor="motivo-anulacion"
+            requerido
+            ayuda="Es lo que explica, dentro de un año, por qué ese documento ya no está."
+          >
+            <AreaTexto
+              id="motivo-anulacion"
+              rows={3}
+              value={motivoAnulacion}
+              onChange={(evento) => definirMotivoAnulacion(evento.target.value)}
+              placeholder="Reemplazado por el MP-SOP-01 de la versión 01 del mapa de procesos."
+            />
+          </GrupoCampo>
+
+          <DialogoPie>
+            <DialogoCierre asChild>
+              <Boton variante="contorno">Cancelar</Boton>
+            </DialogoCierre>
+            <Boton
+              cargando={procesando}
+              disabled={motivoAnulacion.trim().length < 10}
+              className="bg-semaforo-critico hover:bg-semaforo-critico/90"
+              onClick={() =>
+                ejecutar(
+                  () => anularDocumentos([documentoId], motivoAnulacion),
+                  () => {
+                    definirDialogoAnular(false);
+                    definirMotivoAnulacion("");
+                    router.push("/documentos");
+                  },
+                )
+              }
+            >
+              Anular
             </Boton>
           </DialogoPie>
         </DialogoContenido>
