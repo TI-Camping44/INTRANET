@@ -4,7 +4,7 @@ import { Grid3x3, Plus, ShieldAlert } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { CeldaSiNo, CeldaTexto } from "@/components/comunes/celda-texto";
-import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
+import { Torta } from "@/components/comunes/graficos";
 import {
   InsigniaDemostracion,
   InsigniaNivelRiesgo,
@@ -22,18 +22,12 @@ import {
 } from "@/components/ui/tabla";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import {
-  ETIQUETAS_ESTADO_RIESGO,
-  ETIQUETAS_NIVEL_RIESGO,
-  ETIQUETAS_TRATAMIENTO_RIESGO,
-  TRATAMIENTOS_VIGENTES,
-} from "@/lib/constantes";
+import { ETIQUETAS_ESTADO_RIESGO, ETIQUETAS_NIVEL_RIESGO } from "@/lib/constantes";
 import {
   COLOR_ESTADO_RIESGO,
   COLOR_NIVEL_RIESGO,
   etiquetaNivelRiesgo,
   NIVELES_RIESGO,
-  ORIGENES_RIESGO,
 } from "@/lib/riesgos";
 import { formatearFecha } from "@/lib/formato";
 import type {
@@ -169,30 +163,6 @@ export default async function PaginaRiesgos({
     color: COLOR_ESTADO_RIESGO[valor] ?? "hsl(var(--primario))",
   }));
 
-  const porOrigen = [
-    ...ORIGENES_RIESGO.map((origen) => ({
-      etiqueta: origen,
-      valor: riesgos.filter((riesgo) => riesgo.origen === origen).length,
-    })),
-    {
-      etiqueta: "Sin origen declarado",
-      valor: riesgos.filter(
-        (riesgo) => !riesgo.origen || !ORIGENES_RIESGO.includes(riesgo.origen as never),
-      ).length,
-    },
-  ];
-
-  const porTratamiento = [
-    ...TRATAMIENTOS_VIGENTES.map((valor) => ({
-      etiqueta: ETIQUETAS_TRATAMIENTO_RIESGO[valor],
-      valor: riesgos.filter((riesgo) => riesgo.tratamiento === valor).length,
-    })),
-    {
-      etiqueta: "Sin tratamiento definido",
-      valor: riesgos.filter((riesgo) => !riesgo.tratamiento).length,
-    },
-  ];
-
   return (
     <>
       <EncabezadoPagina
@@ -242,14 +212,12 @@ export default async function PaginaRiesgos({
 
       {riesgos.length > 0 ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          {/* Las dos tortas, y nada más. «Por origen» y «Por opción de
+              tratamiento» salieron el 9 de octubre: con dos o tres
+              riesgos cargados decían «50 %» de cosas que la tabla ya
+              muestra en su columna. */}
           <Torta titulo="Por nivel" porciones={porNivel} />
           <Torta titulo="Por estado" porciones={porEstado} />
-          {/* Van de a dos por fila, como las tortas de arriba. El
-              tratamiento ocupaba el ancho entero porque al lado suyo
-              estaba «Por proceso», que salió el 8 de octubre: solo,
-              dejaba una barra de punta a punta debajo de otra. */}
-          <BarrasPorcentaje titulo="Por origen" filas={porOrigen} />
-          <BarrasPorcentaje titulo="Por opción de tratamiento" filas={porTratamiento} />
         </div>
       ) : null}
 
