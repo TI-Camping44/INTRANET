@@ -22,7 +22,6 @@ import {
   type GravedadReclamo,
   type TipoFallaReclamo,
 } from "@/lib/reclamos";
-import { DEPARTAMENTOS, DEPARTAMENTOS_VIGENTES } from "@/lib/constantes";
 
 interface Persona {
   id: string;
@@ -43,17 +42,20 @@ export interface ReclamoInicial {
   origen: string;
   tipo_falla: string;
   gravedad: GravedadReclamo;
-  gestor_id: string | null;
   responsable_area_id: string | null;
-  material_controlado: boolean;
-  departamentos_intervinientes: string[];
 }
 
 /**
  * Alta y edición de un reclamo.
  *
  * EL ORDEN ES EL DEL PROCEDIMIENTO: qué pasó, a quién, cómo nos
- * enteramos, qué gravedad tiene, dónde se originó y quién lo gestiona.
+ * enteramos, qué gravedad tiene y dónde se originó.
+ *
+ * SALIERON TRES CAMPOS DEL ALTA el 9 de octubre: el gestor del caso,
+ * «Involucra material controlado» y los otros departamentos
+ * intervinientes. Las tres columnas quedan en la base y la ficha las
+ * sigue mostrando: lo que se saca es la pregunta al registrar, que es
+ * cuando todavía no se sabe la respuesta.
  *
  * LA GRAVEDAD MUESTRA EL PLAN QUE VA A TOCAR mientras se elige, con sus
  * plazos. No es decoración: quien clasifica tiene que ver la consecuencia
@@ -255,65 +257,6 @@ export function FormularioReclamo({
               ))}
             </Seleccion>
           </GrupoCampo>
-
-          <GrupoCampo
-            etiqueta="Gestor del caso"
-            htmlFor="gestor_id"
-            className="sm:col-span-2"
-            ayuda="Única voz frente al cliente: contacta, propone, confirma y cierra. No puede ser quien originó la falla."
-          >
-            <Seleccion id="gestor_id" name="gestor_id" defaultValue={inicial?.gestor_id ?? ""}>
-              <option value="">Sin asignar</option>
-              {personas.map((persona) => (
-                <option key={persona.id} value={persona.id}>
-                  {persona.nombre_completo}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-        </div>
-
-        {/* Material controlado: lo unico de este formulario que puede
-            terminar en una inspeccion de la DIGEMABEL. */}
-        <div className="mt-5 border-t border-borde pt-4">
-          <label className="flex items-start gap-2 text-xs font-medium">
-            <input
-              type="checkbox"
-              name="material_controlado"
-              defaultChecked={inicial?.material_controlado}
-              className="mt-0.5 size-3.5 accent-[#E01E37]"
-            />
-            <span>
-              Involucra material controlado
-              <span className="mt-0.5 block text-[11px] font-normal leading-relaxed text-atenuado-contraste">
-                Un arma o accesorio con carnet a nombre del cliente no se cambia en el acto: el
-                reingreso se tramita y el plazo del plan se suspende mientras dure el trámite ante
-                la DIGEMABEL. El Asistente de Gestión Regulatoria participa siempre.
-              </span>
-            </span>
-          </label>
-        </div>
-
-        {/* Cuando la falla toca a mas de un departamento. */}
-        <div className="mt-5 border-t border-borde pt-4">
-          <p className="text-xs font-medium">Otros departamentos intervinientes</p>
-          <p className="mb-2 mt-0.5 text-[11px] text-atenuado-contraste">
-            Solo si la falla involucra a más de uno. El principal ya queda arriba.
-          </p>
-          <div className="grid gap-1 sm:grid-cols-3">
-            {DEPARTAMENTOS_VIGENTES.map((valor) => (
-              <label key={valor} className="flex items-center gap-1.5 text-[11px]">
-                <input
-                  type="checkbox"
-                  name="departamentos_intervinientes"
-                  value={valor}
-                  defaultChecked={inicial?.departamentos_intervinientes.includes(valor)}
-                  className="size-3.5 accent-[#E01E37]"
-                />
-                {DEPARTAMENTOS[valor]}
-              </label>
-            ))}
-          </div>
         </div>
 
         {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}

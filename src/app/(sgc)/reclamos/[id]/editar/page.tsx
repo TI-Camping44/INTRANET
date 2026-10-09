@@ -31,8 +31,7 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
       .from("reclamos")
       .select(
         "id, codigo, titulo, descripcion, cliente_id, cliente_nombre, origen, tipo_falla, " +
-          "gravedad, gestor_id, responsable_area_id, material_controlado, " +
-          "departamentos_intervinientes",
+          "gravedad, gestor_id, responsable_area_id",
       )
       .eq("id", params.id)
       .maybeSingle(),
@@ -44,7 +43,10 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
     supabase.from("clientes").select("id, razon_social").eq("activo", true).order("razon_social"),
   ]);
 
-  const reclamo = data as (ReclamoInicial & { codigo: string }) | null;
+  // `gestor_id` ya no es un campo del formulario —salió del alta el 9 de
+  // octubre— pero se sigue leyendo acá: la política `reclamos_edicion` lo
+  // usa, y el gestor de un caso viejo tiene que poder seguir editándolo.
+  const reclamo = data as (ReclamoInicial & { codigo: string; gestor_id: string | null }) | null;
   if (!reclamo) notFound();
 
   // La misma regla que la ficha, que es la de la política

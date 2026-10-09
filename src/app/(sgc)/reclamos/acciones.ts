@@ -46,10 +46,7 @@ interface CamposDelReclamo {
   origen: OrigenReclamo;
   tipoFalla: TipoFallaReclamo;
   gravedad: GravedadReclamo;
-  gestorId: string | null;
   responsableAreaId: string | null;
-  materialControlado: boolean;
-  departamentos: string[];
 }
 
 function leerCampos(datos: FormData): CamposDelReclamo {
@@ -61,10 +58,7 @@ function leerCampos(datos: FormData): CamposDelReclamo {
     origen: String(datos.get("origen") ?? "reclamo_directo") as OrigenReclamo,
     tipoFalla: String(datos.get("tipo_falla") ?? "otro") as TipoFallaReclamo,
     gravedad: String(datos.get("gravedad") ?? "leve") as GravedadReclamo,
-    gestorId: String(datos.get("gestor_id") ?? "") || null,
     responsableAreaId: String(datos.get("responsable_area_id") ?? "") || null,
-    materialControlado: datos.get("material_controlado") === "on",
-    departamentos: datos.getAll("departamentos_intervinientes").map(String).filter(Boolean),
   };
 }
 
@@ -75,18 +69,10 @@ function validar(campos: CamposDelReclamo): string | null {
   }
   if (campos.clienteNombre.length < 3) return "Indique el nombre del cliente.";
 
-  // La regla de imparcialidad del procedimiento. La base la refuerza, pero
-  // el mensaje tiene que explicar por que, no devolver un error de Postgres.
-  if (
-    campos.gestorId &&
-    campos.responsableAreaId &&
-    campos.gestorId === campos.responsableAreaId
-  ) {
-    return (
-      "Quien originó la falla no puede gestionar el contacto con el cliente. " +
-      "Si la falla se originó en la propia gestión, el caso lo lleva el jefe del canal."
-    );
-  }
+  // LA REGLA DE IMPARCIALIDAD QUEDA EN LA BASE. El gestor del caso salio
+  // del formulario el 9 de octubre, asi que aca no hay con que comparar:
+  // el `CHECK` de `reclamos` sigue impidiendo que el gestor y el
+  // responsable del area sean la misma persona.
 
   return null;
 }
@@ -139,14 +125,11 @@ export async function crearReclamo(datos: FormData): Promise<ResultadoAccion> {
       cliente_nombre: campos.clienteNombre,
       origen: campos.origen,
       tipo_falla: campos.tipoFalla,
-      departamentos_intervinientes: campos.departamentos,
       gravedad: campos.gravedad,
       plan,
       estado: "registrado",
-      gestor_id: campos.gestorId,
       responsable_area_id: campos.responsableAreaId,
       es_reincidencia: esReincidencia,
-      material_controlado: campos.materialControlado,
       fecha_deteccion: hoy,
       fecha_limite_contacto: vencimientos.contacto,
       fecha_limite_plan: vencimientos.definicionPlan,
@@ -163,15 +146,20 @@ export async function crearReclamo(datos: FormData): Promise<ResultadoAccion> {
   revalidatePath("/reclamos");
   const fila = creado as { id: string; codigo: string };
 
-  // AL GESTOR SE LE AVISA, y en el mismo aviso va el plazo: el caso se le
-  // asigna con 24 horas hábiles para llamar al cliente, y enterarse al
-  // día siguiente ya es tarde.
-  await avisarAlGestor(supabase, usuario, {
+  // AL RESPONSABLE DEL ÁREA SE LE AVISA, y en el mismo aviso va el
+  // plazo: el caso se le asigna con 24 horas hábiles para llamar al
+  // cliente, y enterarse al día siguiente ya es tarde.
+  //
+  // Antes el aviso iba al gestor del caso. Ese campo salió del alta el 9
+  // de octubre, y el responsable del área pasó a ser el único asignado
+  // al registrar: si el aviso siguiera atado al gestor, nadie se
+  // enteraría de que tiene un reclamo con plazo corriendo.
+  await avisarAlAsignado(supabase, usuario, {
     id: fila.id,
     codigo: fila.codigo,
     titulo: campos.titulo,
     clienteNombre: campos.clienteNombre,
-    gestorId: campos.gestorId,
+    asignadoId: campos.responsableAreaId,
     limiteContacto: vencimientos.contacto,
   });
 
@@ -199,8 +187,7 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
   const { data: actual } = await supabase
     .from("reclamos")
     .select(
-      "codigo, estado, plan, gravedad, fecha_deteccion, fecha_contacto, rechazos, " +
-        "gestor_id, fecha_limite_contacto",
+      "codigo, estado, plan, gravedad, fecha_deteccion, fecha_contacto, rechazos",
     )
     .eq("id", id)
     .maybeSingle();
@@ -214,8 +201,6 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
         fecha_deteccion: string;
         fecha_contacto: string | null;
         rechazos: number;
-        gestor_id: string | null;
-        fecha_limite_contacto: string;
       }
     | null;
 
@@ -231,10 +216,7 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
     cliente_nombre: campos.clienteNombre,
     origen: campos.origen,
     tipo_falla: campos.tipoFalla,
-    departamentos_intervinientes: campos.departamentos,
-    gestor_id: campos.gestorId,
     responsable_area_id: campos.responsableAreaId,
-    material_controlado: campos.materialControlado,
   };
 
   // Si cambia la gravedad, el plan y los plazos se recalculan. NUNCA HACIA
@@ -267,19 +249,6 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
 
   const { error } = await supabase.from("reclamos").update(parche).eq("id", id);
   if (error) return { exito: false, error: `No se pudo guardar: ${error.message}` };
-
-  // Cambiar de gestor es reasignar el caso, no corregir un dato: al que
-  // entra hay que avisarle igual que en el alta.
-  if (campos.gestorId && campos.gestorId !== previo.gestor_id) {
-    await avisarAlGestor(supabase, usuario, {
-      id,
-      codigo: previo.codigo,
-      titulo: campos.titulo,
-      clienteNombre: campos.clienteNombre,
-      gestorId: campos.gestorId,
-      limiteContacto: String(parche.fecha_limite_contacto ?? previo.fecha_limite_contacto),
-    });
-  }
 
   revalidatePath("/reclamos");
   revalidatePath(`/reclamos/${id}`);
@@ -848,7 +817,7 @@ export async function registrarVerificacion(
 }
 
 /**
- * Le avisa al gestor que el caso es suyo.
+ * Le avisa a quien queda a cargo que el caso es suyo.
  *
  * Sin esto la asignación no existe: queda un nombre en un campo que la
  * persona se entera de mirar si abre el listado. El aviso lleva el plazo
@@ -857,7 +826,7 @@ export async function registrarVerificacion(
  *
  * No avisa cuando alguien se asigna a sí mismo: ya lo sabe.
  */
-async function avisarAlGestor(
+async function avisarAlAsignado(
   supabase: ReturnType<typeof crearClienteServidor>,
   usuario: { id: string; nombre_completo: string; correo: string },
   caso: {
@@ -865,25 +834,25 @@ async function avisarAlGestor(
     codigo: string;
     titulo: string;
     clienteNombre: string;
-    gestorId: string | null;
+    asignadoId: string | null;
     limiteContacto: string;
   },
 ): Promise<void> {
-  if (!caso.gestorId || caso.gestorId === usuario.id) return;
+  if (!caso.asignadoId || caso.asignadoId === usuario.id) return;
 
   const { data } = await supabase
     .from("usuarios")
     .select("id, correo")
-    .eq("id", caso.gestorId)
+    .eq("id", caso.asignadoId)
     .maybeSingle();
 
-  const gestor = data as { id: string; correo: string } | null;
-  if (!gestor) return;
+  const asignado = data as { id: string; correo: string } | null;
+  if (!asignado) return;
 
   await notificar(supabase, {
     deParteDe: departe(usuario),
-    usuarioId: gestor.id,
-    correoDestino: gestor.correo,
+    usuarioId: asignado.id,
+    correoDestino: asignado.correo,
     tipo: "reclamo_asignado",
     titulo: `Reclamo asignado · ${caso.codigo}`,
     mensaje:
@@ -893,6 +862,6 @@ async function avisarAlGestor(
     enlace: `/reclamos/${caso.id}`,
     entidad: "reclamos",
     entidadId: caso.id,
-    claveUnicidad: `reclamo-asignado:${caso.id}:${gestor.id}`,
+    claveUnicidad: `reclamo-asignado:${caso.id}:${asignado.id}`,
   });
 }
