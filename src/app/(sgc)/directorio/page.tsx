@@ -30,6 +30,7 @@ interface FilaDirectorio {
   empresa_del_puesto: string | null;
   ingreso: boolean;
   lider_clave: string | null;
+  lider_manual: boolean;
 }
 
 /**
@@ -74,7 +75,7 @@ export default async function PaginaDirectorio({
 }) {
   const vista =
     searchParams.vista === "organigrama" ? "organigrama" : "personas";
-  await requerirUsuario();
+  const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
   // Los puestos se traen aparte para resolver el nombre y el área de
@@ -180,7 +181,9 @@ export default async function PaginaDirectorio({
               url_avatar: persona.url_avatar,
               ingreso: persona.ingreso,
               lider_clave: persona.lider_clave,
+              lider_manual: persona.lider_manual,
             }))}
+            puedeEditar={usuario.rol === "administrador_sgc"}
           />
         </div>
       ) : (
