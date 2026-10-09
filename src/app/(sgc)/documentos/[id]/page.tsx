@@ -52,6 +52,8 @@ interface DocumentoDetalle {
   procesos: { id: string; nombre: string; codigo: string } | null;
   normas: { codigo: string } | null;
   categoria: string | null;
+  empresa_documento_id: string | null;
+  proceso_documento_id: string | null;
   fecha_validacion: string | null;
   responsable: { id: string; nombre_completo: string } | null;
   elaborador: { nombre_completo: string } | null;
@@ -101,6 +103,10 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     { data: personas },
     { data: procesos },
     { data: archivos },
+    ,
+    { data: datosEmpresas },
+    { data: datosManuales },
+    { data: datosCategorias },
   ] = await Promise.all([
     supabase
       .from("documento_versiones")
@@ -125,7 +131,21 @@ export default async function PaginaDocumento({ params }: { params: { id: string
       .select("id, titulo, fecha_publicacion")
       .eq("documento_id", params.id)
       .order("fecha_publicacion", { ascending: false, nullsFirst: false }),
+    // Lo que necesita el diálogo de «Actualizar a la siguiente versión»:
+    // las dos empresas del grupo, los manuales de proceso a los que se
+    // puede atar y las categorías ya usadas. Cada campo se puede dejar
+    // en «Se mantiene igual», así que esto es solo para poder cambiarlo.
+    supabase.rpc("empresas_del_grupo"),
+    supabase.from("documentos").select("id, codigo, titulo").eq("tipo", "manual").order("codigo"),
+    supabase.from("documentos").select("categoria").not("categoria", "is", null),
   ]);
+
+  const empresasDelGrupo = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
+  const manuales =
+    (datosManuales as { id: string; codigo: string | null; titulo: string }[] | null) ?? [];
+  const categorias = Array.from(
+    new Set(((datosCategorias as { categoria: string }[] | null) ?? []).map((fila) => fila.categoria)),
+  ).sort((una, otra) => una.localeCompare(otra, "es"));
 
   const listaVersiones = versiones ?? [];
   const idsVersiones = new Set(listaVersiones.map((version: { id: string }) => version.id));
@@ -193,6 +213,16 @@ export default async function PaginaDocumento({ params }: { params: { id: string
             documentoId={documento.id}
             tipoDocumento={documento.tipo}
             versionActual={documento.version_actual}
+            empresas={empresasDelGrupo}
+            manuales={manuales}
+            categorias={categorias}
+            cabecera={{
+              codigo: documento.codigo,
+              titulo: documento.titulo,
+              categoria: documento.categoria,
+              empresa_documento_id: documento.empresa_documento_id ?? null,
+              proceso_documento_id: documento.proceso_documento_id ?? null,
+            }}
             estadoDocumento={documento.estado}
             versionEditableId={versionEditable?.id ?? null}
             versionEnRevisionId={versionEnRevision?.id ?? null}

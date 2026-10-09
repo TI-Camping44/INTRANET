@@ -407,20 +407,62 @@ export async function actualizarALaSiguienteVersion(
     return { exito: false, error: `No se pudo crear la versión: ${errorVersion.message}` };
   }
 
+  // LO QUE NO VIENE, NO SE TOCA. El dialogo manda solo los campos que
+  // la version nueva cambia; el resto se deja en «Se mantiene igual» y
+  // no llega. Hizo falta porque una version nueva no siempre es el
+  // mismo documento con otro contenido: puede cambiarle el codigo, el
+  // nombre o la empresa, y antes el nombre viejo quedaba pegado al
+  // archivo nuevo.
+  const cambios: Record<string, unknown> = {
+    version_actual: siguiente,
+    estado: "borrador",
+    elaborador_id: usuario.id,
+    // Circuito limpio: la version nueva se valida y se aprueba de nuevo.
+    validador_id: null,
+    aprobador_id: null,
+    fecha_validacion: null,
+  };
+
+  const nuevoTipo = String(datos.get("tipo") ?? "").trim();
+  if (nuevoTipo) cambios.tipo = nuevoTipo;
+
+  const nuevaEmpresa = String(datos.get("empresa_documento_id") ?? "").trim();
+  if (nuevaEmpresa) cambios.empresa_documento_id = nuevaEmpresa;
+
+  const nuevoProceso = String(datos.get("proceso_documento_id") ?? "").trim();
+  if (nuevoProceso) cambios.proceso_documento_id = nuevoProceso;
+
+  const nuevoCodigo = String(datos.get("codigo") ?? "").trim().toUpperCase();
+  if (nuevoCodigo) {
+    if (nuevoCodigo.length > LARGO_MAXIMO_CODIGO) {
+      return {
+        exito: false,
+        error: `El código no puede pasar de ${LARGO_MAXIMO_CODIGO} caracteres.`,
+      };
+    }
+    cambios.codigo = nuevoCodigo;
+  }
+
+  const nuevaCategoria = String(datos.get("categoria") ?? "").trim();
+  if (nuevaCategoria) cambios.categoria = nuevaCategoria;
+
+  const nuevoTitulo = String(datos.get("titulo") ?? "").trim();
+  if (nuevoTitulo) {
+    if (nuevoTitulo.length < 4) {
+      return { exito: false, error: "El título debe tener al menos 4 caracteres." };
+    }
+    cambios.titulo = nuevoTitulo;
+  }
+
   const { error: errorDocumento } = await supabase
     .from("documentos")
-    .update({
-      version_actual: siguiente,
-      estado: "borrador",
-      elaborador_id: usuario.id,
-      // Circuito limpio: la version nueva se valida y se aprueba de nuevo.
-      validador_id: null,
-      aprobador_id: null,
-      fecha_validacion: null,
-    })
+    .update(cambios)
     .eq("id", documentoId);
 
   if (errorDocumento) {
+    if (errorDocumento.code === "23505") {
+      return { exito: false, error: `Ya existe un documento con el código ${nuevoCodigo}.` };
+    }
     return { exito: false, error: `No se pudo actualizar el documento: ${errorDocumento.message}` };
   }
 
@@ -1282,13 +1324,19 @@ export async function eliminarDocumento(documentoId: string): Promise<ResultadoA
 
   const supabase = crearClienteServidor();
 
-  // UN DOCUMENTO QUE ESTUVO VIGENTE NO SE BORRA NUNCA: se anula, con
-  // motivo, y queda consultable. Lo fijo Calidad el 5 de octubre y es lo
-  // que pide la norma: la trazabilidad de la informacion documentada no
-  // admite que una version que estuvo en uso desaparezca del registro.
+  // UN DOCUMENTO QUE ESTUVO VIGENTE NO SE BORRA DE UNA: primero se
+  // retira —obsoleto—, despues se anula con su motivo, y recien ahi se
+  // puede borrar. Son tres pasos a proposito, y el del medio es el que
+  // deja escrito por que ese documento ya no esta.
   //
-  // Borrar sigue existiendo para lo que nunca llego a regir: un borrador
-  // cargado por error, un duplicado. Nada mas.
+  // DESDE EL 9 DE OCTUBRE EL ANULADO SI SE BORRA. Direccion lo pidio
+  // asi: anular saca el documento de todas las listas y borrar lo saca
+  // del sistema. Lo que queda de el es la bitacora, que no se puede
+  // editar ni borrar desde ninguna pantalla y es la que responde en una
+  // auditoria.
+  //
+  // Borrar directo sigue existiendo para lo que nunca llego a regir: un
+  // borrador cargado por error, un duplicado.
   const { data: previo } = await supabase
     .from("documentos")
     .select("codigo, titulo, estado, fecha_vigencia")
@@ -1301,12 +1349,15 @@ export async function eliminarDocumento(documentoId: string): Promise<ResultadoA
 
   if (!regido) return { exito: false, error: "El documento no existe o no tiene acceso." };
 
-  if (regido.fecha_vigencia !== null || ["vigente", "obsoleto", "anulado"].includes(regido.estado)) {
+  if (
+    regido.estado !== "anulado" &&
+    (regido.fecha_vigencia !== null || ["vigente", "obsoleto"].includes(regido.estado))
+  ) {
     return {
       exito: false,
       error:
-        `«${regido.codigo ?? regido.titulo}» estuvo vigente y no se puede borrar. ` +
-        "Anúlelo con su motivo: queda fuera de uso y se conserva consultable.",
+        `«${regido.codigo ?? regido.titulo}» estuvo vigente y no se puede borrar así. ` +
+        "Márquelo obsoleto y después anúlelo con su motivo: recién entonces se puede borrar.",
     };
   }
 

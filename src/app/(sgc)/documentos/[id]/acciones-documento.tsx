@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
+import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import {
   Dialogo,
   DialogoCabecera,
@@ -35,6 +35,7 @@ import {
   validarDocumento,
 } from "@/app/(sgc)/documentos/acciones";
 import { extensionesAdmitidas, FORMATO_POR_TIPO, motivoDeRechazo } from "@/lib/adjuntos";
+import { ETIQUETAS_TIPO_DOCUMENTO, TIPOS_DOCUMENTO_VIGENTES } from "@/lib/constantes";
 import type { EstadoDocumento, ResultadoAccion, TipoDocumento } from "@/lib/tipos";
 
 interface Persona {
@@ -50,6 +51,10 @@ export function AccionesDocumento({
   documentoId,
   tipoDocumento,
   versionActual,
+  empresas,
+  manuales,
+  categorias,
+  cabecera,
   estadoDocumento,
   versionEditableId,
   versionEnRevisionId,
@@ -64,6 +69,20 @@ export function AccionesDocumento({
   tipoDocumento: TipoDocumento;
   /** La versión que rige hoy: la siguiente es esta más uno. */
   versionActual: number;
+  /** Las dos empresas del grupo, para poder cambiarla al versionar. */
+  empresas: { id: string; nombre: string }[];
+  /** Los manuales de proceso cargados, idem. */
+  manuales: { id: string; codigo: string | null; titulo: string }[];
+  /** Las categorías ya usadas, para ofrecerlas sin duplicarlas. */
+  categorias: string[];
+  /** Lo que el documento dice hoy, para mostrarlo como «Se mantiene igual». */
+  cabecera: {
+    codigo: string | null;
+    titulo: string;
+    categoria: string | null;
+    empresa_documento_id: string | null;
+    proceso_documento_id: string | null;
+  };
   estadoDocumento: EstadoDocumento;
   versionEditableId: string | null;
   versionEnRevisionId: string | null;
@@ -97,7 +116,7 @@ export function AccionesDocumento({
 
     // Se avisa acá para no hacerle esperar la subida de un archivo que la
     // acción va a rechazar igual. El control que vale es el del servidor.
-    const motivo = motivoDeRechazo(tipoDocumento, elegido.name, elegido.size);
+    const motivo = motivoDeRechazo(tipoQueQueda, elegido.name, elegido.size);
     if (motivo) {
       toast.error(motivo);
       evento.target.value = "";
@@ -108,9 +127,42 @@ export function AccionesDocumento({
     definirArchivo(elegido);
   }
 
+  // CADA CAMPO ARRANCA EN «SE MANTIENE IGUAL». Vacío quiere decir
+  // exactamente eso: el servidor no toca lo que no viene. Hizo falta
+  // porque una versión nueva no siempre es el mismo documento con otro
+  // contenido —puede cambiarle el código, el nombre o hasta la empresa—
+  // y hasta ahora el nombre viejo quedaba pegado al archivo nuevo.
+  const [nuevoTipo, definirNuevoTipo] = React.useState("");
+  const [nuevaEmpresa, definirNuevaEmpresa] = React.useState("");
+  const [nuevoProceso, definirNuevoProceso] = React.useState("");
+  const [nuevoCodigo, definirNuevoCodigo] = React.useState("");
+  const [nuevaCategoria, definirNuevaCategoria] = React.useState("");
+  const [nuevoTitulo, definirNuevoTitulo] = React.useState("");
+
+  // El formato admitido lo decide el tipo que va a quedar, no el que
+  // tiene hoy: si la versión nueva cambia de tipo, cambia el formato.
+  const tipoQueQueda = (nuevoTipo || tipoDocumento) as typeof tipoDocumento;
+
+  function limpiarLaVersion() {
+    definirDialogoVersion(false);
+    definirArchivo(null);
+    definirNuevoTipo("");
+    definirNuevaEmpresa("");
+    definirNuevoProceso("");
+    definirNuevoCodigo("");
+    definirNuevaCategoria("");
+    definirNuevoTitulo("");
+  }
+
   async function subirLaSiguienteVersion() {
     const datos = new FormData();
     if (archivo) datos.set("archivo", archivo);
+    if (nuevoTipo) datos.set("tipo", nuevoTipo);
+    if (nuevaEmpresa) datos.set("empresa_documento_id", nuevaEmpresa);
+    if (nuevoProceso) datos.set("proceso_documento_id", nuevoProceso);
+    if (nuevoCodigo.trim()) datos.set("codigo", nuevoCodigo.trim());
+    if (nuevaCategoria.trim()) datos.set("categoria", nuevaCategoria.trim());
+    if (nuevoTitulo.trim()) datos.set("titulo", nuevoTitulo.trim());
     return actualizarALaSiguienteVersion(documentoId, datos);
   }
 
@@ -244,9 +296,12 @@ export function AccionesDocumento({
           onClick={() => {
             const aviso =
               "Se elimina el documento, sus versiones, su lista de difusión y sus archivos. " +
-              "No se puede deshacer.\n\n" +
-              "Si el documento estuvo en uso, lo correcto es marcarlo obsoleto: así se conserva " +
-              "con su historial, que es lo que pide la norma.\n\n¿Eliminar igual?";
+              "No se puede deshacer: de él solo queda la bitácora.\n\n" +
+              (estadoDocumento === "anulado"
+                ? "El documento está anulado, con su motivo registrado.\n\n"
+                : "Si estuvo en uso, el camino es marcarlo obsoleto y después anularlo con su " +
+                  "motivo: así queda escrito por qué ya no está.\n\n") +
+              "¿Eliminar igual?";
             if (confirm(aviso)) {
               ejecutar(() => eliminarDocumento(documentoId), () => router.push("/documentos"));
             }
@@ -384,9 +439,12 @@ export function AccionesDocumento({
                 ejecutar(
                   () => anularDocumentos([documentoId], motivoAnulacion),
                   () => {
+                    // SE QUEDA EN LA FICHA. Un anulado no sale en
+                    // ninguna lista, así que volver al listado lo dejaba
+                    // sin forma de llegar, y el paso siguiente —borrarlo—
+                    // se hace justo acá.
                     definirDialogoAnular(false);
                     definirMotivoAnulacion("");
-                    router.push("/documentos");
                   },
                 )
               }
@@ -399,7 +457,7 @@ export function AccionesDocumento({
 
       {/* Actualizar a la siguiente versión */}
       <Dialogo open={dialogoVersion} onOpenChange={definirDialogoVersion}>
-        <DialogoContenido>
+        <DialogoContenido className="max-w-2xl">
           <DialogoCabecera>
             <DialogoTitulo>
               Actualizar a {etiquetaSiguiente}
@@ -411,16 +469,17 @@ export function AccionesDocumento({
             </DialogoDescripcion>
           </DialogoCabecera>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 max-h-[65vh] space-y-3 overflow-y-auto pr-1">
             <GrupoCampo
               etiqueta="Archivo de la versión nueva"
               htmlFor="archivo-version"
-              ayuda={FORMATO_POR_TIPO[tipoDocumento].explicacion}
+              requerido
+              ayuda={FORMATO_POR_TIPO[tipoQueQueda].explicacion}
             >
               <input
                 id="archivo-version"
                 type="file"
-                accept={extensionesAdmitidas(tipoDocumento)}
+                accept={extensionesAdmitidas(tipoQueQueda)}
                 onChange={elegirArchivo}
                 className="w-full cursor-pointer rounded-md border border-borde bg-fondo
                            text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
@@ -443,12 +502,7 @@ export function AccionesDocumento({
             <Boton
               cargando={procesando}
               disabled={!archivo}
-              onClick={() =>
-                ejecutar(subirLaSiguienteVersion, () => {
-                  definirDialogoVersion(false);
-                  definirArchivo(null);
-                })
-              }
+              onClick={() => ejecutar(subirLaSiguienteVersion, limpiarLaVersion)}
             >
               Actualizar a {etiquetaSiguiente}
             </Boton>
