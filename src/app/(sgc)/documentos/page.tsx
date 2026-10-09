@@ -59,6 +59,7 @@ interface FilaDocumento {
   fecha_vigencia: string | null;
   fecha_proxima_revision: string | null;
   proceso_documento_id: string | null;
+  actualizado_en: string;
   es_demostracion: boolean;
   categoria: string | null;
   orden: number | null;
@@ -176,7 +177,7 @@ export default async function PaginaDocumentos({
     .select(
       "id, codigo, titulo, tipo, estado, version_actual, fecha_vigencia, " +
         "fecha_proxima_revision, es_demostracion, categoria, orden, orden_categoria, " +
-        "proceso_documento_id",
+        "proceso_documento_id, actualizado_en",
     )
     .in("estado", estados);
 
@@ -238,25 +239,26 @@ export default async function PaginaDocumentos({
 
   // LAS VERSIONES REEMPLAZADAS. Un documento que se actualizó de versión
   // sigue siendo un solo registro: lo que quedó atrás es su versión
-  // anterior, en obsoleto. Dirección pidió el 9 de octubre que eso se
-  // vea en «Obsoletos», así que la pestaña suma esas versiones a los
-  // documentos que se retiraron enteros.
+  // anterior, en obsoleto.
   //
-  // Solo en esa pestaña: en las demás no tienen nada que hacer.
-  const { data: datosReemplazadas } =
-    vista === "obsoletos"
-      ? await supabase
-          .from("documento_versiones")
-          .select(
-            "id, version, creado_en, resumen_cambios, " +
-              "documentos:documento_id (id, codigo, titulo, tipo, estado)",
-          )
-          .eq("estado", "obsoleto")
-          .order("creado_en", { ascending: false })
-      : { data: null };
+  // OBSOLETO ES UNO SOLO. Dirección lo dijo el 9 de octubre: si un
+  // documento se reemplaza o deja de existir, queda obsoleto, y no hay
+  // dos categorías. Así que la pestaña los mezcla en una sola lista y
+  // los cuenta juntos.
+  //
+  // La consulta va siempre, no solo en esa pestaña: el número entre
+  // paréntesis se ve desde cualquiera.
+  const { data: datosReemplazadas } = await supabase
+    .from("documento_versiones")
+    .select(
+      "id, version, creado_en, resumen_cambios, " +
+        "documentos:documento_id (id, codigo, titulo, tipo, estado, actualizado_en)",
+    )
+    .eq("estado", "obsoleto")
+    .order("creado_en", { ascending: false });
 
   // Las de un documento que ya está obsoleto entero no se repiten: ese
-  // documento ya tiene su fila arriba.
+  // documento ya tiene su propia fila.
   const reemplazadas = (
     (datosReemplazadas as unknown as {
       id: string;
@@ -269,6 +271,7 @@ export default async function PaginaDocumentos({
         titulo: string;
         tipo: TipoDocumento;
         estado: EstadoDocumento;
+        actualizado_en: string;
       } | null;
     }[] | null) ?? []
   ).filter((version) => version.documentos && version.documentos.estado !== "obsoleto");
@@ -344,6 +347,35 @@ export default async function PaginaDocumentos({
     (grupos[clave] ??= []).push(documento.id);
   }
 
+  // LA LISTA DE OBSOLETOS, UNA SOLA. El documento retirado entero y la
+  // versión reemplazada son lo mismo para quien mira: algo que dejó de
+  // estar en uso. Van en la misma tabla, ordenados por fecha, con la
+  // versión de cada uno y por qué quedó obsoleto.
+  const obsoletos = [
+    ...documentos.map((documento) => ({
+      clave: documento.id,
+      documentoId: documento.id,
+      codigo: documento.codigo,
+      titulo: documento.titulo,
+      tipo: documento.tipo,
+      version: documento.version_actual,
+      fecha: documento.actualizado_en,
+      motivo: "Retirado de circulación",
+    })),
+    ...reemplazadas.map((version) => ({
+      clave: version.id,
+      documentoId: version.documentos!.id,
+      codigo: version.documentos!.codigo,
+      titulo: version.documentos!.titulo,
+      tipo: version.documentos!.tipo,
+      version: version.version,
+      // Cuándo quedó atrás, no cuándo se creó: el documento se tocó por
+      // última vez al subirle la versión que la reemplazó.
+      fecha: version.documentos!.actualizado_en,
+      motivo: "Reemplazada por una versión nueva",
+    })),
+  ].sort((uno, otro) => (otro.fecha ?? "").localeCompare(uno.fecha ?? ""));
+
   // Se arrastra cuando hay orden manual que tocar: si la lista viene
   // ordenada por una columna, mover una fila no significa nada.
   const seArrastra = puedeOrdenar && !columna;
@@ -351,7 +383,11 @@ export default async function PaginaDocumentos({
   const vistas = Object.entries(VISTAS).map(([valor, { etiqueta, estados: suyos }]) => ({
     valor,
     etiqueta,
-    cantidad: maestra.filter((documento) => suyos.includes(documento.estado)).length,
+    // «Obsoletos» cuenta las dos cosas que lo son: el documento que se
+    // retiró entero y la versión que fue reemplazada por otra.
+    cantidad:
+      maestra.filter((documento) => suyos.includes(documento.estado)).length +
+      (valor === "obsoletos" ? reemplazadas.length : 0),
   }));
 
   return (
@@ -481,21 +517,79 @@ export default async function PaginaDocumentos({
           descripcion={error.message}
           icono={<FileText className="size-6" />}
         />
-      ) : documentos.length === 0 && reemplazadas.length === 0 ? (
+      ) : vista === "obsoletos" ? (
+        obsoletos.length === 0 ? (
+          <EstadoVacio
+            icono={<FileText className="size-6" />}
+            titulo="No hay nada obsoleto"
+            descripcion="Acá quedan los documentos que se retiraron de circulación y las versiones que fueron reemplazadas por una más nueva."
+          />
+        ) : (
+          <>
+            <Tarjeta>
+              <Tabla>
+                <TablaCabecera>
+                  <TablaFila>
+                    <TablaEncabezado className="w-[9rem]">Código</TablaEncabezado>
+                    <TablaEncabezado>Título</TablaEncabezado>
+                    <TablaEncabezado className="hidden md:table-cell">Tipo</TablaEncabezado>
+                    <TablaEncabezado className="w-[6rem]">Versión</TablaEncabezado>
+                    <TablaEncabezado className="hidden lg:table-cell">
+                      Por qué está acá
+                    </TablaEncabezado>
+                    <TablaEncabezado className="hidden w-[9rem] sm:table-cell">
+                      Quedó obsoleto
+                    </TablaEncabezado>
+                    <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
+                  </TablaFila>
+                </TablaCabecera>
+                <TablaCuerpo>
+                  {obsoletos.map((fila) => (
+                    <TablaFila key={fila.clave}>
+                      <TablaCelda className="font-medium tabular">
+                        {fila.codigo ?? <span className="text-atenuado-contraste">—</span>}
+                      </TablaCelda>
+                      <TablaCelda className="text-xs">{recortar(fila.titulo, 80)}</TablaCelda>
+                      <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
+                        {ETIQUETAS_TIPO_DOCUMENTO[fila.tipo]}
+                      </TablaCelda>
+                      <TablaCelda className="tabular text-xs">
+                        Ver.{String(fila.version).padStart(2, "0")}
+                      </TablaCelda>
+                      <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
+                        {fila.motivo}
+                      </TablaCelda>
+                      <TablaCelda className="hidden whitespace-nowrap text-xs text-atenuado-contraste sm:table-cell">
+                        {fila.fecha ? formatearFecha(fila.fecha) : "—"}
+                      </TablaCelda>
+                      <TablaCelda className="text-right">
+                        <Link
+                          href={`/documentos/${fila.documentoId}`}
+                          className="text-xs text-primario hover:underline"
+                        >
+                          Ver
+                        </Link>
+                      </TablaCelda>
+                    </TablaFila>
+                  ))}
+                </TablaCuerpo>
+              </Tabla>
+            </Tarjeta>
+
+            <p className="mt-3 text-[11px] text-atenuado-contraste">
+              {obsoletos.length} obsoleto{obsoletos.length === 1 ? "" : "s"}: documentos
+              retirados de circulación y versiones reemplazadas por una más nueva. «Ver» abre la
+              ficha, con el historial de versiones y el archivo de cada una.
+            </p>
+          </>
+        )
+      ) : documentos.length === 0 ? (
         <EstadoVacio
           icono={<FileText className="size-6" />}
-          titulo={
-            vista === "obsoletos"
-              ? "No hay documentos obsoletos"
-              : "No hay documentos que coincidan"
-          }
-          descripcion={
-            vista === "obsoletos"
-              ? "Cuando un documento se reemplaza por una versión nueva, la anterior queda acá."
-              : "Ajuste los filtros o cree el primer documento del sistema."
-          }
+          titulo="No hay documentos que coincidan"
+          descripcion="Ajuste los filtros o cree el primer documento del sistema."
           accion={
-            puedeGestionar(usuario) && vista !== "obsoletos" ? (
+            puedeGestionar(usuario) ? (
               <Boton comoHijo tamano="pequeno">
                 <Link href="/documentos/nuevo">
                   <Plus /> Nuevo documento
@@ -504,7 +598,7 @@ export default async function PaginaDocumentos({
             ) : null
           }
         />
-      ) : documentos.length === 0 ? null : (
+      ) : (
         <ProveedorSeleccion>
           {puedeEliminar ? <BarraSeleccion /> : null}
           <ProveedorArrastre
@@ -673,11 +767,7 @@ export default async function PaginaDocumentos({
 
       {documentos.length > 0 ? (
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {documentos.length}{" "}
-        {vista === "obsoletos"
-          ? `documento${documentos.length === 1 ? "" : "s"} obsoleto${documentos.length === 1 ? "" : "s"}`
-          : `documento${documentos.length === 1 ? "" : "s"} en el listado`}
-        .{" "}
+        {documentos.length} documento{documentos.length === 1 ? "" : "s"} en el listado.{" "}
         {vista === "vigentes"
           ? "Es lo que está en vigencia hoy; las versiones reemplazadas están en «Obsoletos»."
           : null}{" "}
@@ -693,69 +783,6 @@ export default async function PaginaDocumentos({
           ? " Ordenado por una columna: toque el encabezado una vez más para volver al orden de la carpeta."
           : ""}
       </p>
-      ) : null}
-
-      {/* Las versiones que fueron reemplazadas por una más nueva. Van
-          en su propia tabla y no mezcladas con los documentos: no son un
-          documento retirado, son el contenido anterior de uno que sigue
-          en uso. «Ver» lleva a su ficha, donde están el historial y el
-          archivo de cada versión. */}
-      {vista === "obsoletos" && reemplazadas.length > 0 ? (
-        <div className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold tracking-tight">
-            Versiones reemplazadas{" "}
-            <span className="font-normal text-atenuado-contraste">
-              ({reemplazadas.length})
-            </span>
-          </h2>
-          <Tarjeta>
-            <Tabla>
-              <TablaCabecera>
-                <TablaFila>
-                  <TablaEncabezado className="w-[9rem]">Código</TablaEncabezado>
-                  <TablaEncabezado>Título</TablaEncabezado>
-                  <TablaEncabezado className="w-[6rem]">Versión</TablaEncabezado>
-                  <TablaEncabezado className="hidden w-[8rem] sm:table-cell">
-                    Reemplazada
-                  </TablaEncabezado>
-                  <TablaEncabezado className="w-[4.5rem] text-right">Ficha</TablaEncabezado>
-                </TablaFila>
-              </TablaCabecera>
-              <TablaCuerpo>
-                {reemplazadas.map((version) => (
-                  <TablaFila key={version.id}>
-                    <TablaCelda className="font-medium tabular">
-                      {version.documentos?.codigo ?? (
-                        <span className="text-atenuado-contraste">—</span>
-                      )}
-                    </TablaCelda>
-                    <TablaCelda className="text-xs">
-                      {recortar(version.documentos?.titulo ?? "", 80)}
-                    </TablaCelda>
-                    <TablaCelda className="tabular text-xs">
-                      Ver.{String(version.version).padStart(2, "0")}
-                    </TablaCelda>
-                    <TablaCelda className="hidden whitespace-nowrap text-xs text-atenuado-contraste sm:table-cell">
-                      {formatearFecha(version.creado_en)}
-                    </TablaCelda>
-                    <TablaCelda className="text-right">
-                      <Link
-                        href={`/documentos/${version.documentos?.id}`}
-                        className="text-xs text-primario hover:underline"
-                      >
-                        Ver
-                      </Link>
-                    </TablaCelda>
-                  </TablaFila>
-                ))}
-              </TablaCuerpo>
-            </Tabla>
-          </Tarjeta>
-          <p className="mt-2 text-[11px] text-atenuado-contraste">
-            Son el contenido anterior de documentos que siguen en uso. «Ver» abre la ficha, con
-            el historial de versiones y el archivo de cada una.
-          </p>
-        </div>
       ) : null}
 
     </>
