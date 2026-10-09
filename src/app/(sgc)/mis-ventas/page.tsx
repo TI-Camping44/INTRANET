@@ -3,6 +3,7 @@ import Link from "next/link";
 import { TrendingUp } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { GraficoTendencia, type PuntoTendencia } from "@/components/comunes/grafico-tendencia";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
@@ -28,11 +29,14 @@ import {
   filasDelVendedor,
   nivelDeAlcance,
   nombreDeMes,
+  type VentaDelMes,
 } from "@/lib/ventas";
 
 export const metadata: Metadata = { title: "Mis ventas" };
 export const dynamic = "force-dynamic";
 
+/** Un millón de guaraníes. El gráfico trabaja en esta unidad. */
+const MILLON = 1_000_000;
 
 /**
  * Como va el comercial contra su objetivo.
@@ -44,6 +48,11 @@ export const dynamic = "force-dynamic";
  *
  * Quien no tenga cargado su nombre en el informe no es comercial y la
  * pantalla se lo dice, en vez de mostrarle un vacio sin explicacion.
+ *
+ * ORDEN DE LA PANTALLA. Arriba las cuatro tarjetas del mes en curso, que
+ * es a lo que entra; despues el mes a mes, que es la unica serie que
+ * tiene sentido dibujar; al final el equipo, para quien supervisa. Un
+ * jefe que ademas vende viene a ver primero lo suyo.
  */
 export default async function PaginaMisVentas() {
   const usuario = await requerirUsuario();
@@ -122,10 +131,21 @@ export default async function PaginaMisVentas() {
   const enCurso =
     mias.find((f) => f.mes === resumen.mesEnCurso && f.anio === resumen.anioEnCurso) ?? mias[0];
 
-  const anteriores = mias.filter((f) => f !== enCurso);
+  // EL GRAFICO VA EN MILLONES. En guaraníes las marcas del eje serían
+  // nueve dígitos y no se leen; la tabla de abajo lleva el monto exacto,
+  // que es donde alguien va a buscar la cifra.
+  const puntos: PuntoTendencia[] = [...mias]
+    .filter((fila): fila is VentaDelMes & { venta: number } => fila.venta !== null)
+    .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
+    .map((fila) => ({
+      periodo: `${fila.anio}-${String(fila.mes).padStart(2, "0")}-01`,
+      valor: Math.round((fila.venta / MILLON) * 10) / 10,
+      meta: fila.meta === null ? null : Math.round((fila.meta / MILLON) * 10) / 10,
+      cumple: fila.meta === null ? null : fila.venta >= fila.meta,
+    }));
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <EncabezadoPagina
         titulo="Mis ventas"
         descripcion={
@@ -146,19 +166,34 @@ export default async function PaginaMisVentas() {
 
       {enCurso ? (
         <>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-atenuado-contraste">
+            {nombreDeMes(enCurso.mes)} {enCurso.anio} · {enCurso.canal}
+          </p>
+
           <AvanceDelMes
             fila={enCurso}
             diasMes={resumen.diasMes}
             diasTranscurridos={resumen.diasTranscurridos}
           />
 
-          {anteriores.length > 0 ? (
-            <section className="mt-5">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-atenuado-contraste">
-                Meses anteriores
-              </h2>
-              <Tarjeta>
-                <Tabla>
+          {/* El mes a mes: la unica serie que esta pantalla dibuja. El
+              grafico y su tabla van juntos, como en todo el SGC. Con un
+              solo mes no hay tendencia que mostrar y queda la tabla. */}
+          <section className="mt-5">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-atenuado-contraste">
+              Mes a mes
+            </h2>
+
+            <Tarjeta>
+              {puntos.length >= 2 ? (
+                <div className="border-b border-borde p-4">
+                  <GraficoTendencia puntos={puntos} unidad="millones de Gs." altura={240} />
+                </div>
+              ) : null}
+
+              {/* `Tabla` ya trae su propio contenedor con desplazamiento
+                  horizontal: envolverla otra vez daría dos barras. */}
+              <Tabla>
                   <TablaCabecera>
                     <TablaFila>
                       <TablaEncabezado>Mes</TablaEncabezado>
@@ -170,24 +205,38 @@ export default async function PaginaMisVentas() {
                     </TablaFila>
                   </TablaCabecera>
                   <TablaCuerpo>
-                    {anteriores.map((fila) => {
+                    {mias.map((fila) => {
                       const porcentaje = alcance(fila.meta, fila.venta);
                       const nivel = nivelDeAlcance(porcentaje);
+                      const esElMes = fila === enCurso;
+
                       return (
-                        <TablaFila key={`${fila.anio}-${fila.mes}`}>
+                        <TablaFila
+                          key={`${fila.anio}-${fila.mes}`}
+                          className={esElMes ? "bg-acento/40" : undefined}
+                        >
                           <TablaCelda className="whitespace-nowrap text-xs">
-                            {nombreDeMes(fila.mes)} {fila.anio}
+                            <span className={esElMes ? "font-semibold" : undefined}>
+                              {nombreDeMes(fila.mes)} {fila.anio}
+                            </span>
+                            {esElMes ? (
+                              <span className="ml-1.5 text-[11px] text-atenuado-contraste">
+                                en curso
+                              </span>
+                            ) : null}
                           </TablaCelda>
                           <TablaCelda className="whitespace-nowrap text-right text-xs tabular">
                             {fila.meta === null ? "—" : formatearGuaranies(fila.meta)}
                           </TablaCelda>
-                          <TablaCelda className="whitespace-nowrap text-right text-xs tabular">
+                          <TablaCelda
+                            className={`whitespace-nowrap text-right text-xs tabular ${
+                              esElMes ? "font-semibold" : ""
+                            }`}
+                          >
                             {fila.venta === null ? "—" : formatearGuaranies(fila.venta)}
                           </TablaCelda>
                           <TablaCelda className="whitespace-nowrap text-right text-xs tabular text-atenuado-contraste">
-                            {fila.devoluciones === 0
-                              ? "—"
-                              : formatearGuaranies(fila.devoluciones)}
+                            {fila.devoluciones === 0 ? "—" : formatearGuaranies(fila.devoluciones)}
                           </TablaCelda>
                           <TablaCelda
                             className={`whitespace-nowrap text-right text-xs font-semibold tabular ${CLASES_NIVEL_ALCANCE[nivel]}`}
@@ -203,22 +252,20 @@ export default async function PaginaMisVentas() {
                       );
                     })}
                   </TablaCuerpo>
-                </Tabla>
-              </Tarjeta>
-            </section>
-          ) : null}
+              </Tabla>
+            </Tarjeta>
 
-          {/* Por que un mes cerrado puede no tener objetivo: el informe
-              guarda los objetivos del mes en curso, y los de meses
-              anteriores solo si se archivaron. Se dice en vez de reusar el
-              objetivo de este mes, que daria un porcentaje falso. */}
-          {anteriores.some((f) => f.meta === null) ? (
-            <p className="mt-3 text-[11px] leading-relaxed text-atenuado-contraste">
-              Los meses sin objetivo son los que el informe comercial no archivó: quedan con lo
-              vendido, sin porcentaje.
-            </p>
-          ) : null}
-
+            {/* Por que un mes cerrado puede no tener objetivo: el informe
+                guarda los objetivos del mes en curso, y los de meses
+                anteriores solo si se archivaron. Se dice en vez de reusar
+                el objetivo de este mes, que daria un porcentaje falso. */}
+            {mias.some((f) => f !== enCurso && f.meta === null) ? (
+              <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
+                Los meses sin objetivo son los que el informe comercial no archivó: quedan con lo
+                vendido, sin porcentaje.
+              </p>
+            ) : null}
+          </section>
         </>
       ) : null}
 

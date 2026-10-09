@@ -15,15 +15,24 @@ import { Tarjeta } from "@/components/ui/tarjeta";
 import { cn } from "@/lib/utilidades";
 
 /**
- * El mes en curso, que es lo que el comercial viene a ver.
+ * El mes en curso, en cuatro tarjetas.
  *
- * Una barra y tres números, sin gráfico. Un gráfico compara series; acá
- * hay un solo dato contra un solo umbral, y una barra lo dice más rápido
- * que cualquier dibujo.
+ * Es la fila de arriba de la pantalla: el comercial entra, mira y sabe
+ * si va bien. Cada tarjeta contesta una pregunta distinta y ninguna
+ * repite a otra: cuanto vendi, cuanto tengo que vender, como voy contra
+ * el calendario, y a cuanto por dia tengo que ir de aca al cierre.
+ *
+ * LA TERCERA ES LA QUE IMPORTA A MITAD DE MES. Un 50% el dia 10 esta
+ * bien y el dia 25 esta mal, y el alcance solo no distingue los dos
+ * casos; «adelantado» o «atrasado» contra lo que tocaba a hoy, si.
  *
  * La barra se corta en 100 aunque el alcance sea mayor: si alguien hizo
- * el 180%, estirarla al 180 achicaría visualmente la meta y se perdería
- * la referencia. El número al lado dice el 180.
+ * el 180%, estirarla al 180 achicaria visualmente la meta y se perderia
+ * la referencia. El numero al lado dice el 180.
+ *
+ * Sin objetivo cargado, las tres ultimas lo dicen en palabras en vez de
+ * mostrar un numero inventado. Pasa de verdad: el informe comercial
+ * archiva los objetivos del mes en curso y no siempre los anteriores.
  */
 export function AvanceDelMes({
   fila,
@@ -43,11 +52,7 @@ export function AvanceDelMes({
   const ritmo = ritmoNecesario(fila.meta, fila.venta, diasMes, diasTranscurridos);
   const diasRestantes = diasMes - diasTranscurridos;
 
-  // Adelantado o atrasado contra lo que tocaba a hoy. Es distinto del
-  // alcance: al dia 10 nadie va a estar al 100%, y lo que importa es si
-  // va al ritmo o no.
-  const contraHoy =
-    esperado === null || fila.venta === null ? null : fila.venta - esperado;
+  const contraHoy = esperado === null || fila.venta === null ? null : fila.venta - esperado;
 
   // La marca del esperado en la barra. Se corta en 100 como la barra: si
   // el mes casi termino, la referencia queda al final y no se sale.
@@ -57,112 +62,148 @@ export function AvanceDelMes({
       : Math.max(0, Math.min((esperado / fila.meta) * 100, 100));
 
   return (
-    <Tarjeta className="p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-xs font-medium text-atenuado-contraste">
-          {nombreDeMes(fila.mes)} {fila.anio} · {fila.canal}
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* 1 · Lo vendido, con la barra contra el objetivo. */}
+      <Tarjeta className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+          Vendido en el mes
         </p>
-        <p className={cn("text-xs font-semibold", CLASES_NIVEL_ALCANCE[nivel])}>
-          {ETIQUETAS_NIVEL_ALCANCE[nivel]}
+        <p className="mt-1.5 text-2xl font-semibold leading-none tabular">
+          {fila.venta === null ? "—" : formatearGuaranies(fila.venta)}
         </p>
-      </div>
 
-      <p className="mt-3 flex flex-wrap items-baseline gap-2">
-        <span className="text-3xl font-semibold tabular leading-none">
-          {porcentaje === null ? "—" : `${Math.round(porcentaje)}%`}
-        </span>
-        <span className="text-xs text-atenuado-contraste">de su objetivo del mes</span>
-      </p>
-
-      {/* La barra. `aria-*` para que un lector de pantalla diga el valor,
-          que si no es un rectángulo de color sin significado. */}
-      <div
-        className="relative mt-3 h-2.5 w-full overflow-hidden rounded-full bg-acento"
-        role="progressbar"
-        aria-valuenow={porcentaje === null ? 0 : Math.round(porcentaje)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Avance de ${nombreDeMes(fila.mes)}`}
-      >
         <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${ancho}%`, backgroundColor: COLOR_NIVEL_ALCANCE[nivel] }}
-        />
-
-        {/* Donde tendria que estar hoy. Es un UMBRAL, no una serie: va en
-            gris neutro y el color queda para el dato, igual que la meta en
-            los graficos del SGC. */}
-        {marcaEsperado === null ? null : (
-          <span
-            aria-hidden
-            className="absolute inset-y-0 w-0.5 bg-atenuado-contraste"
-            style={{ left: `${marcaEsperado}%` }}
+          className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-acento"
+          role="progressbar"
+          aria-valuenow={porcentaje === null ? 0 : Math.round(porcentaje)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Avance de ${nombreDeMes(fila.mes)}`}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${ancho}%`, backgroundColor: COLOR_NIVEL_ALCANCE[nivel] }}
           />
-        )}
-      </div>
 
-      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div>
-          <dt className="text-[11px] text-atenuado-contraste">Vendido</dt>
-          <dd className="text-sm font-semibold tabular">
-            {fila.venta === null ? "—" : formatearGuaranies(fila.venta)}
-          </dd>
+          {/* Donde tendria que estar hoy. Es un UMBRAL, no una serie: va
+              en gris neutro y el color queda para el dato, igual que la
+              meta en los graficos del SGC. */}
+          {marcaEsperado === null ? null : (
+            <span
+              aria-hidden
+              className="absolute inset-y-0 w-0.5 bg-atenuado-contraste"
+              style={{ left: `${marcaEsperado}%` }}
+            />
+          )}
         </div>
-        <div>
-          <dt className="text-[11px] text-atenuado-contraste">Objetivo</dt>
-          <dd className="text-sm font-semibold tabular">
-            {fila.meta === null ? "Sin cargar" : formatearGuaranies(fila.meta)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-[11px] text-atenuado-contraste">
-            {falta !== null && falta < 0 ? "Superó la meta en" : "Falta"}
-          </dt>
-          <dd className="text-sm font-semibold tabular">
-            {falta === null ? "—" : formatearGuaranies(Math.abs(falta))}
-          </dd>
-        </div>
-      </dl>
 
-      {/* Lo unico que la persona puede accionar: a cuanto por dia tiene
-          que ir de aca al cierre. Sin meta cargada no se muestra nada
-          antes que mostrar un numero inventado. */}
-      {ritmo === null ? null : (
-        <div className="mt-4 rounded-md border border-borde bg-acento/40 p-3">
-          <p className="text-[11px] text-atenuado-contraste">
-            Para llegar al objetivo, facturar por día hábil
-          </p>
-          <p className="mt-0.5 text-lg font-semibold tabular leading-none">
-            {formatearGuaranies(ritmo)}
-          </p>
-          <p className="mt-1 text-[11px] text-atenuado-contraste">
-            Quedan {formatearDias(diasRestantes)} de {formatearDias(diasMes)} días hábiles.
-          </p>
-        </div>
-      )}
-
-      {contraHoy === null ? null : (
-        <p className="mt-3 text-[11px] leading-relaxed text-atenuado-contraste">
-          A hoy tendría que llevar {formatearGuaranies(esperado ?? 0)}:{" "}
-          <span
-            className={cn(
-              "font-semibold",
-              contraHoy >= 0 ? "text-semaforo-bajo" : "text-semaforo-critico",
-            )}
-          >
-            {contraHoy >= 0 ? "adelantado" : "atrasado"} {formatearGuaranies(Math.abs(contraHoy))}
-          </span>
-          .
+        <p className="mt-2 text-[11px] text-atenuado-contraste">
+          {porcentaje === null ? (
+            <span className={CLASES_NIVEL_ALCANCE[nivel]}>
+              {ETIQUETAS_NIVEL_ALCANCE[nivel]}
+            </span>
+          ) : (
+            <>
+              <span className={cn("font-semibold", CLASES_NIVEL_ALCANCE[nivel])}>
+                {Math.round(porcentaje)} % del objetivo
+              </span>
+              {diasRestantes > 0
+                ? ` · quedan ${formatearDias(diasRestantes)} días hábiles`
+                : " · mes cerrado"}
+            </>
+          )}
         </p>
-      )}
+      </Tarjeta>
 
+      {/* 2 · El objetivo y lo que falta. */}
+      <Tarjeta className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+          Objetivo del mes
+        </p>
+        <p className="mt-1.5 text-2xl font-semibold leading-none tabular">
+          {fila.meta === null ? "Sin cargar" : formatearGuaranies(fila.meta)}
+        </p>
+        <p className="mt-3 text-[11px] text-atenuado-contraste">
+          {falta === null ? (
+            "El informe comercial no archivó el objetivo de este mes."
+          ) : falta <= 0 ? (
+            <>
+              Superó la meta en{" "}
+              <span className="font-semibold text-semaforo-bajo">
+                {formatearGuaranies(Math.abs(falta))}
+              </span>
+            </>
+          ) : (
+            <>Faltan {formatearGuaranies(falta)}</>
+          )}
+        </p>
+      </Tarjeta>
+
+      {/* 3 · Contra el calendario, no contra el total. */}
+      <Tarjeta className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+          Contra lo que tocaba a hoy
+        </p>
+        <p
+          className={cn(
+            "mt-1.5 text-2xl font-semibold leading-none tabular",
+            contraHoy === null
+              ? ""
+              : contraHoy >= 0
+                ? "text-semaforo-bajo"
+                : "text-semaforo-critico",
+          )}
+        >
+          {contraHoy === null
+            ? "—"
+            : `${contraHoy >= 0 ? "+" : "−"} ${formatearGuaranies(Math.abs(contraHoy))}`}
+        </p>
+        <p className="mt-3 text-[11px] text-atenuado-contraste">
+          {contraHoy === null ? (
+            "Sin objetivo cargado no hay con qué comparar."
+          ) : (
+            <>
+              {contraHoy >= 0 ? "Adelantado" : "Atrasado"}. A hoy tendría que llevar{" "}
+              {formatearGuaranies(esperado ?? 0)}
+            </>
+          )}
+        </p>
+      </Tarjeta>
+
+      {/* 4 · Lo unico accionable: cuanto por dia de aca al cierre. */}
+      <Tarjeta className="p-4">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+          Para llegar, por día hábil
+        </p>
+        <p className="mt-1.5 text-2xl font-semibold leading-none tabular">
+          {ritmo === null ? "—" : formatearGuaranies(ritmo)}
+        </p>
+        <p className="mt-3 text-[11px] text-atenuado-contraste">
+          {ritmo !== null ? (
+            <>
+              Quedan {formatearDias(diasRestantes)} de {formatearDias(diasMes)} días hábiles
+            </>
+          ) : falta !== null && falta <= 0 ? (
+            <span className="font-semibold text-semaforo-bajo">Objetivo alcanzado</span>
+          ) : diasRestantes <= 0 ? (
+            "El mes ya cerró: no hay ritmo que recomendar."
+          ) : (
+            "Sin objetivo cargado no hay ritmo que calcular."
+          )}
+        </p>
+      </Tarjeta>
+
+      {/* Las notas de credito explican una caida: un mes flojo por poca
+          venta y uno flojo por una devolucion grande no se arreglan
+          igual. Ocupa la fila entera porque es una aclaracion del
+          numero de arriba, no un indicador mas. */}
       {fila.devoluciones < 0 ? (
-        <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
-          Incluye {formatearGuaranies(Math.abs(fila.devoluciones))} en notas de crédito, ya
-          descontados de lo vendido.
+        <p className="text-[11px] leading-relaxed text-atenuado-contraste sm:col-span-2 xl:col-span-4">
+          Lo vendido ya tiene descontados {formatearGuaranies(Math.abs(fila.devoluciones))} en
+          notas de crédito de {nombreDeMes(fila.mes)}.
         </p>
       ) : null}
-    </Tarjeta>
+    </div>
   );
 }
 
