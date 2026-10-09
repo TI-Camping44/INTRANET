@@ -298,7 +298,7 @@ en la base de datos y en `src/lib/`.
 | Ciclo de la NC en tres estados: abierta, en tratamiento, cerrada | `ESTADOS_NC_VIGENTES` |
 | Cerrar una NC es atribución de Calidad, y solo con la eficacia verificada | Disparador `controlar_cierre_nc()` y `cambiarEstadoNoConformidad()` |
 | La NC dice a qué **área** de las trece corresponde, y a qué **empresa** del grupo | `AREAS_ORGANIZACIONALES` y el `CHECK` de `no_conformidades.area` |
-| **El grupo son dos empresas: Camping 44 S.A. y Vitalica E.A.S. Una sola gente las administra, pero cada registro es de una.** No hay ni va a haber usuarios de Vitalica: por eso `empresa_id` siempre vale Camping 44 y **nunca** sirve para decir de qué empresa es el registro —para eso va una columna propia, como `proveedores.empresa_compradora_id`, `auditorias.empresa_auditada_id`, `puestos.empresa_del_puesto_id` o `no_conformidades.empresa_afectada_id`—. Toda pantalla que pregunte por la empresa ofrece las dos, y todo documento que sale para afuera lleva el logotipo y la razón social de la que firma, no los de Camping 44 por omisión. La lista va por `empresas_del_grupo()`, nunca por un `select` a `empresas`: esa tabla la acota RLS a la propia, así que un registro de la otra empresa vuelve vacío | `empresas_del_grupo()` y `lib/membrete.ts` |
+| **El grupo son dos empresas: Camping 44 S.A. y Vitalica E.A.S. Una sola gente las administra, pero cada registro es de una.** Sí hay usuarios de Vitalica —el supuesto contrario cayó el 9 de octubre, cuando la exportación de Odoo mostró 11 empleados suyos—, y entran con su propio dominio. Aun así `empresa_id` **siempre** vale Camping 44, porque es el inquilino —el predicado de `misma_empresa()`—, no «de qué empresa habla el registro»: ponerle Vitalica a esa gente la dejaría sin ver nada. Para eso va una columna propia —para eso va una columna propia, como `proveedores.empresa_compradora_id`, `auditorias.empresa_auditada_id`, `puestos.empresa_del_puesto_id` o `no_conformidades.empresa_afectada_id`—. Toda pantalla que pregunte por la empresa ofrece las dos, y todo documento que sale para afuera lleva el logotipo y la razón social de la que firma, no los de Camping 44 por omisión. La lista va por `empresas_del_grupo()`, nunca por un `select` a `empresas`: esa tabla la acota RLS a la propia, así que un registro de la otra empresa vuelve vacío | `empresas_del_grupo()` y `lib/membrete.ts` |
 | **El objetivo es la unidad del módulo, no el indicador.** Arriba van tres tortas y nada más: objetivos por estado, **acciones abiertas** y **acciones cerradas**. Las barras por empresa, frecuencia y tipo y las cuatro tarjetas de arriba salieron el 8 de octubre: repetían lo que ya está en la tabla. Qué estado cae de cada lado lo deciden `ESTADOS_PLAN_ABIERTOS` y `ESTADOS_PLAN_CERRADOS`, no la pantalla | `indicadores/page.tsx` y `lib/objetivos.ts` |
 | **«Cancelado» salió de los estados de la acción del plan**: una acción o se cumple o no se cumple. El valor sigue en `ESTADOS_PLAN` y en el `CHECK` de la base para que una fila vieja se siga leyendo; lo que se elige hoy es `ESTADOS_PLAN_VIGENTES` | `lib/objetivos.ts` y `esEstadoDePlan()` |
 | **El alta de un documento se carga completa**: tipo, empresa, código, categoría, título y archivo. El **proceso al que pertenece** también, salvo que el documento sea un manual —un manual ES el proceso, no cuelga de otro— o que todavía no haya ningún manual cargado | `formulario-documento.tsx` y `crearDocumento()` |
@@ -383,6 +383,16 @@ sin vínculo hasta que se aprueben.
 - **Dominio validado en tres capas**: parámetro `hd` en Google, servidor
   (middleware y retorno de autenticación) y disparador en la base de
   datos. Las tres son necesarias; ninguna sola alcanza.
+- **Los dominios que entran son dos**: `camping44.com.py` y
+  `vitalica.com.py`, que es un dominio secundario del mismo Google
+  Workspace, no una organización aparte. La lista está en tres lugares
+  y los tres tienen que coincidir: `DOMINIOS_AUTORIZADOS` en
+  `lib/constantes.ts`, su copia en `lib/supabase/middleware.ts` —el
+  middleware corre en el borde y no conviene que arrastre todas las
+  constantes— y las dos funciones de la base. El `hd` de Google va en
+  `*`, no en un dominio: con dos dominios en el mismo Workspace,
+  nombrar uno dejaba al otro fuera del selector de cuentas. Sigue
+  filtrando las cuentas personales, que es lo que esa capa aporta.
 - **Los permisos se resuelven en RLS**, no en la interfaz. Ocultar un
   botón no es un control de acceso.
 - Los archivos del bucket son privados y se entregan con enlaces firmados

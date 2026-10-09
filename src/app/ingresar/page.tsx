@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FormularioIngreso } from "@/app/ingresar/formulario-ingreso";
 import { LogotipoOficial } from "@/components/comunes/logotipo-oficial";
-import { DOMINIO_AUTORIZADO, NOMBRE_EMPRESA, NOMBRE_SISTEMA } from "@/lib/constantes";
+import { DOMINIOS_AUTORIZADOS_TEXTO, NOMBRE_EMPRESA, NOMBRE_SISTEMA } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Ingresar" };
 
@@ -30,7 +30,7 @@ export default function PaginaIngreso({
           <h2 className="text-sm font-semibold">Ingreso al sistema</h2>
           <p className="mt-1 text-xs leading-relaxed text-atenuado-contraste">
             El acceso está restringido a las cuentas corporativas del dominio{" "}
-            <span className="font-medium text-texto">{DOMINIO_AUTORIZADO}</span>.
+            <span className="font-medium text-texto">{DOMINIOS_AUTORIZADOS_TEXTO}</span>.
           </p>
 
           <FormularioIngreso

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { DOMINIO_AUTORIZADO } from "@/lib/constantes";
+import { dominioAutorizado } from "@/lib/constantes";
 
 /**
  * Retorno del ingreso con Google.
@@ -51,9 +51,7 @@ export async function GET(peticion: NextRequest) {
     return NextResponse.redirect(destino);
   }
 
-  const dominio = data.user.email?.split("@")[1]?.toLowerCase();
-
-  if (dominio !== DOMINIO_AUTORIZADO) {
+  if (!dominioAutorizado(data.user.email)) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/sin-acceso?motivo=dominio`);
   }

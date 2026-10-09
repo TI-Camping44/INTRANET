@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tabla";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { DESCRIPCION_ROL, DOMINIO_AUTORIZADO, ETIQUETAS_ROL } from "@/lib/constantes";
+import { DESCRIPCION_ROL, DOMINIOS_AUTORIZADOS_TEXTO, ETIQUETAS_ROL } from "@/lib/constantes";
 import type { RolUsuario } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Usuarios y roles" };
@@ -47,7 +47,7 @@ export default async function PaginaUsuarios() {
         <div>
           <AvisoTitulo>Cómo se dan de alta los usuarios</AvisoTitulo>
           <AvisoDescripcion>
-            Cualquier cuenta del dominio {DOMINIO_AUTORIZADO} puede ingresar; el sistema crea su
+            Cualquier cuenta de {DOMINIOS_AUTORIZADOS_TEXTO} puede ingresar; el sistema crea su
             perfil con rol Colaborador. Desde esta pantalla se ajusta el rol y se define el jefe
             inmediato, que es a quien escala una acción correctiva vencida.
           </AvisoDescripcion>

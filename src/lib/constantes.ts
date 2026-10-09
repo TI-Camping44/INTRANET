@@ -43,7 +43,35 @@ import type {
  */
 export const NOMBRE_SISTEMA = "Intranet";
 export const NOMBRE_EMPRESA = "Camping 44 S.A.";
-export const DOMINIO_AUTORIZADO = "camping44.com.py";
+/**
+ * Los dominios que pueden ingresar.
+ *
+ * SON DOS PORQUE EL WORKSPACE ES UNO SOLO. `vitalica.com.py` es un
+ * dominio secundario del Workspace de Camping 44, no una organizacion
+ * aparte: las cuentas las administra la misma gente y la mayoria de la
+ * gente de Vitalica ya usa una direccion @camping44.com.py. Dejar afuera
+ * el secundario dejaba sin entrar a quien tiene la del otro dominio.
+ *
+ * El primero es el principal: es el que se muestra en las pantallas.
+ */
+export const DOMINIOS_AUTORIZADOS = ["camping44.com.py", "vitalica.com.py"] as const;
+
+export const DOMINIO_AUTORIZADO = DOMINIOS_AUTORIZADOS[0];
+
+/** Como se nombran los dominios en un texto para la persona. */
+export const DOMINIOS_AUTORIZADOS_TEXTO = DOMINIOS_AUTORIZADOS.join(" o ");
+
+/**
+ * Si un correo puede ingresar.
+ *
+ * Es comodidad del servidor, no el control: el control esta en el
+ * disparador de la base, que repite esta misma lista.
+ */
+export function dominioAutorizado(correo: string | null | undefined): boolean {
+  const dominio = correo?.split("@")[1]?.toLowerCase();
+  if (!dominio) return false;
+  return (DOMINIOS_AUTORIZADOS as readonly string[]).includes(dominio);
+}
 
 /**
  * El horario de la empresa.

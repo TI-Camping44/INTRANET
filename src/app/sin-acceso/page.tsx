@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ShieldX } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
 import { Logotipo } from "@/components/comunes/logotipo";
-import { DOMINIO_AUTORIZADO } from "@/lib/constantes";
+import { DOMINIOS_AUTORIZADOS_TEXTO } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Sin acceso" };
 
@@ -11,7 +11,7 @@ const MOTIVOS: Record<string, { titulo: string; detalle: string }> = {
   dominio: {
     titulo: "Cuenta fuera del dominio autorizado",
     detalle:
-      `El sistema solo admite cuentas corporativas del dominio ${DOMINIO_AUTORIZADO}. ` +
+      `El sistema solo admite cuentas corporativas de ${DOMINIOS_AUTORIZADOS_TEXTO}. ` +
       "Cierre la sesión de Google y vuelva a ingresar con su cuenta de trabajo.",
   },
   permisos: {

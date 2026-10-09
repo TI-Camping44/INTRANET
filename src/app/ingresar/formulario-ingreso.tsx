@@ -4,10 +4,10 @@ import * as React from "react";
 import { Boton } from "@/components/ui/boton";
 import { Aviso, AvisoDescripcion } from "@/components/ui/aviso";
 import { crearClienteNavegador } from "@/lib/supabase/navegador";
-import { DOMINIO_AUTORIZADO } from "@/lib/constantes";
+import { DOMINIOS_AUTORIZADOS_TEXTO } from "@/lib/constantes";
 
 const MENSAJES_ERROR: Record<string, string> = {
-  dominio: `Esa cuenta no pertenece al dominio ${DOMINIO_AUTORIZADO}.`,
+  dominio: `Esa cuenta no pertenece a ${DOMINIOS_AUTORIZADOS_TEXTO}.`,
   intercambio: "No se pudo completar el ingreso. Vuelva a intentarlo.",
   sin_codigo: "El enlace de ingreso no es válido o ya expiró.",
   inactivo: "Su usuario está inactivo. Comuníquese con el Administrador SGC.",
@@ -46,9 +46,15 @@ export function FormularioIngreso({
       provider: "google",
       options: {
         redirectTo: destino.toString(),
-        // Google restringe el selector de cuentas al dominio corporativo.
-        // La validación real se repite en el servidor y en la base de datos.
-        queryParams: { hd: DOMINIO_AUTORIZADO, prompt: "select_account" },
+        // `hd: "*"` restringe el selector a cuentas de Google Workspace y
+        // deja afuera las personales. NO se fija un dominio: el Workspace
+        // tiene dos —camping44.com.py y su secundario vitalica.com.py— y
+        // nombrar uno dejaba al otro fuera del selector.
+        //
+        // Sigue siendo la primera de las tres capas, nada más que como
+        // filtro del selector; quién entra de verdad lo deciden el
+        // servidor y el disparador de la base, que sí tienen la lista.
+        queryParams: { hd: "*", prompt: "select_account" },
       },
     });
 

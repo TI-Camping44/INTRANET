@@ -1,8 +1,18 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Dominio unico autorizado para ingresar al sistema. */
-export const DOMINIO_AUTORIZADO = "camping44.com.py";
+/**
+ * Los dominios autorizados para ingresar.
+ *
+ * Se repiten aca en vez de importarse de `lib/constantes`: el middleware
+ * corre en el entorno de borde y arrastrar ese archivo entero trae el
+ * resto de las constantes del sistema. Si cambia la lista, cambia en los
+ * dos lados y en el disparador de la base.
+ */
+export const DOMINIOS_AUTORIZADOS = ["camping44.com.py", "vitalica.com.py"];
+
+/** El principal, el que se muestra en las pantallas. */
+export const DOMINIO_AUTORIZADO = DOMINIOS_AUTORIZADOS[0];
 
 /** Rutas accesibles sin sesion iniciada. */
 const RUTAS_PUBLICAS = ["/ingresar", "/auth", "/sin-acceso", "/api/cron"];
@@ -63,7 +73,7 @@ export async function actualizarSesion(peticion: NextRequest) {
   }
 
   const dominio = usuario.email?.split("@")[1]?.toLowerCase();
-  if (dominio !== DOMINIO_AUTORIZADO) {
+  if (!dominio || !DOMINIOS_AUTORIZADOS.includes(dominio)) {
     await supabase.auth.signOut();
     const destino = peticion.nextUrl.clone();
     destino.pathname = "/sin-acceso";
