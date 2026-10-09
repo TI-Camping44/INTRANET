@@ -484,16 +484,23 @@ export function FormularioRiesgo({
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {/* OBLIGATORIO, desde el 9 de octubre. Es lo que justifica
+                la evaluación: sin saber qué se hace hoy para contener el
+                riesgo, la probabilidad y la severidad quedan dichas sin
+                respaldo. Lo único opcional del formulario es la primera
+                viñeta, dónde se identifica. */}
             <GrupoCampo
               etiqueta="Controles existentes"
               htmlFor="controles_existentes"
               className="sm:col-span-2"
+              requerido
               ayuda="Qué se hace hoy para contener el riesgo. Justifica la evaluación."
             >
               <AreaTexto
                 id="controles_existentes"
                 name="controles_existentes"
                 rows={2}
+                required
                 defaultValue={inicial?.controles_existentes ?? ""}
               />
             </GrupoCampo>
@@ -555,6 +562,7 @@ export function FormularioRiesgo({
                       <AreaTexto
                         id={`accion-${accion.clave}`}
                         rows={2}
+                        required
                         value={accion.descripcion}
                         onChange={(evento) =>
                           cambiarAccion(accion.clave, { descripcion: evento.target.value })
@@ -569,6 +577,7 @@ export function FormularioRiesgo({
                     >
                       <Seleccion
                         id={`responsable-${accion.clave}`}
+                        required
                         value={accion.responsable_id}
                         onChange={(evento) =>
                           cambiarAccion(accion.clave, { responsable_id: evento.target.value })
@@ -591,6 +600,7 @@ export function FormularioRiesgo({
                       <Entrada
                         id={`plazo-${accion.clave}`}
                         type="date"
+                        required
                         value={accion.plazo}
                         onChange={(evento) =>
                           cambiarAccion(accion.clave, { plazo: evento.target.value })

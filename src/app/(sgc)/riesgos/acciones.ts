@@ -31,6 +31,11 @@ const OBLIGATORIOS: { campo: string; nombre: string }[] = [
   { campo: "causas", nombre: "la causa potencial" },
   { campo: "consecuencias", nombre: "la consecuencia potencial" },
   { campo: "asociado_disrupcion", nombre: "si está asociado a una disrupción" },
+  // LOS CONTROLES EXISTENTES SON OBLIGATORIOS desde el 9 de octubre: son
+  // lo que justifica la evaluacion. Sin saber que se hace hoy para
+  // contener el riesgo, la probabilidad y la severidad quedan dichas sin
+  // respaldo. Lo unico opcional del formulario es donde se identifica.
+  { campo: "controles_existentes", nombre: "los controles existentes" },
   { campo: "responsable_id", nombre: "el responsable" },
 ];
 
