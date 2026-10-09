@@ -12,7 +12,11 @@ import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
 import { PUBLICACIONES_EN_INICIO, estaVigente } from "@/lib/publicaciones";
-import { BUCKET_IMAGENES, DURACION_ENLACE_IMAGEN, esRutaDelBucket } from "@/lib/imagenes";
+import {
+  BUCKET_IMAGENES,
+  DURACION_ENLACE_IMAGEN,
+  esRutaDelBucket,
+} from "@/lib/imagenes";
 import { iniciales } from "@/lib/utilidades";
 import { MuroPublicaciones, type Publicacion } from "./muro-publicaciones";
 
@@ -31,44 +35,40 @@ interface Efemeride {
 }
 
 const MESES = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
 ];
 
 export default async function PaginaInicio() {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const [{ data: publicaciones }, { data: efemerides }, { data: personas }, { data: procesos }] =
-    await Promise.all([
-      supabase
-        .from("publicaciones")
-        .select(
-          "id, tipo, titulo, cuerpo, resumen, estado, fijada, fecha_publicacion," +
-            " fecha_vencimiento, url_imagen, usuario_referido_id, proceso_id," +
-            " autor:creado_por (nombre_completo, url_avatar)," +
-            " referido:usuario_referido_id (nombre_completo, url_avatar)," +
-            " procesos:proceso_id (nombre)," +
-            " documento:documento_id (id, codigo, titulo)",
-        )
-        .order("fijada", { ascending: false })
-        .order("fecha_publicacion", { ascending: false, nullsFirst: false })
-        .limit(60),
-      supabase.from("vista_efemerides").select("*"),
-      supabase
-        .from("usuarios")
-        .select("id, nombre_completo")
-        .eq("activo", true)
-        .order("nombre_completo"),
-      // El mapa vigente, el 01. La publicacion dirigida a un proceso se
-      // dirige a los de hoy, no a los del mapa que se esta retirando.
-      supabase
-        .from("procesos")
-        .select("id, nombre")
-        .eq("activo", true)
-        .eq("version", "01")
-        .order("nombre"),
-    ]);
+  const [{ data: publicaciones }, { data: efemerides }] = await Promise.all([
+    supabase
+      .from("publicaciones")
+      .select(
+        "id, tipo, titulo, cuerpo, resumen, estado, fijada, fecha_publicacion," +
+          " fecha_vencimiento, url_imagen, usuario_referido_id, proceso_id," +
+          " autor:creado_por (nombre_completo, url_avatar)," +
+          " referido:usuario_referido_id (nombre_completo, url_avatar)," +
+          " procesos:proceso_id (nombre)," +
+          " documento:documento_id (id, codigo, titulo)",
+      )
+      .order("fijada", { ascending: false })
+      .order("fecha_publicacion", { ascending: false, nullsFirst: false })
+      .limit(60),
+    supabase.from("vista_efemerides").select("*"),
+  ]);
 
   const hoy = hoyEnAsuncion();
   const mesActual = Number(hoy.slice(5, 7));
@@ -76,9 +76,11 @@ export default async function PaginaInicio() {
 
   // El muro muestra lo publicado y vigente. El borrador propio y lo
   // archivado se ven, pero mas abajo: RLS ya filtro lo que no corresponde.
-  const visibles = ((publicaciones ?? []) as unknown as (Publicacion & {
-    url_imagen: string | null;
-  })[])
+  const visibles = (
+    (publicaciones ?? []) as unknown as (Publicacion & {
+      url_imagen: string | null;
+    })[]
+  )
     .filter(
       (publicacion) =>
         publicacion.estado !== "publicada" ||
@@ -100,7 +102,8 @@ export default async function PaginaInicio() {
       .createSignedUrls(rutas, DURACION_ENLACE_IMAGEN);
 
     for (const enlace of enlaces ?? []) {
-      if (enlace.path && enlace.signedUrl) firmadas.set(enlace.path, enlace.signedUrl);
+      if (enlace.path && enlace.signedUrl)
+        firmadas.set(enlace.path, enlace.signedUrl);
     }
   }
 
@@ -145,7 +148,8 @@ export default async function PaginaInicio() {
       );
 
     for (const enlace of enlaces ?? []) {
-      if (enlace.path && enlace.signedUrl) firmadosAnexos.set(enlace.path, enlace.signedUrl);
+      if (enlace.path && enlace.signedUrl)
+        firmadosAnexos.set(enlace.path, enlace.signedUrl);
     }
   }
 
@@ -168,7 +172,9 @@ export default async function PaginaInicio() {
   // Del mes en curso, y de hoy en adelante: un cumpleanos de hace dos
   // semanas ya no sirve para saludar.
   const delMes = ((efemerides ?? []) as unknown as Efemeride[])
-    .filter((efemeride) => efemeride.mes === mesActual && efemeride.dia >= diaActual)
+    .filter(
+      (efemeride) => efemeride.mes === mesActual && efemeride.dia >= diaActual,
+    )
     .sort((a, b) => a.dia - b.dia)
     .slice(0, 8);
 
@@ -178,7 +184,9 @@ export default async function PaginaInicio() {
   return (
     <>
       <div className="mb-5">
-        <h1 className="text-xl font-semibold tracking-tight">Hola, {primerNombre}</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          Hola, {primerNombre}
+        </h1>
         <p className="mt-1 text-sm text-atenuado-contraste">
           Lo que pasa en Camping 44, en un solo lugar.
         </p>
@@ -188,8 +196,6 @@ export default async function PaginaInicio() {
         <div className="min-w-0 lg:col-span-2">
           <MuroPublicaciones
             publicaciones={listaPublicaciones}
-            personas={(personas ?? []) as { id: string; nombre_completo: string }[]}
-            procesos={(procesos ?? []) as { id: string; nombre: string }[]}
             puedeGestionar={gestiona}
           />
         </div>
@@ -202,7 +208,8 @@ export default async function PaginaInicio() {
             <TarjetaContenido>
               {delMes.length === 0 ? (
                 <p className="text-xs text-atenuado-contraste">
-                  No quedan cumpleaños ni aniversarios en {MESES[mesActual - 1]}.
+                  No quedan cumpleaños ni aniversarios en {MESES[mesActual - 1]}
+                  .
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -236,7 +243,8 @@ export default async function PaginaInicio() {
                           ) : (
                             <>
                               <PartyPopper className="size-3" />
-                              {efemeride.anos} año{efemeride.anos === 1 ? "" : "s"} el{" "}
+                              {efemeride.anos} año
+                              {efemeride.anos === 1 ? "" : "s"} el{" "}
                               {efemeride.dia}
                             </>
                           )}
@@ -248,10 +256,8 @@ export default async function PaginaInicio() {
               )}
             </TarjetaContenido>
           </Tarjeta>
-
         </div>
       </div>
     </>
   );
 }
-

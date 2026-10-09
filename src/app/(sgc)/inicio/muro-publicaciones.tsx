@@ -120,13 +120,9 @@ type Filtro = "todas" | TipoPublicacion;
 
 export function MuroPublicaciones({
   publicaciones,
-  personas,
-  procesos,
   puedeGestionar,
 }: {
   publicaciones: Publicacion[];
-  personas: { id: string; nombre_completo: string }[];
-  procesos: { id: string; nombre: string }[];
   puedeGestionar: boolean;
 }) {
   const router = useRouter();
@@ -736,45 +732,6 @@ export function MuroPublicaciones({
                   }}
                 />
               </GrupoCampo>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <GrupoCampo
-                  etiqueta="Sobre quién"
-                  htmlFor="usuario_referido_id"
-                  ayuda="Para bienvenidas y reconocimientos."
-                >
-                  <Seleccion
-                    id="usuario_referido_id"
-                    name="usuario_referido_id"
-                    defaultValue={editando?.usuario_referido_id ?? ""}
-                  >
-                    <option value="">Nadie en particular</option>
-                    {personas.map((persona) => (
-                      <option key={persona.id} value={persona.id}>
-                        {persona.nombre_completo}
-                      </option>
-                    ))}
-                  </Seleccion>
-                </GrupoCampo>
-
-                {/* Elige un PROCESO, no un departamento. Estuvo rotulado «Área»
-                    desde el principio, y al renombrar todo a «Departamento» el
-                    rotulo iba a seguir sin describir lo que hace. */}
-                <GrupoCampo etiqueta="Proceso" htmlFor="proceso_id">
-                  <Seleccion
-                    id="proceso_id"
-                    name="proceso_id"
-                    defaultValue={editando?.proceso_id ?? ""}
-                  >
-                    <option value="">Toda la empresa</option>
-                    {procesos.map((proceso) => (
-                      <option key={proceso.id} value={proceso.id}>
-                        {proceso.nombre}
-                      </option>
-                    ))}
-                  </Seleccion>
-                </GrupoCampo>
-              </div>
 
               {editando ? null : (
               <div className="space-y-1.5 rounded-md border border-borde p-3">

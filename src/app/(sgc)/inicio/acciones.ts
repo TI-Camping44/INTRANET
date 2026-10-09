@@ -47,8 +47,6 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
       estado: publicar ? "publicada" : "borrador",
       fijada: publicar && datos.get("fijada") === "si",
       fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
-      usuario_referido_id: String(datos.get("usuario_referido_id") ?? "") || null,
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
       creado_por: usuario.id,
     })
     .select("id, titulo")
@@ -301,8 +299,6 @@ export async function editarPublicacion(
     cuerpo,
     resumen: String(datos.get("resumen") ?? "").trim() || null,
     fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
-    usuario_referido_id: String(datos.get("usuario_referido_id") ?? "") || null,
-    proceso_id: String(datos.get("proceso_id") ?? "") || null,
   };
 
   if (datos.get("quitar_imagen") === "si") {
