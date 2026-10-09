@@ -3,7 +3,10 @@ import Link from "next/link";
 import { TrendingUp } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
-import { GraficoTendencia, type PuntoTendencia } from "@/components/comunes/grafico-tendencia";
+import {
+  GraficoTendencia,
+  type PuntoTendencia,
+} from "@/components/comunes/grafico-tendencia";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
@@ -17,7 +20,12 @@ import {
 import { AvanceDelMes } from "@/app/(sgc)/mis-ventas/avance-del-mes";
 import { TablaEquipo } from "@/app/(sgc)/mis-ventas/tabla-equipo";
 import { BotonSincronizar } from "@/app/(sgc)/mis-ventas/boton-sincronizar";
-import { CANALES_DE_VENTA, canalesVisiblesPara, esJefeDeVentas } from "@/lib/permisos-ventas";
+import { SelectorVendedor } from "@/app/(sgc)/mis-ventas/selector-vendedor";
+import {
+  CANALES_DE_VENTA,
+  canalesVisiblesPara,
+  esJefeDeVentas,
+} from "@/lib/permisos-ventas";
 import { requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFechaHora, formatearGuaranies } from "@/lib/formato";
@@ -54,7 +62,11 @@ const MILLON = 1_000_000;
  * tiene sentido dibujar; al final el equipo, para quien supervisa. Un
  * jefe que ademas vende viene a ver primero lo suyo.
  */
-export default async function PaginaMisVentas() {
+export default async function PaginaMisVentas({
+  searchParams,
+}: {
+  searchParams: { vendedor?: string };
+}) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
@@ -73,7 +85,10 @@ export default async function PaginaMisVentas() {
 
   // Los canales cuyo detalle puede ver. Vacio para casi todos; Direccion
   // los tiene todos sin configurar nada.
-  const canalesVisibles = canalesVisiblesPara(usuario.rol, datos?.ventas_canales ?? null);
+  const canalesVisibles = canalesVisiblesPara(
+    usuario.rol,
+    datos?.ventas_canales ?? null,
+  );
   const esJefe = esJefeDeVentas(usuario.rol, datos?.ventas_canales ?? null);
 
   if (!nombreEnPlanilla && !esJefe) {
@@ -96,7 +111,9 @@ export default async function PaginaMisVentas() {
       <div className="mx-auto max-w-3xl">
         <EncabezadoPagina
           titulo="Mis ventas"
-          acciones={usuario.rol === "administrador_sgc" ? <BotonSincronizar /> : null}
+          acciones={
+            usuario.rol === "administrador_sgc" ? <BotonSincronizar /> : null
+          }
         />
         <EstadoVacio
           icono={<TrendingUp className="size-6" />}
@@ -116,7 +133,9 @@ export default async function PaginaMisVentas() {
   }
 
   const { resumen } = lectura;
-  const mias = nombreEnPlanilla ? filasDelVendedor(resumen, nombreEnPlanilla) : [];
+  const mias = nombreEnPlanilla
+    ? filasDelVendedor(resumen, nombreEnPlanilla)
+    : [];
 
   // El equipo: el mes en curso de los canales que tiene asignados, sin su
   // propia fila, que ya esta arriba y con mas detalle.
@@ -128,19 +147,78 @@ export default async function PaginaMisVentas() {
       !mias.includes(f),
   );
 
+  // DE QUIÉN SE MUESTRA EL DETALLE.
+  //
+  // Por omisión, lo propio. Un jefe puede pedir el de cualquiera de los
+  // canales que supervisa con `?vendedor=`, y ESO SE VALIDA ACÁ: si el
+  // código pedido no está entre los que puede ver, se ignora y se cae a
+  // lo suyo. Sin esta comprobación, cambiar la dirección a mano dejaría
+  // ver las ventas de cualquiera.
+  const codsPermitidos = new Set(
+    resumen.filas
+      .filter((f) =>
+        canalesVisibles.includes(f.canal as (typeof canalesVisibles)[number]),
+      )
+      .map((f) => f.cod),
+  );
+
+  const pedido = searchParams.vendedor?.trim() || null;
+  const codElegido =
+    pedido && codsPermitidos.has(pedido)
+      ? pedido
+      : pedido && mias.some((f) => f.cod === pedido)
+        ? pedido
+        : null;
+
+  // Las filas del detalle: las del elegido, o las propias si no eligió.
+  const detalle = codElegido
+    ? resumen.filas
+        .filter((f) => f.cod === codElegido)
+        .sort((a, b) => b.anio - a.anio || b.mes - a.mes)
+    : mias;
+
+  // Quién es, para el título. El vendedor que mira lo suyo no necesita
+  // que la pantalla le diga su propio nombre.
+  const nombreDelDetalle =
+    codElegido && !mias.some((f) => f.cod === codElegido)
+      ? (detalle[0]?.vendedor ?? null)
+      : null;
+
+  // Las opciones del desplegable: una por persona, del mes en curso.
+  const opciones = Array.from(
+    new Map(
+      resumen.filas
+        .filter(
+          (f) =>
+            f.mes === resumen.mesEnCurso &&
+            f.anio === resumen.anioEnCurso &&
+            codsPermitidos.has(f.cod),
+        )
+        .map((f) => [
+          f.cod,
+          { cod: f.cod, nombre: f.vendedor, canal: f.canal },
+        ]),
+    ).values(),
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
   const enCurso =
-    mias.find((f) => f.mes === resumen.mesEnCurso && f.anio === resumen.anioEnCurso) ?? mias[0];
+    detalle.find(
+      (f) => f.mes === resumen.mesEnCurso && f.anio === resumen.anioEnCurso,
+    ) ?? detalle[0];
 
   // EL GRAFICO VA EN MILLONES. En guaraníes las marcas del eje serían
   // nueve dígitos y no se leen; la tabla de abajo lleva el monto exacto,
   // que es donde alguien va a buscar la cifra.
-  const puntos: PuntoTendencia[] = [...mias]
-    .filter((fila): fila is VentaDelMes & { venta: number } => fila.venta !== null)
+  const puntos: PuntoTendencia[] = [...detalle]
+    .filter(
+      (fila): fila is VentaDelMes & { venta: number } => fila.venta !== null,
+    )
     .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
     .map((fila) => ({
       periodo: `${fila.anio}-${String(fila.mes).padStart(2, "0")}-01`,
       valor: Math.round((fila.venta / MILLON) * 10) / 10,
-      meta: fila.meta === null ? null : Math.round((fila.meta / MILLON) * 10) / 10,
+      meta:
+        fila.meta === null ? null : Math.round((fila.meta / MILLON) * 10) / 10,
       cumple: fila.meta === null ? null : fila.venta >= fila.meta,
     }));
 
@@ -151,12 +229,22 @@ export default async function PaginaMisVentas() {
         descripcion={
           nombreEnPlanilla
             ? "Su avance contra el objetivo, con los mismos números del informe comercial."
-            : "Cómo va su equipo contra el objetivo, con los mismos números del informe comercial."
+            : "Cómo va su equipo contra el objetivo, con los mismos números del informe comercial. Elija un vendedor para ver su detalle."
         }
-        acciones={usuario.rol === "administrador_sgc" ? <BotonSincronizar /> : null}
+        acciones={
+          usuario.rol === "administrador_sgc" ? <BotonSincronizar /> : null
+        }
       />
 
-      {!enCurso && nombreEnPlanilla ? (
+      {/* El desplegable, solo para quien supervisa. Elegir a alguien
+          vuelve a armar la página entera con su detalle. */}
+      {esJefe && opciones.length > 0 ? (
+        <div className="mb-4">
+          <SelectorVendedor opciones={opciones} elegido={codElegido} />
+        </div>
+      ) : null}
+
+      {!enCurso && nombreEnPlanilla && !codElegido ? (
         <EstadoVacio
           icono={<TrendingUp className="size-6" />}
           titulo="Todavía no hay movimientos suyos este mes"
@@ -167,6 +255,7 @@ export default async function PaginaMisVentas() {
       {enCurso ? (
         <>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-atenuado-contraste">
+            {nombreDelDetalle ? `${nombreDelDetalle} · ` : ""}
             {nombreDeMes(enCurso.mes)} {enCurso.anio} · {enCurso.canal}
           </p>
 
@@ -187,71 +276,93 @@ export default async function PaginaMisVentas() {
             <Tarjeta>
               {puntos.length >= 2 ? (
                 <div className="border-b border-borde p-4">
-                  <GraficoTendencia puntos={puntos} unidad="millones de Gs." altura={240} />
+                  <GraficoTendencia
+                    puntos={puntos}
+                    unidad="millones de Gs."
+                    altura={240}
+                  />
                 </div>
               ) : null}
 
               {/* `Tabla` ya trae su propio contenedor con desplazamiento
                   horizontal: envolverla otra vez daría dos barras. */}
               <Tabla>
-                  <TablaCabecera>
-                    <TablaFila>
-                      <TablaEncabezado>Mes</TablaEncabezado>
-                      <TablaEncabezado className="text-right">Objetivo</TablaEncabezado>
-                      <TablaEncabezado className="text-right">Vendido</TablaEncabezado>
-                      <TablaEncabezado className="text-right">Devoluciones</TablaEncabezado>
-                      <TablaEncabezado className="text-right">Alcance</TablaEncabezado>
-                      <TablaEncabezado>Estado</TablaEncabezado>
-                    </TablaFila>
-                  </TablaCabecera>
-                  <TablaCuerpo>
-                    {mias.map((fila) => {
-                      const porcentaje = alcance(fila.meta, fila.venta);
-                      const nivel = nivelDeAlcance(porcentaje);
-                      const esElMes = fila === enCurso;
+                <TablaCabecera>
+                  <TablaFila>
+                    <TablaEncabezado>Mes</TablaEncabezado>
+                    <TablaEncabezado className="text-right">
+                      Objetivo
+                    </TablaEncabezado>
+                    <TablaEncabezado className="text-right">
+                      Vendido
+                    </TablaEncabezado>
+                    <TablaEncabezado className="text-right">
+                      Devoluciones
+                    </TablaEncabezado>
+                    <TablaEncabezado className="text-right">
+                      Alcance
+                    </TablaEncabezado>
+                    <TablaEncabezado>Estado</TablaEncabezado>
+                  </TablaFila>
+                </TablaCabecera>
+                <TablaCuerpo>
+                  {detalle.map((fila) => {
+                    const porcentaje = alcance(fila.meta, fila.venta);
+                    const nivel = nivelDeAlcance(porcentaje);
+                    const esElMes = fila === enCurso;
 
-                      return (
-                        <TablaFila
-                          key={`${fila.anio}-${fila.mes}`}
-                          className={esElMes ? "bg-acento/40" : undefined}
-                        >
-                          <TablaCelda className="whitespace-nowrap text-xs">
-                            <span className={esElMes ? "font-semibold" : undefined}>
-                              {nombreDeMes(fila.mes)} {fila.anio}
+                    return (
+                      <TablaFila
+                        key={`${fila.anio}-${fila.mes}`}
+                        className={esElMes ? "bg-acento/40" : undefined}
+                      >
+                        <TablaCelda className="whitespace-nowrap text-xs">
+                          <span
+                            className={esElMes ? "font-semibold" : undefined}
+                          >
+                            {nombreDeMes(fila.mes)} {fila.anio}
+                          </span>
+                          {esElMes ? (
+                            <span className="ml-1.5 text-[11px] text-atenuado-contraste">
+                              en curso
                             </span>
-                            {esElMes ? (
-                              <span className="ml-1.5 text-[11px] text-atenuado-contraste">
-                                en curso
-                              </span>
-                            ) : null}
-                          </TablaCelda>
-                          <TablaCelda className="whitespace-nowrap text-right text-xs tabular">
-                            {fila.meta === null ? "—" : formatearGuaranies(fila.meta)}
-                          </TablaCelda>
-                          <TablaCelda
-                            className={`whitespace-nowrap text-right text-xs tabular ${
-                              esElMes ? "font-semibold" : ""
-                            }`}
-                          >
-                            {fila.venta === null ? "—" : formatearGuaranies(fila.venta)}
-                          </TablaCelda>
-                          <TablaCelda className="whitespace-nowrap text-right text-xs tabular text-atenuado-contraste">
-                            {fila.devoluciones === 0 ? "—" : formatearGuaranies(fila.devoluciones)}
-                          </TablaCelda>
-                          <TablaCelda
-                            className={`whitespace-nowrap text-right text-xs font-semibold tabular ${CLASES_NIVEL_ALCANCE[nivel]}`}
-                          >
-                            {porcentaje === null ? "—" : `${Math.round(porcentaje)}%`}
-                          </TablaCelda>
-                          <TablaCelda>
-                            <Insignia variante="contorno">
-                              {ETIQUETAS_NIVEL_ALCANCE[nivel]}
-                            </Insignia>
-                          </TablaCelda>
-                        </TablaFila>
-                      );
-                    })}
-                  </TablaCuerpo>
+                          ) : null}
+                        </TablaCelda>
+                        <TablaCelda className="whitespace-nowrap text-right text-xs tabular">
+                          {fila.meta === null
+                            ? "—"
+                            : formatearGuaranies(fila.meta)}
+                        </TablaCelda>
+                        <TablaCelda
+                          className={`whitespace-nowrap text-right text-xs tabular ${
+                            esElMes ? "font-semibold" : ""
+                          }`}
+                        >
+                          {fila.venta === null
+                            ? "—"
+                            : formatearGuaranies(fila.venta)}
+                        </TablaCelda>
+                        <TablaCelda className="whitespace-nowrap text-right text-xs tabular text-atenuado-contraste">
+                          {fila.devoluciones === 0
+                            ? "—"
+                            : formatearGuaranies(fila.devoluciones)}
+                        </TablaCelda>
+                        <TablaCelda
+                          className={`whitespace-nowrap text-right text-xs font-semibold tabular ${CLASES_NIVEL_ALCANCE[nivel]}`}
+                        >
+                          {porcentaje === null
+                            ? "—"
+                            : `${Math.round(porcentaje)}%`}
+                        </TablaCelda>
+                        <TablaCelda>
+                          <Insignia variante="contorno">
+                            {ETIQUETAS_NIVEL_ALCANCE[nivel]}
+                          </Insignia>
+                        </TablaCelda>
+                      </TablaFila>
+                    );
+                  })}
+                </TablaCuerpo>
               </Tabla>
             </Tarjeta>
 
@@ -259,10 +370,10 @@ export default async function PaginaMisVentas() {
                 guarda los objetivos del mes en curso, y los de meses
                 anteriores solo si se archivaron. Se dice en vez de reusar
                 el objetivo de este mes, que daria un porcentaje falso. */}
-            {mias.some((f) => f !== enCurso && f.meta === null) ? (
+            {detalle.some((f) => f !== enCurso && f.meta === null) ? (
               <p className="mt-2 text-[11px] leading-relaxed text-atenuado-contraste">
-                Los meses sin objetivo son los que el informe comercial no archivó: quedan con lo
-                vendido, sin porcentaje.
+                Los meses sin objetivo son los que el informe comercial no
+                archivó: quedan con lo vendido, sin porcentaje.
               </p>
             ) : null}
           </section>
@@ -300,8 +411,8 @@ export default async function PaginaMisVentas() {
           decision creyendo que mira el minuto a minuto. */}
       <p className="mt-4 text-[11px] leading-relaxed text-atenuado-contraste">
         Datos del informe comercial, actualizados al{" "}
-        {formatearFechaHora(resumen.actualizado)}. El detalle completo, con el desglose por marca y
-        por producto, está en{" "}
+        {formatearFechaHora(resumen.actualizado)}. El detalle completo, con el
+        desglose por marca y por producto, está en{" "}
         <Link href="/aplicaciones" className="text-primario hover:underline">
           Aplicaciones
         </Link>

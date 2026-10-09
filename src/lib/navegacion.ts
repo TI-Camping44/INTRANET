@@ -292,6 +292,20 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
       },
       {
+        titulo: "Padrón de la nómina",
+        ruta: "/administracion/padron",
+        icono: "Users",
+        roles: ["administrador_sgc"],
+        fase: "operativo",
+      },
+      {
+        titulo: "Ingresos al sistema",
+        ruta: "/administracion/accesos",
+        icono: "LogIn",
+        roles: ["administrador_sgc", "auditor", "direccion"],
+        fase: "operativo",
+      },
+      {
         titulo: "Bitácora",
         ruta: "/bitacora",
         icono: "History",
