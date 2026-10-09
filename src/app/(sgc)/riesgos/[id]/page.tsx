@@ -118,11 +118,17 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
         )
         .eq("riesgo_id", params.id)
         .order("creado_en"),
+      // EL HISTORIAL VA DEL MAS NUEVO AL MAS VIEJO. `fecha` es una
+      // fecha sin hora, asi que dos reevaluaciones del mismo dia
+      // empataban y quedaban en el orden que devolviera la base: en la
+      // practica, la inicial arriba y la de hoy abajo. `creado_en`
+      // desempata.
       supabase
         .from("riesgo_evaluaciones")
         .select("*, evaluador:evaluado_por (nombre_completo)")
         .eq("riesgo_id", params.id)
         .order("fecha", { ascending: false })
+        .order("creado_en", { ascending: false })
         .limit(12),
       supabase
         .from("usuarios")
