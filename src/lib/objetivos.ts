@@ -155,6 +155,22 @@ export const ESTADOS_PLAN: EstadoPlan[] = [
   "cancelado",
 ];
 
+/**
+ * Los estados que se pueden elegir hoy.
+ *
+ * «Cancelado» salió el 8 de octubre: Dirección lo sacó del desplegable
+ * porque una acción del plan no se cancela —o se cumple, o no se
+ * cumple—. El valor sigue en la lista de arriba y en el `CHECK` de la
+ * base: en PostgreSQL lo que ya se guardó se tiene que poder seguir
+ * leyendo, y una fila vieja con ese estado se dibuja igual.
+ */
+export const ESTADOS_PLAN_VIGENTES: EstadoPlan[] = [
+  "pendiente",
+  "en_curso",
+  "cumplido",
+  "no_cumplido",
+];
+
 export const ETIQUETAS_ESTADO_PLAN: Record<EstadoPlan, string> = {
   pendiente: "Pendiente",
   en_curso: "En curso",
@@ -182,7 +198,7 @@ export const CLASES_ESTADO_PLAN: Record<EstadoPlan, string> = {
 };
 
 export function esEstadoDePlan(valor: string): valor is EstadoPlan {
-  return (ESTADOS_PLAN as string[]).includes(valor);
+  return (ESTADOS_PLAN_VIGENTES as string[]).includes(valor);
 }
 
 // ---------------------------------------------------------------------
@@ -467,7 +483,7 @@ export function resumenDelMes(
 export const ESTADOS_PLAN_ABIERTOS: EstadoPlan[] = ["pendiente", "en_curso"];
 
 /** Los estados de una accion que ya termino, salga como salga. */
-export const ESTADOS_PLAN_CERRADOS: EstadoPlan[] = ["cumplido", "no_cumplido", "cancelado"];
+export const ESTADOS_PLAN_CERRADOS: EstadoPlan[] = ["cumplido", "no_cumplido"];
 
 export function estaAbiertaLaAccion(estado: EstadoPlan): boolean {
   return ESTADOS_PLAN_ABIERTOS.includes(estado);

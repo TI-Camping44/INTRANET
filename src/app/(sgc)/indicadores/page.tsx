@@ -4,7 +4,6 @@ import { Plus, Target } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { Torta } from "@/components/comunes/graficos";
-import { TarjetaIndicador } from "@/components/comunes/tarjeta-indicador";
 import { CalendarioObjetivos } from "@/app/(sgc)/indicadores/calendario-objetivos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -133,26 +132,13 @@ export default async function PaginaIndicadores({
     consulta = consulta.or(`codigo.ilike.${texto},nombre.ilike.${texto}`);
   }
 
-  const [{ data: datosObjetivos }, { data: datosEmpresas }, { data: datosIndicadores }] =
-    await Promise.all([
-      consulta,
-      supabase.rpc("empresas_del_grupo"),
-      // Para decir cuántos indicadores mide cada objetivo. Una consulta,
-      // no una por fila.
-      supabase.from("indicadores").select("id, objetivo_id").eq("activo", true),
-    ]);
+  const [{ data: datosObjetivos }, { data: datosEmpresas }] = await Promise.all([
+    consulta,
+    supabase.rpc("empresas_del_grupo"),
+  ]);
 
   const objetivos = (datosObjetivos as unknown as FilaObjetivo[] | null) ?? [];
   const empresasDelGrupo = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
-
-  const indicadoresPorObjetivo = new Map<string, number>();
-  for (const indicador of (datosIndicadores as { objetivo_id: string | null }[] | null) ?? []) {
-    if (!indicador.objetivo_id) continue;
-    indicadoresPorObjetivo.set(
-      indicador.objetivo_id,
-      (indicadoresPorObjetivo.get(indicador.objetivo_id) ?? 0) + 1,
-    );
-  }
 
   // Los resultados mensuales de los objetivos que quedaron en el
   // listado. Una consulta, no una por fila.
@@ -220,13 +206,6 @@ export default async function PaginaIndicadores({
     color: COLOR_ESTADO_PLAN[estado],
   }));
 
-  const enMedicion = objetivos.filter((objetivo) => objetivo.estado === "en_medicion").length;
-  const cerrados = objetivos.filter((objetivo) => objetivo.estado === "cerrado");
-  const alcanzados = cerrados.filter((objetivo) => objetivo.objetivo_alcanzado === true).length;
-  const sinIndicador = objetivos.filter(
-    (objetivo) => (indicadoresPorObjetivo.get(objetivo.id) ?? 0) === 0,
-  ).length;
-
   const gestiona = puedeGestionar(usuario);
 
   return (
@@ -243,27 +222,6 @@ export default async function PaginaIndicadores({
           ) : null
         }
       />
-
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <TarjetaIndicador titulo="Objetivos" valor={objetivos.length} />
-        <TarjetaIndicador
-          titulo="En medición"
-          valor={enMedicion}
-          contexto="Con la medición en curso"
-          tono="exito"
-        />
-        <TarjetaIndicador
-          titulo="Cerrados"
-          valor={cerrados.length}
-          contexto={`${alcanzados} alcanzado${alcanzados === 1 ? "" : "s"}`}
-        />
-        <TarjetaIndicador
-          titulo="Sin indicador"
-          valor={sinIndicador}
-          contexto="Objetivos sin con qué medirse"
-          tono={sinIndicador > 0 ? "advertencia" : "exito"}
-        />
-      </div>
 
       {objetivos.length > 0 ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-3">

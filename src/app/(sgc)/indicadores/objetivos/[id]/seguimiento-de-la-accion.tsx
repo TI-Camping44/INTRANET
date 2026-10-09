@@ -17,7 +17,7 @@ import {
 import { ACEPTA_EVIDENCIA, describirTamano, TAMANO_MAXIMO_ADJUNTO } from "@/lib/adjuntos";
 import {
   CLASES_ESTADO_PLAN,
-  ESTADOS_PLAN,
+  ESTADOS_PLAN_VIGENTES,
   ETIQUETAS_ESTADO_PLAN,
   type EstadoPlan,
 } from "@/lib/objetivos";
@@ -138,7 +138,7 @@ export function SeguimientoDeLaAccion({
               ejecutar(() => cambiarEstadoDeLaAccion(accionId, evento.target.value))
             }
           >
-            {ESTADOS_PLAN.map((valor) => (
+            {ESTADOS_PLAN_VIGENTES.map((valor) => (
               <option key={valor} value={valor}>
                 {ETIQUETAS_ESTADO_PLAN[valor]}
               </option>

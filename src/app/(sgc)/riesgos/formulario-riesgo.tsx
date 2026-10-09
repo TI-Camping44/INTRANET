@@ -404,8 +404,16 @@ export function FormularioRiesgo({
             accion de tratamiento; el moderado y el bajo se aceptan sin
             accion inmediata y se reevaluan en cada Revision por la
             Direccion. Para esos dos el bloque entero no aparece: pedir un
-            tratamiento que nadie va a ejecutar es ruido. */}
-        <div className={exigeAcciones ? "mt-5 grid gap-4 sm:grid-cols-2" : "hidden"}>
+            tratamiento que nadie va a ejecutar es ruido.
+
+            SE DESMONTA, NO SE ESCONDE CON CSS. Con `display: none` el
+            desplegable del tratamiento seguia en el formulario y seguia
+            siendo `required`: el navegador se negaba a enviar y trataba
+            de señalar un campo que no se ve, asi que «Registrar riesgo»
+            no hacia nada y no decia por que. Un riesgo bajo o moderado
+            no se podia guardar. */}
+        {exigeAcciones ? (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <GrupoCampo
             etiqueta="Opción de tratamiento"
             htmlFor="tratamiento"
@@ -457,6 +465,7 @@ export function FormularioRiesgo({
             </GrupoCampo>
           ) : null}
         </div>
+        ) : null}
 
         {/* LOS CONTROLES EXISTENTES, SOLOS. Dirección sacó de acá el
             bloque «Responsable y plan» el 8 de octubre: el dueño y el
