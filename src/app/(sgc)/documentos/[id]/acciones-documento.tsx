@@ -143,6 +143,15 @@ export function AccionesDocumento({
   // tiene hoy: si la versión nueva cambia de tipo, cambia el formato.
   const tipoQueQueda = (nuevoTipo || tipoDocumento) as typeof tipoDocumento;
 
+  // Lo que el documento dice hoy, para que «Se mantiene igual» diga qué
+  // es lo que se mantiene en vez de dejarlo adivinar.
+  const empresaDeHoy = empresas.find(
+    (empresa) => empresa.id === cabecera.empresa_documento_id,
+  );
+  const procesoDeHoy = manuales.find(
+    (manual) => manual.id === cabecera.proceso_documento_id,
+  );
+
   function limpiarLaVersion() {
     definirDialogoVersion(false);
     definirArchivo(null);
@@ -463,8 +472,8 @@ export function AccionesDocumento({
               Actualizar a {etiquetaSiguiente}
             </DialogoTitulo>
             <DialogoDescripcion>
-              Suba el archivo nuevo y nada más. {etiquetaActual} queda obsoleta —se conserva con
-              su archivo y sus firmas, y se ve en la pestaña «Obsoletos»— y el documento pasa a{" "}
+              Suba el archivo nuevo. {etiquetaActual} queda obsoleta —se conserva con su archivo
+              y sus firmas, y se ve en la pestaña «Obsoletos»— y el documento pasa a{" "}
               {etiquetaSiguiente}, para validarse y aprobarse como cualquier versión.
             </DialogoDescripcion>
           </DialogoCabecera>
@@ -493,6 +502,126 @@ export function AccionesDocumento({
               ) : null}
             </GrupoCampo>
 
+            {/* LA CABECERA, SOLO SI CAMBIA. Una versión nueva no siempre
+                es el mismo documento con otro contenido: puede cambiarle
+                el código, el nombre o hasta la empresa. Hasta ahora el
+                nombre viejo quedaba pegado al archivo nuevo.
+
+                Cada campo arranca en «Se mantiene igual» y lo que se
+                deja así no viaja: el servidor no toca lo que no llega. */}
+            <p className="border-t border-borde pt-3 text-[11px] text-atenuado-contraste">
+              Lo de abajo, solo si la versión nueva lo cambia. Lo que deje en «Se mantiene
+              igual» queda como está.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <GrupoCampo etiqueta="Tipo de documento" htmlFor="tipo-version">
+                <Seleccion
+                  id="tipo-version"
+                  value={nuevoTipo}
+                  onChange={(evento) => definirNuevoTipo(evento.target.value)}
+                >
+                  <option value="">
+                    Se mantiene igual ({ETIQUETAS_TIPO_DOCUMENTO[tipoDocumento]})
+                  </option>
+                  {TIPOS_DOCUMENTO_VIGENTES.map((valor) => (
+                    <option key={valor} value={valor}>
+                      {ETIQUETAS_TIPO_DOCUMENTO[valor]}
+                    </option>
+                  ))}
+                </Seleccion>
+              </GrupoCampo>
+
+              <GrupoCampo etiqueta="Empresa" htmlFor="empresa-version">
+                <Seleccion
+                  id="empresa-version"
+                  value={nuevaEmpresa}
+                  onChange={(evento) => definirNuevaEmpresa(evento.target.value)}
+                >
+                  <option value="">
+                    Se mantiene igual
+                    {empresaDeHoy ? ` (${empresaDeHoy.nombre})` : ""}
+                  </option>
+                  {empresas.map((empresa) => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nombre}
+                    </option>
+                  ))}
+                </Seleccion>
+              </GrupoCampo>
+
+              <GrupoCampo
+                etiqueta="Código controlado"
+                htmlFor="codigo-version"
+                ayuda="Escríbalo conforme al documento original."
+              >
+                <Entrada
+                  id="codigo-version"
+                  value={nuevoCodigo}
+                  onChange={(evento) => definirNuevoCodigo(evento.target.value.toUpperCase())}
+                  placeholder={
+                    cabecera.codigo
+                      ? `Se mantiene igual (${cabecera.codigo})`
+                      : "Se mantiene igual"
+                  }
+                  className="tabular"
+                />
+              </GrupoCampo>
+
+              <GrupoCampo etiqueta="Categoría" htmlFor="categoria-version">
+                <Entrada
+                  id="categoria-version"
+                  list="categorias-de-la-version"
+                  value={nuevaCategoria}
+                  onChange={(evento) => definirNuevaCategoria(evento.target.value)}
+                  placeholder={
+                    cabecera.categoria
+                      ? `Se mantiene igual (${cabecera.categoria})`
+                      : "Se mantiene igual"
+                  }
+                />
+                <datalist id="categorias-de-la-version">
+                  {categorias.map((nombre) => (
+                    <option key={nombre} value={nombre} />
+                  ))}
+                </datalist>
+              </GrupoCampo>
+
+              <GrupoCampo
+                etiqueta="Proceso al que pertenece"
+                htmlFor="proceso-version"
+                className="sm:col-span-2"
+              >
+                <Seleccion
+                  id="proceso-version"
+                  value={nuevoProceso}
+                  onChange={(evento) => definirNuevoProceso(evento.target.value)}
+                  disabled={manuales.length === 0}
+                >
+                  <option value="">
+                    Se mantiene igual
+                    {procesoDeHoy ? ` (${procesoDeHoy.titulo})` : ""}
+                  </option>
+                  {manuales
+                    .filter((manual) => manual.id !== documentoId)
+                    .map((manual) => (
+                      <option key={manual.id} value={manual.id}>
+                        {manual.codigo ? `${manual.codigo} · ` : ""}
+                        {manual.titulo}
+                      </option>
+                    ))}
+                </Seleccion>
+              </GrupoCampo>
+
+              <GrupoCampo etiqueta="Título" htmlFor="titulo-version" className="sm:col-span-2">
+                <Entrada
+                  id="titulo-version"
+                  value={nuevoTitulo}
+                  onChange={(evento) => definirNuevoTitulo(evento.target.value)}
+                  placeholder={`Se mantiene igual (${cabecera.titulo})`}
+                />
+              </GrupoCampo>
+            </div>
           </div>
 
           <DialogoPie>
