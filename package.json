@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "tipos": "tsc --noEmit",
+    "importar-clientes": "tsx scripts/importar-clientes.ts",
     "migrar-sofidya": "tsx scripts/migrar-sofidya.ts",
     "predev": "node scripts/copiar-visor-pdf.mjs",
     "prebuild": "node scripts/copiar-visor-pdf.mjs"
