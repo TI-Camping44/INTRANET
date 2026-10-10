@@ -62,6 +62,24 @@ export const EJEMPLOS_GRAVEDAD_RECLAMO: Record<GravedadReclamo, string> = {
   grave: "Falla de seguridad, error en material controlado, reclamo público",
 };
 
+/**
+ * Qué es cada gravedad, con las palabras de Calidad.
+ *
+ * VA EN LA OPCIÓN MISMA, no en un recuadro debajo. El recuadro obligaba
+ * a elegir primero para después leer qué significaba lo que se eligió,
+ * que es el orden al revés: la definición hace falta mientras se compara
+ * una opción con la otra, no después.
+ */
+export const DEFINICION_GRAVEDAD_RECLAMO: Record<GravedadReclamo, string> = {
+  leve:
+    "Molestia o fricción menor. Se resuelve rápido y no genera impacto económico ni operativo.",
+  real:
+    "Incumplimiento comprobable del servicio o producto. Requiere gestión, seguimiento y solución.",
+  grave:
+    "Falla crítica con alto impacto (económico, legal o de confianza). Exige atención y " +
+    "escalamiento urgente.",
+};
+
 export const GRAVEDADES_RECLAMO: GravedadReclamo[] = ["leve", "real", "grave"];
 
 export const ETIQUETAS_PLAN_RECLAMO: Record<PlanReclamo, string> = {

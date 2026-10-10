@@ -13,14 +13,12 @@ import {
   type ClienteBuscable,
 } from "@/app/(sgc)/reclamos/selector-cliente";
 import {
-  EJEMPLOS_GRAVEDAD_RECLAMO,
+  DEFINICION_GRAVEDAD_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
   ETIQUETAS_ORIGEN_RECLAMO,
-  ETIQUETAS_PLAN_RECLAMO,
   ETIQUETAS_TIPO_FALLA,
   GRAVEDADES_RECLAMO,
   ORIGENES_RECLAMO,
-  planDelCaso,
   RESPONSABLE_POR_TIPO_FALLA,
   TIPOS_FALLA_RECLAMO,
   type GravedadReclamo,
@@ -58,12 +56,15 @@ export interface ReclamoInicial {
  * sigue mostrando: lo que se saca es la pregunta al registrar, que es
  * cuando todavía no se sabe la respuesta.
  *
- * LA GRAVEDAD MUESTRA EL PLAN QUE VA A TOCAR mientras se elige, con sus
- * plazos. No es decoración: quien clasifica tiene que ver la consecuencia
- * de clasificar, porque de ahí salen 3, 7 o 15 días hábiles de plazo.
+ * LA GRAVEDAD LLEVA SU DEFINICIÓN EN CADA OPCIÓN. Estaba en un recuadro
+ * debajo del desplegable, que obligaba a elegir primero para después
+ * leer qué significaba lo elegido: el orden al revés. La definición hace
+ * falta mientras se compara una opción con la otra.
  *
- * El plan definitivo lo calcula el servidor, porque puede subir un nivel
- * por reincidencia y eso depende de lo que ya está guardado.
+ * Con el recuadro salieron los plazos del plan previsto. El plan lo
+ * calcula el servidor igual —puede subir un nivel por reincidencia, y
+ * eso depende de lo que ya está guardado—, y se ve en la ficha del caso,
+ * que es donde se ejecuta.
  */
 export function FormularioReclamo({
   personas,
@@ -84,7 +85,6 @@ export function FormularioReclamo({
     (inicial?.tipo_falla as TipoFallaReclamo) ?? "otro",
   );
 
-  const planPrevisto = planDelCaso(gravedad, false);
 
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -186,32 +186,19 @@ export function FormularioReclamo({
               value={gravedad}
               onChange={(evento) => definirGravedad(evento.target.value as GravedadReclamo)}
             >
+              {/* LA DEFINICIÓN VA EN LA OPCIÓN. Estaba en un recuadro
+                  debajo, así que había que elegir primero para después
+                  leer qué significaba lo elegido: el orden al revés.
+                  La definición hace falta mientras se compara una
+                  opción con la otra. */}
               {GRAVEDADES_RECLAMO.map((valor) => (
                 <option key={valor} value={valor}>
-                  {ETIQUETAS_GRAVEDAD_RECLAMO[valor]}
+                  {ETIQUETAS_GRAVEDAD_RECLAMO[valor]} — {DEFINICION_GRAVEDAD_RECLAMO[valor]}
                 </option>
               ))}
             </Seleccion>
           </GrupoCampo>
 
-          {/* Quien clasifica tiene que ver la consecuencia de clasificar. */}
-          <div className="rounded-md border border-borde bg-acento/40 p-3 text-[11px] leading-relaxed sm:col-span-2">
-            <p className="text-atenuado-contraste">
-              <span className="font-medium text-texto">
-                {ETIQUETAS_GRAVEDAD_RECLAMO[gravedad]}:
-              </span>{" "}
-              {EJEMPLOS_GRAVEDAD_RECLAMO[gravedad]}
-            </p>
-            <p className="mt-1 font-medium">
-              Le corresponde {ETIQUETAS_PLAN_RECLAMO[planPrevisto]}
-              {planPrevisto === "a" ? ": contacto en 24 h hábiles, resolución en 3 días hábiles." : null}
-              {planPrevisto === "b" ? ": contacto en 24 h hábiles, resolución en 7 días hábiles, y 5 porqués a cargo del área." : null}
-              {planPrevisto === "c" ? ": contacto en 12 h hábiles, resolución en 15 días hábiles, y abre una no conformidad." : null}
-            </p>
-            <p className="mt-1 text-atenuado-contraste">
-              Si es la segunda falla al mismo cliente en seis meses, el plan sube un nivel solo.
-            </p>
-          </div>
 
           <GrupoCampo
             etiqueta="Dónde se originó la falla"
