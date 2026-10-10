@@ -29,3 +29,19 @@ export function iniciales(nombre: string | null | undefined) {
     .map((parte) => parte[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/**
+ * El texto sin tildes y en minúsculas, para comparar lo que la gente
+ * escribe. «Políticas» y «politicas» son lo mismo.
+ *
+ * El rango `̀-ͯ` son las marcas diacríticas que `NFD` separa
+ * de su letra. Se escribe así y no con `\p{Diacritic}`, que necesita la
+ * bandera `u` y el objetivo de TypeScript del proyecto no la admite.
+ */
+export function sinTildes(texto: string | null | undefined): string {
+  return (texto ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}

@@ -37,6 +37,7 @@ import type { TipoDocumento } from "@/lib/tipos";
 export interface DocumentoInicial {
   id: string;
   codigo: string | null;
+  version_documento?: string | null;
   empresa_documento_id?: string | null;
   proceso_documento_id?: string | null;
   titulo: string;
@@ -77,6 +78,14 @@ export function FormularioDocumento({
   const [archivo, definirArchivo] = React.useState<File | null>(null);
   const [sinCodigo, definirSinCodigo] = React.useState(
     Boolean(inicial) && !inicial?.codigo,
+  );
+
+  // LA VERSIÓN SE ESCRIBE, NO SE CALCULA. El documento real ya viene con
+  // la suya; lo que hay que cargar es ésa. Y hay documentos que no
+  // llevan versión, así que admite «No aplica», igual que el código.
+  const [version, definirVersion] = React.useState(inicial?.version_documento ?? "");
+  const [sinVersion, definirSinVersion] = React.useState(
+    Boolean(inicial) && !inicial?.version_documento,
   );
 
   // Un manual de proceso ES el proceso, así que no cuelga de otro; y si
@@ -245,6 +254,44 @@ export function FormularioDocumento({
                 name="sin_codigo"
                 checked={sinCodigo}
                 onChange={(evento) => definirSinCodigo(evento.target.checked)}
+                className="size-3.5 accent-primario"
+              />
+              No aplica
+            </label>
+          </GrupoCampo>
+
+          {/* LA VERSIÓN VA AL LADO DEL CÓDIGO porque es el otro dato que
+              se copia del documento original, no uno que el sistema
+              decida. Mismo trato que el código: texto libre y «No
+              aplica» debajo, porque la codificación real de Calidad no
+              es necesariamente 00, 01, y hay documentos sin versión. */}
+          <GrupoCampo
+            etiqueta="Versión"
+            htmlFor="version_documento"
+            requerido={!sinVersion}
+            ayuda={
+              sinVersion
+                ? "Este documento va sin versión."
+                : "Escríbala conforme al documento original."
+            }
+          >
+            <Entrada
+              id="version_documento"
+              name="version_documento"
+              value={sinVersion ? "" : version}
+              onChange={(evento) => definirVersion(evento.target.value)}
+              placeholder={sinVersion ? "No aplica" : "Ver.00"}
+              required={!sinVersion}
+              disabled={sinVersion}
+              maxLength={20}
+              className="tabular"
+            />
+            <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px]">
+              <input
+                type="checkbox"
+                name="sin_version"
+                checked={sinVersion}
+                onChange={(evento) => definirSinVersion(evento.target.checked)}
                 className="size-3.5 accent-primario"
               />
               No aplica

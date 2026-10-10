@@ -15,6 +15,7 @@ import { extraerTexto } from "@/lib/extraer-texto";
 import { indexarDocumentosPendientes, resumirIndexacion } from "@/lib/indexar-documentos";
 import { hoyEnAsuncion } from "@/lib/formato";
 import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
+import { sinTildes } from "@/lib/utilidades";
 
 /**
  * EL CODIGO ES LIBRE. Se escribe conforme al documento original: la
@@ -26,6 +27,9 @@ import type { ResultadoAccion, TipoDocumento } from "@/lib/tipos";
  * razonable, para que no termine un parrafo en la columna del codigo.
  */
 const LARGO_MAXIMO_CODIGO = 40;
+
+/** La version declarada: `Ver.00`, `Rev. 3`, `A`. Entra cualquiera corta. */
+const LARGO_MAXIMO_VERSION = 20;
 
 /**
  * Propone el siguiente codigo controlado disponible.
@@ -75,6 +79,37 @@ export async function sugerirCodigoDocumento(
   return tipo === "formulario" ? `${base}-${correlativo}-01` : `${base}-${correlativo}`;
 }
 
+/**
+ * La version que declara el formulario, o el mensaje del problema.
+ *
+ * ES TEXTO Y NO UN ENTERO. La codificacion real de Calidad no es
+ * necesariamente `00`, `01`: la version la trae el documento original y
+ * se copia como viene. Por la misma razon por la que el codigo es libre.
+ *
+ * `null` es una respuesta, no la ausencia de una: «No aplica» marcado.
+ * Un campo vacio sin esa marca es un olvido y se rechaza.
+ *
+ * No confundir con `documentos.version_actual`, que cuenta cuantas veces
+ * el documento paso por el circuito de validacion y aprobacion. Son dos
+ * preguntas distintas y por eso son dos columnas.
+ */
+function leerVersionDeclarada(datos: FormData): { valor: string | null } | string {
+  const sinVersion = datos.get("sin_version") === "on";
+  const version = String(datos.get("version_documento") ?? "").trim();
+
+  if (sinVersion) return { valor: null };
+  if (!version) {
+    return (
+      "Escriba la versión conforme al documento original, " +
+      "o marque «No aplica» si este documento va sin versión."
+    );
+  }
+  if (version.length > LARGO_MAXIMO_VERSION) {
+    return `La versión no puede pasar de ${LARGO_MAXIMO_VERSION} caracteres.`;
+  }
+  return { valor: version };
+}
+
 /** Alta de un documento junto con su version inicial v00 en borrador. */
 export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
@@ -115,6 +150,12 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
       error: `El código no puede pasar de ${LARGO_MAXIMO_CODIGO} caracteres.`,
     };
   }
+
+  // LA VERSION SE ESCRIBE. Mismo trato que el codigo: la trae el
+  // documento original, y hay documentos que no llevan ninguna.
+  const version = leerVersionDeclarada(datos);
+  if (typeof version === "string") return { exito: false, error: version };
+
   if (titulo.length < 4) {
     return { exito: false, error: "El título debe tener al menos 4 caracteres." };
   }
@@ -172,6 +213,7 @@ export async function crearDocumento(datos: FormData): Promise<ResultadoAccion> 
     .insert({
       empresa_id: usuario.empresa_id,
       codigo: sinCodigo ? null : codigo,
+      version_documento: version.valor,
       titulo,
       tipo,
       categoria: categoria,
@@ -265,6 +307,9 @@ export async function actualizarDocumento(
     };
   }
 
+  const version = leerVersionDeclarada(datos);
+  if (typeof version === "string") return { exito: false, error: version };
+
   const categoria = String(datos.get("categoria") ?? "").trim() || null;
   if (!categoria) return { exito: false, error: "Indique la categoría del documento." };
 
@@ -294,6 +339,7 @@ export async function actualizarDocumento(
   const cambios: Record<string, unknown> = {
     titulo,
     codigo: sinCodigo || !codigo ? null : codigo,
+    version_documento: version.valor,
     tipo: String(datos.get("tipo") ?? "manual"),
     categoria,
     proceso_id: String(datos.get("proceso_id") ?? "") || null,
@@ -321,6 +367,16 @@ export async function actualizarDocumento(
 
 /**
  * Sube el documento a la version siguiente con un archivo nuevo.
+ *
+ * HOY NO LA LLAMA NADA. El boton «Actualizar a la siguiente version»
+ * salio de la ficha el 10 de octubre: pedia la cabecera entera en un
+ * dialogo de catorce controles y abria un segundo camino para lo mismo.
+ * Desde ahora un documento que deja de regir se declara obsoleto y la
+ * revision nueva se carga como un documento nuevo, con su version
+ * escrita a mano.
+ *
+ * Queda escrita por si Calidad la vuelve a pedir, como `hoja.ts` y
+ * `campo-propuestas.tsx`.
  *
  * ES EL REEMPLAZO DE «BORRAR Y VOLVER A CARGAR». Hasta ahora, cuando
  * llegaba la revision nueva de un documento, lo que se hacia era eliminar
@@ -1526,6 +1582,48 @@ export async function guardarCategoria(
   const maxima = Math.max(0, ...Array.from(porCategoria.values()));
   const posicionCategoria = porCategoria.get(nombre) ?? maxima + 10;
   const posicionSinCategoria = porCategoria.get(null) ?? 0;
+
+  // LA CARPETA ES UNA FILA, NO EL TEXTO DE SUS DOCUMENTOS. Hasta ahora
+  // la lista de categorias salia de `documentos.categoria`, asi que una
+  // categoria sin documentos no existia en ningun lado: se creaba, la
+  // pantalla se recargaba y no estaba. Calidad arma la carpeta antes de
+  // tener los documentos adentro, asi que la carpeta tiene que poder
+  // existir vacia.
+  //
+  // Se busca sin tildes ni mayusculas para no terminar con «Politicas»
+  // y «Políticas» como dos carpetas. El indice unico de la base solo
+  // cubre las mayusculas: `unaccent` no es IMMUTABLE y PostgreSQL no la
+  // acepta en una expresion de indice, asi que la comparacion sin
+  // tildes se hace aca.
+  const { data: carpetas } = await supabase
+    .from("documento_categorias")
+    .select("id, nombre");
+
+  const yaExiste = ((carpetas as { id: string; nombre: string }[] | null) ?? []).find(
+    (carpeta) => sinTildes(carpeta.nombre) === sinTildes(nombre),
+  );
+
+  if (yaExiste) {
+    const { error: errorCarpeta } = await supabase
+      .from("documento_categorias")
+      .update({ nombre, orden: posicionCategoria })
+      .eq("id", yaExiste.id);
+
+    if (errorCarpeta) {
+      return { exito: false, error: `No se pudo guardar la categoría: ${errorCarpeta.message}` };
+    }
+  } else {
+    const { error: errorCarpeta } = await supabase.from("documento_categorias").insert({
+      empresa_id: usuario.empresa_id,
+      nombre,
+      orden: posicionCategoria,
+      creado_por: usuario.id,
+    });
+
+    if (errorCarpeta) {
+      return { exito: false, error: `No se pudo crear la categoría: ${errorCarpeta.message}` };
+    }
+  }
 
   const cambios = [
     ...dentro.map((id, indice) => ({

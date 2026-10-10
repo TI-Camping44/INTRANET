@@ -43,6 +43,7 @@ interface DocumentoDetalle {
   tipo: keyof typeof ETIQUETAS_TIPO_DOCUMENTO;
   estado: "borrador" | "en_revision" | "vigente" | "obsoleto";
   version_actual: number;
+  version_documento: string | null;
   fecha_aprobacion: string | null;
   fecha_proxima_revision: string | null;
   periodicidad_revision_meses: number;
@@ -104,9 +105,6 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     { data: procesos },
     { data: archivos },
     ,
-    { data: datosEmpresas },
-    { data: datosManuales },
-    { data: datosCategorias },
   ] = await Promise.all([
     supabase
       .from("documento_versiones")
@@ -131,21 +129,11 @@ export default async function PaginaDocumento({ params }: { params: { id: string
       .select("id, titulo, fecha_publicacion")
       .eq("documento_id", params.id)
       .order("fecha_publicacion", { ascending: false, nullsFirst: false }),
-    // Lo que necesita el diálogo de «Actualizar a la siguiente versión»:
-    // las dos empresas del grupo, los manuales de proceso a los que se
-    // puede atar y las categorías ya usadas. Cada campo se puede dejar
-    // en «Se mantiene igual», así que esto es solo para poder cambiarlo.
-    supabase.rpc("empresas_del_grupo"),
-    supabase.from("documentos").select("id, codigo, titulo").eq("tipo", "manual").order("codigo"),
-    supabase.from("documentos").select("categoria").not("categoria", "is", null),
   ]);
 
-  const empresasDelGrupo = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
-  const manuales =
-    (datosManuales as { id: string; codigo: string | null; titulo: string }[] | null) ?? [];
-  const categorias = Array.from(
-    new Set(((datosCategorias as { categoria: string }[] | null) ?? []).map((fila) => fila.categoria)),
-  ).sort((una, otra) => una.localeCompare(otra, "es"));
+  // Las tres consultas de las empresas, los manuales y las categorías
+  // salieron el 10 de octubre junto con «Actualizar a la siguiente
+  // versión»: eran solo para ese diálogo. La ficha no las usa.
 
   const listaVersiones = versiones ?? [];
   const idsVersiones = new Set(listaVersiones.map((version: { id: string }) => version.id));
@@ -211,18 +199,6 @@ export default async function PaginaDocumento({ params }: { params: { id: string
           ) : null}
           <AccionesDocumento
             documentoId={documento.id}
-            tipoDocumento={documento.tipo}
-            versionActual={documento.version_actual}
-            empresas={empresasDelGrupo}
-            manuales={manuales}
-            categorias={categorias}
-            cabecera={{
-              codigo: documento.codigo,
-              titulo: documento.titulo,
-              categoria: documento.categoria,
-              empresa_documento_id: documento.empresa_documento_id ?? null,
-              proceso_documento_id: documento.proceso_documento_id ?? null,
-            }}
             estadoDocumento={documento.estado}
             versionEditableId={versionEditable?.id ?? null}
             versionEnRevisionId={versionEnRevision?.id ?? null}
@@ -248,9 +224,18 @@ export default async function PaginaDocumento({ params }: { params: { id: string
         <Insignia variante="contorno">
           {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo as keyof typeof ETIQUETAS_TIPO_DOCUMENTO]}
         </Insignia>
-        <Insignia variante="neutra" className="tabular">
-          Versión vigente Ver.{String(documento.version_actual).padStart(2, "0")}
-        </Insignia>
+        {/* LA VERSIÓN QUE DICE EL DOCUMENTO, cuando la declaró. Si no,
+            la que lleva el sistema contando las aprobaciones. Mostrar
+            las dos haría que la pantalla se contradiga a sí misma. */}
+        {documento.version_documento ? (
+          <Insignia variante="neutra" className="tabular">
+            {documento.version_documento}
+          </Insignia>
+        ) : (
+          <Insignia variante="neutra" className="tabular">
+            Versión vigente Ver.{String(documento.version_actual).padStart(2, "0")}
+          </Insignia>
+        )}
         {documento.es_demostracion ? <InsigniaDemostracion /> : null}
       </div>
 

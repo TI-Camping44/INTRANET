@@ -43,7 +43,7 @@ import {
 } from "@/lib/constantes";
 import { armarJerarquia } from "@/lib/documentos";
 import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
-import { recortar } from "@/lib/utilidades";
+import { recortar, sinTildes } from "@/lib/utilidades";
 import type { EstadoDocumento, TipoDocumento } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Lista Maestra de la Información documentada" };
@@ -129,8 +129,12 @@ export default async function PaginaDocumentos({
   const limiteRevision = sumarDias(hoyEnAsuncion(), DIAS_AVISO_REVISION_DOCUMENTO);
   const { estados } = VISTAS[vista];
 
-  const [{ data: responsables }, { data: todos }, { data: datosEmpresas }] =
-    await Promise.all([
+  const [
+    { data: responsables },
+    { data: todos },
+    { data: datosEmpresas },
+    { data: datosCategorias },
+  ] = await Promise.all([
     supabase
       .from("usuarios")
       .select("id, nombre_completo")
@@ -149,9 +153,21 @@ export default async function PaginaDocumentos({
       .order("codigo", { nullsFirst: false }),
     // Las dos empresas del grupo, para los botones que parten la lista.
     supabase.rpc("empresas_del_grupo"),
+    // LAS CARPETAS, QUE SON FILAS. Antes la lista de categorías salía de
+    // los documentos cargados, así que una categoría recién creada —y
+    // todavía vacía— no aparecía en ningún lado. Calidad arma la carpeta
+    // antes de tener los documentos adentro.
+    supabase
+      .from("documento_categorias")
+      .select("nombre, orden")
+      .order("orden", { nullsFirst: true })
+      .order("nombre"),
   ]);
 
   const empresasDelGrupo = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
+
+  const carpetas =
+    (datosCategorias as { nombre: string; orden: number | null }[] | null) ?? [];
 
   const maestra =
     (todos as
@@ -166,11 +182,24 @@ export default async function PaginaDocumentos({
         }[]
       | null) ?? [];
 
-  // Las categorías ya en uso, para ofrecerlas y no terminar con
-  // «Políticas» y «politicas» como dos carpetas distintas.
-  const categorias = Array.from(
-    new Set(maestra.map((documento) => documento.categoria).filter(Boolean) as string[]),
-  ).sort((una, otra) => una.localeCompare(otra, "es"));
+  // LAS CATEGORÍAS SALEN DE LA TABLA, no de los documentos. Las de los
+  // documentos se suman igual, por si alguna fila quedó con un texto que
+  // no tiene su carpeta: así ninguna desaparece de la pantalla.
+  //
+  // Se comparan sin tildes ni mayúsculas para no terminar con
+  // «Políticas» y «politicas» como dos carpetas distintas; la que manda
+  // es como la escribió quien creó la carpeta.
+  const porClave = new Map<string, string>();
+  for (const carpeta of carpetas) porClave.set(sinTildes(carpeta.nombre), carpeta.nombre);
+  for (const documento of maestra) {
+    if (!documento.categoria) continue;
+    const clave = sinTildes(documento.categoria);
+    if (!porClave.has(clave)) porClave.set(clave, documento.categoria);
+  }
+
+  const categorias = Array.from(porClave.values()).sort((una, otra) =>
+    una.localeCompare(otra, "es"),
+  );
 
   let consulta = supabase
     .from("documentos")
@@ -336,6 +365,30 @@ export default async function PaginaDocumentos({
       ordenGlobalCategorias.push(documento.categoria);
     }
   }
+
+  // Y las carpetas que todavía no tienen ningún documento, al final.
+  // Una carpeta vacía tiene que verse: es la que acaba de crearse, y si
+  // no aparece parece que la creación no funcionó.
+  for (const carpeta of carpetas) {
+    const existe = ordenGlobalCategorias.some(
+      (nombre) => nombre !== null && sinTildes(nombre) === sinTildes(carpeta.nombre),
+    );
+    if (!existe) ordenGlobalCategorias.push(carpeta.nombre);
+  }
+
+  // LAS CARPETAS QUE NO TIENEN NINGÚN DOCUMENTO EN ESTA PESTAÑA. Se
+  // dibujan igual, con su encabezado y una línea que lo dice. Una
+  // carpeta recién creada está vacía por definición: si no se ve, quien
+  // la creó cree que la creación no funcionó.
+  const categoriasEnLaVista = new Set(
+    filas
+      .filter((fila) => !fila.esHijo && fila.documento.categoria)
+      .map((fila) => sinTildes(fila.documento.categoria as string)),
+  );
+
+  const categoriasVacias = carpetas
+    .filter((carpeta) => !categoriasEnLaVista.has(sinTildes(carpeta.nombre)))
+    .map((carpeta) => carpeta.nombre);
 
   // Los ids de cada categoria, en el orden en que se ven. Es lo que
   // necesita el arrastre para recalcular las posiciones al soltar.
@@ -583,7 +636,10 @@ export default async function PaginaDocumentos({
             </p>
           </>
         )
-      ) : documentos.length === 0 ? (
+      ) : documentos.length === 0 && categoriasVacias.length === 0 ? (
+        // Con carpetas creadas y ningún documento NO se muestra el vacío:
+        // la tabla dibuja igual las carpetas, que es lo que Calidad acaba
+        // de armar y tiene que poder ver.
         <EstadoVacio
           icono={<FileText className="size-6" />}
           titulo="No hay documentos que coincidan"
@@ -637,6 +693,37 @@ export default async function PaginaDocumentos({
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
+              {/* Las carpetas vacías, arriba de los documentos: es
+                  donde quedan las que Calidad acaba de crear. */}
+              {categoriasVacias.map((nombre) => (
+                <FilaCategoria key={`vacia:${nombre}`} categoria={nombre}>
+                  <td
+                    colSpan={10}
+                    className="px-3 py-1.5 text-[11px] font-semibold uppercase
+                               tracking-wide text-atenuado-contraste"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        {nombre}
+                        <span className="ml-2 font-normal normal-case tracking-normal opacity-70">
+                          Sin documentos todavía
+                        </span>
+                      </span>
+                      {puedeOrdenar ? (
+                        <MoverCategoria
+                          categoria={nombre}
+                          esPrimera={ordenGlobalCategorias.indexOf(nombre) === 0}
+                          esUltima={
+                            ordenGlobalCategorias.indexOf(nombre) ===
+                            ordenGlobalCategorias.length - 1
+                          }
+                        />
+                      ) : null}
+                    </div>
+                  </td>
+                </FilaCategoria>
+              ))}
+
               {filas.map(({ documento, esHijo: colgado, abreCategoria }) => {
 
                 // Tocar el codigo o el titulo abre el archivo, no la ficha:

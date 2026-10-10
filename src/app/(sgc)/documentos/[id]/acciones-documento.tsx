@@ -46,15 +46,21 @@ interface Persona {
 /**
  * Panel de acciones del flujo documental:
  * elaboracion -> revision -> aprobacion -> vigente -> obsoleto.
+ *
+ * «ACTUALIZAR A LA SIGUIENTE VERSIÓN» SALIÓ DE ACÁ el 10 de octubre.
+ * Con él, el panel pedía la cabecera entera en un diálogo de catorce
+ * controles para subir un archivo, y había dos caminos para lo mismo.
+ *
+ * Desde ahora un documento que deja de regir simplemente se declara
+ * obsoleto: sale de Todos, Vigentes y las tres pestañas del circuito, y
+ * pasa a Obsoletos con su historial. La revisión nueva se carga como un
+ * documento nuevo, con su propia versión escrita a mano.
+ *
+ * `actualizarALaSiguienteVersion()` queda en `acciones.ts` y hoy no la
+ * llama nada, por si Calidad vuelve a pedirla.
  */
 export function AccionesDocumento({
   documentoId,
-  tipoDocumento,
-  versionActual,
-  empresas,
-  manuales,
-  categorias,
-  cabecera,
   estadoDocumento,
   versionEditableId,
   versionEnRevisionId,
@@ -65,24 +71,6 @@ export function AccionesDocumento({
   fechaValidacion,
 }: {
   documentoId: string;
-  /** Decide qué formato admite el archivo de la versión nueva. */
-  tipoDocumento: TipoDocumento;
-  /** La versión que rige hoy: la siguiente es esta más uno. */
-  versionActual: number;
-  /** Las dos empresas del grupo, para poder cambiarla al versionar. */
-  empresas: { id: string; nombre: string }[];
-  /** Los manuales de proceso cargados, idem. */
-  manuales: { id: string; codigo: string | null; titulo: string }[];
-  /** Las categorías ya usadas, para ofrecerlas sin duplicarlas. */
-  categorias: string[];
-  /** Lo que el documento dice hoy, para mostrarlo como «Se mantiene igual». */
-  cabecera: {
-    codigo: string | null;
-    titulo: string;
-    categoria: string | null;
-    empresa_documento_id: string | null;
-    proceso_documento_id: string | null;
-  };
   estadoDocumento: EstadoDocumento;
   versionEditableId: string | null;
   versionEnRevisionId: string | null;
@@ -97,111 +85,10 @@ export function AccionesDocumento({
   const router = useRouter();
   const [procesando, definirProcesando] = React.useState(false);
   const [dialogoRevision, definirDialogoRevision] = React.useState(false);
-  const [dialogoVersion, definirDialogoVersion] = React.useState(false);
   const [validador, definirValidador] = React.useState("");
   const [aprobador, definirAprobador] = React.useState("");
-  const [archivo, definirArchivo] = React.useState<File | null>(null);
   const [dialogoAnular, definirDialogoAnular] = React.useState(false);
   const [motivoAnulacion, definirMotivoAnulacion] = React.useState("");
-
-  const etiquetaActual = `Ver.${String(versionActual).padStart(2, "0")}`;
-  const etiquetaSiguiente = `Ver.${String(versionActual + 1).padStart(2, "0")}`;
-
-  function elegirArchivo(evento: React.ChangeEvent<HTMLInputElement>) {
-    const elegido = evento.target.files?.[0] ?? null;
-    if (!elegido) {
-      definirArchivo(null);
-      return;
-    }
-
-    // Se avisa acá para no hacerle esperar la subida de un archivo que la
-    // acción va a rechazar igual. El control que vale es el del servidor.
-    const motivo = motivoDeRechazo(tipoQueQueda, elegido.name, elegido.size);
-    if (motivo) {
-      toast.error(motivo);
-      evento.target.value = "";
-      definirArchivo(null);
-      return;
-    }
-
-    definirArchivo(elegido);
-  }
-
-  // TODOS LOS CAMPOS SON OBLIGATORIOS, y «Se mantiene igual» es una de
-  // las respuestas válidas. No es lo mismo que dejarlo vacío: obliga a
-  // decidir campo por campo qué pasa con la cabecera, en vez de que lo
-  // viejo se arrastre por descuido. Eso fue lo que pasó la primera vez
-  // que se versionó: se cargó un archivo distinto y el nombre siguió
-  // siendo el anterior.
-  //
-  // Los tres de texto llevan su propio desplegable —«Se mantiene igual»
-  // o «Cambiar»— porque una caja vacía no distingue entre «no lo toco»
-  // y «me olvidé de escribirlo».
-  const IGUAL = "igual";
-
-  const [nuevoTipo, definirNuevoTipo] = React.useState(IGUAL);
-  const [nuevaEmpresa, definirNuevaEmpresa] = React.useState(IGUAL);
-  const [nuevoProceso, definirNuevoProceso] = React.useState(IGUAL);
-
-  const [modoCodigo, definirModoCodigo] = React.useState(IGUAL);
-  const [modoCategoria, definirModoCategoria] = React.useState(IGUAL);
-  const [modoTitulo, definirModoTitulo] = React.useState(IGUAL);
-
-  const [nuevoCodigo, definirNuevoCodigo] = React.useState("");
-  const [nuevaCategoria, definirNuevaCategoria] = React.useState("");
-  const [nuevoTitulo, definirNuevoTitulo] = React.useState("");
-
-  // Está listo cuando hay archivo y cada campo que se eligió cambiar
-  // tiene su valor. El diálogo no es un formulario —el botón no hace
-  // `submit`—, así que el control vive acá y no en el `required` del
-  // navegador, que sin formulario no hace nada.
-  const laVersionEstaLista =
-    Boolean(archivo) &&
-    (modoCodigo === IGUAL || nuevoCodigo.trim().length > 0) &&
-    (modoCategoria === IGUAL || nuevaCategoria.trim().length > 0) &&
-    (modoTitulo === IGUAL || nuevoTitulo.trim().length >= 4);
-
-  // El formato admitido lo decide el tipo que va a quedar, no el que
-  // tiene hoy: si la versión nueva cambia de tipo, cambia el formato.
-  const tipoQueQueda = (nuevoTipo === IGUAL
-    ? tipoDocumento
-    : nuevoTipo) as typeof tipoDocumento;
-
-  // Lo que el documento dice hoy, para que «Se mantiene igual» diga qué
-  // es lo que se mantiene en vez de dejarlo adivinar.
-  const empresaDeHoy = empresas.find(
-    (empresa) => empresa.id === cabecera.empresa_documento_id,
-  );
-  const procesoDeHoy = manuales.find(
-    (manual) => manual.id === cabecera.proceso_documento_id,
-  );
-
-  function limpiarLaVersion() {
-    definirDialogoVersion(false);
-    definirArchivo(null);
-    definirModoCodigo(IGUAL);
-    definirModoCategoria(IGUAL);
-    definirModoTitulo(IGUAL);
-    definirNuevoTipo(IGUAL);
-    definirNuevaEmpresa(IGUAL);
-    definirNuevoProceso(IGUAL);
-    definirNuevoCodigo("");
-    definirNuevaCategoria("");
-    definirNuevoTitulo("");
-  }
-
-  async function subirLaSiguienteVersion() {
-    const datos = new FormData();
-    // «Se mantiene igual» no viaja: el servidor no toca lo que no llega.
-    if (archivo) datos.set("archivo", archivo);
-    if (nuevoTipo !== IGUAL) datos.set("tipo", nuevoTipo);
-    if (nuevaEmpresa !== IGUAL) datos.set("empresa_documento_id", nuevaEmpresa);
-    if (nuevoProceso !== IGUAL) datos.set("proceso_documento_id", nuevoProceso);
-    if (modoCodigo !== IGUAL) datos.set("codigo", nuevoCodigo.trim());
-    if (modoCategoria !== IGUAL) datos.set("categoria", nuevaCategoria.trim());
-    if (modoTitulo !== IGUAL) datos.set("titulo", nuevoTitulo.trim());
-    return actualizarALaSiguienteVersion(documentoId, datos);
-  }
 
   async function ejecutar(operacion: () => Promise<ResultadoAccion>, alTerminar?: () => void) {
     definirProcesando(true);
@@ -256,22 +143,6 @@ export function AccionesDocumento({
         </Boton>
       ) : null}
 
-      {/* ACTUALIZAR A LA SIGUIENTE VERSIÓN. Está siempre, no solo sobre
-          un documento vigente: lo que reemplaza es borrar el documento
-          anterior y volver a cargarlo, y eso se hacía en cualquier
-          estado. */}
-      {estadoDocumento !== "obsoleto" ? (
-        <Boton
-          tamano="pequeno"
-          variante="contorno"
-          disabled={procesando}
-          onClick={() => definirDialogoVersion(true)}
-          title={`Pasa el documento de ${etiquetaActual} a ${etiquetaSiguiente} con un archivo nuevo`}
-        >
-          <FilePlus2 /> Actualizar a la siguiente versión
-        </Boton>
-      ) : null}
-
       {estadoDocumento === "vigente" ? (
         <>
           <Boton
@@ -292,7 +163,14 @@ export function AccionesDocumento({
           variante="fantasma"
           disabled={procesando}
           onClick={() => {
-            if (confirm("¿Marcar el documento como obsoleto? Dejará de estar vigente.")) {
+            if (
+              confirm(
+                "¿Marcar el documento como obsoleto?\n\n" +
+                  "Sale de Todos, Vigentes, En elaboración, En validación y En aprobación, " +
+                  "y pasa a la pestaña Obsoletos, donde queda con su historial.\n\n" +
+                  "Si lo reemplaza una revisión nueva, cárguela como un documento nuevo.",
+              )
+            ) {
               ejecutar(() => marcarObsoleto(documentoId));
             }
           }}
@@ -492,223 +370,6 @@ export function AccionesDocumento({
         </DialogoContenido>
       </Dialogo>
 
-      {/* Actualizar a la siguiente versión */}
-      <Dialogo open={dialogoVersion} onOpenChange={definirDialogoVersion}>
-        <DialogoContenido className="max-w-2xl">
-          <DialogoCabecera>
-            <DialogoTitulo>
-              Actualizar a {etiquetaSiguiente}
-            </DialogoTitulo>
-            <DialogoDescripcion>
-              Suba el archivo nuevo. {etiquetaActual} queda obsoleta —se conserva con su archivo
-              y sus firmas, y se ve en la pestaña «Obsoletos»— y el documento pasa a{" "}
-              {etiquetaSiguiente}, para validarse y aprobarse como cualquier versión.
-            </DialogoDescripcion>
-          </DialogoCabecera>
-
-          <div className="mt-4 max-h-[65vh] space-y-3 overflow-y-auto pr-1">
-            <GrupoCampo
-              etiqueta="Archivo de la versión nueva"
-              htmlFor="archivo-version"
-              requerido
-              ayuda={FORMATO_POR_TIPO[tipoQueQueda].explicacion}
-            >
-              <input
-                id="archivo-version"
-                type="file"
-                accept={extensionesAdmitidas(tipoQueQueda)}
-                onChange={elegirArchivo}
-                className="w-full cursor-pointer rounded-md border border-borde bg-fondo
-                           text-xs text-texto file:mr-3 file:cursor-pointer file:border-0
-                           file:bg-acento file:px-3 file:py-2 file:text-xs file:font-medium
-                           file:text-texto"
-              />
-              {archivo ? (
-                <p className="mt-1.5 text-[11px] text-atenuado-contraste">
-                  Se va a subir <span className="font-medium text-texto">{archivo.name}</span>.
-                </p>
-              ) : null}
-            </GrupoCampo>
-
-            {/* LA CABECERA, SOLO SI CAMBIA. Una versión nueva no siempre
-                es el mismo documento con otro contenido: puede cambiarle
-                el código, el nombre o hasta la empresa. Hasta ahora el
-                nombre viejo quedaba pegado al archivo nuevo.
-
-                Cada campo arranca en «Se mantiene igual» y lo que se
-                deja así no viaja: el servidor no toca lo que no llega. */}
-            <p className="border-t border-borde pt-3 text-[11px] text-atenuado-contraste">
-              Los seis campos son obligatorios, y «Se mantiene igual» es una respuesta válida:
-              se contesta uno por uno qué pasa con la cabecera.
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <GrupoCampo etiqueta="Tipo de documento" htmlFor="tipo-version" requerido>
-                <Seleccion
-                  id="tipo-version"
-                  value={nuevoTipo}
-                  onChange={(evento) => definirNuevoTipo(evento.target.value)}
-                >
-                  <option value={IGUAL}>
-                    Se mantiene igual ({ETIQUETAS_TIPO_DOCUMENTO[tipoDocumento]})
-                  </option>
-                  {TIPOS_DOCUMENTO_VIGENTES.map((valor) => (
-                    <option key={valor} value={valor}>
-                      {ETIQUETAS_TIPO_DOCUMENTO[valor]}
-                    </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Empresa" htmlFor="empresa-version" requerido>
-                <Seleccion
-                  id="empresa-version"
-                  value={nuevaEmpresa}
-                  onChange={(evento) => definirNuevaEmpresa(evento.target.value)}
-                >
-                  <option value={IGUAL}>
-                    Se mantiene igual
-                    {empresaDeHoy ? ` (${empresaDeHoy.nombre})` : ""}
-                  </option>
-                  {empresas.map((empresa) => (
-                    <option key={empresa.id} value={empresa.id}>
-                      {empresa.nombre}
-                    </option>
-                  ))}
-                </Seleccion>
-              </GrupoCampo>
-
-              <GrupoCampo
-                etiqueta="Código controlado"
-                htmlFor="codigo-version"
-                requerido
-                ayuda={
-                  modoCodigo === IGUAL
-                    ? undefined
-                    : "Escríbalo conforme al documento original."
-                }
-              >
-                <Seleccion
-                  id="codigo-version"
-                  value={modoCodigo}
-                  onChange={(evento) => definirModoCodigo(evento.target.value)}
-                >
-                  <option value={IGUAL}>
-                    Se mantiene igual{cabecera.codigo ? ` (${cabecera.codigo})` : " (sin código)"}
-                  </option>
-                  <option value="cambiar">Cambiar</option>
-                </Seleccion>
-                {modoCodigo === IGUAL ? null : (
-                  <Entrada
-                    value={nuevoCodigo}
-                    onChange={(evento) => definirNuevoCodigo(evento.target.value.toUpperCase())}
-                    placeholder="MP-SOP-01"
-                    aria-label="Código controlado nuevo"
-                    className="mt-1.5 tabular"
-                  />
-                )}
-              </GrupoCampo>
-
-              <GrupoCampo etiqueta="Categoría" htmlFor="categoria-version" requerido>
-                <Seleccion
-                  id="categoria-version"
-                  value={modoCategoria}
-                  onChange={(evento) => definirModoCategoria(evento.target.value)}
-                >
-                  <option value={IGUAL}>
-                    Se mantiene igual
-                    {cabecera.categoria ? ` (${cabecera.categoria})` : " (sin categoría)"}
-                  </option>
-                  <option value="cambiar">Cambiar</option>
-                </Seleccion>
-                {modoCategoria === IGUAL ? null : (
-                  <>
-                    <Entrada
-                      list="categorias-de-la-version"
-                      value={nuevaCategoria}
-                      onChange={(evento) => definirNuevaCategoria(evento.target.value)}
-                      placeholder="Políticas"
-                      aria-label="Categoría nueva"
-                      className="mt-1.5"
-                    />
-                    <datalist id="categorias-de-la-version">
-                      {categorias.map((nombre) => (
-                        <option key={nombre} value={nombre} />
-                      ))}
-                    </datalist>
-                  </>
-                )}
-              </GrupoCampo>
-
-              <GrupoCampo
-                etiqueta="Proceso al que pertenece"
-                htmlFor="proceso-version"
-                className="sm:col-span-2"
-                requerido
-              >
-                <Seleccion
-                  id="proceso-version"
-                  value={nuevoProceso}
-                  onChange={(evento) => definirNuevoProceso(evento.target.value)}
-                  disabled={manuales.length === 0}
-                >
-                  <option value={IGUAL}>
-                    Se mantiene igual
-                    {procesoDeHoy ? ` (${procesoDeHoy.titulo})` : ""}
-                  </option>
-                  {manuales
-                    .filter((manual) => manual.id !== documentoId)
-                    .map((manual) => (
-                      <option key={manual.id} value={manual.id}>
-                        {manual.codigo ? `${manual.codigo} · ` : ""}
-                        {manual.titulo}
-                      </option>
-                    ))}
-                </Seleccion>
-              </GrupoCampo>
-
-              <GrupoCampo
-                etiqueta="Título"
-                htmlFor="titulo-version"
-                className="sm:col-span-2"
-                requerido
-                ayuda={modoTitulo === IGUAL ? undefined : "Al menos 4 caracteres."}
-              >
-                <Seleccion
-                  id="titulo-version"
-                  value={modoTitulo}
-                  onChange={(evento) => definirModoTitulo(evento.target.value)}
-                >
-                  <option value={IGUAL}>Se mantiene igual ({cabecera.titulo})</option>
-                  <option value="cambiar">Cambiar</option>
-                </Seleccion>
-                {modoTitulo === IGUAL ? null : (
-                  <Entrada
-                    value={nuevoTitulo}
-                    onChange={(evento) => definirNuevoTitulo(evento.target.value)}
-                    placeholder="Manual de recepción de mercadería"
-                    aria-label="Título nuevo"
-                    className="mt-1.5"
-                  />
-                )}
-              </GrupoCampo>
-            </div>
-          </div>
-
-          <DialogoPie>
-            <DialogoCierre asChild>
-              <Boton variante="contorno">Cancelar</Boton>
-            </DialogoCierre>
-            <Boton
-              cargando={procesando}
-              disabled={!laVersionEstaLista}
-              onClick={() => ejecutar(subirLaSiguienteVersion, limpiarLaVersion)}
-            >
-              Actualizar a {etiquetaSiguiente}
-            </Boton>
-          </DialogoPie>
-        </DialogoContenido>
-      </Dialogo>
     </div>
   );
 }

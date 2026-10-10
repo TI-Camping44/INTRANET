@@ -51,8 +51,8 @@ export default async function PaginaEditarDocumento({
       supabase
         .from("documentos")
         .select(
-          "id, codigo, titulo, tipo, categoria, proceso_id, responsable_id, " +
-            "periodicidad_revision_meses",
+          "id, codigo, version_documento, titulo, tipo, categoria, proceso_id, " +
+            "responsable_id, periodicidad_revision_meses",
         )
         .eq("id", params.id)
         .maybeSingle(),
