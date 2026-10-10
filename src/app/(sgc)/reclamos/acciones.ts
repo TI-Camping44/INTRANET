@@ -24,6 +24,8 @@ import {
   type OrigenReclamo,
   type PlanReclamo,
   type TipoFallaReclamo,
+  type ClienteEncontrado,
+  type ResultadoBusquedaClientes,
 } from "@/lib/reclamos";
 import { hoyEnAsuncion, formatearFecha } from "@/lib/formato";
 import { departe, notificar } from "@/lib/notificaciones";
@@ -907,17 +909,30 @@ async function avisarAlAsignado(
  * RLS se aplica: la funcion es `security invoker`, asi que la politica
  * de `clientes` manda igual que en cualquier consulta.
  */
-export async function buscarClientes(
-  texto: string,
-): Promise<{ id: string; razon_social: string; ruc: string | null }[]> {
+
+export async function buscarClientes(texto: string): Promise<ResultadoBusquedaClientes> {
   await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const { data } = await supabase.rpc("buscar_clientes", {
+  const { data, error } = await supabase.rpc("buscar_clientes", {
     p_texto: texto.slice(0, 120),
     p_limite: 8,
     p_rol: "cliente",
   });
 
-  return (data as { id: string; razon_social: string; ruc: string | null }[] | null) ?? [];
+  // UNA BUSQUEDA QUE FALLA NO ES UNA BUSQUEDA SIN RESULTADOS. Devolver
+  // una lista vacia ante un error hace que la pantalla diga «ningun
+  // cliente coincide» cuando en realidad no pudo preguntar, y eso manda
+  // a buscar el problema al lugar equivocado: paso el 10 de octubre,
+  // con la funcion de la base cambiada y el despliegue todavia a medio
+  // compilar.
+  if (error) {
+    console.error("buscar_clientes:", error.message);
+    return { exito: false, error: "No se pudo buscar. Vuelva a intentar en unos segundos." };
+  }
+
+  return {
+    exito: true,
+    clientes: (data as ClienteEncontrado[] | null) ?? [],
+  };
 }

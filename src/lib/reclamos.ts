@@ -518,3 +518,27 @@ export function excedeTopePorcentual(
 
 /** Máximo de compensaciones económicas por cliente y por año. */
 export const MAXIMO_COMPENSACIONES_ANUALES = 2;
+
+/**
+ * Un contacto de la cartera, como lo devuelve el buscador.
+ *
+ * Vive acá y no en `reclamos/acciones.ts` porque ese archivo es
+ * `"use server"` y solo puede exportar funciones asíncronas.
+ */
+export interface ClienteEncontrado {
+  id: string;
+  razon_social: string;
+  ruc: string | null;
+}
+
+/**
+ * Lo que devuelve la búsqueda de clientes.
+ *
+ * DISTINGUE «NO ENCONTRÉ» DE «NO PUDE BUSCAR». Devolver una lista vacía
+ * ante un error hace que la pantalla diga «ningún cliente coincide»
+ * cuando en realidad no pudo preguntar, y eso manda a buscar el
+ * problema al lugar equivocado.
+ */
+export type ResultadoBusquedaClientes =
+  | { exito: true; clientes: ClienteEncontrado[] }
+  | { exito: false; error: string };

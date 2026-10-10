@@ -47,6 +47,7 @@ export function SelectorCliente({
   const [abierto, definirAbierto] = React.useState(false);
   const [buscando, definirBuscando] = React.useState(false);
   const [sugerencias, definirSugerencias] = React.useState<ClienteBuscable[]>([]);
+  const [falla, definirFalla] = React.useState<string | null>(null);
 
   const contenedor = React.useRef<HTMLDivElement>(null);
 
@@ -79,9 +80,15 @@ export function SelectorCliente({
 
     const reloj = setTimeout(() => {
       buscarClientes(texto)
-        .then((encontrados) => {
+        .then((resultado) => {
           if (!vigente) return;
-          definirSugerencias(encontrados);
+          if (resultado.exito) {
+            definirSugerencias(resultado.clientes);
+            definirFalla(null);
+          } else {
+            definirSugerencias([]);
+            definirFalla(resultado.error);
+          }
         })
         .finally(() => {
           if (vigente) definirBuscando(false);
@@ -152,11 +159,18 @@ export function SelectorCliente({
             >
               {sugerencias.length === 0 ? (
                 <li className="px-2 py-3 text-[11px] text-atenuado-contraste">
-                  {buscando
-                    ? "Buscando…"
-                    : texto.trim() === ""
-                      ? "Escriba el nombre, el RUC o la cédula."
-                      : "Ningún cliente coincide. Pruebe con el RUC o con otra parte del nombre."}
+                  {buscando ? (
+                    "Buscando…"
+                  ) : falla ? (
+                    // «No pude buscar» no es «no encontré»: si se dicen
+                    // igual, el problema se va a buscar al lugar
+                    // equivocado.
+                    <span className="text-semaforo-critico">{falla}</span>
+                  ) : texto.trim() === "" ? (
+                    "Escriba el nombre, el RUC o la cédula."
+                  ) : (
+                    "Ningún cliente coincide. Pruebe con el RUC o con otra parte del nombre."
+                  )}
                 </li>
               ) : (
                 sugerencias.map((cliente) => (
