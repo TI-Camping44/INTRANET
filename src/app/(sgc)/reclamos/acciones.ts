@@ -892,6 +892,18 @@ async function avisarAlAsignado(
  * del RUC, en cualquier orden, porque el orden en que esta guardado es
  * justo lo que no se sabe.
  *
+ * NO OFRECE A LOS PROVEEDORES. La exportacion de Odoo son contactos, no
+ * clientes: 816 de los 8.551 solo nos venden. Un reclamo de cliente que
+ * sale a nombre de un proveedor es un caso mal abierto desde el titulo.
+ *
+ * Los 746 sin movimientos SI entran: no haberle comprado todavia a
+ * alguien no lo convierte en proveedor, y un contacto de menos es un
+ * reclamo que no se puede registrar.
+ *
+ * `p_rol` SE MANDA SIEMPRE, aunque tenga valor por omision en la base:
+ * conviven dos versiones de la funcion y PostgREST elige por el nombre
+ * de los argumentos. Sin mandarlo, la llamada seria ambigua.
+ *
  * RLS se aplica: la funcion es `security invoker`, asi que la politica
  * de `clientes` manda igual que en cualquier consulta.
  */
@@ -904,6 +916,7 @@ export async function buscarClientes(
   const { data } = await supabase.rpc("buscar_clientes", {
     p_texto: texto.slice(0, 120),
     p_limite: 8,
+    p_rol: "cliente",
   });
 
   return (data as { id: string; razon_social: string; ruc: string | null }[] | null) ?? [];
