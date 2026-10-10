@@ -26,7 +26,7 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const [{ data }, { data: personas }, { data: clientes }] = await Promise.all([
+  const [{ data }, { data: personas }] = await Promise.all([
     supabase
       .from("reclamos")
       .select(
@@ -40,17 +40,14 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
-    supabase
-      .from("clientes")
-      .select("id, razon_social, ruc")
-      .eq("activo", true)
-      .order("razon_social"),
   ]);
 
   // `gestor_id` ya no es un campo del formulario —salió del alta el 9 de
   // octubre— pero se sigue leyendo acá: la política `reclamos_edicion` lo
   // usa, y el gestor de un caso viejo tiene que poder seguir editándolo.
-  const reclamo = data as (ReclamoInicial & { codigo: string; gestor_id: string | null }) | null;
+  const reclamo = data as
+    | (ReclamoInicial & { codigo: string; gestor_id: string | null })
+    | null;
   if (!reclamo) notFound();
 
   // La misma regla que la ficha, que es la de la política
@@ -62,6 +59,25 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
     usuario.id === reclamo.responsable_area_id;
 
   if (!puedeEditar) redirect("/sin-acceso?motivo=permisos");
+
+  // SOLO EL CLIENTE DEL CASO, no la cartera. Son 8.551 contactos y el
+  // buscador los consulta al servidor; acá hace falta uno para poder
+  // mostrarlo ya elegido.
+  const { data: suyo } = reclamo.cliente_id
+    ? await supabase
+        .from("clientes")
+        .select("id, razon_social, ruc")
+        .eq("id", reclamo.cliente_id)
+        .maybeSingle()
+    : { data: null };
+
+  const clienteInicial =
+    (suyo as { id: string; razon_social: string; ruc: string | null } | null) ??
+    // Un caso viejo pudo guardarse con el nombre escrito a mano y sin
+    // cliente de la lista. Se muestra igual, para no perderlo al editar.
+    (reclamo.cliente_nombre
+      ? { id: "", razon_social: reclamo.cliente_nombre, ruc: null }
+      : null);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -78,7 +94,7 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
 
       <FormularioReclamo
         personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-        clientes={(clientes as { id: string; razon_social: string; ruc: string | null }[] | null) ?? []}
+        clienteInicial={clienteInicial}
         inicial={reclamo}
       />
     </div>

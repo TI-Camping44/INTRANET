@@ -14,14 +14,13 @@ export default async function PaginaNuevoReclamo() {
   if (!puedeGestionar(usuario)) redirect("/sin-acceso?motivo=permisos");
 
   const supabase = crearClienteServidor();
-  const [{ data: personas }, { data: clientes }] = await Promise.all([
-    supabase.from("usuarios").select("id, nombre_completo").eq("activo", true).order("nombre_completo"),
-    supabase
-      .from("clientes")
-      .select("id, razon_social, ruc")
-      .eq("activo", true)
-      .order("razon_social"),
-  ]);
+  // La cartera NO se trae: son 8.551 contactos y el buscador consulta
+  // al servidor a medida que se escribe.
+  const { data: personas } = await supabase
+    .from("usuarios")
+    .select("id, nombre_completo")
+    .eq("activo", true)
+    .order("nombre_completo");
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -31,7 +30,6 @@ export default async function PaginaNuevoReclamo() {
       />
       <FormularioReclamo
         personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-        clientes={(clientes as { id: string; razon_social: string; ruc: string | null }[] | null) ?? []}
       />
     </div>
   );

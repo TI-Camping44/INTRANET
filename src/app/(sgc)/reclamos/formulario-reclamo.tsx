@@ -68,11 +68,12 @@ export interface ReclamoInicial {
  */
 export function FormularioReclamo({
   personas,
-  clientes,
+  clienteInicial,
   inicial,
 }: {
   personas: Persona[];
-  clientes: Cliente[];
+  /** Al editar, el cliente que ya tenía el caso. El resto se busca. */
+  clienteInicial?: Cliente | null;
   inicial?: ReclamoInicial;
 }) {
   const router = useRouter();
@@ -152,11 +153,7 @@ export function FormularioReclamo({
             className="sm:col-span-2"
             ayuda="Escriba el nombre, el RUC o la cédula y elija de la lista."
           >
-            <SelectorCliente
-              clientes={clientes}
-              inicialId={inicial?.cliente_id}
-              inicialNombre={inicial?.cliente_nombre}
-            />
+            <SelectorCliente inicial={clienteInicial ?? null} />
           </GrupoCampo>
 
           <GrupoCampo

@@ -872,3 +872,39 @@ async function avisarAlAsignado(
     claveUnicidad: `reclamo-asignado:${caso.id}:${asignado.id}`,
   });
 }
+
+/**
+ * Busca clientes para el alta de un reclamo.
+ *
+ * LA BUSQUEDA VA EN EL SERVIDOR, no en el navegador. La cartera son
+ * 8.551 contactos: mandarlos todos para filtrar con JavaScript es casi
+ * un mega de JSON en cada apertura del formulario, y esto se usa desde
+ * el celular en piso de venta.
+ *
+ * EL FILTRO VIVE EN `buscar_clientes()`, en la base, y no aca: `ilike`
+ * de PostgREST NO ignora las tildes, asi que «lopez» no encontraria
+ * «LOPEZ, Carlos» escrito con acento. La funcion usa `unaccent`, que no
+ * se puede indexar porque no es IMMUTABLE, pero sobre ocho mil filas el
+ * recorrido entero es cuestion de milisegundos.
+ *
+ * Busca SIN TILDES Y POR PARTES: «carlos lopez» encuentra «LOPEZ, Carlos
+ * Alberto». Cada palabra tiene que aparecer en algun lado del nombre o
+ * del RUC, en cualquier orden, porque el orden en que esta guardado es
+ * justo lo que no se sabe.
+ *
+ * RLS se aplica: la funcion es `security invoker`, asi que la politica
+ * de `clientes` manda igual que en cualquier consulta.
+ */
+export async function buscarClientes(
+  texto: string,
+): Promise<{ id: string; razon_social: string; ruc: string | null }[]> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const { data } = await supabase.rpc("buscar_clientes", {
+    p_texto: texto.slice(0, 120),
+    p_limite: 8,
+  });
+
+  return (data as { id: string; razon_social: string; ruc: string | null }[] | null) ?? [];
+}
