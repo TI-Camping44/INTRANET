@@ -52,6 +52,24 @@ export function SelectorCliente({
   const [elegido, definirElegido] = React.useState<ClienteBuscable | null>(elegidoInicial);
   const [texto, definirTexto] = React.useState("");
   const [abierto, definirAbierto] = React.useState(false);
+  const contenedor = React.useRef<HTMLDivElement>(null);
+
+  // SE CIERRA AL TOCAR AFUERA. Sin esto la lista queda abierta tapando
+  // los campos de abajo, y en el celular no hay forma de sacarla.
+  //
+  // Va en `mousedown` y no en `blur` del campo: `blur` dispara antes que
+  // el click de la opción, así que cerrar ahí desmontaría el botón antes
+  // de que llegue a elegirse.
+  React.useEffect(() => {
+    if (!abierto) return;
+
+    function alTocar(evento: MouseEvent) {
+      if (!contenedor.current?.contains(evento.target as Node)) definirAbierto(false);
+    }
+
+    document.addEventListener("mousedown", alTocar);
+    return () => document.removeEventListener("mousedown", alTocar);
+  }, [abierto]);
 
   // El índice de búsqueda de cada cliente, calculado una sola vez: con
   // miles de filas, normalizar en cada tecla se nota.
@@ -64,9 +82,13 @@ export function SelectorCliente({
     [clientes],
   );
 
+  // SIN ESCRIBIR NADA TAMBIÉN MUESTRA. Al tocar el campo aparecen los
+  // primeros de la lista, como un desplegable de toda la vida: si solo
+  // mostrara al escribir, quien no sabe cómo está cargado el cliente ve
+  // un campo vacío y no sabe si el buscador anda o si no hay nada.
   const sugerencias = React.useMemo(() => {
     const partes = sinTildes(texto).split(/\s+/).filter(Boolean);
-    if (partes.length === 0) return [];
+    if (partes.length === 0) return clientes.slice(0, MAXIMO_SUGERENCIAS);
 
     const encontrados: ClienteBuscable[] = [];
     for (const fila of indice) {
@@ -76,7 +98,7 @@ export function SelectorCliente({
       }
     }
     return encontrados;
-  }, [indice, texto]);
+  }, [clientes, indice, texto]);
 
   function elegir(cliente: ClienteBuscable) {
     definirElegido(cliente);
@@ -85,7 +107,7 @@ export function SelectorCliente({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={contenedor}>
       {/* El id y el nombre viajan juntos: el nombre queda escrito en el
           reclamo tal como estaba el día que se registró, aunque después
           el cliente se renombre en Odoo. */}
@@ -118,6 +140,15 @@ export function SelectorCliente({
         </div>
       ) : (
         <>
+          {/* La lista vacía se avisa en el campo, no solo al desplegar:
+              un buscador que no encuentra nada se lee como roto. */}
+          {clientes.length === 0 ? (
+            <p className="mb-1 text-[11px] text-semaforo-alto">
+              No hay clientes cargados todavía. Hasta que se carguen no se puede registrar un
+              reclamo.
+            </p>
+          ) : null}
+
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-atenuado-contraste" />
             <Entrada
@@ -128,13 +159,17 @@ export function SelectorCliente({
                 definirAbierto(true);
               }}
               onFocus={() => definirAbierto(true)}
-              placeholder="Nombre, RUC o cédula"
+              placeholder={
+                clientes.length === 0
+                  ? "Sin clientes cargados"
+                  : `Nombre, RUC o cédula — ${clientes.length} cargados`
+              }
               className="pl-8"
               autoComplete="off"
             />
           </div>
 
-          {abierto && texto.trim().length > 0 ? (
+          {abierto ? (
             <ul
               className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border
                          border-borde bg-emergente p-1 shadow-md"
@@ -142,7 +177,7 @@ export function SelectorCliente({
               {sugerencias.length === 0 ? (
                 <li className="px-2 py-3 text-[11px] text-atenuado-contraste">
                   {clientes.length === 0
-                    ? "Todavía no hay clientes cargados. Se cargan desde la exportación de Odoo."
+                    ? "Todavía no hay clientes cargados. Se cargan desde la exportación de Odoo, con «npm run importar-clientes»."
                     : "Ningún cliente coincide. Pruebe con el RUC o con otra parte del nombre."}
                 </li>
               ) : (
