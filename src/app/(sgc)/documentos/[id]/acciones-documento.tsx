@@ -106,15 +106,22 @@ export function AccionesDocumento({
 
   if (!puedeGestionar) return null;
 
+  // UN DOCUMENTO RETIRADO SALE DEL CIRCUITO. Obsoleto y anulado son el
+  // registro de algo que dejó de regir: volver a mandarlo a revisión, a
+  // validar o a aprobar sería devolverlo a circulación por la puerta de
+  // atrás. Lo único que queda es el camino de salida —anular y después
+  // eliminar— y eso es lo que se ve.
+  const retirado = estadoDocumento === "obsoleto" || estadoDocumento === "anulado";
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {versionEditableId ? (
+      {!retirado && versionEditableId ? (
         <Boton tamano="pequeno" onClick={() => definirDialogoRevision(true)} disabled={procesando}>
           <Send /> Enviar a revisión
         </Boton>
       ) : null}
 
-      {versionEnRevisionId ? (
+      {!retirado && versionEnRevisionId ? (
         <Boton
           tamano="pequeno"
           disabled={procesando || revisionesPendientes > 0}
@@ -131,7 +138,7 @@ export function AccionesDocumento({
 
       {/* Validar va antes de aprobar: sin la validación, el botón de
           aprobar se niega. */}
-      {versionEnRevisionId && !fechaValidacion ? (
+      {!retirado && versionEnRevisionId && !fechaValidacion ? (
         <Boton
           tamano="pequeno"
           variante="contorno"
@@ -157,7 +164,7 @@ export function AccionesDocumento({
         </>
       ) : null}
 
-      {estadoDocumento !== "obsoleto" ? (
+      {!retirado ? (
         <Boton
           tamano="pequeno"
           variante="fantasma"
@@ -200,10 +207,15 @@ export function AccionesDocumento({
         </Boton>
       ) : null}
 
-      {/* Eliminar es para lo que no deberia haberse cargado: una prueba,
-          un duplicado, un error. Retirar un documento que estuvo en uso
-          es «Marcar obsoleto», que lo conserva con su historial. */}
-      {puedeEliminar ? (
+      {/* ELIMINAR NUNCA SOBRE UN OBSOLETO. Un obsoleto tiene un solo
+          camino: anular, y recién ahí aparece eliminar. Así el motivo
+          por el que el documento ya no está queda escrito antes de que
+          el documento desaparezca, que es lo que una auditoría pide.
+
+          Sobre lo que todavía no se retiró sí está: es para lo que no
+          debería haberse cargado —una prueba, un duplicado, un error—.
+          Retirar un documento que estuvo en uso es «Marcar obsoleto». */}
+      {puedeEliminar && estadoDocumento !== "obsoleto" ? (
         <Boton
           variante="fantasma"
           cargando={procesando}

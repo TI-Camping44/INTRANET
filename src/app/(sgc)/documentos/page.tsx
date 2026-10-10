@@ -56,6 +56,7 @@ interface FilaDocumento {
   tipo: TipoDocumento;
   estado: EstadoDocumento;
   version_actual: number;
+  version_documento: string | null;
   fecha_vigencia: string | null;
   fecha_proxima_revision: string | null;
   proceso_documento_id: string | null;
@@ -204,7 +205,7 @@ export default async function PaginaDocumentos({
   let consulta = supabase
     .from("documentos")
     .select(
-      "id, codigo, titulo, tipo, estado, version_actual, fecha_vigencia, " +
+      "id, codigo, titulo, tipo, estado, version_actual, version_documento, fecha_vigencia, " +
         "fecha_proxima_revision, es_demostracion, categoria, orden, orden_categoria, " +
         "proceso_documento_id, actualizado_en",
     )
@@ -411,7 +412,7 @@ export default async function PaginaDocumentos({
       codigo: documento.codigo,
       titulo: documento.titulo,
       tipo: documento.tipo,
-      version: documento.version_actual,
+      version: documento.version_documento ?? `Ver.${String(documento.version_actual).padStart(2, "0")}`,
       fecha: documento.actualizado_en,
       motivo: "Retirado de circulación",
     })),
@@ -421,7 +422,9 @@ export default async function PaginaDocumentos({
       codigo: version.documentos!.codigo,
       titulo: version.documentos!.titulo,
       tipo: version.documentos!.tipo,
-      version: version.version,
+      // Las reemplazadas son del circuito viejo, donde la versión era un
+      // entero que llevaba el sistema. Se escriben como siempre.
+      version: `Ver.${String(version.version).padStart(2, "0")}`,
       // Cuándo quedó atrás, no cuándo se creó: el documento se tocó por
       // última vez al subirle la versión que la reemplazó.
       fecha: version.documentos!.actualizado_en,
@@ -606,9 +609,7 @@ export default async function PaginaDocumentos({
                       <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                         {ETIQUETAS_TIPO_DOCUMENTO[fila.tipo]}
                       </TablaCelda>
-                      <TablaCelda className="tabular text-xs">
-                        Ver.{String(fila.version).padStart(2, "0")}
-                      </TablaCelda>
+                      <TablaCelda className="tabular text-xs">{fila.version}</TablaCelda>
                       <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
                         {fila.motivo}
                       </TablaCelda>
@@ -808,8 +809,15 @@ export default async function PaginaDocumentos({
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                       {ETIQUETAS_TIPO_DOCUMENTO[documento.tipo]}
                     </TablaCelda>
+                    {/* LA VERSIÓN QUE SE ESCRIBIÓ, tal cual: si cargaron
+                        «00», «01» o «100», eso es lo que se lee. No se
+                        le antepone «Ver.», que convertía un «100» en
+                        «Ver.100». Cuando el documento va sin versión
+                        declarada queda la que el sistema lleva de su
+                        circuito de aprobación. */}
                     <TablaCelda className="tabular text-xs">
-                      Ver.{String(documento.version_actual).padStart(2, "0")}
+                      {documento.version_documento ??
+                        `Ver.${String(documento.version_actual).padStart(2, "0")}`}
                     </TablaCelda>
                     <TablaCelda className="hidden whitespace-nowrap text-xs xl:table-cell">
                       {documento.fecha_vigencia ? (

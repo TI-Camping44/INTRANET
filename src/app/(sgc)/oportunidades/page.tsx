@@ -290,7 +290,6 @@ export default async function PaginaOportunidades({
                 <TablaEncabezado className="w-[7rem]">Alineación</TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">¿Se decide abordar?</TablaEncabezado>
                 <TablaEncabezado className="w-[13rem]">Recursos necesarios</TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
                 <TablaEncabezado className="w-[13rem]">Resultado obtenido</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Se mide el</TablaEncabezado>
@@ -399,10 +398,6 @@ export default async function PaginaOportunidades({
                     </TablaCelda>
 
                     <CeldaTexto ancho="13rem">{fila.recursos_necesarios}</CeldaTexto>
-                    <CeldaTexto ancho="12rem">
-                      {fila.responsable_declarado ?? fila.responsable?.nombre_completo}
-                    </CeldaTexto>
-
                     <TablaCelda className="text-xs tabular text-atenuado-contraste">
                       {fila.plazo_accion_permanente
                         ? "Permanente"

@@ -27,7 +27,7 @@ import {
   ETIQUETAS_TIPO_DOCUMENTO,
 } from "@/lib/constantes";
 import { describirVencimiento, formatearFecha, formatearFechaHora } from "@/lib/formato";
-import type { TipoDocumento } from "@/lib/tipos";
+import type { EstadoDocumento, TipoDocumento } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,11 @@ interface DocumentoDetalle {
   titulo: string;
   descripcion: string | null;
   tipo: keyof typeof ETIQUETAS_TIPO_DOCUMENTO;
-  estado: "borrador" | "en_revision" | "vigente" | "obsoleto";
+  // El enumerado entero, de `lib/tipos`. Estaba escrito a mano acá y le
+  // faltaban `en_aprobacion` y `anulado`: la ficha de un documento
+  // anulado se renderizaba igual, pero TypeScript no dejaba preguntar
+  // por su estado sin decir que la comparación «no tenía sentido».
+  estado: EstadoDocumento;
   version_actual: number;
   version_documento: string | null;
   fecha_aprobacion: string | null;
@@ -190,7 +194,12 @@ export default async function PaginaDocumento({ params }: { params: { id: string
                 </a>
               </Boton>
             ) : null}
-          {gestiona ? (
+          {/* UN DOCUMENTO RETIRADO NO SE EDITA. Obsoleto y anulado son
+              el registro de algo que dejó de regir: corregirle el
+              título, el código o la categoría después de retirarlo
+              cambiaría lo que dice la evidencia de que estuvo en uso.
+              Lo que se puede hacer con ellos es anular y eliminar. */}
+          {gestiona && documento.estado !== "obsoleto" && documento.estado !== "anulado" ? (
             <Boton variante="contorno" tamano="pequeno" comoHijo>
               <Link href={`/documentos/${documento.id}/editar`}>
                 <Pencil /> Editar

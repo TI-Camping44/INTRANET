@@ -280,7 +280,7 @@ export function FormularioDocumento({
               name="version_documento"
               value={sinVersion ? "" : version}
               onChange={(evento) => definirVersion(evento.target.value)}
-              placeholder={sinVersion ? "No aplica" : "Ver.00"}
+              placeholder={sinVersion ? "No aplica" : "00"}
               required={!sinVersion}
               disabled={sinVersion}
               maxLength={20}

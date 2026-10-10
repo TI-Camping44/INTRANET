@@ -250,7 +250,6 @@ export default async function PaginaRiesgos({
                 <TablaEncabezado className="w-[16rem]">Descripción del riesgo</TablaEncabezado>
                 <TablaEncabezado className="w-[14rem]">Causa potencial</TablaEncabezado>
                 <TablaEncabezado className="w-[14rem]">Consecuencia potencial</TablaEncabezado>
-                <TablaEncabezado className="w-[5rem] text-center">Disrupción</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Prob.</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Sev.</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Nivel</TablaEncabezado>
@@ -258,7 +257,6 @@ export default async function PaginaRiesgos({
                 <TablaEncabezado className="w-[6rem] text-center">
                   ¿Requiere acción?
                 </TablaEncabezado>
-                <TablaEncabezado className="w-[12rem]">Responsable</TablaEncabezado>
                 <TablaEncabezado className="w-[7rem]">Plazo</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Prob. res.</TablaEncabezado>
                 <TablaEncabezado className="w-[4rem] text-center">Sev. res.</TablaEncabezado>
@@ -298,7 +296,6 @@ export default async function PaginaRiesgos({
 
                   <CeldaTexto ancho="14rem">{riesgo.causas}</CeldaTexto>
                   <CeldaTexto ancho="14rem">{riesgo.consecuencias}</CeldaTexto>
-                  <CeldaSiNo valor={riesgo.asociado_disrupcion} />
 
                   <TablaCelda className="text-center text-xs tabular">
                     {riesgo.probabilidad ?? "—"}
@@ -316,10 +313,6 @@ export default async function PaginaRiesgos({
                   {/* No se escribe: sale del semáforo. Medio para arriba
                       requiere acciones; el bajo se asume y se vigila. */}
                   <CeldaSiNo valor={riesgo.requiere_accion} />
-
-                  <CeldaTexto ancho="12rem">
-                    {riesgo.responsable_declarado ?? riesgo.responsable?.nombre_completo}
-                  </CeldaTexto>
 
                   {/* EL PLAZO SALE DE LAS ACCIONES DE LA FICHA, no de la
                       columna vieja del riesgo, que quedó sin usar cuando
@@ -361,12 +354,7 @@ export default async function PaginaRiesgos({
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {riesgos.length} riesgo{riesgos.length === 1 ? "" : "s"} en el listado. Las oportunidades
-        se valoran por Beneficio × Factibilidad y están en{" "}
-        <Link href="/oportunidades" className="text-primario hover:underline">
-          su propia pantalla
-        </Link>
-        .
+        {riesgos.length} riesgo{riesgos.length === 1 ? "" : "s"} en el listado.
       </p>
     </>
   );
