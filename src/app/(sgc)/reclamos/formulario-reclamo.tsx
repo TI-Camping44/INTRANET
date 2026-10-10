@@ -9,6 +9,10 @@ import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { actualizarReclamo, crearReclamo } from "@/app/(sgc)/reclamos/acciones";
 import {
+  SelectorCliente,
+  type ClienteBuscable,
+} from "@/app/(sgc)/reclamos/selector-cliente";
+import {
   EJEMPLOS_GRAVEDAD_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
   ETIQUETAS_ORIGEN_RECLAMO,
@@ -28,10 +32,7 @@ interface Persona {
   nombre_completo: string;
 }
 
-interface Cliente {
-  id: string;
-  razon_social: string;
-}
+type Cliente = ClienteBuscable;
 
 export interface ReclamoInicial {
   id: string;
@@ -139,29 +140,22 @@ export function FormularioReclamo({
             />
           </GrupoCampo>
 
+          {/* UN SOLO CAMPO PARA EL CLIENTE. Eran dos —la lista y el
+              nombre a mano— y el de la derecha ganaba siempre, así que
+              el reclamo quedaba sin cliente identificado; sin cliente no
+              hay forma de detectar la reincidencia, que es lo que sube
+              el plan de nivel. */}
           <GrupoCampo
             etiqueta="Cliente"
-            htmlFor="cliente_id"
-            ayuda="Si el cliente no está en la lista, igual cargue el nombre abajo. Sin cliente identificado no se puede detectar la reincidencia."
+            htmlFor="buscar-cliente"
+            requerido
+            className="sm:col-span-2"
+            ayuda="Escriba el nombre, el RUC o la cédula y elija de la lista."
           >
-            <Seleccion id="cliente_id" name="cliente_id" defaultValue={inicial?.cliente_id ?? ""}>
-              <option value="">Sin cliente de la lista</option>
-              {clientes.map((cliente) => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.razon_social}
-                </option>
-              ))}
-            </Seleccion>
-          </GrupoCampo>
-
-          <GrupoCampo etiqueta="Nombre del cliente" htmlFor="cliente_nombre" requerido>
-            <Entrada
-              id="cliente_nombre"
-              name="cliente_nombre"
-              defaultValue={inicial?.cliente_nombre}
-              placeholder="Como figura en la factura"
-              required
-              minLength={3}
+            <SelectorCliente
+              clientes={clientes}
+              inicialId={inicial?.cliente_id}
+              inicialNombre={inicial?.cliente_nombre}
             />
           </GrupoCampo>
 

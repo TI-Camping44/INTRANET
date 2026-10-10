@@ -40,7 +40,11 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
-    supabase.from("clientes").select("id, razon_social").eq("activo", true).order("razon_social"),
+    supabase
+      .from("clientes")
+      .select("id, razon_social, ruc")
+      .eq("activo", true)
+      .order("razon_social"),
   ]);
 
   // `gestor_id` ya no es un campo del formulario —salió del alta el 9 de
@@ -74,7 +78,7 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
 
       <FormularioReclamo
         personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-        clientes={(clientes as { id: string; razon_social: string }[] | null) ?? []}
+        clientes={(clientes as { id: string; razon_social: string; ruc: string | null }[] | null) ?? []}
         inicial={reclamo}
       />
     </div>

@@ -53,8 +53,8 @@ export const PUNTAJE_POR_NIVEL: Record<NivelRiesgo, string> = {
  */
 export const ACCION_POR_NIVEL: Record<NivelRiesgo, string> = {
   bajo:
-    "Se mantiene mediante una decisión fundada del Comité de Calidad, registrada con su " +
-    "motivo. Se vigila con los controles habituales del proceso.",
+    "Se mantiene mediante una decisión fundada del Comité de Calidad. Se vigila con los " +
+    "controles habituales del proceso.",
   medio:
     "Decisión fundada del Comité de Calidad: se trata con cualquiera de las estrategias o se " +
     "mantiene. Si se mantiene, el motivo se registra.",

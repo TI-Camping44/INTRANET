@@ -67,7 +67,14 @@ function validar(campos: CamposDelReclamo): string | null {
   if (campos.descripcion.length < 15) {
     return "Describa qué ocurrió con al menos 15 caracteres: es la base del caso.";
   }
-  if (campos.clienteNombre.length < 3) return "Indique el nombre del cliente.";
+  // EL CLIENTE SE ELIGE DE LA LISTA, no se escribe. El nombre viaja
+  // junto con el id y queda escrito en el reclamo tal como estaba el
+  // dia que se registro, aunque despues se renombre en Odoo. Sin
+  // cliente identificado no hay forma de detectar la reincidencia, que
+  // es lo que sube el plan de nivel.
+  if (!campos.clienteId || campos.clienteNombre.length < 3) {
+    return "Elija el cliente: escriba el nombre, el RUC o la cédula y tóquelo en la lista.";
+  }
 
   // LA REGLA DE IMPARCIALIDAD QUEDA EN LA BASE. El gestor del caso salio
   // del formulario el 9 de octubre, asi que aca no hay con que comparar:

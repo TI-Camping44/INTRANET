@@ -16,7 +16,11 @@ export default async function PaginaNuevoReclamo() {
   const supabase = crearClienteServidor();
   const [{ data: personas }, { data: clientes }] = await Promise.all([
     supabase.from("usuarios").select("id, nombre_completo").eq("activo", true).order("nombre_completo"),
-    supabase.from("clientes").select("id, razon_social").eq("activo", true).order("razon_social"),
+    supabase
+      .from("clientes")
+      .select("id, razon_social, ruc")
+      .eq("activo", true)
+      .order("razon_social"),
   ]);
 
   return (
@@ -27,7 +31,7 @@ export default async function PaginaNuevoReclamo() {
       />
       <FormularioReclamo
         personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-        clientes={(clientes as { id: string; razon_social: string }[] | null) ?? []}
+        clientes={(clientes as { id: string; razon_social: string; ruc: string | null }[] | null) ?? []}
       />
     </div>
   );
