@@ -784,4 +784,14 @@ export const DIAS_AVISO_ACCION = 3;
 /** Tamano maximo por archivo adjunto: 20 MB. */
 export const TAMANO_MAXIMO_ADJUNTO = 20 * 1024 * 1024;
 
+/**
+ * Cuántos archivos de evidencia admite una acción de tratamiento.
+ *
+ * Es un tope por acción, no por subida: lo que ya está cargado cuenta.
+ * Cinco alcanza para el acta, la foto, el correo y el comprobante, que
+ * es lo que una acción suele tener; más que eso deja de ser evidencia
+ * de una acción y pasa a ser un archivo.
+ */
+export const MAXIMO_EVIDENCIAS_ACCION = 5;
+
 export const BUCKET_ADJUNTOS = "adjuntos-sgc";

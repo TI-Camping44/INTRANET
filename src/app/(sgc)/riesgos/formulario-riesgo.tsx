@@ -17,11 +17,13 @@ import {
 } from "@/lib/constantes";
 import {
   CLASES_NIVEL_RIESGO,
-  DECISION_POR_NIVEL,
   EFECTO_DEL_TRATAMIENTO,
   etiquetaNivelRiesgo,
   ORIGENES_RIESGO,
   requiereAcciones,
+  ACCION_POR_NIVEL,
+  PLAZOS_POR_NIVEL,
+  PUNTAJE_POR_NIVEL,
 } from "@/lib/riesgos";
 import { agruparPorCategoria, type ProcesoDocumentado } from "@/lib/procesos-documentados";
 import {
@@ -193,31 +195,6 @@ export function FormularioRiesgo({
               formulario porque no se valoran igual. */}
           <input type="hidden" name="tipo" value="riesgo" />
 
-          {/* 1 · DONDE SE IDENTIFICA, CONTRA INFORMACION DOCUMENTADA.
-              Antes era un desplegable con la lista fija de procesos del
-              mapa. Direccion lo cambio el 8 de octubre: no siempre es un
-              proceso —puede ser una politica, un instructivo o un
-              formulario—, asi que se elige de lo que hay cargado en
-              Informacion Documentada, y se puede elegir mas de uno.
-
-              Va en una lista de casillas y no en un `<select multiple>`:
-              en un celular el multiple obliga a mantener apretada una
-              tecla que no existe. */}
-          <SelectorDocumentos
-            etiqueta="Dónde se identifica el riesgo"
-            ayuda="Elija uno o varios de Información Documentada. No siempre es un proceso: puede ser una política o un instructivo."
-            documentos={documentos}
-            elegidos={documentosDelRiesgo}
-            alAlternar={(id) =>
-              definirDocumentosDelRiesgo((actuales) =>
-                actuales.includes(id)
-                  ? actuales.filter((otro) => otro !== id)
-                  : [...actuales, id],
-              )
-            }
-          />
-          <input type="hidden" name="documentos" value={JSON.stringify(documentosDelRiesgo)} />
-
           {/* 2 · Origen. Lista cerrada y no texto libre: ver
               `ORIGENES_RIESGO`. La opcion vacia esta deshabilitada, asi
               obliga a elegir una en vez de dejar la primera por
@@ -272,31 +249,6 @@ export function FormularioRiesgo({
             />
           </GrupoCampo>
 
-          {/* 6 · Disrupcion. Sin valor por defecto: «No» preseleccionado
-              se guarda solo, y en un retail de material controlado esa
-              es justo la respuesta que hay que pensar. */}
-          <GrupoCampo
-            etiqueta="¿Está asociado a una disrupción?"
-            htmlFor="asociado_disrupcion"
-            requerido
-            className="sm:col-span-2"
-            ayuda="Si puede interrumpir la operación."
-          >
-            <Seleccion
-              id="asociado_disrupcion"
-              name="asociado_disrupcion"
-              required
-              defaultValue={
-                inicial ? (inicial.asociado_disrupcion ? "si" : "no") : ""
-              }
-            >
-              <option value="" disabled>
-                Elija una opción
-              </option>
-              <option value="si">Sí</option>
-              <option value="no">No</option>
-            </Seleccion>
-          </GrupoCampo>
         </div>
 
         {/* 7, 8 y 9 · Valoracion: probabilidad, severidad y el nivel que
@@ -351,22 +303,43 @@ export function FormularioRiesgo({
             </GrupoCampo>
           </div>
 
+          {/* EL RESULTADO, CON LA TABLA DE CALIDAD. No alcanza con decir
+              el nivel: quien clasifica tiene que ver qué le exige
+              clasificar así —qué acción corresponde y en qué plazo—,
+              que es lo que la tabla responde. Es la misma razón por la
+              que la gravedad del reclamo muestra el plan que va a
+              tocar. */}
           {etiqueta ? (
             <div
               className={cn(
-                "mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3",
+                "mt-4 space-y-2 rounded-md border p-3",
                 CLASES_NIVEL_RIESGO[etiqueta],
               )}
             >
-              <div>
-                <p className="text-[11px] uppercase tracking-wide opacity-80">Nivel resultante</p>
-                <p className="text-lg font-semibold tabular">
-                  {nivel} · {ETIQUETAS_NIVEL_RIESGO[etiqueta]}
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide opacity-80">
+                    Nivel resultante
+                  </p>
+                  <p className="text-lg font-semibold tabular">
+                    {nivel} · {ETIQUETAS_NIVEL_RIESGO[etiqueta]}
+                  </p>
+                </div>
+                <p className="text-[11px] tabular opacity-80">
+                  Puntaje {PUNTAJE_POR_NIVEL[etiqueta]}
                 </p>
               </div>
-              <p className="max-w-md text-[11px] opacity-90">
-                {DECISION_POR_NIVEL[etiqueta]}
-              </p>
+
+              <dl className="space-y-1.5 border-t border-current/15 pt-2 text-[11px] opacity-90">
+                <div>
+                  <dt className="font-semibold">Acción requerida</dt>
+                  <dd className="leading-relaxed">{ACCION_POR_NIVEL[etiqueta]}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">Plazos y seguimiento</dt>
+                  <dd className="leading-relaxed">{PLAZOS_POR_NIVEL[etiqueta]}</dd>
+                </div>
+              </dl>
             </div>
           ) : (
             <p className="mt-4 rounded-md border border-dashed border-borde p-3 text-[11px] text-atenuado-contraste">
@@ -484,27 +457,6 @@ export function FormularioRiesgo({
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* OBLIGATORIO, desde el 9 de octubre. Es lo que justifica
-                la evaluación: sin saber qué se hace hoy para contener el
-                riesgo, la probabilidad y la severidad quedan dichas sin
-                respaldo. Lo único opcional del formulario es la primera
-                viñeta, dónde se identifica. */}
-            <GrupoCampo
-              etiqueta="Controles existentes"
-              htmlFor="controles_existentes"
-              className="sm:col-span-2"
-              requerido
-              ayuda="Qué se hace hoy para contener el riesgo. Justifica la evaluación."
-            >
-              <AreaTexto
-                id="controles_existentes"
-                name="controles_existentes"
-                rows={2}
-                required
-                defaultValue={inicial?.controles_existentes ?? ""}
-              />
-            </GrupoCampo>
-
           </div>
 
           {/* UN RIESGO ADMITE TODAS LAS ACCIONES QUE HAGAN FALTA. Antes

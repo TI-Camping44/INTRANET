@@ -425,37 +425,6 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
         </div>
 
         <div className="space-y-4">
-          <Tarjeta>
-            <TarjetaCabecera>
-              <TarjetaTitulo>Ficha</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              <dl className="space-y-2.5 text-xs">
-                <Dato etiqueta="Responsable" valor={riesgo.responsable?.nombre_completo ?? "—"} />
-                <Dato
-                  etiqueta="Tratamiento"
-                  valor={ETIQUETAS_TRATAMIENTO_RIESGO[riesgo.tratamiento]}
-                />
-                <Dato
-                  etiqueta="Identificación"
-                  valor={formatearFecha(riesgo.fecha_identificacion)}
-                />
-                <Dato
-                  etiqueta="Última evaluación"
-                  valor={formatearFecha(riesgo.fecha_ultima_evaluacion)}
-                />
-                <Dato
-                  etiqueta="Próxima revisión"
-                  valor={
-                    riesgo.fecha_proxima_revision
-                      ? `${formatearFecha(riesgo.fecha_proxima_revision)} · ${describirVencimiento(riesgo.fecha_proxima_revision)}`
-                      : "—"
-                  }
-                />
-              </dl>
-            </TarjetaContenido>
-          </Tarjeta>
-
           {((relacionadas as any[] | null) ?? []).length > 0 ? (
             <Tarjeta>
               <TarjetaCabecera>
@@ -487,8 +456,6 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
               <TarjetaContenido>
                 <PanelReevaluacion
                   riesgoId={riesgo.id}
-                  probabilidadActual={riesgo.probabilidad ?? 3}
-                  severidadActual={riesgo.severidad ?? 3}
                   estado={riesgo.estado}
                   puedeEditar={gestiona}
                 />

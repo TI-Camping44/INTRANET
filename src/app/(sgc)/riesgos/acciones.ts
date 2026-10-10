@@ -5,6 +5,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { archivosDelFormulario, quitarAdjunto, subirAdjuntos } from "@/lib/adjuntos-servidor";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
+import { MAXIMO_EVIDENCIAS_ACCION } from "@/lib/constantes";
 import { hoyEnAsuncion } from "@/lib/formato";
 import { esOrigenDeOportunidadValido, esOrigenValido, requiereAcciones } from "@/lib/riesgos";
 import type { EstadoAccion, EstadoRiesgo, ResultadoAccion } from "@/lib/tipos";
@@ -30,12 +31,11 @@ const OBLIGATORIOS: { campo: string; nombre: string }[] = [
   { campo: "descripcion", nombre: "la descripción" },
   { campo: "causas", nombre: "la causa potencial" },
   { campo: "consecuencias", nombre: "la consecuencia potencial" },
-  { campo: "asociado_disrupcion", nombre: "si está asociado a una disrupción" },
-  // LOS CONTROLES EXISTENTES SON OBLIGATORIOS desde el 9 de octubre: son
-  // lo que justifica la evaluacion. Sin saber que se hace hoy para
-  // contener el riesgo, la probabilidad y la severidad quedan dichas sin
-  // respaldo. Lo unico opcional del formulario es donde se identifica.
-  { campo: "controles_existentes", nombre: "los controles existentes" },
+  // «ASOCIADO A UNA DISRUPCION» Y «CONTROLES EXISTENTES» SALIERON del
+  // formulario el 10 de octubre, junto con «donde se identifica». Las
+  // tres columnas quedan en la base y la ficha las sigue mostrando en
+  // los riesgos que las tengan; lo que se saca es la pregunta al
+  // registrar.
   { campo: "responsable_id", nombre: "el responsable" },
 ];
 
@@ -258,19 +258,15 @@ async function guardarDocumentosYAcciones(
  * identificacion son obligatorios. El navegador ya los pide, pero eso es
  * comodidad; el control es este.
  *
- * `asociado_disrupcion` se revisa como los demas y no como un booleano:
- * el desplegable arranca vacio a proposito, y leerlo con
- * `=== "si"` convertiria «no contestado» en «no» sin que nadie lo haya
- * dicho.
+ * SALIERON TRES CAMPOS el 10 de octubre: donde se identifica, si esta
+ * asociado a una disrupcion y los controles existentes. Con ellos sale
+ * la revision de la disrupcion, que exigia una respuesta que ya nadie
+ * puede dar: el formulario no la pregunta, asi que exigirla dejaba el
+ * alta sin poder enviarse.
  */
 function revisarCamposDeRiesgo(datos: FormData): string | null {
   if (!esOrigenValido(String(datos.get("origen") ?? "").trim())) {
     return "Elija un origen de la lista.";
-  }
-
-  const disrupcion = String(datos.get("asociado_disrupcion") ?? "").trim();
-  if (disrupcion !== "si" && disrupcion !== "no") {
-    return "Indique si el riesgo está asociado a una disrupción.";
   }
 
   const probabilidad = Number(datos.get("probabilidad") ?? 0);
@@ -340,10 +336,12 @@ export async function crearRiesgo(datos: FormData): Promise<ResultadoAccion> {
       tratamiento: String(datos.get("tratamiento") ?? "") || null,
       causas: String(datos.get("causas") ?? "").trim() || null,
       consecuencias: String(datos.get("consecuencias") ?? "").trim() || null,
-      controles_existentes: String(datos.get("controles_existentes") ?? "").trim() || null,
+      // `controles_existentes` y `asociado_disrupcion` ya no se piden en
+      // el alta. Quedan nulos: escribir `false` en la disrupcion seria
+      // afirmar que no la tiene, que es distinto de no haberla
+      // preguntado.
       // Columnas del F-EST-01-03.
       origen,
-      asociado_disrupcion: datos.get("asociado_disrupcion") === "si",
       accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
       plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
       proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
@@ -412,9 +410,11 @@ export async function actualizarRiesgo(id: string, datos: FormData): Promise<Res
       tratamiento: String(datos.get("tratamiento") ?? "") || null,
       causas: String(datos.get("causas") ?? "").trim() || null,
       consecuencias: String(datos.get("consecuencias") ?? "").trim() || null,
-      controles_existentes: String(datos.get("controles_existentes") ?? "").trim() || null,
+      // `controles_existentes` y `asociado_disrupcion` NO SE TOCAN al
+      // editar. Salieron del formulario el 10 de octubre, así que no
+      // llegan: escribirlos igual le borraría el dato a todo riesgo
+      // viejo que lo tenga, por el solo hecho de abrirlo y guardarlo.
       origen: String(datos.get("origen") ?? "").trim() || null,
-      asociado_disrupcion: datos.get("asociado_disrupcion") === "si",
       accion_planificada: String(datos.get("accion_planificada") ?? "").trim() || null,
       plazo_accion: String(datos.get("plazo_accion") ?? "") || null,
       proceso_accion_id: String(datos.get("proceso_accion_id") ?? "") || null,
@@ -641,6 +641,15 @@ export async function crearAccionRiesgo(
   // primero y volver a entrar a adjuntar es la pantalla intermedia que
   // Calidad hizo sacar del alta de no conformidades.
   const archivos = archivosDelFormulario(datos, "evidencia");
+  if (archivos.length > MAXIMO_EVIDENCIAS_ACCION) {
+    return {
+      exito: true,
+      id: creada.id,
+      mensaje:
+        `La acción se creó, pero la evidencia no: el máximo es ${MAXIMO_EVIDENCIAS_ACCION} ` +
+        "archivos por acción. Súbala desde la acción, de a tantos.",
+    };
+  }
   if (archivos.length > 0) {
     await subirAdjuntos(supabase, {
       entidad: "riesgo_acciones",
@@ -740,8 +749,12 @@ export async function editarAccionRiesgo(
     };
   }
 
-  // Los archivos nuevos se suman; los que ya estaban no se tocan.
+  // Los archivos nuevos se suman; los que ya estaban no se tocan, y por
+  // eso cuentan contra el tope.
   const archivos = archivosDelFormulario(datos, "evidencia");
+  const sinCupoAlEditar = await revisarCupoDeEvidencia(supabase, accionId, archivos.length);
+  if (sinCupoAlEditar) return { exito: false, error: sinCupoAlEditar };
+
   if (archivos.length > 0) {
     const usuario = await requerirUsuario();
     await subirAdjuntos(supabase, {
@@ -878,6 +891,41 @@ export async function evaluarEficaciaAccionRiesgo(
   };
 }
 
+/**
+ * Cuantos archivos de evidencia se pueden sumar todavia a una accion.
+ *
+ * El tope es POR ACCION, no por subida: lo que ya esta cargado cuenta.
+ * Si no, cinco subidas de uno dejaban cinco veces el tope.
+ *
+ * Devuelve el mensaje del problema cuando no entran, o null.
+ */
+async function revisarCupoDeEvidencia(
+  supabase: ReturnType<typeof crearClienteServidor>,
+  accionId: string,
+  cuantos: number,
+): Promise<string | null> {
+  if (cuantos === 0) return null;
+
+  const { count } = await supabase
+    .from("adjuntos")
+    .select("id", { count: "exact", head: true })
+    .eq("entidad", "riesgo_acciones")
+    .eq("entidad_id", accionId);
+
+  const cargados = count ?? 0;
+  const libres = MAXIMO_EVIDENCIAS_ACCION - cargados;
+
+  if (cuantos > libres) {
+    return libres <= 0
+      ? `Esta acción ya tiene ${MAXIMO_EVIDENCIAS_ACCION} archivos de evidencia, que es el máximo. ` +
+          "Quite alguno antes de subir otro."
+      : `Solo entra${libres === 1 ? "" : "n"} ${libres} archivo${libres === 1 ? "" : "s"} más: ` +
+          `el máximo por acción es ${MAXIMO_EVIDENCIAS_ACCION} y ya hay ${cargados}.`;
+  }
+
+  return null;
+}
+
 /** Evidencia de una accion, subida desde la ficha del riesgo. */
 export async function adjuntarEvidenciaAccionRiesgo(
   accionId: string,
@@ -889,6 +937,9 @@ export async function adjuntarEvidenciaAccionRiesgo(
 
   const archivos = archivosDelFormulario(datos, "evidencia");
   if (archivos.length === 0) return { exito: false, error: "Elija al menos un archivo." };
+
+  const sinCupo = await revisarCupoDeEvidencia(supabase, accionId, archivos.length);
+  if (sinCupo) return { exito: false, error: sinCupo };
 
   // Que la accion exista y sea de este riesgo. Quien puede subir lo
   // decide RLS sobre `adjuntos`.

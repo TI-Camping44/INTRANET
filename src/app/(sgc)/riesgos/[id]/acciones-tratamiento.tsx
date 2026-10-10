@@ -34,9 +34,13 @@ import {
   eliminarEvidenciaAccionRiesgo,
   evaluarEficaciaAccionRiesgo,
 } from "@/app/(sgc)/riesgos/acciones";
-import { ETIQUETAS_TRATAMIENTO_RIESGO, TRATAMIENTOS_VIGENTES } from "@/lib/constantes";
+import {
+  ETIQUETAS_TRATAMIENTO_RIESGO,
+  MAXIMO_EVIDENCIAS_ACCION,
+  TRATAMIENTOS_VIGENTES,
+} from "@/lib/constantes";
 import { ACEPTA_EVIDENCIA, describirTamano } from "@/lib/adjuntos";
-import { describirVencimiento, formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
+import { describirVencimiento, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
 import type { EstadoAccion, TratamientoRiesgo } from "@/lib/tipos";
 
@@ -390,6 +394,16 @@ export function AccionesTratamiento({
                       placeholder="Qué es el archivo (opcional)"
                       className="text-[11px]"
                     />
+                    {/* El tope es por acción y cuenta lo que ya está
+                        cargado. El control que vale es el del servidor;
+                        esto es para no hacer elegir diez archivos y
+                        después rechazarlos. */}
+                    <p className="text-[10px] text-atenuado-contraste">
+                      Hasta {MAXIMO_EVIDENCIAS_ACCION} archivos por acción.
+                      {accion.adjuntos.length > 0
+                        ? ` Van ${accion.adjuntos.length}.`
+                        : ""}
+                    </p>
                     <div className="flex justify-end gap-1.5">
                       <Boton
                         type="button"
@@ -600,6 +614,12 @@ function FormularioDeAccion({
               </Seleccion>
             </GrupoCampo>
 
+            {/* LOS DOS PLAZOS SE ESCRIBEN. Venían con hoy y hoy más
+                treinta días puestos: una fecha ya cargada se acepta sin
+                mirarla, y el plazo de una acción de tratamiento es
+                justamente lo que hay que decidir. Lo único que se
+                calcula solo en este formulario es el nivel del riesgo,
+                que sale de la probabilidad y la severidad. */}
             <div className="grid gap-3 sm:grid-cols-2">
               <GrupoCampo etiqueta="Plazo desde" htmlFor="fecha_inicio" requerido>
                 <Entrada
@@ -607,7 +627,7 @@ function FormularioDeAccion({
                   name="fecha_inicio"
                   type="date"
                   required
-                  defaultValue={accion?.fecha_inicio ?? hoy}
+                  defaultValue={accion?.fecha_inicio ?? ""}
                 />
               </GrupoCampo>
 
@@ -623,7 +643,7 @@ function FormularioDeAccion({
                   type="date"
                   required={!permanente}
                   disabled={permanente}
-                  defaultValue={accion?.fecha_limite ?? sumarDias(hoy, 30)}
+                  defaultValue={accion?.fecha_limite ?? ""}
                 />
               </GrupoCampo>
             </div>
@@ -648,7 +668,7 @@ function FormularioDeAccion({
             <GrupoCampo
               etiqueta="Evidencia"
               htmlFor="evidencia-nueva"
-              ayuda="Opcional. Se puede agregar después, en cada acción."
+              ayuda={`Opcional. Hasta ${MAXIMO_EVIDENCIAS_ACCION} archivos por acción. Se puede agregar después, en cada acción.`}
             >
               <input
                 id="evidencia-nueva"

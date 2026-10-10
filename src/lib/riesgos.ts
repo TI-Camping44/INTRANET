@@ -15,29 +15,72 @@ export function nivelDeRiesgo(probabilidad: number, severidad: number): number {
 }
 
 /**
- * El semáforo del instructivo: 1-3 bajo, 4-8 medio, 9-14 alto, 15-25
- * crítico.
+ * El semáforo de la tabla de Calidad: 1-3 bajo, 4-9 moderado, 10-14
+ * alto, 15-25 crítico.
  *
- * El corte entre bajo y medio importa más de lo que parece: «bajo» se
- * asume y solo se vigila, «medio» exige acción planificada con
- * responsable y plazo. Un nivel 4 —probabilidad 2 por severidad 2, o
- * probabilidad 4 por severidad 1— ya pide plan.
+ * EL 9 PASÓ DE ALTO A MODERADO el 10 de octubre, con la tabla que pasó
+ * Calidad. No es un retoque: antes «alto» arrancaba en 9 y
+ * `requiere_accion` en 10, así que un riesgo de nivel 9 se mostraba
+ * alto y al lado decía que no requería acciones. La tabla hace que el
+ * corte del semáforo y el de la exigencia de tratamiento sean el mismo
+ * número, que es lo único que se puede explicar.
+ *
+ * El valor del enumerado sigue siendo `medio`; la etiqueta que se lee
+ * es «Moderado».
  */
 export function etiquetaNivelRiesgo(nivel: number | null | undefined): NivelRiesgo | null {
   if (nivel === null || nivel === undefined) return null;
   if (nivel <= 3) return "bajo";
-  if (nivel <= 8) return "medio";
+  if (nivel <= 9) return "medio";
   if (nivel <= 14) return "alto";
   return "critico";
 }
 
-/** Qué decide cada nivel, con las palabras de Dirección. */
-export const DECISION_POR_NIVEL: Record<NivelRiesgo, string> = {
-  bajo: "Se acepta sin acción inmediata. Se reevalúa en cada Revisión por la Dirección.",
-  medio: "Se acepta sin acción inmediata. Se reevalúa en cada Revisión por la Dirección.",
-  alto: "Exige una acción de tratamiento, con responsable y plazo.",
+/** El rango de puntaje de cada nivel, como lo escribe la tabla. */
+export const PUNTAJE_POR_NIVEL: Record<NivelRiesgo, string> = {
+  bajo: "1 a 3",
+  medio: "4 a 9",
+  alto: "10 a 14",
+  critico: "15 a 25",
+};
+
+/**
+ * La acción que exige cada nivel, con las palabras de la tabla.
+ *
+ * Se muestra mientras se elige la probabilidad y la severidad: quien
+ * clasifica tiene que ver la consecuencia de clasificar, igual que en
+ * la gravedad del reclamo.
+ */
+export const ACCION_POR_NIVEL: Record<NivelRiesgo, string> = {
+  bajo:
+    "Se mantiene mediante una decisión fundada del Comité de Calidad, registrada con su " +
+    "motivo. Se vigila con los controles habituales del proceso.",
+  medio:
+    "Decisión fundada del Comité de Calidad: se trata con cualquiera de las estrategias o se " +
+    "mantiene. Si se mantiene, el motivo se registra.",
+  alto:
+    "Tratamiento obligatorio. Se admite evitar el riesgo, eliminar la fuente, cambiar la " +
+    "probabilidad o las consecuencias, compartirlo o asumirlo para perseguir una oportunidad. " +
+    "No se puede mantener sin una acción.",
   critico:
-    "Exige una acción de tratamiento, con responsable y plazo, y aprobación de la alta dirección.",
+    "Tratamiento obligatorio e inmediato. Se admite evitar el riesgo, eliminar la fuente, " +
+    "cambiar la probabilidad o las consecuencias, o compartirlo. No se puede mantener ni " +
+    "asumir. El Dueño del Proceso aplica una medida de contención y el Gerente General " +
+    "aprueba el plan de acción.",
+};
+
+/** Los plazos y el seguimiento de cada nivel, también de la tabla. */
+export const PLAZOS_POR_NIVEL: Record<NivelRiesgo, string> = {
+  bajo: "Seguimiento: anual, en la Revisión por la Dirección.",
+  medio:
+    "Decisión: en la siguiente reunión del Comité de Calidad. Seguimiento: semestral. Si se " +
+    "trata, eficacia a los 6 meses de implementada la acción.",
+  alto:
+    "Plan de acción: en 15 días hábiles. Seguimiento: trimestral. Eficacia: a los 90 días de " +
+    "implementada la acción.",
+  critico:
+    "Contención: en 24 horas. Plan de acción: en 5 días hábiles. Seguimiento: mensual, hasta " +
+    "que el riesgo baje a Moderado o menos. Eficacia: a los 30 días de implementada la acción.",
 };
 
 /**
