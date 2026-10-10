@@ -108,7 +108,12 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
   const riesgo = consulta as unknown as RiesgoDetalle | null;
   if (!riesgo) notFound();
 
-  const [{ data: acciones }, { data: evaluaciones }, { data: personas }, { data: relacionadas }] =
+  // «Historial de evaluaciones» salió de la ficha el 10 de octubre,
+  // junto con «Reevaluar», que era lo único que lo alimentaba: la
+  // valoración se carga una vez, así que el historial mostraba siempre
+  // una sola línea, la inicial. `riesgo_evaluaciones` queda con lo que
+  // tenga cargado.
+  const [{ data: acciones }, { data: personas }, { data: relacionadas }] =
     await Promise.all([
       supabase
         .from("riesgo_acciones")
@@ -118,18 +123,6 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
         )
         .eq("riesgo_id", params.id)
         .order("creado_en"),
-      // EL HISTORIAL VA DEL MAS NUEVO AL MAS VIEJO. `fecha` es una
-      // fecha sin hora, asi que dos reevaluaciones del mismo dia
-      // empataban y quedaban en el orden que devolviera la base: en la
-      // practica, la inicial arriba y la de hoy abajo. `creado_en`
-      // desempata.
-      supabase
-        .from("riesgo_evaluaciones")
-        .select("*, evaluador:evaluado_por (nombre_completo)")
-        .eq("riesgo_id", params.id)
-        .order("fecha", { ascending: false })
-        .order("creado_en", { ascending: false })
-        .limit(12),
       supabase
         .from("usuarios")
         .select("id, nombre_completo")
@@ -373,46 +366,6 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
             </TarjetaContenido>
           </Tarjeta>
 
-          <Tarjeta>
-            <TarjetaCabecera>
-              <TarjetaTitulo>Historial de evaluaciones</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              {((evaluaciones as any[] | null) ?? []).length === 0 ? (
-                <p className="text-xs text-atenuado-contraste">Sin evaluaciones registradas.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {((evaluaciones as any[] | null) ?? []).map((evaluacion) => (
-                    <li
-                      key={evaluacion.id}
-                      className="flex items-start justify-between gap-3 border-b border-borde
-                                 pb-2 last:border-0 last:pb-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs">
-                          {formatearFecha(evaluacion.fecha)} ·{" "}
-                          <span className="text-atenuado-contraste">
-                            {evaluacion.evaluador?.nombre_completo ?? "—"}
-                          </span>
-                        </p>
-                        {evaluacion.comentario ? (
-                          <p className="mt-0.5 text-[11px] text-atenuado-contraste">
-                            {evaluacion.comentario}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-[11px] tabular text-atenuado-contraste">
-                          {evaluacion.probabilidad} × {evaluacion.severidad}
-                        </span>
-                        <InsigniaNivelRiesgo nivel={evaluacion.nivel} />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </TarjetaContenido>
-          </Tarjeta>
 
           <Tarjeta>
             <TarjetaCabecera>
