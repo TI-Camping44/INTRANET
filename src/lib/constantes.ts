@@ -43,6 +43,16 @@ import type {
  */
 export const NOMBRE_SISTEMA = "Intranet";
 export const NOMBRE_EMPRESA = "Camping 44 S.A.";
+
+/**
+ * La otra empresa del grupo.
+ *
+ * NO REEMPLAZA A `NOMBRE_EMPRESA`, que es la del inquilino: `empresa_id`
+ * siempre vale Camping 44 porque es el predicado de `misma_empresa()`.
+ * Esta es para las pantallas que tienen que nombrar a las dos, como el
+ * ingreso, donde van los dos logotipos.
+ */
+export const NOMBRE_EMPRESA_VITALICA = "Vitálica E.A.S.";
 /**
  * Los dominios que pueden ingresar.
  *

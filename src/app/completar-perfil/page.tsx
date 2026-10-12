@@ -32,7 +32,7 @@ export default async function PaginaCompletarPerfil() {
     <main className="flex min-h-dvh items-center justify-center bg-fondo p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 flex justify-center">
-          <LogotipoOficial ancho={160} />
+          <LogotipoOficial alto={70} />
         </div>
 
         <div className="rounded-lg border border-borde bg-tarjeta p-6">

@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { FormularioIngreso } from "@/app/ingresar/formulario-ingreso";
 import { LogotipoOficial } from "@/components/comunes/logotipo-oficial";
-import { DOMINIOS_AUTORIZADOS_TEXTO, NOMBRE_EMPRESA, NOMBRE_SISTEMA } from "@/lib/constantes";
+import {
+  DOMINIOS_AUTORIZADOS_TEXTO,
+  NOMBRE_EMPRESA,
+  NOMBRE_EMPRESA_VITALICA,
+  NOMBRE_SISTEMA,
+} from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Ingresar" };
 
@@ -19,10 +24,16 @@ export default function PaginaIngreso({
     <main className="flex min-h-dvh items-center justify-center bg-fondo px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <LogotipoOficial ancho={190} />
+          <LogotipoOficial alto={84} />
           <div>
             <h1 className="text-xl font-semibold tracking-tight">{NOMBRE_SISTEMA}</h1>
-            <p className="text-sm text-atenuado-contraste">{NOMBRE_EMPRESA}</p>
+            {/* LAS DOS EMPRESAS, igual que arriba los dos logotipos.
+                Nombrar solo a Camping 44 debajo de los dos se contradice
+                con lo que la persona está mirando, y a quien entra con
+                correo de Vitálica le dice que se equivocó de sistema. */}
+            <p className="text-sm text-atenuado-contraste">
+              {NOMBRE_EMPRESA} · {NOMBRE_EMPRESA_VITALICA}
+            </p>
           </div>
         </div>
 
