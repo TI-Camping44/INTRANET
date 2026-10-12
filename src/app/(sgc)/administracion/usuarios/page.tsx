@@ -35,6 +35,7 @@ export default async function PaginaUsuarios() {
     { data: procesos },
     { data: puestos },
     { data: datosEmpresas },
+    { data: datosVendedores },
   ] = await Promise.all([
     supabase
       .from("usuarios")
@@ -55,9 +56,27 @@ export default async function PaginaUsuarios() {
       .eq("activo", true)
       .order("nombre"),
     supabase.rpc("empresas_del_grupo"),
+    // LOS NOMBRES QUE TRAE LA PLANILLA COMERCIAL, para el desplegable de
+    // «Vendedor en la planilla». Se leen de las ventas ya cargadas: es
+    // la unica fuente de los nombres tal como estan escritos alla, y
+    // elegir de ahi hace imposible un valor que no exista.
+    supabase
+      .from("ventas_mensuales")
+      .select("vendedor")
+      .not("vendedor", "is", null)
+      .order("vendedor"),
   ]);
 
   const lista = (usuarios ?? []) as any[];
+
+  // Se repiten por mes y por canal, asi que se achican a los distintos.
+  const vendedores = Array.from(
+    new Set(
+      ((datosVendedores ?? []) as { vendedor: string | null }[])
+        .map((fila) => (fila.vendedor ?? "").trim())
+        .filter((nombre) => nombre.length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "es"));
   const empresas =
     (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
 
@@ -123,6 +142,7 @@ export default async function PaginaUsuarios() {
                 }))}
                 procesos={(procesos ?? []) as { id: string; nombre: string }[]}
                 puestos={(puestos ?? []) as { id: string; nombre: string }[]}
+                vendedores={vendedores}
               />
             ))}
           </TablaCuerpo>

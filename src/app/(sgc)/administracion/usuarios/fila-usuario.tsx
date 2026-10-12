@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { Entrada, Seleccion } from "@/components/ui/campo";
+import { Seleccion } from "@/components/ui/campo";
 import { TablaCelda, TablaFila } from "@/components/ui/tabla";
 import { actualizarUsuario } from "@/app/(sgc)/administracion/usuarios/acciones";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
@@ -37,11 +37,14 @@ export function FilaUsuario({
   personas,
   procesos,
   puestos,
+  vendedores,
 }: {
   usuario: UsuarioFila;
   personas: { id: string; nombre_completo: string }[];
   procesos: { id: string; nombre: string }[];
   puestos: { id: string; nombre: string }[];
+  /** Los nombres que trae la planilla comercial, para el desplegable. */
+  vendedores: string[];
 }) {
   const router = useRouter();
   const [guardando, definirGuardando] = React.useState(false);
@@ -126,18 +129,39 @@ export function FilaUsuario({
             ))}
           </Seleccion>
 
-          {/* El nombre con el que la persona figura en el tablero
-              comercial. Se carga a mano porque no hay forma automatica de
-              unir un correo de Google con un nombre completo de Odoo, y
-              adivinar por parecido es como alguien termina viendo las
-              ventas de otro. Vacio = no es comercial. */}
-          <Entrada
+          {/* CON QUE NOMBRE FIGURA EN EL TABLERO COMERCIAL.
+              Se elige de la planilla y no se escribe: escrito a mano, una
+              letra de diferencia deja a la persona sin ver sus ventas, y
+              no avisa —queda en blanco, como si no vendiera—. La lista
+              sale de los nombres que la planilla trae de verdad, asi que
+              un valor que no exista es imposible.
+
+              Vacio = no es comercial. */}
+          <Seleccion
             name="vendedor_planilla"
             defaultValue={usuario.vendedor_planilla ?? ""}
-            placeholder="Vendedor en la planilla"
             aria-label={`Nombre de ${usuario.nombre_completo} en el tablero comercial`}
             className="h-8 w-auto min-w-[13rem] text-xs"
-          />
+          >
+            <option value="">No es comercial</option>
+
+            {/* EL VALOR CARGADO VA AUNQUE YA NO ESTE EN LA PLANILLA. Si
+                se renombro a alguien en la hoja, su nombre viejo
+                desaparece de la lista; sin esta opcion, guardar la fila
+                se lo borraria sin que nadie lo pida. */}
+            {usuario.vendedor_planilla &&
+            !vendedores.includes(usuario.vendedor_planilla) ? (
+              <option value={usuario.vendedor_planilla}>
+                {usuario.vendedor_planilla} (ya no está en la planilla)
+              </option>
+            ) : null}
+
+            {vendedores.map((nombre) => (
+              <option key={nombre} value={nombre}>
+                {nombre}
+              </option>
+            ))}
+          </Seleccion>
 
           <SelectorCanalesDeVenta usuario={usuario} />
 
