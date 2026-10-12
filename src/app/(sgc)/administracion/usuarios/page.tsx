@@ -1,125 +1,295 @@
 import type { Metadata } from "next";
+
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
-import { ListaUsuarios } from "@/app/(sgc)/administracion/usuarios/lista-usuarios";
+import {
+  BotonInvitarAPendientes,
+  BotonProbarCorreo,
+} from "@/app/(sgc)/administracion/usuarios/invitar";
+import { ListaUsuarios, type PersonaDeLaLista } from "@/app/(sgc)/administracion/usuarios/lista-usuarios";
 import { FormularioPuesto } from "@/app/(sgc)/recursos-humanos/puestos/formulario-puesto";
 import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import {
-  DESCRIPCION_ROL,
-  DOMINIOS_AUTORIZADOS_TEXTO,
-  ETIQUETAS_ROL,
-} from "@/lib/constantes";
+import { DOMINIOS_AUTORIZADOS_TEXTO } from "@/lib/constantes";
 import type { RolUsuario } from "@/lib/tipos";
 
-export const metadata: Metadata = { title: "Usuarios y roles" };
+export const metadata: Metadata = { title: "Usuarios" };
 export const dynamic = "force-dynamic";
 
+/**
+ * La tanda de invitaciones manda hasta diez correos seguidos, cada uno
+ * con su propio tiempo de espera. Con los diez segundos de por omisión se
+ * cortaría a la mitad.
+ */
+export const maxDuration = 60;
+
+/** Para comparar nombres de puesto sin que una tilde los separe. */
+function normalizar(valor: string | null | undefined): string {
+  return (valor ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+interface FilaNomina {
+  id: string;
+  correo: string;
+  nombre_completo: string;
+  cedula: string | null;
+  puesto_nombre: string | null;
+  gerente_nombre: string | null;
+  empresa_del_puesto: string | null;
+  fecha_ingreso: string | null;
+  usuario_id: string | null;
+  invitado_en: string | null;
+  invitaciones_enviadas: number;
+}
+
+interface FilaUsuario {
+  id: string;
+  nombre_completo: string;
+  correo: string;
+  rol: RolUsuario;
+  superior_id: string | null;
+  puesto_id: string | null;
+  activo: boolean;
+  ultimo_ingreso: string | null;
+}
+
+/**
+ * Usuarios: UNA SOLA PANTALLA para toda la gente.
+ *
+ * ESTABAN SEPARADAS Y NO TENÍA QUE ESTARLO. «Padrón de la nómina»
+ * mostraba las 55 personas que pueden entrar y «Usuarios y roles» las 2
+ * que entraron, y eran dos listas de la misma gente en dos lugares del
+ * menú: quien iba a configurar a alguien tenía que saber de antemano en
+ * cuál de las dos caía esa persona, que es justo lo que no se sabe.
+ *
+ * Ahora es una lista con las 55, y lo que cambia es la columna de la
+ * derecha: quien no ingresó lleva el botón que lo invita, y quien ingresó
+ * lleva a su ficha, donde se le configura todo.
+ *
+ * NO SE PUEDE UNIFICAR MÁS QUE ESTO, y conviene tenerlo claro: el perfil
+ * de una persona no existe hasta su primer ingreso con Google —`usuarios`
+ * depende de `auth.users`, que lo crea Google y no la intranet—, así que
+ * a quien todavía no entró no hay rol ni permiso que asignarle. La
+ * pantalla lo dice en vez de dejar un formulario muerto.
+ *
+ * LA LISTA ARRANCA DEL PADRÓN pero no se queda ahí: quien ingresó con una
+ * cuenta del dominio y no figura en la exportación de Odoo igual aparece.
+ * Si no, alguien real quedaría sin fila por un dato que falta en el ERP.
+ */
 export default async function PaginaUsuarios() {
   await requerirRol(["administrador_sgc"]);
   const supabase = crearClienteServidor();
 
-  // Las empresas van por `empresas_del_grupo()` y no por un select a
-  // `empresas`: esa tabla solo deja ver la propia, asi que Vitalica
-  // volveria vacia.
   const [
+    { data: nomina },
     { data: usuarios },
-    { data: procesos },
     { data: puestos },
     { data: datosEmpresas },
-    { data: datosVendedores },
   ] = await Promise.all([
     supabase
-      .from("usuarios")
+      .from("personas_nomina")
       .select(
-        "id, nombre_completo, correo, rol, superior_id, proceso_id, puesto_id, " +
-          "vendedor_planilla, ventas_canales, activo, ultimo_ingreso",
+        "id, correo, nombre_completo, cedula, puesto_nombre, gerente_nombre," +
+          " empresa_del_puesto, fecha_ingreso, usuario_id, invitado_en, invitaciones_enviadas",
       )
+      .eq("activo", true)
       .order("nombre_completo"),
     supabase
-      .from("procesos")
-      .select("id, nombre")
-      .eq("activo", true)
-      .eq("version", "01")
-      .order("nombre"),
-    supabase
-      .from("puestos")
-      .select("id, nombre")
-      .eq("activo", true)
-      .order("nombre"),
+      .from("usuarios")
+      .select("id, nombre_completo, correo, rol, superior_id, puesto_id, activo, ultimo_ingreso")
+      .order("nombre_completo"),
+    supabase.from("puestos").select("id, nombre").eq("activo", true).order("nombre"),
+    // Las empresas van por `empresas_del_grupo()` y no por un select a
+    // `empresas`: esa tabla solo deja ver la propia, así que Vitálica
+    // volvería vacía.
     supabase.rpc("empresas_del_grupo"),
-    // LOS NOMBRES QUE TRAE LA PLANILLA COMERCIAL, para el desplegable de
-    // «Vendedor en la planilla». Se leen de las ventas ya cargadas: es
-    // la unica fuente de los nombres tal como estan escritos alla, y
-    // elegir de ahi hace imposible un valor que no exista.
-    supabase
-      .from("ventas_mensuales")
-      .select("vendedor")
-      .not("vendedor", "is", null)
-      .order("vendedor"),
   ]);
 
-  const lista = (usuarios ?? []) as any[];
+  const filasNomina = (nomina ?? []) as unknown as FilaNomina[];
+  const filasUsuario = (usuarios ?? []) as unknown as FilaUsuario[];
+  const listaPuestos = (puestos ?? []) as { id: string; nombre: string }[];
+  const empresas = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
 
-  // Se repiten por mes y por canal, asi que se achican a los distintos.
-  const vendedores = Array.from(
-    new Set(
-      ((datosVendedores ?? []) as { vendedor: string | null }[])
-        .map((fila) => (fila.vendedor ?? "").trim())
-        .filter((nombre) => nombre.length > 0),
-    ),
-  ).sort((a, b) => a.localeCompare(b, "es"));
-  const empresas =
-    (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
+  const usuarioPorId = new Map(filasUsuario.map((u) => [u.id, u]));
+  const puestoPorId = new Map(listaPuestos.map((p) => [p.id, p.nombre]));
+  const nombrePorUsuarioId = new Map(filasUsuario.map((u) => [u.id, u.nombre_completo]));
+
+  // Qué puestos existen, para avisar cuál no va a poder asignarse.
+  const puestosCargados = new Set(listaPuestos.map((p) => normalizar(p.nombre)));
+  // Quiénes figuran en el padrón, para avisar qué líder no se va a poder
+  // resolver: si el jefe no está, nadie le va a escalar una acción.
+  const nombresDelPadron = new Set(filasNomina.map((f) => normalizar(f.nombre_completo)));
+
+  const personas: PersonaDeLaLista[] = filasNomina.map((fila) => {
+    const usuario = fila.usuario_id ? usuarioPorId.get(fila.usuario_id) : undefined;
+
+    return {
+      clave: `nomina:${fila.id}`,
+      nominaId: fila.id,
+      usuarioId: fila.usuario_id,
+      nombre: usuario?.nombre_completo ?? fila.nombre_completo,
+      correo: fila.correo,
+      cedula: fila.cedula,
+      puesto: usuario?.puesto_id
+        ? (puestoPorId.get(usuario.puesto_id) ?? fila.puesto_nombre)
+        : fila.puesto_nombre,
+      puestoResuelve:
+        fila.puesto_nombre !== null && puestosCargados.has(normalizar(fila.puesto_nombre)),
+      empresa: fila.empresa_del_puesto,
+      lider: usuario?.superior_id
+        ? (nombrePorUsuarioId.get(usuario.superior_id) ?? fila.gerente_nombre)
+        : fila.gerente_nombre,
+      liderResuelve:
+        fila.gerente_nombre !== null && nombresDelPadron.has(normalizar(fila.gerente_nombre)),
+      rol: usuario?.rol ?? null,
+      activo: usuario?.activo ?? true,
+      fechaIngreso: fila.fecha_ingreso,
+      ultimoIngreso: usuario?.ultimo_ingreso ?? null,
+      invitadoEn: fila.invitado_en,
+      invitacionesEnviadas: fila.invitaciones_enviadas,
+      enElPadron: true,
+    };
+  });
+
+  // QUIEN ENTRÓ Y NO ESTÁ EN EL PADRÓN va igual. Es alguien real con
+  // cuenta del dominio a quien la exportación de Odoo no trajo: dejarlo
+  // afuera lo volvería imposible de configurar.
+  const idsEnElPadron = new Set(filasNomina.map((f) => f.usuario_id).filter(Boolean));
+  for (const usuario of filasUsuario) {
+    if (idsEnElPadron.has(usuario.id)) continue;
+    personas.push({
+      clave: `usuario:${usuario.id}`,
+      nominaId: null,
+      usuarioId: usuario.id,
+      nombre: usuario.nombre_completo,
+      correo: usuario.correo,
+      cedula: null,
+      puesto: usuario.puesto_id ? (puestoPorId.get(usuario.puesto_id) ?? null) : null,
+      puestoResuelve: true,
+      empresa: null,
+      lider: usuario.superior_id ? (nombrePorUsuarioId.get(usuario.superior_id) ?? null) : null,
+      liderResuelve: true,
+      rol: usuario.rol,
+      activo: usuario.activo,
+      fechaIngreso: null,
+      ultimoIngreso: usuario.ultimo_ingreso,
+      invitadoEn: null,
+      invitacionesEnviadas: 0,
+      enElPadron: false,
+    });
+  }
+
+  personas.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
+  const ingresaron = personas.filter((p) => p.usuarioId !== null).length;
+  const pendientes = personas.length - ingresaron;
+  const sinPuesto = personas.filter((p) => p.enElPadron && !p.puestoResuelve).length;
+  const sinLider = personas.filter(
+    (p) => p.enElPadron && p.lider !== null && !p.liderResuelve,
+  ).length;
 
   return (
     <>
       <EncabezadoPagina
-        titulo="Usuarios y roles"
-        descripcion="El perfil se crea solo en el primer ingreso con Google. Aquí se asigna el rol, el líder inmediato, el proceso a cargo y el puesto."
+        titulo="Usuarios"
+        descripcion="Toda la gente en una lista: quiénes ya entraron y quiénes todavía no. Sale de la exportación de Odoo; el perfil se arma solo en el primer ingreso con Google."
         acciones={
-          /* El alta de puesto vive acá además de en Recursos Humanos. Si
-             el puesto de alguien todavía no existe, obligar a irse a otro
-             módulo, crearlo y volver es la forma más rápida de que nadie
-             lo asigne. Es el mismo formulario y la misma acción: no hay
-             dos lugares donde se cree un puesto, hay dos puertas. */
-          <FormularioPuesto empresas={empresas} />
+          <>
+            {/* La prueba va primero: es lo que corresponde hacer antes de
+                tocar el que invita de verdad. */}
+            <BotonProbarCorreo />
+            <BotonInvitarAPendientes pendientes={pendientes} />
+            {/* El alta de puesto vive acá además de en Recursos Humanos.
+                Si el puesto de alguien todavía no existe, obligar a irse
+                a otro módulo, crearlo y volver es la forma más rápida de
+                que nadie lo asigne. Es el mismo formulario y la misma
+                acción: no hay dos lugares donde se cree un puesto, hay
+                dos puertas. */}
+            <FormularioPuesto empresas={empresas} />
+          </>
         }
       />
 
       <Aviso className="mb-4">
         <div>
-          <AvisoTitulo>Cómo se dan de alta los usuarios</AvisoTitulo>
+          <AvisoTitulo>El rol y los permisos aparecen cuando la persona ingresa</AvisoTitulo>
           <AvisoDescripcion>
-            Cualquier cuenta de {DOMINIOS_AUTORIZADOS_TEXTO} puede ingresar; el
-            sistema crea su perfil con rol Colaborador. Desde esta pantalla se
-            ajusta el rol y se define el jefe inmediato, que es a quien escala
-            una acción correctiva vencida.
+            Cualquier cuenta de {DOMINIOS_AUTORIZADOS_TEXTO} puede entrar, y el sistema le crea el
+            perfil con rol Colaborador en ese momento. Antes de eso no hay nada que configurarle:
+            el perfil depende de la cuenta de Google y la crea Google, no la intranet. Por eso
+            quien está <strong>Pendiente</strong> lleva el botón que lo invita, y quien ya entró
+            lleva a su ficha, donde se le ajusta el rol, el líder inmediato, el puesto, qué ventas
+            ve y qué módulos tiene habilitados.
           </AvisoDescripcion>
         </div>
       </Aviso>
 
-      <Tarjeta className="mb-4 p-4">
-        <p className="mb-2 text-xs font-semibold">Roles del sistema</p>
-        <dl className="grid gap-2 text-[11px] sm:grid-cols-2 lg:grid-cols-3">
-          {(Object.keys(ETIQUETAS_ROL) as RolUsuario[]).map((rol) => (
-            <div key={rol}>
-              <dt className="font-medium">{ETIQUETAS_ROL[rol]}</dt>
-              <dd className="text-atenuado-contraste">
-                {DESCRIPCION_ROL[rol]}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </Tarjeta>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Tarjeta className="p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+            Personas
+          </p>
+          <p className="mt-1.5 text-2xl font-semibold leading-none tabular">{personas.length}</p>
+          <p className="mt-3 text-[11px] text-atenuado-contraste">
+            Con cuenta del Workspace
+          </p>
+        </Tarjeta>
 
-      <ListaUsuarios
-        usuarios={lista}
-        procesos={(procesos ?? []) as { id: string; nombre: string }[]}
-        puestos={(puestos ?? []) as { id: string; nombre: string }[]}
-        vendedores={vendedores}
-      />
+        <Tarjeta className="p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+            Ya ingresaron
+          </p>
+          <p className="mt-1.5 text-2xl font-semibold leading-none tabular text-semaforo-bajo">
+            {ingresaron}
+          </p>
+          <p className="mt-3 text-[11px] text-atenuado-contraste">
+            Faltan {pendientes} de {personas.length}
+          </p>
+        </Tarjeta>
+
+        <Tarjeta className="p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+            Sin puesto equivalente
+          </p>
+          <p
+            className={`mt-1.5 text-2xl font-semibold leading-none tabular ${
+              sinPuesto > 0 ? "text-semaforo-alto" : ""
+            }`}
+          >
+            {sinPuesto}
+          </p>
+          <p className="mt-3 text-[11px] text-atenuado-contraste">
+            {sinPuesto === 0
+              ? "Todos resuelven contra un puesto cargado"
+              : "Van a entrar sin puesto asignado"}
+          </p>
+        </Tarjeta>
+
+        <Tarjeta className="p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
+            Con líder fuera del padrón
+          </p>
+          <p
+            className={`mt-1.5 text-2xl font-semibold leading-none tabular ${
+              sinLider > 0 ? "text-semaforo-alto" : ""
+            }`}
+          >
+            {sinLider}
+          </p>
+          <p className="mt-3 text-[11px] text-atenuado-contraste">
+            {sinLider === 0
+              ? "La línea de reporte cierra completa"
+              : "No van a tener a quién escalar una acción"}
+          </p>
+        </Tarjeta>
+      </div>
+
+      <ListaUsuarios personas={personas} />
     </>
   );
 }

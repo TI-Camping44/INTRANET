@@ -10,7 +10,7 @@ import {
   enviarInvitacionDePrueba,
   invitarAlSistema,
   invitarAPendientes,
-} from "@/app/(sgc)/administracion/padron/acciones";
+} from "@/app/(sgc)/administracion/usuarios/invitaciones";
 
 /**
  * Los dos botones que mandan el aviso de ingreso.

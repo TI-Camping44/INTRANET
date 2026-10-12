@@ -291,7 +291,12 @@ export const NAVEGACION: GrupoNavegacion[] = [
     titulo: "Configuraciones",
     entradas: [
       {
-        titulo: "Usuarios y roles",
+        // SE UNIFICO CON EL PADRON el 12 de octubre. Eran dos entradas
+        // con la misma gente —«Padron de la nomina» las 55 que pueden
+        // entrar, «Usuarios y roles» las que entraron— y para configurar
+        // a alguien habia que saber de antemano en cual de las dos caia,
+        // que es justo lo que no se sabe. La ruta del padron redirige.
+        titulo: "Usuarios",
         ruta: "/administracion/usuarios",
         icono: "UserCog",
         roles: ["administrador_sgc"],
@@ -301,13 +306,6 @@ export const NAVEGACION: GrupoNavegacion[] = [
         titulo: "Permisos por rol",
         ruta: "/administracion/permisos",
         icono: "ShieldCheck",
-        roles: ["administrador_sgc"],
-        fase: "operativo",
-      },
-      {
-        titulo: "Padrón de la nómina",
-        ruta: "/administracion/padron",
-        icono: "Users",
         roles: ["administrador_sgc"],
         fase: "operativo",
       },

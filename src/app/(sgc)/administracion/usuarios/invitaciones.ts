@@ -136,7 +136,7 @@ export async function invitarAlSistema(personaId: string): Promise<ResultadoAcci
   }
 
   await registrarEnvio(supabase, persona, administrador.id);
-  revalidatePath("/administracion/padron");
+  revalidatePath("/administracion/usuarios");
 
   return { exito: true, mensaje: `Aviso enviado a ${persona.correo}.` };
 }
@@ -198,7 +198,7 @@ export async function invitarAPendientes(): Promise<ResultadoAccion> {
     .is("usuario_id", null)
     .eq("invitaciones_enviadas", 0);
 
-  revalidatePath("/administracion/padron");
+  revalidatePath("/administracion/usuarios");
 
   if (enviados === 0) {
     return {
