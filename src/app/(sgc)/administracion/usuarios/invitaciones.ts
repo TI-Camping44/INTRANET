@@ -58,6 +58,9 @@ function armarCorreo(
   const nombre =
     destinatario.nombre_completo.split(" ")[0] ?? destinatario.nombre_completo;
 
+  const tutorialVideo = urlAbsoluta("/ayuda/como-ingresar.mp4");
+  const tutorialPdf = urlAbsoluta("/ayuda/como-ingresar.pdf");
+
   return {
     para: destinatario.correo,
     asunto: `Su acceso a la ${NOMBRE_SISTEMA}`,
@@ -70,7 +73,24 @@ function armarCorreo(
       `—la que termina en ${DOMINIOS_AUTORIZADOS_TEXTO}—. Su perfil se arma solo, con los ` +
       "datos que ya están cargados.<br><br>" +
       "Si no le aparece su cuenta de trabajo en la lista, es porque está con una cuenta " +
-      "personal: cierre esa sesión en el navegador o use una ventana de incógnito.",
+      "personal: cierre esa sesión en el navegador o use una ventana de incógnito." +
+      // EL PASO A PASO VA ENLAZADO, NO METIDO EN EL CORREO. Las imágenes
+      // de un correo las bloquea el cliente por omisión: un tutorial con
+      // capturas llega como una fila de recuadros rotos, que es peor que
+      // no tenerlo. Además pesan, y un correo pesado a 53 casillas tiene
+      // más chance de caer en no deseados. Y el trámite son dos clics:
+      // ilustrarlo con seis capturas lo hace parecer más difícil de lo
+      // que es, que es justo lo que no conviene con quien todavía no
+      // entró.
+      //
+      // Los dos archivos viven en `public/`, así que se abren sin estar
+      // adentro del sistema. Es lo único que puede funcionar: quien
+      // recibe esto todavía no tiene sesión.
+      (tutorialPdf && tutorialVideo
+        ? "<br><br>Si prefiere verlo paso a paso: " +
+          `<a href="${tutorialVideo}" style="color:#E01E37;">el video de un minuto</a> o ` +
+          `<a href="${tutorialPdf}" style="color:#E01E37;">la guía en una hoja</a>.`
+        : ""),
     enlace,
     textoEnlace: "Ingresar a la intranet",
   };
