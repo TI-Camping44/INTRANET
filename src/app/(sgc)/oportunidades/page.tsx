@@ -18,7 +18,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { CeldaTexto } from "@/components/comunes/celda-texto";
 import { ETIQUETAS_EFICACIA, ETIQUETAS_ESTADO_RIESGO } from "@/lib/constantes";
@@ -87,7 +87,7 @@ export default async function PaginaOportunidades({
 }: {
   searchParams: { q?: string; estado?: string; prioridad?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("riesgos");
   const supabase = crearClienteServidor();
 
   let consulta = supabase

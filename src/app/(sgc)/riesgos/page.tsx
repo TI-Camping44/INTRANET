@@ -20,7 +20,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_ESTADO_RIESGO, ETIQUETAS_NIVEL_RIESGO } from "@/lib/constantes";
 import {
@@ -81,7 +81,7 @@ export default async function PaginaRiesgos({
 }: {
   searchParams: { q?: string; estado?: string; tipo?: string; nivel?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("riesgos");
   const supabase = crearClienteServidor();
 
   let consulta = supabase

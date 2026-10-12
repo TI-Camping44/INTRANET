@@ -9,7 +9,7 @@ import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import { puedeEditarElOrganigrama, requerirUsuario } from "@/lib/sesion";
+import { puedeEditarElOrganigrama, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { iniciales } from "@/lib/utilidades";
 
@@ -75,7 +75,7 @@ export default async function PaginaDirectorio({
 }) {
   const vista =
     searchParams.vista === "organigrama" ? "organigrama" : "personas";
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("directorio");
   const supabase = crearClienteServidor();
 
   // Los puestos se traen aparte para resolver el nombre y el área de

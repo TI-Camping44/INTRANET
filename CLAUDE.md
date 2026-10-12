@@ -423,6 +423,26 @@ sin vínculo hasta que se aprueben.
   filtrando las cuentas personales, que es lo que esa capa aporta.
 - **Los permisos se resuelven en RLS**, no en la interfaz. Ocultar un
   botón no es un control de acceso.
+- **Quién ve qué módulo es una fila de `permisos`, no código.** La matriz
+  es rol × módulo, con `ver` y `editar`, y la editan desde
+  `/administracion/permisos`. La leen los dos lados: las políticas RLS,
+  por `puede_ver()` y `puede_editar()`, y el menú, por
+  `MODULO_POR_RUTA`. **Que salgan de la misma tabla es el punto**: antes
+  el menú tenía su propia lista de roles y las políticas la suya, y se
+  habían separado —de 61 entradas del menú solo 5 declaraban rol, y las
+  políticas dejaban leer casi todo a cualquiera, así que un vendedor veía
+  las mismas filas que el Administrador SGC en riesgos, auditorías,
+  objetivos, proveedores y competencias—.
+  El **Administrador SGC tiene piso**: las dos funciones cortan antes de
+  mirar la tabla, así que su fila no se consulta nunca y una matriz mal
+  cargada no puede dejar al sistema sin nadie que entre a arreglarla.
+  Nueve tablas quedan fuera del corte y
+  `20261012000300_las_politicas_consultan_los_permisos.sql` dice por qué
+  cada una; la que importa es `usuarios`, que la lee todo el sistema para
+  mostrar un nombre: su permiso gobierna la pantalla, no la lectura.
+  **Un módulo nuevo se agrega en los dos lados**: `CLAVES_MODULO` y
+  `MODULOS` en `lib/permisos.ts`, y el `CHECK` de `permisos` en una
+  migración nueva.
 - Los archivos del bucket son privados y se entregan con enlaces firmados
   de duración corta.
 

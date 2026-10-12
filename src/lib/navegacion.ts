@@ -1,3 +1,4 @@
+import { moduloDeRuta, type PermisosDelRol } from "@/lib/permisos";
 import type { RolUsuario } from "@/lib/tipos";
 
 /**
@@ -297,6 +298,13 @@ export const NAVEGACION: GrupoNavegacion[] = [
         fase: "operativo",
       },
       {
+        titulo: "Permisos por rol",
+        ruta: "/administracion/permisos",
+        icono: "ShieldCheck",
+        roles: ["administrador_sgc"],
+        fase: "operativo",
+      },
+      {
         titulo: "Padrón de la nómina",
         ruta: "/administracion/padron",
         icono: "Users",
@@ -322,28 +330,51 @@ export const NAVEGACION: GrupoNavegacion[] = [
 ];
 
 /**
- * Filtra el menu segun el rol de la persona conectada.
+ * Filtra el menu segun los permisos de la persona conectada.
  *
- * Tambien saca los atajos de alta cuando el perfil es de solo lectura:
- * ofrecerle "Nuevo documento" a Direccion es prometer un boton que la
- * pantalla despues le va a negar.
+ * SALE DE LA MISMA TABLA QUE LAS POLITICAS RLS. Antes el menu tenia su
+ * propia lista de roles escrita aca, asi que lo que se veia y lo que se
+ * podia leer eran dos verdades que podian separarse —y se habian
+ * separado: de 61 entradas solo 5 declaraban rol, y las politicas
+ * dejaban leer casi todo a cualquiera—. Ahora las dos leen `permisos`.
+ *
+ * Tambien saca los atajos de alta de los modulos que la persona puede
+ * ver pero no editar: ofrecerle "Nuevo documento" a Direccion es
+ * prometer un boton que la pantalla despues le va a negar.
+ *
+ * Esto decide que se dibuja. El control sigue estando en RLS: una ruta
+ * que no aparezca en el menu se puede escribir a mano igual, y lo que
+ * la corta es la base.
  */
-export function navegacionParaRol(
+export function navegacionParaPermisos(
   rol: RolUsuario,
+  permisos: PermisosDelRol,
   opciones: { esComercial?: boolean } = {},
 ): GrupoNavegacion[] {
-  const puedeEscribir = rol !== "direccion";
+  function puedeVer(entrada: EntradaNavegacion): boolean {
+    const modulo = moduloDeRuta(entrada.ruta);
+    // Una ruta sin modulo declarado no se acota: una pantalla nueva no
+    // tiene que desaparecer sin que nadie entienda por que.
+    return modulo ? permisos[modulo].ver : true;
+  }
+
+  function puedeEditar(entrada: EntradaNavegacion): boolean {
+    const modulo = moduloDeRuta(entrada.ruta);
+    return modulo ? permisos[modulo].editar : true;
+  }
 
   return NAVEGACION.map((grupo) => ({
     ...grupo,
     entradas: grupo.entradas
       .filter((entrada) => !entrada.soloComerciales || opciones.esComercial === true)
       .filter((entrada) => !entrada.roles || entrada.roles.includes(rol))
+      .filter(puedeVer)
       .map((entrada) => ({
         ...entrada,
         subentradas: entrada.subentradas?.filter(
           (sub) =>
-            (!sub.soloGestion || puedeEscribir) && (!sub.roles || sub.roles.includes(rol)),
+            (!sub.soloGestion || puedeEditar(entrada)) &&
+            (!sub.roles || sub.roles.includes(rol)),
         ),
       })),
   })).filter((grupo) => grupo.entradas.length > 0);

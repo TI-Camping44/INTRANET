@@ -1,8 +1,8 @@
 import { Cabecera } from "@/components/comunes/cabecera";
 import { NavegacionSuperior } from "@/components/comunes/navegacion-superior";
 import { esJefeDeVentas } from "@/lib/permisos-ventas";
-import { navegacionParaRol } from "@/lib/navegacion";
-import { requerirUsuario } from "@/lib/sesion";
+import { navegacionParaPermisos } from "@/lib/navegacion";
+import { obtenerPermisos, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import type { Notificacion } from "@/lib/tipos";
 
@@ -20,6 +20,7 @@ import type { Notificacion } from "@/lib/tipos";
  */
 export default async function SgcLayout({ children }: { children: React.ReactNode }) {
   const usuario = await requerirUsuario();
+  const permisos = await obtenerPermisos();
   const supabase = crearClienteServidor();
   const [{ data: notificaciones }, { count: sinLeer }, { data: perfil }] = await Promise.all([
     supabase
@@ -47,7 +48,7 @@ export default async function SgcLayout({ children }: { children: React.ReactNod
     ventas_canales: string[] | null;
   } | null;
 
-  const grupos = navegacionParaRol(usuario.rol, {
+  const grupos = navegacionParaPermisos(usuario.rol, permisos, {
     esComercial:
       Boolean(datosComerciales?.vendedor_planilla) ||
       esJefeDeVentas(usuario.rol, datosComerciales?.ventas_canales ?? null),

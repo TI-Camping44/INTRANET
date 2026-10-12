@@ -15,7 +15,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha } from "@/lib/formato";
 import {
@@ -64,7 +64,7 @@ export default async function PaginaReclamos({
 }: {
   searchParams: { vista?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("reclamos");
   const supabase = crearClienteServidor();
 
   const { data } = await supabase

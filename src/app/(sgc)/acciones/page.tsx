@@ -15,7 +15,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
+import { esSoloLectura, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   ESTADOS_NC_ABIERTOS,
@@ -74,7 +74,7 @@ export default async function PaginaAcciones({
     nc?: string;
   };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("acciones");
   const supabase = crearClienteServidor();
   const hoy = hoyEnAsuncion();
   const soloLectura = esSoloLectura(usuario);

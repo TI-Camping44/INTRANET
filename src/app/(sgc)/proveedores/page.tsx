@@ -20,7 +20,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
 import {
@@ -40,7 +40,7 @@ export default async function PaginaProveedores({
 }: {
   searchParams: { q?: string; estado?: string; reevaluacion?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("proveedores");
   const supabase = crearClienteServidor();
 
   let consulta = supabase.from("proveedores").select("*").order("razon_social");

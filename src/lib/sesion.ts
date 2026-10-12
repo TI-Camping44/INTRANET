@@ -2,6 +2,14 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ROLES_GESTION } from "@/lib/constantes";
+import {
+  esClaveDeModulo,
+  permisosDelAdministrador,
+  permisosVacios,
+  rolConPisoCompleto,
+  type ClaveModulo,
+  type PermisosDelRol,
+} from "@/lib/permisos";
 import type { RolUsuario, Usuario } from "@/lib/tipos";
 
 /**
@@ -120,4 +128,80 @@ export function puedeEditarElOrganigrama(usuario: Usuario | null): boolean {
 /** Gestiona el programa de auditorias: Calidad y los auditores internos. */
 export function puedeGestionarAuditorias(usuario: Usuario | null): boolean {
   return usuario?.rol === "administrador_sgc" || usuario?.rol === "auditor";
+}
+
+/**
+ * Lo que ve y edita el rol de la persona conectada, módulo por módulo.
+ *
+ * Se memoriza por petición: lo consultan el menú del layout y cada
+ * pantalla que se protege, y sin esto sería la misma consulta repetida
+ * media docena de veces por carga.
+ *
+ * EL ADMINISTRADOR SGC NO CONSULTA LA TABLA. Su piso está en
+ * `puede_ver()` y `puede_editar()` de la base, y acá se refleja igual:
+ * una matriz mal cargada no puede dejar al sistema sin nadie capaz de
+ * entrar a arreglarla.
+ *
+ * Si la consulta falla, se devuelve la matriz vacía. Cierra de más en
+ * vez de abrir de más, que es como tiene que fallar un permiso.
+ */
+export const obtenerPermisos = cache(async (): Promise<PermisosDelRol> => {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return permisosVacios();
+  if (rolConPisoCompleto(usuario.rol)) return permisosDelAdministrador();
+
+  const supabase = crearClienteServidor();
+  const { data, error } = await supabase
+    .from("permisos")
+    .select("modulo, ver, editar")
+    .eq("rol", usuario.rol);
+
+  if (error) {
+    console.error("permisos:", error.message);
+    return permisosVacios();
+  }
+
+  const matriz = permisosVacios();
+  for (const fila of (data ?? []) as { modulo: string; ver: boolean; editar: boolean }[]) {
+    if (esClaveDeModulo(fila.modulo)) {
+      matriz[fila.modulo] = { ver: fila.ver, editar: fila.editar };
+    }
+  }
+
+  return matriz;
+});
+
+/**
+ * Corta el paso si el módulo no está habilitado para el rol.
+ *
+ * Es el equivalente de `requerirRol` para los módulos que no tienen
+ * tabla propia —el panel de calidad, Aplicaciones, el directorio—, que
+ * son los únicos donde RLS no puede decidir sola porque leen datos de
+ * otros módulos o de ninguno.
+ *
+ * En los demás, esto solo evita una pantalla vacía: quien entre igual
+ * escribiendo la dirección se va a encontrar con que la base no le
+ * devuelve nada, que es donde está el control de verdad.
+ */
+export async function requerirModulo(modulo: ClaveModulo): Promise<Usuario> {
+  const usuario = await requerirUsuario();
+  const permisos = await obtenerPermisos();
+
+  if (!permisos[modulo].ver) {
+    redirect("/sin-acceso?motivo=permisos");
+  }
+
+  return usuario;
+}
+
+/** Como la anterior, pero exige poder editar el módulo. */
+export async function requerirModuloEditable(modulo: ClaveModulo): Promise<Usuario> {
+  const usuario = await requerirUsuario();
+  const permisos = await obtenerPermisos();
+
+  if (!permisos[modulo].editar) {
+    redirect("/sin-acceso?motivo=permisos");
+  }
+
+  return usuario;
 }

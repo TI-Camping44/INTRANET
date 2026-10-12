@@ -26,7 +26,7 @@ import {
   canalesVisiblesPara,
   esJefeDeVentas,
 } from "@/lib/permisos-ventas";
-import { requerirUsuario } from "@/lib/sesion";
+import { requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFechaHora, formatearGuaranies } from "@/lib/formato";
 import { leerResumenGuardado } from "@/lib/ventas-guardadas";
@@ -67,7 +67,7 @@ export default async function PaginaMisVentas({
 }: {
   searchParams: { vendedor?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("mis_ventas");
   const supabase = crearClienteServidor();
 
   const { data: perfil } = await supabase

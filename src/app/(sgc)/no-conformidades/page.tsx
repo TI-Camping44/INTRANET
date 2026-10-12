@@ -19,7 +19,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
+import { esSoloLectura, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   DEPARTAMENTOS,
@@ -78,7 +78,7 @@ export default async function PaginaNoConformidades({
     proceso?: string;
   };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("no_conformidades");
   const soloLectura = esSoloLectura(usuario);
   const supabase = crearClienteServidor();
 

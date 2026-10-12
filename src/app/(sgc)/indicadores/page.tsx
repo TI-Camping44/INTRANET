@@ -7,7 +7,7 @@ import { Torta } from "@/components/comunes/graficos";
 import { CalendarioObjetivos } from "@/app/(sgc)/indicadores/calendario-objetivos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
 import { cn } from "@/lib/utilidades";
@@ -85,7 +85,7 @@ export default async function PaginaIndicadores({
     anio?: string;
   };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("objetivos");
   const supabase = crearClienteServidor();
 
   // EL AÑO SE ELIGE, y los que se ofrecen son el de hoy y los que tengan

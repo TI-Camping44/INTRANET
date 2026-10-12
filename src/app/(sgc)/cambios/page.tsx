@@ -17,7 +17,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { requerirUsuario } from "@/lib/sesion";
+import { requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha } from "@/lib/formato";
 import {
@@ -81,7 +81,7 @@ export default async function PaginaCambios({
 }: {
   searchParams: { q?: string; estado?: string; tipo?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("cambios");
   const supabase = crearClienteServidor();
 
   const campos =

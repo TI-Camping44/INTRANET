@@ -24,7 +24,7 @@ import { Progreso } from "@/components/ui/progreso";
 import { obtenerResumenPanel } from "@/app/(sgc)/panel/datos";
 import { obtenerReportes } from "@/app/(sgc)/panel/reportes";
 import { TablaReporte } from "@/app/(sgc)/panel/tabla-reporte";
-import { requerirUsuario } from "@/lib/sesion";
+import { requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   describirVencimiento,
@@ -40,7 +40,7 @@ export const metadata: Metadata = { title: "Panel" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaPanel() {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("panel");
   const supabase = crearClienteServidor();
   const hoy = hoyEnAsuncion();
 

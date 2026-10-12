@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { agruparAplicaciones, ETIQUETAS_PUBLICO } from "@/lib/aplicaciones";
-import { requerirUsuario } from "@/lib/sesion";
+import { requerirModulo } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Aplicaciones" };
 
@@ -20,7 +20,7 @@ export const metadata: Metadata = { title: "Aplicaciones" };
  * después vuelve.
  */
 export default async function PaginaAplicaciones() {
-  await requerirUsuario();
+  await requerirModulo("aplicaciones");
   const grupos = agruparAplicaciones();
 
   return (

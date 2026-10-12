@@ -36,7 +36,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { CeldaTexto } from "@/components/comunes/celda-texto";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   CLASES_ACTIVO,
@@ -68,7 +68,7 @@ export default async function PaginaActivos({
     criticidad?: string;
   };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("activos");
   const supabase = crearClienteServidor();
 
   let consulta = supabase

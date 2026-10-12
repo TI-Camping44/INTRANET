@@ -20,7 +20,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionarAuditorias, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_ESTADO_AUDITORIA, ETIQUETAS_TIPO_AUDITORIA } from "@/lib/constantes";
 import { describirVencimiento, diasHasta, formatearFecha, hoyEnAsuncion } from "@/lib/formato";
@@ -51,7 +51,7 @@ export default async function PaginaAuditorias({
 }: {
   searchParams: { q?: string; estado?: string; anio?: string; tipo?: string };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("auditorias");
   const supabase = crearClienteServidor();
   const anioActual = Number(hoyEnAsuncion().slice(0, 4));
   const anio = Number(searchParams.anio ?? anioActual);

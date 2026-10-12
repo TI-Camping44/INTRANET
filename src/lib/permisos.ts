@@ -239,3 +239,43 @@ export function moduloPorClave(clave: string): Modulo | undefined {
 export function esClaveDeModulo(valor: string): valor is ClaveModulo {
   return (CLAVES_MODULO as readonly string[]).includes(valor);
 }
+
+/**
+ * Qué módulo gobierna cada entrada del menú, por su ruta.
+ *
+ * Va acá y no como un campo en `NAVEGACION` para que la lista de
+ * módulos y su correspondencia vivan en un solo archivo: el día que se
+ * agregue un módulo, se toca este archivo y la migración, y nada más.
+ *
+ * Una ruta que no esté acá no se acota: el menú la muestra siempre. Es
+ * a propósito —así una pantalla nueva no desaparece sin que nadie
+ * entienda por qué— y por eso la lista se revisa al agregar un módulo.
+ */
+export const MODULO_POR_RUTA: Record<string, ClaveModulo> = {
+  "/inicio": "inicio",
+  "/directorio": "directorio",
+  "/aplicaciones": "aplicaciones",
+  "/mis-ventas": "mis_ventas",
+  "/panel": "panel",
+  "/documentos": "documentos",
+  "/riesgos": "riesgos",
+  "/indicadores": "objetivos",
+  "/auditorias": "auditorias",
+  "/cambios": "cambios",
+  "/no-conformidades": "no_conformidades",
+  "/acciones": "acciones",
+  "/reclamos": "reclamos",
+  "/satisfaccion": "satisfaccion",
+  "/activos": "activos",
+  "/recursos-humanos": "personas",
+  "/proveedores": "proveedores",
+  "/administracion/usuarios": "usuarios",
+  "/administracion/padron": "padron",
+  "/administracion/accesos": "ingresos",
+  "/bitacora": "bitacora",
+};
+
+/** El módulo de una ruta del menú, si está acotada. */
+export function moduloDeRuta(ruta: string): ClaveModulo | undefined {
+  return MODULO_POR_RUTA[ruta];
+}

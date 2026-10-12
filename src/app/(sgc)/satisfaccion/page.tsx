@@ -23,7 +23,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearMes, formatearNumero } from "@/lib/formato";
 import {
@@ -69,7 +69,7 @@ function ultimosMeses(cantidad: number, hoy: string): string[] {
 }
 
 export default async function PaginaSatisfaccion() {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("satisfaccion");
   const supabase = crearClienteServidor();
 
   const [

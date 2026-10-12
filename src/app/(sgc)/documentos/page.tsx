@@ -21,7 +21,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { EncabezadoOrdenable } from "@/components/comunes/encabezado-ordenable";
 import { MoverCategoria } from "@/app/(sgc)/documentos/mover-categoria";
 import { PanelCategorias } from "@/app/(sgc)/documentos/panel-categorias";
@@ -119,7 +119,7 @@ export default async function PaginaDocumentos({
     dir?: string;
   };
 }) {
-  const usuario = await requerirUsuario();
+  const usuario = await requerirModulo("documentos");
   // Eliminar es atribucion del Administrador SGC, igual que en RLS.
   const puedeEliminar = usuario.rol === "administrador_sgc";
   // Reordenar es parte de armar la carpeta: lo hace quien gestiona.
