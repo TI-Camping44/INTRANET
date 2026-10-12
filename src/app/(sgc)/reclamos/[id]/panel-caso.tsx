@@ -29,6 +29,7 @@ import {
   type GravedadReclamo,
   type PlanReclamo,
 } from "@/lib/reclamos";
+import { describirTamano } from "@/lib/adjuntos";
 import { MAXIMO_EVIDENCIAS_ACCION } from "@/lib/constantes";
 import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 
@@ -48,7 +49,8 @@ export interface AccionDelPlan {
 /** Un archivo de evidencia, como lo devuelve la consulta de la ficha. */
 export interface ArchivoDeEvidencia {
   id: string;
-  nombre: string;
+  nombre_archivo: string;
+  tamano_bytes: number;
   entidad_id: string;
 }
 
@@ -120,13 +122,14 @@ export function PanelCaso({
             acciones, y el plazo de resolución se cuenta desde ahí.
           </p>
         </Tarjeta>
+      ) : cerrado ? (
+        /* EL CASO CERRADO NO DIBUJA NADA DE ESTO. Lo que queda es el
+           bloque de solo lectura de la ficha, con el plan, su ejecución y
+           su evidencia: tener los dos daba dos tarjetas «Acciones del
+           plan» una debajo de la otra. */
+        null
       ) : (
-        <PlanificacionDeAcciones
-          reclamoId={reclamoId}
-          personas={personas}
-          iniciales={acciones}
-          cerrado={cerrado}
-        />
+        <PlanificacionDeAcciones reclamoId={reclamoId} personas={personas} iniciales={acciones} />
       )}
 
       {planGuardado && !cerrado ? (
@@ -228,12 +231,10 @@ function PlanificacionDeAcciones({
   reclamoId,
   personas,
   iniciales,
-  cerrado,
 }: {
   reclamoId: string;
   personas: Persona[];
   iniciales: AccionDelPlan[];
-  cerrado: boolean;
 }) {
   const router = useRouter();
   const [guardando, definirGuardando] = React.useState(false);
@@ -354,8 +355,7 @@ function PlanificacionDeAcciones({
           </div>
         ))}
 
-        {cerrado ? null : (
-          <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
             <Boton
               type="button"
               tamano="pequeno"
@@ -367,13 +367,12 @@ function PlanificacionDeAcciones({
               <Plus /> {iniciales.length === 0 ? "Otra acción" : "Agregar acción"}
             </Boton>
 
-            {nuevas.length > 0 ? (
-              <Boton type="submit" tamano="pequeno" cargando={guardando}>
-                Guardar acciones
-              </Boton>
-            ) : null}
-          </div>
-        )}
+          {nuevas.length > 0 ? (
+            <Boton type="submit" tamano="pequeno" cargando={guardando}>
+              Guardar acciones
+            </Boton>
+          ) : null}
+        </div>
       </form>
     </Tarjeta>
   );
@@ -687,17 +686,38 @@ function EvidenciaDeAccion({
         </span>
       </p>
 
+      {/* LO CARGADO SE VE Y SE ABRE. Antes era el nombre y nada más:
+          una evidencia que no se puede abrir no sirve como evidencia,
+          porque nadie puede comprobar qué se adjuntó.
+
+          El enlace va a `/adjuntos/<id>`, que firma la dirección recién
+          en el clic y por cinco minutos: el bucket es privado y una URL
+          firmada pegada en el HTML quedaría válida para cualquiera que
+          la copie. */}
       {archivos.length > 0 ? (
         <ul className="mt-1 space-y-0.5">
           {archivos.map((archivo) => (
             <li key={archivo.id} className="flex items-center gap-1.5 text-[11px]">
-              <Paperclip className="size-3 shrink-0 text-atenuado-contraste" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">{archivo.nombre}</span>
+              <a
+                href={`/adjuntos/${archivo.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-w-0 flex-1 items-center gap-1.5 hover:underline"
+              >
+                <Paperclip
+                  className="size-3 shrink-0 text-atenuado-contraste"
+                  aria-hidden="true"
+                />
+                <span className="truncate">{archivo.nombre_archivo}</span>
+                <span className="shrink-0 text-atenuado-contraste">
+                  {describirTamano(archivo.tamano_bytes)}
+                </span>
+              </a>
               <button
                 type="button"
                 onClick={() => quitar(archivo.id)}
                 className="shrink-0 text-atenuado-contraste hover:text-semaforo-critico"
-                aria-label={`Quitar ${archivo.nombre}`}
+                aria-label={`Quitar ${archivo.nombre_archivo}`}
               >
                 <Trash2 className="size-3" />
               </button>

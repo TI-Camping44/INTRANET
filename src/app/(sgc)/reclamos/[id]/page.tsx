@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { ArrowLeft, Paperclip, Pencil } from "lucide-react";
 
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { Boton } from "@/components/ui/boton";
@@ -20,12 +20,16 @@ import {
 import { EliminarReclamo } from "@/app/(sgc)/reclamos/[id]/eliminar-reclamo";
 import { esAdministrador, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { formatearFecha, formatearGuaranies } from "@/lib/formato";
+import { formatearFecha, formatearGuaranies, hoyEnAsuncion } from "@/lib/formato";
+import { describirTamano } from "@/lib/adjuntos";
 import { DEPARTAMENTOS } from "@/lib/constantes";
 import type { Departamento } from "@/lib/tipos";
 import {
+  casoCerrado,
   CLASES_ESTADO_RECLAMO,
   DIAS_VERIFICACION_PLAN_C,
+  estadoDePlazoDeAccion,
+  ETIQUETAS_ESTADO_PLAZO,
   ETIQUETAS_ESTADO_CLIENTE_RECLAMO,
   ETIQUETAS_ESTADO_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
@@ -213,7 +217,7 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
     // acción: son pocas filas y cinco archivos como mucho cada una.
     supabase
       .from("adjuntos")
-      .select("id, nombre, entidad_id")
+      .select("id, nombre_archivo, tamano_bytes, entidad_id")
       .eq("entidad", "reclamo_acciones")
       .order("creado_en"),
   ]);
@@ -249,6 +253,12 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
 
   return (
     <div className="mx-auto max-w-5xl">
+      <Boton variante="fantasma" tamano="pequeno" comoHijo className="mb-3 -ml-2">
+        <Link href="/reclamos">
+          <ArrowLeft /> Volver al listado
+        </Link>
+      </Boton>
+
       <EncabezadoPagina
         titulo={`${reclamo.codigo} · ${reclamo.titulo}`}
         descripcion={`${ETIQUETAS_PLAN_RECLAMO[reclamo.plan]} · ${reclamo.cliente_nombre}`}
@@ -455,23 +465,82 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
               suspendido={reclamo.tramite_digemabel && reclamo.suspendido_desde !== null}
               fechaVerificacion={reclamo.fecha_verificacion}
             />
-          ) : acciones.length > 0 ? (
+          ) : null}
+
+          {/* EL CASO CERRADO SIGUE MOSTRANDO SU PLAN. El panel deja de
+              dibujar la ejecución cuando el caso cierra —ya no hay nada
+              que cargar— así que sin esto el plan y su evidencia
+              desaparecían de la pantalla justo en el estado en el que
+              alguien los va a querer revisar. */}
+          {(!gestionable || casoCerrado(reclamo.estado)) && acciones.length > 0 ? (
             <Tarjeta>
               <TarjetaCabecera>
                 <TarjetaTitulo>Acciones del plan</TarjetaTitulo>
               </TarjetaCabecera>
               <TarjetaContenido className="space-y-2">
-                {acciones.map((accion) => (
-                  <div key={accion.id} className="text-xs">
-                    <p className="whitespace-pre-line leading-relaxed">{accion.descripcion}</p>
-                    <p className="text-[11px] text-atenuado-contraste">
-                      {accion.fecha_limite ? `Para el ${formatearFecha(accion.fecha_limite)}` : "Sin plazo"}
-                      {accion.ejecutada_en
-                        ? ` · ejecutada el ${formatearFecha(accion.ejecutada_en)}`
-                        : " · pendiente"}
-                    </p>
-                  </div>
-                ))}
+                {acciones.map((accion) => {
+                  const plazo = estadoDePlazoDeAccion(
+                    accion.fecha_limite,
+                    accion.ejecutada_en,
+                    hoyEnAsuncion(),
+                  );
+                  const archivos = evidenciaPorAccion[accion.id] ?? [];
+
+                  return (
+                    <div key={accion.id} className="text-xs">
+                      <p className="whitespace-pre-line leading-relaxed">{accion.descripcion}</p>
+                      <p className="text-[11px] text-atenuado-contraste">
+                        {accion.fecha_limite
+                          ? `Para el ${formatearFecha(accion.fecha_limite)}`
+                          : "Sin plazo"}
+                        {accion.ejecutada_en
+                          ? ` · ejecutada el ${formatearFecha(accion.ejecutada_en)}`
+                          : " · pendiente"}
+                        {plazo && accion.ejecutada_en ? (
+                          <span
+                            className={
+                              plazo === "en_plazo"
+                                ? " font-medium text-semaforo-bajo"
+                                : " font-medium text-semaforo-critico"
+                            }
+                          >
+                            {" · "}
+                            {ETIQUETAS_ESTADO_PLAZO[plazo]}
+                          </span>
+                        ) : null}
+                      </p>
+
+                      {/* LA EVIDENCIA SE VE TAMBIEN ACA. Este bloque es
+                          el que queda cuando el caso está cerrado o
+                          cuando lo abre alguien que no lo gestiona: sin
+                          los archivos, la prueba de lo que se hizo
+                          desaparecía justo cuando hace falta mostrarla. */}
+                      {archivos.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5">
+                          {archivos.map((archivo) => (
+                            <li key={archivo.id} className="flex items-center gap-1.5 text-[11px]">
+                              <a
+                                href={`/adjuntos/${archivo.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex min-w-0 items-center gap-1.5 hover:underline"
+                              >
+                                <Paperclip
+                                  className="size-3 shrink-0 text-atenuado-contraste"
+                                  aria-hidden="true"
+                                />
+                                <span className="truncate">{archivo.nombre_archivo}</span>
+                                <span className="shrink-0 text-atenuado-contraste">
+                                  {describirTamano(archivo.tamano_bytes)}
+                                </span>
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </TarjetaContenido>
             </Tarjeta>
           ) : null}
