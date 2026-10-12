@@ -1,0 +1,48 @@
+@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:block;
+  src:url(inter.woff2) format("woff2");}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden}
+body{font-family:Inter,Arial,sans-serif;background:#14161B;color:#F7F8FA;
+  -webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center}
+.lienzo{width:1920px;height:1080px;position:relative;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:70px 110px}
+.rojo{color:#E01E37}
+.paso{display:inline-flex;align-items:center;gap:16px;background:#E01E37;color:#fff;
+  font-size:26px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  padding:12px 28px;border-radius:999px;margin-bottom:34px}
+h1{font-size:96px;font-weight:800;letter-spacing:-.035em;line-height:1.02;text-align:center}
+h2{font-size:62px;font-weight:700;letter-spacing:-.028em;line-height:1.1;text-align:center}
+.bajada{font-size:34px;color:#A9B1BD;margin-top:26px;text-align:center;line-height:1.45;max-width:1240px}
+.pie{position:absolute;bottom:46px;left:0;right:0;text-align:center;font-size:22px;color:#6B7483;letter-spacing:.03em}
+/* navegador */
+.navegador{width:1180px;border-radius:16px;overflow:hidden;background:#2A2E37;
+  box-shadow:0 40px 90px rgba(0,0,0,.6);border:1px solid #3A3F4A}
+.barra{height:62px;display:flex;align-items:center;gap:14px;padding:0 20px;background:#2A2E37}
+.punto{width:13px;height:13px;border-radius:50%}
+.url{flex:1;height:40px;border-radius:999px;background:#14161B;display:flex;align-items:center;
+  padding:0 20px;font-size:21px;color:#D7DCE3;gap:12px;margin-left:10px}
+.navegador img{display:block;width:100%}
+/* telefono */
+.telefono{width:360px;border-radius:44px;border:11px solid #2A2E37;overflow:hidden;
+  box-shadow:0 40px 90px rgba(0,0,0,.6);background:#fff}
+.telefono img{display:block;width:100%}
+/* tarjeta esquema */
+.esquema{width:720px;background:#fff;color:#14161B;border-radius:18px;padding:42px 44px;
+  box-shadow:0 40px 90px rgba(0,0,0,.6)}
+.esquema .tit{font-size:30px;font-weight:700;margin-bottom:8px}
+.esquema .sub{font-size:21px;color:#5B6572;margin-bottom:30px}
+.cuenta{display:flex;align-items:center;gap:20px;padding:20px 22px;border-radius:12px;
+  border:2px solid #E6E9ED;margin-bottom:14px;font-size:24px}
+.cuenta.ok{border-color:#E01E37;background:#FEF2F4}
+.cuenta.no{opacity:.5}
+.avatar{width:52px;height:52px;border-radius:50%;background:#E01E37;color:#fff;display:flex;
+  align-items:center;justify-content:center;font-weight:700;font-size:23px;flex-shrink:0}
+.avatar.gris{background:#AEB6C0}
+.cuenta .correo{font-size:19px;color:#6B7483}
+.rotulo{position:absolute;background:#E01E37;color:#fff;font-size:25px;font-weight:700;
+  padding:12px 22px;border-radius:10px;box-shadow:0 14px 34px rgba(224,30,55,.45)}
+.nota{margin-top:34px;font-size:27px;color:#A9B1BD;text-align:center;max-width:1100px;line-height:1.5}
+.lista{font-size:32px;line-height:1.95;color:#D7DCE3;text-align:left}
+.lista b{color:#fff;font-weight:700}
+.marca{position:absolute;top:50px;left:60px;display:flex;align-items:center;gap:14px;
+  font-size:21px;color:#6B7483;letter-spacing:.05em}

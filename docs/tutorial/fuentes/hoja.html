@@ -1,0 +1,162 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:block;
+  src:url(inter.woff2) format("woff2")}
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1080px;font-family:Inter,Arial,sans-serif;background:#fff;color:#14161B;
+  -webkit-font-smoothing:antialiased}
+.hoja{padding:56px 64px 64px}
+header{display:flex;align-items:center;gap:26px;border-bottom:3px solid #14161B;padding-bottom:26px}
+header img{width:92px}
+h1{font-size:44px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+header .sub{font-size:20px;color:#5B6572;margin-top:6px}
+.entrada{margin-top:30px;background:#F6F7F9;border-left:6px solid #E01E37;border-radius:0 10px 10px 0;
+  padding:24px 28px;font-size:23px;line-height:1.5}
+.entrada b{font-weight:700}
+.paso{margin-top:40px;display:flex;gap:26px}
+.num{flex-shrink:0;width:58px;height:58px;border-radius:50%;background:#E01E37;color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800}
+.cuerpo{flex:1;padding-top:4px}
+.cuerpo h2{font-size:30px;font-weight:700;letter-spacing:-.02em}
+.cuerpo p{font-size:21px;color:#4A535F;margin-top:9px;line-height:1.55}
+.enlace{display:inline-block;margin-top:18px;background:#14161B;color:#fff;border-radius:10px;
+  padding:18px 30px;font-size:29px;font-weight:700;letter-spacing:-.015em}
+.figura{position:relative;width:620px;margin-top:20px;border:1px solid #E1E5EA;border-radius:12px;
+  overflow:visible;background:#fff;box-shadow:0 10px 30px rgba(20,22,27,.09)}
+.figura img{display:block;width:100%;border-radius:12px}
+.elipse{position:absolute;left:50%;top:79.4%;width:300px;height:68px;margin-left:-150px;
+  margin-top:-34px;border:6px solid #E01E37;border-radius:999px}
+.rotulo{position:absolute;background:#E01E37;color:#fff;font-size:19px;font-weight:700;
+  padding:10px 16px;border-radius:8px;white-space:nowrap}
+.cuentas{width:620px;margin-top:20px;border:1px solid #E1E5EA;border-radius:12px;padding:26px 28px;
+  box-shadow:0 10px 30px rgba(20,22,27,.09);position:relative}
+.cuentas .t{font-size:24px;font-weight:700}
+.cuentas .s{font-size:17px;color:#6B7483;margin:4px 0 20px}
+.fila{display:flex;align-items:center;gap:16px;padding:15px 16px;border-radius:10px;
+  border:2px solid #E6E9ED;margin-bottom:11px;font-size:19px}
+.fila.ok{border-color:#E01E37;background:#FEF2F4}
+.fila.no{opacity:.45}
+.av{width:42px;height:42px;border-radius:50%;background:#E01E37;color:#fff;display:flex;
+  align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0}
+.av.g{background:#AEB6C0}
+.fila .c{font-size:16px;color:#6B7483}
+.listo{margin-top:44px;background:#14161B;color:#fff;border-radius:14px;padding:30px 34px;
+  display:flex;align-items:center;gap:24px}
+.listo .tick{width:56px;height:56px;border-radius:50%;background:#E01E37;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center}
+.listo h3{font-size:28px;font-weight:700}
+.listo p{font-size:19px;color:#A9B1BD;margin-top:7px;line-height:1.5}
+.problemas{margin-top:40px;border-top:2px solid #E6E9ED;padding-top:28px}
+.problemas h3{font-size:26px;font-weight:700;margin-bottom:18px}
+.p{display:flex;gap:18px;margin-bottom:14px;font-size:20px;line-height:1.5}
+.p .q{color:#E01E37;font-weight:700;white-space:nowrap;flex-shrink:0;width:330px}
+.p .r{color:#4A535F}
+footer{margin-top:38px;border-top:2px solid #E6E9ED;padding-top:22px;font-size:18px;color:#6B7483;
+  display:flex;justify-content:space-between}
+
+@page{size:A4;margin:9mm}
+@media print{
+  .paso,.listo,.problemas{break-inside:avoid}
+  .hoja{padding:28px 30px 30px}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+svg.flecha{position:absolute;filter:drop-shadow(0 6px 14px rgba(224,30,55,.35))}
+</style></head><body><div class="hoja">
+
+<header>
+  <img src="img/logo.png" alt="">
+  <div>
+    <h1>Cómo ingresar a la Intranet</h1>
+    <div class="sub">Camping 44 S.A. · Vitalica E.A.S. — Sistema de Gestión de Calidad</div>
+  </div>
+</header>
+
+<div class="entrada">
+  <b>No hay usuario ni contraseña nueva.</b> Se entra con la misma cuenta de Google
+  con la que abre su correo del trabajo.
+</div>
+
+<div class="paso">
+  <div class="num">1</div>
+  <div class="cuerpo">
+    <h2>Abra el enlace</h2>
+    <p>Desde la computadora o desde el celular. Conviene guardarlo en favoritos:
+       lo va a usar todos los días.</p>
+    <div class="enlace">intranet-sgc-camping44.vercel.app</div>
+  </div>
+</div>
+
+<div class="paso">
+  <div class="num">2</div>
+  <div class="cuerpo">
+    <h2>Toque «Continuar con Google»</h2>
+    <p>Es el único botón de la pantalla.</p>
+    <div class="figura">
+      <img src="img/ingreso-recorte.png" alt="Pantalla de ingreso a la Intranet">
+      <div class="elipse"></div>
+      <svg class="flecha" width="210" height="130" viewBox="0 0 210 130" style="left:462px;top:506px">
+        <path d="M196 18 C 150 8, 70 24, 30 70" stroke="#E01E37" stroke-width="7"
+              stroke-linecap="round" fill="none"/>
+        <path d="M25 78 L 56 61 L 49 90 Z" fill="#E01E37"/>
+      </svg>
+      <div class="rotulo" style="left:596px;top:484px">Tóquelo acá</div>
+    </div>
+  </div>
+</div>
+
+<div class="paso">
+  <div class="num">3</div>
+  <div class="cuerpo">
+    <h2>Elija su cuenta del trabajo</h2>
+    <p>La que termina en <b>camping44.com.py</b> — o en <b>vitalica.com.py</b> si trabaja
+       en Vitalica. Con el Gmail personal el sistema no lo deja entrar.</p>
+    <div class="cuentas">
+      <div class="t">Elegir una cuenta</div>
+      <div class="s">para continuar a la Intranet de Camping 44</div>
+      <div class="fila ok">
+        <div class="av">N</div>
+        <div><div style="font-weight:600">Nombre Apellido</div>
+             <div class="c">nombre.apellido@camping44.com.py</div></div>
+      </div>
+      <div class="fila no">
+        <div class="av g">N</div>
+        <div><div style="font-weight:600">Nombre personal</div>
+             <div class="c">sucuenta@gmail.com</div></div>
+      </div>
+      <svg class="flecha" width="190" height="120" viewBox="0 0 190 120" style="left:588px;top:92px">
+        <path d="M176 16 C 136 8, 66 22, 28 62" stroke="#E01E37" stroke-width="7"
+              stroke-linecap="round" fill="none"/>
+        <path d="M23 70 L 53 53 L 47 82 Z" fill="#E01E37"/>
+      </svg>
+      <div class="rotulo" style="left:710px;top:70px">Esta</div>
+    </div>
+  </div>
+</div>
+
+<div class="listo">
+  <div class="tick">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+  </div>
+  <div>
+    <h3>Listo. Ya está adentro.</h3>
+    <p>La primera vez el sistema crea su perfil solo, con su nombre y su puesto.
+       De ahí en más entra directo.</p>
+  </div>
+</div>
+
+<div class="problemas">
+  <h3>Si algo no funciona</h3>
+  <div class="p"><div class="q">«Esa cuenta no pertenece a…»</div>
+    <div class="r">Eligió el Gmail personal. Vuelva a empezar y elija el del trabajo.</div></div>
+  <div class="p"><div class="q">«Su usuario está inactivo»</div>
+    <div class="r">Escriba a TI para que lo habiliten.</div></div>
+  <div class="p"><div class="q">La pantalla queda en blanco</div>
+    <div class="r">Cierre la pestaña, abra el enlace de nuevo y pruebe otra vez.</div></div>
+</div>
+
+<footer>
+  <span>Intranet · Sistema de Gestión de Calidad</span>
+  <span>¿Dudas? Escriba a TI.</span>
+</footer>
+
+</div></body></html>
