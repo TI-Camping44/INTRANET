@@ -70,7 +70,21 @@ export default async function PaginaPermisos() {
 
       <MatrizPermisos roles={ROLES_EDITABLES} matrices={matrices} />
 
+      {/* ESTO NO SE ENCUENTRA SOLO. El alcance de ventas existe desde
+          antes y vive en otra pantalla, así que quien entra acá a
+          configurar permisos no tiene cómo saber que está resuelto. */}
       <Aviso className="mt-5">
+        <AvisoTitulo>Las ventas se acotan por persona, no por rol</AvisoTitulo>
+        <AvisoDescripcion>
+          Esta pantalla decide <strong>qué módulos</strong> ve cada rol. De quién ve las ventas
+          se decide en <strong>Configuraciones → Usuarios y roles</strong>, abriendo la persona:
+          sin canales marcados ve <strong>solo las suyas</strong>, y marcándole un grupo —
+          Consumidor Final, Mayoristas o Directorio — ve el detalle vendedor por vendedor de ese
+          grupo. Va por persona porque dos jefes con el mismo rol miran canales distintos.
+        </AvisoDescripcion>
+      </Aviso>
+
+      <Aviso className="mt-4">
         <AvisoDescripcion>
           Dos módulos no se cierran del todo desde acá. <strong>Usuarios y roles</strong> se
           saca del menú y de la pantalla, pero la tabla de personas la lee todo el sistema para
