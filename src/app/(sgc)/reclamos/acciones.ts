@@ -51,7 +51,6 @@ interface CamposDelReclamo {
   tipoFalla: TipoFallaReclamo;
   gravedad: GravedadReclamo;
   responsableAreaId: string | null;
-  materialControlado: boolean;
 }
 
 function leerCampos(datos: FormData): CamposDelReclamo {
@@ -69,7 +68,6 @@ function leerCampos(datos: FormData): CamposDelReclamo {
     // al registrar; Calidad confirmo que la pregunta corresponde pero sin
     // trabar el alta de quien no lo sabe todavia. Sin marcar vale `false`,
     // que es lo que la columna ya tenia por omision.
-    materialControlado: datos.get("material_controlado") === "si",
   };
 }
 
@@ -147,7 +145,6 @@ export async function crearReclamo(datos: FormData): Promise<ResultadoAccion> {
       plan,
       estado: "registrado",
       responsable_area_id: campos.responsableAreaId,
-      material_controlado: campos.materialControlado,
       es_reincidencia: esReincidencia,
       fecha_deteccion: hoy,
       fecha_limite_contacto: vencimientos.contacto,
@@ -236,12 +233,6 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
     origen: campos.origen,
     tipo_falla: campos.tipoFalla,
     responsable_area_id: campos.responsableAreaId,
-    // LA EDICION TAMBIEN LO GUARDA, ahora que el alta lo pregunta.
-    // Mientras el campo no estaba en el formulario, no escribirlo era lo
-    // que impedia que editar un reclamo viejo lo borrara. Con la casilla
-    // en pantalla eso se da vuelta: mostrarla y no guardarla seria peor
-    // —alguien la desmarca, guarda, y no pasa nada—.
-    material_controlado: campos.materialControlado,
   };
 
   // Si cambia la gravedad, el plan y los plazos se recalculan. NUNCA HACIA

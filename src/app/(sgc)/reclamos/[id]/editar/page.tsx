@@ -31,7 +31,7 @@ export default async function PaginaEditarReclamo({ params }: { params: { id: st
       .from("reclamos")
       .select(
         "id, codigo, titulo, descripcion, cliente_id, cliente_nombre, origen, tipo_falla, " +
-          "gravedad, gestor_id, responsable_area_id, material_controlado",
+          "gravedad, gestor_id, responsable_area_id",
       )
       .eq("id", params.id)
       .maybeSingle(),

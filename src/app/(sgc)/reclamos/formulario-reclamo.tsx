@@ -45,7 +45,6 @@ export interface ReclamoInicial {
   tipo_falla: string;
   gravedad: GravedadReclamo;
   responsable_area_id: string | null;
-  material_controlado: boolean;
 }
 
 /**
@@ -60,11 +59,12 @@ export interface ReclamoInicial {
  * sigue mostrando: lo que se saca es la pregunta al registrar, que es
  * cuando todavía no se sabe la respuesta.
  *
- * DE LOS TRES VOLVIO UNO, el 12 de octubre: «Involucra material
- * controlado», pero OPCIONAL. El motivo por el que había salido era que
- * era obligatorio; en un retail de armas la pregunta corresponde, y sin
- * trabar el alta quien no sabe la deja sin marcar. El gestor del caso y
- * los otros departamentos intervinientes siguen fuera.
+ * «MATERIAL CONTROLADO» VOLVIO Y SE FUE DE NUEVO, las dos veces el 12 de
+ * octubre: entró como casilla opcional y Calidad decidió en el día que
+ * tampoco corresponde preguntarla al registrar. La columna queda y la
+ * ficha la sigue mostrando; el alta vuelve a no preguntarla, así que
+ * `actualizarReclamo()` vuelve a NO tocarla —si la escribiera, editar un
+ * reclamo viejo le borraría el dato—.
  *
  * LA GRAVEDAD LLEVA SU DEFINICIÓN EN CADA OPCIÓN. Estaba en un recuadro
  * debajo del desplegable, que obligaba a elegir primero para después
@@ -254,35 +254,6 @@ export function FormularioReclamo({
               ))}
             </Seleccion>
           </GrupoCampo>
-
-          {/* MATERIAL CONTROLADO: VOLVIO, Y OPCIONAL. Había salido del
-              alta el 9 de octubre porque era obligatorio y se preguntaba
-              al registrar, que es cuando todavía no siempre se sabe.
-              Calidad confirmó el 12 que la pregunta corresponde pero sin
-              trabar el alta: quien no lo sabe la deja sin marcar y lo
-              carga después desde la ficha.
-
-              No se esconde en la ficha ni se vuelve obligatoria: en un
-              retail de armas es el dato que decide si el caso escala, y
-              esconderlo es peor que preguntarlo de más. */}
-          <label
-            className="flex items-start gap-2 rounded-md border border-borde p-3 text-xs
-                       sm:col-span-2"
-          >
-            <input
-              type="checkbox"
-              name="material_controlado"
-              value="si"
-              defaultChecked={inicial?.material_controlado ?? false}
-              className="mt-0.5 size-3.5 shrink-0 accent-[hsl(var(--primario))]"
-            />
-            <span>
-              Involucra material controlado (armas o municiones)
-              <span className="block text-[11px] leading-relaxed text-atenuado-contraste">
-                Opcional. Si todavía no lo sabe, déjelo sin marcar y cárguelo después.
-              </span>
-            </span>
-          </label>
 
           <GrupoCampo
             etiqueta="Responsable del área de origen"
