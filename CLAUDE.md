@@ -460,6 +460,35 @@ sin vínculo hasta que se aprueben.
   **Un módulo nuevo se agrega en los dos lados**: `CLAVES_MODULO` y
   `MODULOS` en `lib/permisos.ts`, y el `CHECK` de `permisos` en una
   migración nueva.
+- **El cliente OAuth de Google NO se marca como «agentic».** El 12 de
+  octubre de 2026 Google avisó por correo que agrega una marca
+  `is_agentic` a los clientes de OAuth, que a partir del 11 de noviembre
+  solo los marcados pueden llamar a los servidores MCP de Workspace, y
+  que desde el 12 de noviembre la marca de un cliente existente ya no se
+  puede cambiar. El correo nombra al proyecto
+  **intranet-sgc-camping44**, que es el nuestro, y por eso conviene
+  dejar escrito que **no corresponde hacer nada**.
+
+  El cliente de ese proyecto hace dos cosas y ninguna es un agente de
+  IA: el **ingreso con Google** de las 55 personas y el **selector de
+  Drive**, que llama a la API REST con alcance `drive.file` desde el
+  navegador. El propio correo lo dice: una aplicación que no es un
+  agente y solo usa las API REST de Workspace no tiene que hacer nada.
+
+  **El riesgo está en marcarlo, no en dejarlo.** Google avisa que a los
+  clientes marcados se les aplican controles de seguridad propios —los
+  controles de acceso de agente—: ponerle esa marca al cliente del
+  ingreso es agregarle una capa nueva a la única puerta por la que
+  entran los 55, a cambio de nada.
+
+  **Y la fecha no deja a nadie encerrado**: lo que se vuelve permanente
+  es la marca de un cliente ya creado. Si algún día hace falta un agente
+  de IA que lea Drive o Gmail por MCP, lo que corresponde es un
+  **cliente OAuth nuevo y aparte**, con la marca elegida al crearlo
+  —que es además lo que Google recomienda cuando una aplicación mezcla
+  tráfico de agente con el que no lo es—. Eso se puede hacer en
+  cualquier momento.
+
 - Los archivos del bucket son privados y se entregan con enlaces firmados
   de duración corta.
 
