@@ -14,8 +14,21 @@ export const DOMINIOS_AUTORIZADOS = ["camping44.com.py", "vitalica.com.py"];
 /** El principal, el que se muestra en las pantallas. */
 export const DOMINIO_AUTORIZADO = DOMINIOS_AUTORIZADOS[0];
 
-/** Rutas accesibles sin sesion iniciada. */
-const RUTAS_PUBLICAS = ["/ingresar", "/auth", "/sin-acceso", "/api/cron"];
+/**
+ * Rutas accesibles sin sesion iniciada.
+ *
+ * `/ayuda` ESTA ACA A PROPOSITO: es el paso a paso para entrar, y lo lee
+ * justamente quien todavia no tiene sesion. Mientras no estaba, los
+ * enlaces del correo de invitacion mandaban a `/ingresar` a las 53
+ * personas a las que iban dirigidos, que es lo contrario de lo que el
+ * tutorial tiene que hacer.
+ *
+ * Cubre tambien los archivos que cuelgan de `public/ayuda/` —el video y
+ * el PDF—, porque la comparacion es por prefijo. POR ESO MISMO, NADA
+ * PRIVADO PUEDE VIVIR BAJO `/ayuda`: todo lo que se ponga ahi queda
+ * abierto a Internet.
+ */
+const RUTAS_PUBLICAS = ["/ingresar", "/auth", "/sin-acceso", "/api/cron", "/ayuda"];
 
 function esRutaPublica(ruta: string) {
   return RUTAS_PUBLICAS.some((publica) => ruta === publica || ruta.startsWith(`${publica}/`));

@@ -58,8 +58,7 @@ function armarCorreo(
   const nombre =
     destinatario.nombre_completo.split(" ")[0] ?? destinatario.nombre_completo;
 
-  const tutorialVideo = urlAbsoluta("/ayuda/como-ingresar.mp4");
-  const tutorialPdf = urlAbsoluta("/ayuda/como-ingresar.pdf");
+  const tutorial = urlAbsoluta("/ayuda/ingresar");
 
   return {
     para: destinatario.correo,
@@ -74,22 +73,20 @@ function armarCorreo(
       "datos que ya están cargados.<br><br>" +
       "Si no le aparece su cuenta de trabajo en la lista, es porque está con una cuenta " +
       "personal: cierre esa sesión en el navegador o use una ventana de incógnito." +
-      // EL PASO A PASO VA ENLAZADO, NO METIDO EN EL CORREO. Las imágenes
-      // de un correo las bloquea el cliente por omisión: un tutorial con
-      // capturas llega como una fila de recuadros rotos, que es peor que
-      // no tenerlo. Además pesan, y un correo pesado a 53 casillas tiene
-      // más chance de caer en no deseados. Y el trámite son dos clics:
-      // ilustrarlo con seis capturas lo hace parecer más difícil de lo
-      // que es, que es justo lo que no conviene con quien todavía no
-      // entró.
+      // EL PASO A PASO VA ENLAZADO A UNA PAGINA QUE SE MIRA, no a un
+      // archivo que se descarga. Las imagenes de un correo las bloquea
+      // el cliente por omision, asi que un tutorial con capturas adentro
+      // llega como una fila de recuadros rotos; y pedirle a alguien que
+      // descargue un PDF desde un correo que todavia no sabe si es
+      // legitimo es pedirle demasiado.
       //
-      // Los dos archivos viven en `public/`, así que se abren sin estar
-      // adentro del sistema. Es lo único que puede funcionar: quien
-      // recibe esto todavía no tiene sesión.
-      (tutorialPdf && tutorialVideo
-        ? "<br><br>Si prefiere verlo paso a paso: " +
-          `<a href="${tutorialVideo}" style="color:#E01E37;">el video de un minuto</a> o ` +
-          `<a href="${tutorialPdf}" style="color:#E01E37;">la guía en una hoja</a>.`
+      // La pagina es publica —esta en RUTAS_PUBLICAS del middleware—
+      // porque la lee quien todavia no tiene sesion. Esa es la parte que
+      // faltaba: enlazar los archivos sueltos de `public/` no alcanzaba,
+      // el middleware los mandaba a /ingresar.
+      (tutorial
+        ? "<br><br>Si prefiere verlo paso a paso, con el video: " +
+          `<a href="${tutorial}" style="color:#E01E37;">cómo entrar a la intranet</a>.`
         : ""),
     enlace,
     textoEnlace: "Ingresar a la intranet",
