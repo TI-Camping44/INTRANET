@@ -17,6 +17,13 @@
 -- de tipeo, y esa una seria un agujero. El bucle no puede equivocarse
 -- en la condicion vieja porque no la escribe: la lee y le agrega algo.
 --
+-- Y va con `alter policy`, no soltando y volviendo a crear cada una.
+-- Cambia la expresion en el lugar, asi la politica conserva su nombre,
+-- su comando y sus roles sin que el bucle tenga que reconstruirlos: no
+-- hay forma de que vuelva distinta de como estaba. Ademas `drop policy`
+-- toma un bloqueo exclusivo sobre la tabla y `alter policy` no, lo que
+-- importa cuando esto corre contra una base en uso.
+--
 -- Lo que SI se escribe a mano, porque es la decision y no la mecanica,
 -- es el mapa de abajo: que tabla pertenece a que modulo.
 -- ---------------------------------------------------------------------
@@ -51,8 +58,7 @@ do $enchufar$
 declare
   v record;
   v_gate text;
-  v_qual text;
-  v_check text;
+  v_sql text;
   v_tocadas int := 0;
   v_salteadas int := 0;
 begin
@@ -150,24 +156,20 @@ begin
       v_gate := format('public.puede_editar(%L)', v.modulo);
     end if;
 
-    -- Si la condicion vieja es nula se deja nula: en una politica `for
-    -- all` sin `with check` propio, PostgreSQL usa el `using`, y
-    -- rellenarlo cambiaria el comportamiento.
-    v_qual := case when v.qual is null then null
-                   else format('(%s) and %s', v.qual, v_gate) end;
-    v_check := case when v.with_check is null then null
-                    else format('(%s) and %s', v.with_check, v_gate) end;
+    -- Solo se toca la mitad que la politica ya tenia. En una politica
+    -- `for all` sin `with check` propio, PostgreSQL usa el `using`:
+    -- agregarle uno cambiaria el comportamiento.
+    v_sql := format('alter policy %I on public.%I', v.policyname, v.tablename);
 
-    execute format('drop policy %I on public.%I', v.policyname, v.tablename);
+    if v.qual is not null then
+      v_sql := v_sql || format(' using ((%s) and %s)', v.qual, v_gate);
+    end if;
 
-    execute format(
-      'create policy %I on public.%I for %s to authenticated %s %s',
-      v.policyname,
-      v.tablename,
-      case v.cmd when 'ALL' then 'all' else lower(v.cmd) end,
-      case when v_qual is null then '' else 'using (' || v_qual || ')' end,
-      case when v_check is null then '' else 'with check (' || v_check || ')' end
-    );
+    if v.with_check is not null then
+      v_sql := v_sql || format(' with check ((%s) and %s)', v.with_check, v_gate);
+    end if;
+
+    execute v_sql;
 
     v_tocadas := v_tocadas + 1;
   end loop;
