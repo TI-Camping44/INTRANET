@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
@@ -66,7 +67,16 @@ export function FilaUsuario({
   return (
     <TablaFila>
       <TablaCelda>
-        <p className="text-xs font-medium">{usuario.nombre_completo}</p>
+        {/* EL NOMBRE ABRE LA FICHA. La fila alcanza para el ajuste
+            rápido —cambiarle el rol a alguien— pero no para mirar qué
+            termina viendo esa persona: eso son veintiún módulos y no
+            entra en una fila. */}
+        <Link
+          href={`/administracion/usuarios/${usuario.id}`}
+          className="text-xs font-medium hover:underline"
+        >
+          {usuario.nombre_completo}
+        </Link>
         <p className="text-[11px] text-atenuado-contraste">{usuario.correo}</p>
       </TablaCelda>
 

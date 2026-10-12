@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
-import { FilaUsuario } from "@/app/(sgc)/administracion/usuarios/fila-usuario";
+import { ListaUsuarios } from "@/app/(sgc)/administracion/usuarios/lista-usuarios";
 import { FormularioPuesto } from "@/app/(sgc)/recursos-humanos/puestos/formulario-puesto";
 import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Tarjeta } from "@/components/ui/tarjeta";
-import {
-  Tabla,
-  TablaCabecera,
-  TablaCuerpo,
-  TablaEncabezado,
-  TablaFila,
-} from "@/components/ui/tabla";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
@@ -121,37 +114,12 @@ export default async function PaginaUsuarios() {
         </dl>
       </Tarjeta>
 
-      <Tarjeta>
-        <Tabla>
-          <TablaCabecera>
-            <TablaFila>
-              <TablaEncabezado className="w-[16rem]">Persona</TablaEncabezado>
-              <TablaEncabezado colSpan={6}>
-                Rol · Líder inmediato · Proceso · Puesto · Estado
-              </TablaEncabezado>
-            </TablaFila>
-          </TablaCabecera>
-          <TablaCuerpo>
-            {lista.map((usuario) => (
-              <FilaUsuario
-                key={usuario.id}
-                usuario={usuario}
-                personas={lista.map((persona) => ({
-                  id: persona.id,
-                  nombre_completo: persona.nombre_completo,
-                }))}
-                procesos={(procesos ?? []) as { id: string; nombre: string }[]}
-                puestos={(puestos ?? []) as { id: string; nombre: string }[]}
-                vendedores={vendedores}
-              />
-            ))}
-          </TablaCuerpo>
-        </Tabla>
-      </Tarjeta>
-
-      <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {lista.length} usuario{lista.length === 1 ? "" : "s"} registrados.
-      </p>
+      <ListaUsuarios
+        usuarios={lista}
+        procesos={(procesos ?? []) as { id: string; nombre: string }[]}
+        puestos={(puestos ?? []) as { id: string; nombre: string }[]}
+        vendedores={vendedores}
+      />
     </>
   );
 }

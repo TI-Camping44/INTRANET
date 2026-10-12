@@ -12,12 +12,23 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
+import {
+  BotonInvitar,
+  BotonInvitarAPendientes,
+} from "@/app/(sgc)/administracion/padron/invitar";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha, formatearFechaHora } from "@/lib/formato";
 
 export const metadata: Metadata = { title: "Padrón de la nómina" };
 export const dynamic = "force-dynamic";
+
+/**
+ * La tanda de invitaciones manda hasta diez correos seguidos, cada uno
+ * con su propio tiempo de espera. Con los diez segundos de por omisión
+ * se cortaría a la mitad.
+ */
+export const maxDuration = 60;
 
 /** Para comparar nombres de puesto sin que una tilde los separe. */
 function normalizar(valor: string | null | undefined): string {
@@ -39,6 +50,8 @@ interface FilaPadron {
   empresa_del_puesto: string | null;
   fecha_ingreso: string | null;
   usuario_id: string | null;
+  invitado_en: string | null;
+  invitaciones_enviadas: number;
   usuario: { ultimo_ingreso: string | null; rol: string; activo: boolean } | null;
 }
 
@@ -69,7 +82,8 @@ export default async function PaginaPadron() {
       .from("personas_nomina")
       .select(
         "id, correo, nombre_completo, cedula, puesto_nombre, departamento, gerente_nombre," +
-          " empresa_del_puesto, fecha_ingreso, usuario_id," +
+          " empresa_del_puesto, fecha_ingreso, usuario_id, invitado_en," +
+          " invitaciones_enviadas," +
           " usuario:usuario_id (ultimo_ingreso, rol, activo)",
       )
       .eq("activo", true)
@@ -101,6 +115,7 @@ export default async function PaginaPadron() {
       <EncabezadoPagina
         titulo="Padrón de la nómina"
         descripcion="Quiénes pueden entrar y quiénes ya entraron. Sale de la exportación de Odoo; el perfil se arma solo en el primer ingreso con Google."
+        acciones={<BotonInvitarAPendientes pendientes={filas.length - ingresaron.length} />}
       />
 
       {filas.length === 0 ? (
@@ -182,6 +197,7 @@ export default async function PaginaPadron() {
                   <TablaEncabezado>Líder inmediato</TablaEncabezado>
                   <TablaEncabezado>Ingreso</TablaEncabezado>
                   <TablaEncabezado>Estado</TablaEncabezado>
+                  <TablaEncabezado className="text-right">Acceso</TablaEncabezado>
                 </TablaFila>
               </TablaCabecera>
               <TablaCuerpo>
@@ -246,7 +262,40 @@ export default async function PaginaPadron() {
                             ) : null}
                           </>
                         ) : (
-                          <Insignia variante="neutra">Pendiente</Insignia>
+                          <>
+                            <Insignia variante="neutra">Pendiente</Insignia>
+                            {/* CUANDO SE LE AVISÓ Y CUÁNTAS VECES. Con
+                                la fecha sola no se ve a quién ya se le
+                                insistió tres veces y sigue sin entrar,
+                                que es la pregunta que importa durante la
+                                puesta en marcha. */}
+                            {fila.invitado_en ? (
+                              <span className="ml-1.5 text-[11px] text-atenuado-contraste">
+                                avisado {formatearFecha(fila.invitado_en)}
+                                {fila.invitaciones_enviadas > 1
+                                  ? ` · ${fila.invitaciones_enviadas} veces`
+                                  : null}
+                              </span>
+                            ) : null}
+                          </>
+                        )}
+                      </TablaCelda>
+
+                      {/* EL BOTÓN PARA QUE PUEDA ENTRAR. Manda el aviso
+                          con el enlace a /ingresar, no un acceso
+                          directo: quien autoriza sigue siendo Google.
+                          Quien ya entró no lleva botón —reenviarle el
+                          aviso solo le haría dudar de si perdió el
+                          acceso—. */}
+                      <TablaCelda className="whitespace-nowrap text-right">
+                        {entro ? (
+                          <span className="text-[11px] text-atenuado-contraste">—</span>
+                        ) : (
+                          <BotonInvitar
+                            personaId={fila.id}
+                            nombre={fila.nombre_completo}
+                            yaInvitada={fila.invitaciones_enviadas > 0}
+                          />
                         )}
                       </TablaCelda>
                     </TablaFila>

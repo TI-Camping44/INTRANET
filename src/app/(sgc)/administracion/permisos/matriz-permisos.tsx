@@ -33,10 +33,20 @@ type Matriz = Record<string, PermisoDeModulo>;
 export function MatrizPermisos({
   roles,
   matrices,
+  conSelector = true,
 }: {
   roles: RolUsuario[];
   /** Lo guardado para cada rol editable. */
   matrices: Record<string, Matriz>;
+  /**
+   * Si se dibuja la barra de pestañas.
+   *
+   * En la ficha de una persona se mira UN rol —el suyo— y las pestañas
+   * sobran: invitan a tocar el permiso de un rol que no es el de quien
+   * se está mirando, que es justo el error que esa pantalla tiene que
+   * evitar.
+   */
+  conSelector?: boolean;
 }) {
   const router = useRouter();
   const [rol, definirRol] = React.useState<RolUsuario>(roles[0]);
@@ -103,8 +113,14 @@ export function MatrizPermisos({
     <form onSubmit={enviar}>
       {/* El selector de rol. Pestañas y no un desplegable: son cinco y
           conviene verlos todos, que es media decisión. */}
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {[...roles, ROL_SIEMPRE_COMPLETO].map((valor) => (
+      <div className={cn("mb-4 flex flex-wrap gap-1.5", !conSelector && "hidden")}>
+        {/* El Administrador SGC se agrega al final, y solo si no está
+            ya en la lista: en la ficha de un administrador vendría por
+            las dos puntas y la pestaña saldría repetida. */}
+        {(roles.includes(ROL_SIEMPRE_COMPLETO)
+          ? roles
+          : [...roles, ROL_SIEMPRE_COMPLETO]
+        ).map((valor) => (
           <button
             key={valor}
             type="button"
