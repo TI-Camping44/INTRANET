@@ -318,14 +318,17 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
-                <Dato
-                  etiqueta="Proceso auditado"
-                  valor={
-                    auditoria.procesos_segun_plan
-                      ? "Procesos declarados en el Plan"
-                      : (auditoria.procesos?.nombre ?? "—")
-                  }
-                />
+                {/* «Proceso auditado» salió de la ficha el 12 de octubre.
+                    La auditoría declara su alcance POR DOCUMENTO desde el
+                    6 de octubre, cuando Calidad definió que el proceso y
+                    su información documentada son lo mismo: el alcance
+                    real está abajo, en los documentos auditados, y esta
+                    línea repetía la pregunta con la respuesta vieja —vacía
+                    en toda auditoría cargada desde entonces—.
+
+                    `proceso_id` y `procesos_segun_plan` siguen en la base
+                    y los sigue escribiendo la edición del plan: las
+                    auditorías viejas no pierden el dato. */}
                 {/* LA EMPRESA, NO LA SEDE. Lo pidió Dirección el 8 de
                     octubre: la sede nunca se cargó en ninguna auditoría y
                     lo que importa es a cuál de las dos empresas del grupo

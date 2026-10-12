@@ -33,8 +33,15 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
     return { exito: false, error: "El cuerpo debe tener al menos 10 caracteres." };
   }
 
-  // Publicar es lo normal; el borrador es para lo que se deja a medias.
-  const publicar = datos.get("publicar") === "si";
+  // GUARDAR ES PUBLICAR. La casilla «Publicar ahora» salió del alta el
+  // 12 de octubre: venía marcada y nadie la desmarcaba, así que lo único
+  // que podía hacer era dejar sin querer un borrador que nadie iba a ver.
+  //
+  // Se lee al revés que antes —publica salvo que digan que no— para que
+  // la decisión no dependa de que el formulario mande un campo: si
+  // alguien arma uno nuevo y se olvida, la publicación se publica, que
+  // es lo que la persona quiso al escribirla.
+  const publicar = datos.get("publicar") !== "no";
 
   const { data: publicacion, error } = await supabase
     .from("publicaciones")

@@ -735,16 +735,17 @@ export function MuroPublicaciones({
 
               {editando ? null : (
               <div className="space-y-1.5 rounded-md border border-borde p-3">
-                <label className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    name="publicar"
-                    value="si"
-                    defaultChecked
-                    className="size-3.5 accent-[hsl(var(--primario))]"
-                  />
-                  Publicar ahora
-                </label>
+                {/* «PUBLICAR AHORA» SALIÓ DEL ALTA el 12 de octubre.
+                    Venía marcado y nadie lo desmarcaba: quien entra a
+                    escribir una publicación ya decidió publicarla, y una
+                    casilla marcada que solo puede empeorar las cosas es
+                    una forma de guardar sin querer un borrador que nadie
+                    va a ver.
+
+                    Guardar ahora publica, y punto. El borrador sigue
+                    existiendo en la base —`estado = 'borrador'`— para lo
+                    que quedó cargado a medias antes de hoy, y la acción
+                    publica salvo que le manden `publicar=no`. */}
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
