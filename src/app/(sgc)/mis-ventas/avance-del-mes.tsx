@@ -62,7 +62,7 @@ export function AvanceDelMes({
       : Math.max(0, Math.min((esperado / fila.meta) * 100, 100));
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {/* 1 · Lo vendido, con la barra contra el objetivo. */}
       <Tarjeta className="p-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">

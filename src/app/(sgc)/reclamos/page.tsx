@@ -22,6 +22,8 @@ import { formatearFecha } from "@/lib/formato";
 import {
   casoCerrado,
   CLASES_ESTADO_RECLAMO,
+  COLOR_ESTADO_RECLAMO,
+  COLOR_GRAVEDAD_RECLAMO,
   estaFueraDePlazo,
   ETIQUETAS_ESTADO_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
@@ -96,31 +98,20 @@ export default async function PaginaReclamos({
           ? todos
           : todos.filter((r) => !estaCerrado(r));
 
-  // EL COLOR DE LA GRAVEDAD ES EL DEL SEMAFORO, no uno inventado: leve,
-  // real y grave son tres niveles de lo mismo y el ojo ya los lee asi en
-  // el resto del sistema. Salen de las variables del tema para que
-  // funcionen igual en modo claro y oscuro.
-  const COLOR_GRAVEDAD: Record<GravedadReclamo, string> = {
-    leve: "hsl(var(--semaforo-bajo))",
-    real: "hsl(var(--semaforo-medio))",
-    grave: "hsl(var(--semaforo-critico))",
-  };
-
+  // Los colores salen de `lib/reclamos.ts` y no de acá: son la misma
+  // escala que usa el resto del módulo, y ahí está escrito por qué
+  // «registrado» no puede ir con `--primario` —vale exactamente lo mismo
+  // que `--semaforo-critico`, así que daba dos porciones del mismo rojo—.
   const porGravedad = GRAVEDADES_RECLAMO.map((gravedad) => ({
     etiqueta: ETIQUETAS_GRAVEDAD_RECLAMO[gravedad],
     valor: reclamos.filter((reclamo) => reclamo.gravedad === gravedad).length,
-    color: COLOR_GRAVEDAD[gravedad],
+    color: COLOR_GRAVEDAD_RECLAMO[gravedad],
   }));
 
-  const porEstado = Object.entries(ETIQUETAS_ESTADO_RECLAMO).map(([valor, etiqueta]) => ({
-    etiqueta,
-    valor: reclamos.filter((reclamo) => reclamo.estado === valor).length,
-    color:
-      valor === "cerrado"
-        ? "hsl(var(--semaforo-bajo))"
-        : valor === "no_conciliado"
-          ? "hsl(var(--semaforo-critico))"
-          : "hsl(var(--primario))",
+  const porEstado = (Object.keys(ETIQUETAS_ESTADO_RECLAMO) as EstadoReclamo[]).map((estado) => ({
+    etiqueta: ETIQUETAS_ESTADO_RECLAMO[estado],
+    valor: reclamos.filter((reclamo) => reclamo.estado === estado).length,
+    color: COLOR_ESTADO_RECLAMO[estado],
   }));
 
   const contadores = {

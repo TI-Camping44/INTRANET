@@ -248,7 +248,7 @@ export default async function PaginaUsuarios() {
         </div>
       </Aviso>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tarjeta className="p-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-atenuado-contraste">
             Personas

@@ -217,8 +217,16 @@ export default async function PaginaPuestos({
                 <TablaCabecera>
                   <TablaFila>
                     <TablaEncabezado>Nombre del puesto</TablaEncabezado>
-                    <TablaEncabezado className="w-[13rem]">Empresa</TablaEncabezado>
-                    <TablaEncabezado className="w-[14rem]">Departamento</TablaEncabezado>
+                    {/* En el celular quedan el puesto, cuánta gente lo
+                        ocupa y el perfil. La empresa y el departamento
+                        son contexto y empujaban «Perfil» —que es a lo
+                        que se entra— fuera de la pantalla. */}
+                    <TablaEncabezado className="hidden w-[13rem] md:table-cell">
+                      Empresa
+                    </TablaEncabezado>
+                    <TablaEncabezado className="hidden w-[14rem] lg:table-cell">
+                      Departamento
+                    </TablaEncabezado>
                     <TablaEncabezado className="w-[9rem] text-center">Personas</TablaEncabezado>
                     <TablaEncabezado className="w-[9rem] text-center">Perfil</TablaEncabezado>
                   </TablaFila>
@@ -238,12 +246,12 @@ export default async function PaginaPuestos({
                             {puesto.nombre}
                           </Link>
                         </TablaCelda>
-                        <TablaCelda className="text-xs text-atenuado-contraste">
+                        <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                           {puesto.empresa_del_puesto_id
                             ? (nombreDeEmpresa.get(puesto.empresa_del_puesto_id) ?? "—")
                             : "—"}
                         </TablaCelda>
-                        <TablaCelda className="text-xs text-atenuado-contraste">
+                        <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
                           {puesto.area ?? "—"}
                         </TablaCelda>
                         <TablaCelda className="text-center text-xs tabular">

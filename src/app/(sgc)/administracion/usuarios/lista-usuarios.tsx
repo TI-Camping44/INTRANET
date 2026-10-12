@@ -142,12 +142,18 @@ export function ListaUsuarios({
         <Tabla>
           <TablaCabecera>
             <TablaFila>
+              {/* EN EL CELULAR QUEDAN TRES COLUMNAS: quién es, cómo
+                  está y el botón. Las otras cinco son contexto y en 360
+                  píxeles empujaban el botón —que es a lo que se entra—
+                  a mil cien píxeles de desplazamiento horizontal.
+                  Siguen estando: aparecen al girar el teléfono y en
+                  cualquier pantalla de escritorio. */}
               <TablaEncabezado>Persona</TablaEncabezado>
-              <TablaEncabezado>Cédula</TablaEncabezado>
-              <TablaEncabezado>Puesto</TablaEncabezado>
-              <TablaEncabezado>Empresa</TablaEncabezado>
-              <TablaEncabezado>Líder inmediato</TablaEncabezado>
-              <TablaEncabezado>Rol</TablaEncabezado>
+              <TablaEncabezado className="hidden lg:table-cell">Cédula</TablaEncabezado>
+              <TablaEncabezado className="hidden md:table-cell">Puesto</TablaEncabezado>
+              <TablaEncabezado className="hidden xl:table-cell">Empresa</TablaEncabezado>
+              <TablaEncabezado className="hidden lg:table-cell">Líder inmediato</TablaEncabezado>
+              <TablaEncabezado className="hidden xl:table-cell">Rol</TablaEncabezado>
               <TablaEncabezado>Estado</TablaEncabezado>
               <TablaEncabezado className="text-right">Acceso</TablaEncabezado>
             </TablaFila>
@@ -170,7 +176,12 @@ export function ListaUsuarios({
 
                 return (
                   <TablaFila key={persona.clave}>
-                    <TablaCelda className="text-xs">
+                    {/* EL ANCHO SE ACOTA EN EL CELULAR. El correo y el
+                        cargo son largos y sin tope estiraban la columna
+                        hasta empujar el botón fuera de la pantalla. Con
+                        tope, el nombre envuelve en dos líneas y entra
+                        todo. En pantalla grande no hay tope. */}
+                    <TablaCelda className="max-w-[10.5rem] text-xs sm:max-w-none">
                       {/* EL NOMBRE ABRE LA FICHA, cuando la hay. Mientras
                           la persona no ingresó no hay ficha que abrir, y
                           un enlace que lleva a una pantalla vacía es peor
@@ -185,9 +196,21 @@ export function ListaUsuarios({
                       ) : (
                         <span className="block font-medium">{persona.nombre}</span>
                       )}
-                      <span className="block text-[11px] text-atenuado-contraste">
+                      <span className="block truncate text-[11px] text-atenuado-contraste">
                         {persona.correo}
                       </span>
+
+                      {/* EL PUESTO VUELVE ACA EN EL CELULAR. Su columna
+                          se esconde, pero el cargo es el dato que
+                          identifica a la persona después del nombre:
+                          esconderlo del todo sería perderlo, no
+                          ordenarlo. Se corrige desde la columna, que
+                          aparece en pantalla grande. */}
+                      {persona.puesto ? (
+                        <span className="block text-[11px] text-atenuado-contraste md:hidden">
+                          {persona.puesto}
+                        </span>
+                      ) : null}
                       {!persona.enElPadron ? (
                         <Insignia variante="atencion" className="mt-1">
                           fuera del padrón
@@ -195,7 +218,7 @@ export function ListaUsuarios({
                       ) : null}
                     </TablaCelda>
 
-                    <TablaCelda className="whitespace-nowrap text-xs tabular text-atenuado-contraste">
+                    <TablaCelda className="hidden whitespace-nowrap text-xs tabular text-atenuado-contraste lg:table-cell">
                       {persona.cedula ?? "—"}
                     </TablaCelda>
 
@@ -203,7 +226,7 @@ export function ListaUsuarios({
                         desactualizados y la pregunta «¿este es el que
                         ocupa hoy?» se hace mirando la lista entera, no
                         entrando de a una persona. */}
-                    <TablaCelda className="text-xs">
+                    <TablaCelda className="hidden text-xs md:table-cell">
                       <SelectorPuesto
                         clave={persona.clave}
                         puestoActual={persona.puestoId}
@@ -213,11 +236,11 @@ export function ListaUsuarios({
                       />
                     </TablaCelda>
 
-                    <TablaCelda className="whitespace-nowrap text-xs text-atenuado-contraste">
+                    <TablaCelda className="hidden whitespace-nowrap text-xs text-atenuado-contraste xl:table-cell">
                       {persona.empresa ?? "—"}
                     </TablaCelda>
 
-                    <TablaCelda className="text-xs">
+                    <TablaCelda className="hidden text-xs lg:table-cell">
                       {persona.lider ?? (
                         <span className="text-atenuado-contraste">Sin líder declarado</span>
                       )}
@@ -228,7 +251,7 @@ export function ListaUsuarios({
                       ) : null}
                     </TablaCelda>
 
-                    <TablaCelda className="whitespace-nowrap text-xs">
+                    <TablaCelda className="hidden whitespace-nowrap text-xs xl:table-cell">
                       {persona.rol ? (
                         ETIQUETAS_ROL[persona.rol]
                       ) : (
@@ -241,12 +264,12 @@ export function ListaUsuarios({
                       ) : null}
                     </TablaCelda>
 
-                    <TablaCelda className="whitespace-nowrap text-xs">
+                    <TablaCelda className="text-xs sm:whitespace-nowrap">
                       {entro ? (
                         <>
                           <Insignia variante="exito">Ingresó</Insignia>
                           {persona.ultimoIngreso ? (
-                            <span className="ml-1.5 text-[11px] text-atenuado-contraste">
+                            <span className="ml-1.5 hidden text-[11px] text-atenuado-contraste sm:inline">
                               {formatearFechaHora(persona.ultimoIngreso)}
                             </span>
                           ) : null}
@@ -259,7 +282,7 @@ export function ListaUsuarios({
                               insistió tres veces y sigue sin entrar, que
                               es la pregunta de la puesta en marcha. */}
                           {persona.invitadoEn ? (
-                            <span className="ml-1.5 text-[11px] text-atenuado-contraste">
+                            <span className="ml-1.5 hidden text-[11px] text-atenuado-contraste sm:inline">
                               avisado {formatearFecha(persona.invitadoEn)}
                               {persona.invitacionesEnviadas > 1
                                 ? ` · ${persona.invitacionesEnviadas} veces`

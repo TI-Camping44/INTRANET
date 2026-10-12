@@ -601,3 +601,38 @@ export function accionesPendientes(
 ): number {
   return acciones.filter((accion) => !accion.ejecutada_en).length;
 }
+
+/**
+ * El color de cada estado, para la torta del listado.
+ *
+ * SEIS ESTADOS Y CINCO TONOS DISPONIBLES, así que dos de ellos se
+ * distinguen por intensidad y no por tono: «resuelto» y «cerrado» son el
+ * mismo verde, uno más claro, porque son dos grados de lo mismo.
+ *
+ * NO SE USA `--primario` ACÁ. Vale `352 76% 50%`, exactamente lo mismo
+ * que `--semaforo-critico`: pintar «registrado» con el primario y «no
+ * conciliado» con el crítico daba dos porciones del mismo rojo en el
+ * mismo gráfico, imposibles de separar. Es la misma trampa que
+ * `--semaforo-alto` y `--vitalica`, y por eso está escrito.
+ */
+export const COLOR_ESTADO_RECLAMO: Record<EstadoReclamo, string> = {
+  registrado: "hsl(var(--atenuado-contraste))",
+  contactado: "hsl(var(--semaforo-medio))",
+  plan_definido: "hsl(var(--semaforo-alto))",
+  resuelto: "hsl(var(--semaforo-bajo) / 0.55)",
+  cerrado: "hsl(var(--semaforo-bajo))",
+  no_conciliado: "hsl(var(--semaforo-critico))",
+};
+
+/**
+ * El color de cada gravedad: el del semáforo.
+ *
+ * Leve, real y grave son tres niveles de lo mismo y el ojo ya los lee así
+ * en el resto del sistema. Inventar tres colores propios para esto sería
+ * pedirle a la gente que aprenda una segunda escala.
+ */
+export const COLOR_GRAVEDAD_RECLAMO: Record<GravedadReclamo, string> = {
+  leve: "hsl(var(--semaforo-bajo))",
+  real: "hsl(var(--semaforo-medio))",
+  grave: "hsl(var(--semaforo-critico))",
+};

@@ -46,7 +46,7 @@ export function CalendarioAnual({ anio, dias }: { anio: number; dias: DiaMarcado
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
       {MESES.map((nombreMes, mes) => {
         // `getUTCDay()` devuelve 0 para domingo; acá la semana empieza
         // el lunes, así que el domingo pasa a ser el séptimo.
