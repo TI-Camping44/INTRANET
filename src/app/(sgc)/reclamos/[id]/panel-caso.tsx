@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Paperclip, PlayCircle, Plus, ThumbsDown, Trash2, X } from "lucide-react";
+import { Paperclip, PlayCircle, Plus, Trash2, X } from "lucide-react";
 
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
@@ -11,33 +11,26 @@ import { Tarjeta } from "@/components/ui/tarjeta";
 import {
   adjuntarEvidenciaDeAccion,
   cambiarEstadoReclamo,
+  cerrarCaso,
   eliminarEvidenciaDeAccion,
   guardarAccionesDelPlan,
+  guardarEjecucionDeAcciones,
   reanudarPlazoSuspendido,
-  registrarRechazo,
   registrarVerificacion,
 } from "@/app/(sgc)/reclamos/acciones";
 import {
   accionesPendientes,
-  admiteRechazo,
   casoCerrado,
-  COMPENSACIONES_SUGERIDAS,
   DIAS_VERIFICACION_PLAN_C,
-  ESTADOS_CLIENTE_FINAL,
-  ETIQUETAS_ESTADO_CLIENTE_RECLAMO,
-  exigeAccionCorrectiva,
-  exigeNoConformidad,
   estadoDePlazoDeAccion,
   ETIQUETAS_ESTADO_PLAZO,
-  excedeTopePorcentual,
-  tramoDeAutorizacion,
-  TRANSICIONES_RECLAMO,
+  exigeNoConformidad,
   type EstadoReclamo,
   type GravedadReclamo,
   type PlanReclamo,
 } from "@/lib/reclamos";
-import { formatearFecha, formatearGuaranies, hoyEnAsuncion } from "@/lib/formato";
 import { MAXIMO_EVIDENCIAS_ACCION } from "@/lib/constantes";
+import { formatearFecha, hoyEnAsuncion } from "@/lib/formato";
 
 interface Persona {
   id: string;
@@ -60,21 +53,37 @@ export interface ArchivoDeEvidencia {
 }
 
 /**
- * El caso, en un panel.
+ * El caso, en bloques encadenados.
  *
- * DOS COSAS DISTINTAS que conviven: las acciones del plan —qué se hace,
- * quién y cuándo, que el procedimiento exige registrar— y el paso
- * siguiente del ciclo.
+ * EL CIRCUITO ES UNA SOLA LINEA y cada bloque habilita el siguiente, con
+ * las palabras de Calidad del 12 de octubre:
  *
- * Los botones salen de `TRANSICIONES_RECLAMO`, la misma tabla que usa la
- * acción de servidor para aceptar o rechazar. Así la pantalla no puede
- * ofrecer algo que el servidor va a negar.
+ *   1. Se carga el reclamo.
+ *   2. Se declara la fecha de contacto con el cliente.
+ *   3. Recién ahí se planifican las acciones —qué, quién, para cuándo— y
+ *      se guardan. Guardar el plan ES definir el plan.
+ *   4. Las acciones guardadas quedan de solo lectura y aparece el bloque
+ *      de ejecución: la fecha real de cada una, con el «en plazo / fuera
+ *      de plazo» que sale solo, y su evidencia.
+ *   5. Con todas ejecutadas se habilita el cierre: resuelto o no
+ *      resuelto, con su comentario, y la compensación solo si se
+ *      resolvió.
+ *
+ * NO HAY «SIGUIENTE PASO». Era una tarjeta de botones que repetía lo que
+ * la persona acababa de hacer: se cargaban las acciones y después había
+ * que apretar «Definir el plan de acción» para decir que se habían
+ * cargado. El estado ahora sigue a la acción, que es como se comporta el
+ * resto del sistema.
+ *
+ * SE PLANIFICA UNA VEZ Y DESPUES SE MIDE. Son dos formularios y dos
+ * acciones de servidor distintas a propósito: si fueran el mismo, al
+ * cargar la fecha real se podría estar corrigiendo el plazo que se había
+ * prometido, y el «en plazo» dejaría de significar algo.
  */
 export function PanelCaso({
   reclamoId,
   estado,
   plan,
-  gravedad,
   personas,
   acciones,
   evidenciaPorAccion,
@@ -93,390 +102,16 @@ export function PanelCaso({
   suspendido: boolean;
   fechaVerificacion: string | null;
 }) {
-  const router = useRouter();
-  /**
-   * EL PASO VIENE ABIERTO CUANDO HAY UNO SOLO.
-   *
-   * Antes había que tocar el botón para que apareciera el campo. Con un
-   * único paso posible, ese botón no es una elección: es un clic de más
-   * entre la persona y lo único que puede hacer. Registrar el contacto
-   * con el cliente, que es el caso de todo reclamo recién cargado, pasa
-   * a mostrar la fecha directamente.
-   *
-   * Con más de un paso sigue habiendo que elegir, que ahí sí es una
-   * decisión.
-   */
-  const pasosDelEstado = TRANSICIONES_RECLAMO[estado].filter(
-    (posible) => !(posible === "resuelto" && accionesPendientes(acciones) > 0),
-  );
-  const unicoPaso = pasosDelEstado.length === 1 ? pasosDelEstado[0] : null;
-  const [destino, definirDestino] = React.useState<EstadoReclamo | null>(unicoPaso);
-  const [enviando, definirEnviando] = React.useState(false);
-  const [error, definirError] = React.useState<string | null>(null);
-  const [monto, definirMonto] = React.useState("");
-  const [factura, definirFactura] = React.useState("");
-
-  // EL CASO NO SE RESUELVE CON ACCIONES ABIERTAS. Declararlo resuelto
-  // con el plan a medias es decirle al cliente que está solucionado
-  // antes de haberlo solucionado. El servidor lo rechaza igual; acá se
-  // saca el paso de la pantalla para que no se ofrezca algo que va a ser
-  // negado, y se dice por qué.
+  const cerrado = casoCerrado(estado);
+  const planGuardado = acciones.length > 0;
   const sinEjecutar = accionesPendientes(acciones);
-  const posibles = TRANSICIONES_RECLAMO[estado].filter(
-    (posible) => !(posible === "resuelto" && sinEjecutar > 0),
-  );
-
-  const etiquetas: Partial<Record<EstadoReclamo, string>> = {
-    contactado: "Registrar el contacto con el cliente",
-    plan_definido: "Definir el plan de acción",
-    resuelto: "Registrar la resolución",
-    cerrado: "Cerrar el caso",
-    no_conciliado: "Cerrar como no conciliado",
-  };
-
-  const montoNumero = Number(monto.replace(/[^\d]/g, "")) || 0;
-  const facturaNumero = Number(factura.replace(/[^\d]/g, "")) || 0;
-  const tramo = montoNumero > 0 ? tramoDeAutorizacion(montoNumero) : null;
-  const excede = montoNumero > 0 ? excedeTopePorcentual(montoNumero, facturaNumero || null) : null;
-  /** El maximo en guaranies que admite el tramo para esta factura. */
-  const topeDelTramo =
-    tramo?.topePorcentaje != null && facturaNumero > 0
-      ? Math.floor((facturaNumero * tramo.topePorcentaje) / 100)
-      : null;
-
-  async function mover(evento: React.FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    if (!destino) return;
-
-    definirEnviando(true);
-    definirError(null);
-
-    const respuesta = await cambiarEstadoReclamo(reclamoId, destino, new FormData(evento.currentTarget));
-    definirEnviando(false);
-
-    if (!respuesta.exito) {
-      definirError(respuesta.error);
-      return;
-    }
-
-    toast.success(respuesta.mensaje ?? "Actualizado.");
-    definirDestino(null);
-    router.refresh();
-  }
-
-  async function rechazar() {
-    definirEnviando(true);
-    const respuesta = await registrarRechazo(reclamoId);
-    definirEnviando(false);
-
-    if (respuesta.exito) {
-      toast.success(respuesta.mensaje ?? "Rechazo registrado.");
-      router.refresh();
-    } else {
-      toast.error(respuesta.error);
-    }
-  }
-
-  const paso = (
-    <>
-      {posibles.length === 0 ? (
-        sinEjecutar > 0 && TRANSICIONES_RECLAMO[estado].includes("resuelto") ? (
-          <Tarjeta className="p-4">
-            <p className="text-xs font-semibold text-atenuado-contraste">Resolución del caso</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
-              Se habilita cuando estén ejecutadas las {sinEjecutar} acci
-              {sinEjecutar === 1 ? "ón" : "ones"} que quedan abiertas. Hasta entonces el caso no
-              está resuelto, por más que el cliente ya esté conforme.
-            </p>
-          </Tarjeta>
-        ) : null
-      ) : (
-        <Tarjeta className="p-4">
-          <p className="text-xs font-semibold">
-            {unicoPaso ? (etiquetas[unicoPaso] ?? "Siguiente paso") : "Siguiente paso"}
-          </p>
-
-          {/* CON UN SOLO PASO NO HAY BOTON QUE ELEGIR. El titulo ya
-              dice que se va a hacer y abajo esta el campo: un boton
-              encendido que repite el titulo y no decide nada es ruido, y
-              encima se lee como si hubiera que apretarlo primero. Con
-              mas de un paso sigue habiendo que elegir, y ahi si son
-              botones. */}
-          {!unicoPaso || admiteRechazo(estado) ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {unicoPaso
-                ? null
-                : posibles.map((posible) => (
-                    <Boton
-                      key={posible}
-                      tamano="pequeno"
-                      variante={destino === posible ? "primario" : "contorno"}
-                      onClick={() => {
-                        definirError(null);
-                        definirDestino(destino === posible ? null : posible);
-                      }}
-                    >
-                      {etiquetas[posible] ?? posible}
-                    </Boton>
-                  ))}
-
-              {/* El rechazo del cliente no es un estado: es lo que hace
-                  que el caso escale al plan siguiente para otra
-                  propuesta. */}
-              {admiteRechazo(estado) ? (
-                <Boton tamano="pequeno" variante="contorno" cargando={enviando} onClick={rechazar}>
-                  <ThumbsDown /> El cliente rechazó
-                </Boton>
-              ) : null}
-            </div>
-          ) : null}
-
-          {destino ? (
-            <form onSubmit={mover} className="mt-4 border-t border-borde pt-4">
-              {destino === "contactado" ? (
-                <GrupoCampo
-                  etiqueta="Fecha del contacto"
-                  htmlFor="fecha_contacto"
-                  ayuda="Desde acá se cuenta el plazo de resolución, no desde la detección."
-                >
-                  <Entrada id="fecha_contacto" name="fecha_contacto" type="date" defaultValue={hoyEnAsuncion()} />
-                </GrupoCampo>
-              ) : null}
-
-              {destino === "plan_definido" ? (
-                <div className="space-y-3">
-                  <GrupoCampo etiqueta="Fecha de definición del plan" htmlFor="fecha_definicion_plan">
-                    <Entrada
-                      id="fecha_definicion_plan"
-                      name="fecha_definicion_plan"
-                      type="date"
-                      defaultValue={hoyEnAsuncion()}
-                    />
-                  </GrupoCampo>
-
-                  {/* LAS ACCIONES NO SE PIDEN DOS VECES. Este paso
-                      tenía su propio formulario de acciones al lado de
-                      la tarjeta «Acciones del plan», que pide lo mismo:
-                      quien cargaba en los dos terminaba con la acción
-                      duplicada. Acá solo se confirma que el plan quedó
-                      definido; las acciones se cargan y se guardan
-                      arriba, que es donde después se les carga la
-                      evidencia y se las marca ejecutadas. */}
-                  <p className="rounded-md border border-borde bg-acento/40 p-2.5 text-[11px] leading-relaxed text-atenuado-contraste">
-                    Las acciones se cargan en «Acciones del plan», acá abajo. Guárdelas antes de
-                    confirmar este paso.
-                  </p>
-
-                  <label className="flex items-start gap-2 text-[11px] leading-relaxed">
-                    <input type="checkbox" name="tramite_digemabel" className="mt-0.5 size-3.5 accent-[#E01E37]" />
-                    <span>
-                      Hay trámite ante la DIGEMABEL en curso
-                      <span className="block text-atenuado-contraste">
-                        Suspende el plazo del plan desde hoy. Hay que informárselo al cliente por
-                        escrito.
-                      </span>
-                    </span>
-                  </label>
-
-                  <label className="flex items-start gap-2 text-[11px] leading-relaxed">
-                    <input type="checkbox" name="notificado_gerencia" className="mt-0.5 size-3.5 accent-[#E01E37]" />
-                    <span>
-                      Se notificó a la Gerencia General
-                      <span className="block text-atenuado-contraste">
-                        Obligatorio dentro de las 24 horas si hay material controlado o
-                        repercusión pública.
-                      </span>
-                    </span>
-                  </label>
-
-                  {plan === "c" ? (
-                    <p className="rounded-md border border-semaforo-medio/40 bg-semaforo-medio/5 p-2.5 text-[11px] leading-relaxed">
-                      Al definir el plan de un Plan C se abre una no conformidad automáticamente,
-                      con su número y su plazo, y queda vinculada a este caso.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {destino === "resuelto" ? (
-                <div className="space-y-3">
-                  {/* CÓMO SE SOLUCIONÓ, antes que la plata. Es distinto
-                      de la compensación: la compensación es lo que se le
-                      dio al cliente, la resolución es lo que se hizo
-                      para que el problema deje de existir. Un caso puede
-                      resolverse sin compensación ninguna, y así quedaba
-                      sin registro de nada. */}
-                  <GrupoCampo
-                    etiqueta="Resolución del caso"
-                    htmlFor="resolucion_detalle"
-                    requerido
-                    ayuda="Cómo se solucionó. Es lo que queda como registro de la gestión."
-                  >
-                    <AreaTexto
-                      id="resolucion_detalle"
-                      name="resolucion_detalle"
-                      rows={3}
-                      required
-                      minLength={10}
-                      placeholder="Se retiró el artículo equivocado y se entregó el correcto en el domicilio del cliente."
-                    />
-                  </GrupoCampo>
-
-                  <GrupoCampo etiqueta="Fecha de resolución" htmlFor="fecha_resolucion">
-                    <Entrada id="fecha_resolucion" name="fecha_resolucion" type="date" defaultValue={hoyEnAsuncion()} />
-                  </GrupoCampo>
-
-                  <GrupoCampo
-                    etiqueta="Compensación acordada"
-                    htmlFor="compensacion_detalle"
-                    ayuda={`Sugeridas para esta gravedad: ${COMPENSACIONES_SUGERIDAS[gravedad].join(" · ")}`}
-                  >
-                    <AreaTexto id="compensacion_detalle" name="compensacion_detalle" rows={2} />
-                  </GrupoCampo>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <GrupoCampo
-                      etiqueta="Monto de la compensación"
-                      htmlFor="compensacion_monto"
-                      ayuda="Vacío si no hay compensación económica."
-                    >
-                      <Entrada
-                        id="compensacion_monto"
-                        name="compensacion_monto"
-                        inputMode="numeric"
-                        value={monto}
-                        onChange={(evento) => definirMonto(evento.target.value)}
-                        placeholder="0"
-                      />
-                    </GrupoCampo>
-                    <GrupoCampo
-                      etiqueta="Monto de la factura afectada"
-                      htmlFor="monto_factura"
-                      ayuda="El porcentaje se calcula sobre esto, no sobre el perjuicio estimado."
-                    >
-                      <Entrada
-                        id="monto_factura"
-                        name="monto_factura"
-                        inputMode="numeric"
-                        value={factura}
-                        onChange={(evento) => definirFactura(evento.target.value)}
-                        placeholder="0"
-                      />
-                    </GrupoCampo>
-                  </div>
-
-                  {tramo ? (
-                    <div className="rounded-md border border-borde bg-acento/40 p-2.5 text-[11px] leading-relaxed">
-                      <p>
-                        <span className="font-medium">
-                          {formatearGuaranies(montoNumero)} lo autoriza:
-                        </span>{" "}
-                        {tramo.autoriza}
-                        {tramo.requiereCofirma
-                          ? ", con co-firma del Gerente de Administración y Finanzas o del Gerente General"
-                          : null}
-                        .
-                      </p>
-                      {/* EL TOPE PORCENTUAL BLOQUEA, no avisa. Antes
-                          decía «tiene que autorizarlo el nivel
-                          siguiente», y no es lo que pasa: el tramo lo
-                          decide el monto, así que no hay nivel
-                          siguiente al que pasarle este caso. La salida
-                          es bajar la compensación. */}
-                      {excede === true ? (
-                        <p className="mt-1 font-medium text-semaforo-critico">
-                          Excede el tope del {tramo.topePorcentaje} % de la factura para este
-                          tramo. El máximo es {formatearGuaranies(topeDelTramo ?? 0)}: con más
-                          que eso no se puede guardar.
-                        </p>
-                      ) : null}
-                      {excede === null ? (
-                        <p className="mt-1 text-semaforo-medio">
-                          Cargue el monto de la factura: sin él no hay porcentaje que calcular y
-                          la compensación no se puede guardar.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <GrupoCampo etiqueta="Quién autorizó" htmlFor="autorizado_por">
-                    <Seleccion id="autorizado_por" name="autorizado_por" defaultValue="">
-                      <option value="">Sin compensación económica</option>
-                      {personas.map((persona) => (
-                        <option key={persona.id} value={persona.id}>
-                          {persona.nombre_completo}
-                        </option>
-                      ))}
-                    </Seleccion>
-                  </GrupoCampo>
-
-                  <label className="flex items-start gap-2 text-[11px] leading-relaxed">
-                    <input type="checkbox" name="conformidad_firmada" className="mt-0.5 size-3.5 accent-[#E01E37]" />
-                    <span>
-                      El cliente firmó su conformidad
-                      <span className="block text-atenuado-contraste">
-                        Obligatorio antes de ejecutar cualquier compensación económica o reembolso.
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              ) : null}
-
-              {destino === "cerrado" ? (
-                <GrupoCampo
-                  etiqueta="Estado final del cliente"
-                  htmlFor="estado_cliente"
-                  requerido
-                  ayuda="Es el dato que después alimenta el porcentaje de clientes recuperados."
-                >
-                  <Seleccion id="estado_cliente" name="estado_cliente" defaultValue="recuperado">
-                    {ESTADOS_CLIENTE_FINAL.map((valor) => (
-                      <option key={valor} value={valor}>
-                        {ETIQUETAS_ESTADO_CLIENTE_RECLAMO[valor]}
-                      </option>
-                    ))}
-                  </Seleccion>
-                </GrupoCampo>
-              ) : null}
-
-              {destino === "no_conciliado" ? (
-                <GrupoCampo
-                  etiqueta="Motivo"
-                  htmlFor="motivo_no_conciliado"
-                  requerido
-                  ayuda="Qué se le ofreció y por qué no se llegó a un acuerdo."
-                >
-                  <AreaTexto id="motivo_no_conciliado" name="motivo_no_conciliado" rows={3} required minLength={10} />
-                </GrupoCampo>
-              ) : null}
-
-              {error ? <p className="mt-3 text-xs text-semaforo-critico">{error}</p> : null}
-
-              <div className="mt-4 flex justify-end">
-                <Boton type="submit" tamano="pequeno" cargando={enviando}>
-                  Confirmar
-                </Boton>
-              </div>
-            </form>
-          ) : null}
-        </Tarjeta>
-      )}
-    </>
-  );
 
   return (
     <div className="space-y-4">
-      {/* EL PASO DEL CASO VA ARRIBA DE LAS ACCIONES. El orden anterior
-          pedía primero cargar las acciones y recién abajo registrar que
-          se habló con el cliente, que es al revés de como pasa: primero
-          se contacta, y de esa conversación salen las acciones. */}
-      {paso}
+      {/* EL CONTACTO ES EL PRIMER PASO Y EL UNICO QUE QUEDA COMO PASO:
+          es una fecha y nada más. */}
+      {estado === "registrado" ? <RegistrarContacto reclamoId={reclamoId} /> : null}
 
-      {/* LAS ACCIONES SE HABILITAN RECIEN CON EL CONTACTO HECHO. De la
-          conversacion con el cliente salen las acciones: ofrecerlas
-          antes es pedir que se invente el plan sin haber escuchado el
-          reclamo, y encima el plazo de resolucion se cuenta desde el
-          contacto, no desde la deteccion. */}
       {estado === "registrado" ? (
         <Tarjeta className="p-4">
           <p className="text-xs font-semibold text-atenuado-contraste">Acciones del plan</p>
@@ -486,111 +121,199 @@ export function PanelCaso({
           </p>
         </Tarjeta>
       ) : (
-        <AccionesDelPlan
+        <PlanificacionDeAcciones
           reclamoId={reclamoId}
           personas={personas}
           iniciales={acciones}
-          evidenciaPorAccion={evidenciaPorAccion}
-          exigeCorrectiva={exigeAccionCorrectiva(plan)}
+          cerrado={cerrado}
         />
       )}
 
-      {suspendido ? <BotonReanudar reclamoId={reclamoId} /> : null}
-
-      {exigeNoConformidad(plan) && casoCerrado(estado) ? (
-        <Verificacion reclamoId={reclamoId} fechaVerificacion={fechaVerificacion} />
+      {planGuardado && !cerrado ? (
+        <EjecucionDeAcciones
+          reclamoId={reclamoId}
+          acciones={acciones}
+          personas={personas}
+          evidenciaPorAccion={evidenciaPorAccion}
+        />
       ) : null}
 
+      {planGuardado && !cerrado ? (
+        <CierreDelCaso reclamoId={reclamoId} sinEjecutar={sinEjecutar} />
+      ) : null}
+
+      {suspendido ? <BotonReanudar reclamoId={reclamoId} /> : null}
+
+      {exigeNoConformidad(plan) && cerrado ? (
+        <Verificacion reclamoId={reclamoId} fechaVerificacion={fechaVerificacion} />
+      ) : null}
     </div>
   );
 }
 
 /**
- * Las acciones del plan.
+ * El contacto con el cliente: una fecha y confirmar.
  *
- * El procedimiento pide que quede registrado qué acciones se toman, quién
- * las ejecuta y en qué fecha. En los planes B y C el caso NO SE CIERRA
- * hasta que estén todas ejecutadas: sin eso el caso se resolvió para el
- * cliente pero la causa sigue viva.
+ * Desde acá se cuenta el plazo de resolución, no desde la detección, así
+ * que es lo primero que se registra y lo que habilita todo lo demás.
  */
-function AccionesDelPlan({
+function RegistrarContacto({ reclamoId }: { reclamoId: string }) {
+  const router = useRouter();
+  const [enviando, definirEnviando] = React.useState(false);
+  const [error, definirError] = React.useState<string | null>(null);
+
+  async function confirmar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    definirEnviando(true);
+    definirError(null);
+
+    const respuesta = await cambiarEstadoReclamo(
+      reclamoId,
+      "contactado",
+      new FormData(evento.currentTarget),
+    );
+    definirEnviando(false);
+
+    if (!respuesta.exito) {
+      definirError(respuesta.error);
+      return;
+    }
+
+    toast.success(respuesta.mensaje ?? "Contacto registrado.");
+    router.refresh();
+  }
+
+  return (
+    <Tarjeta className="p-4">
+      <p className="text-xs font-semibold">Registrar el contacto con el cliente</p>
+
+      <form onSubmit={confirmar} className="mt-3">
+        <GrupoCampo
+          etiqueta="Fecha del contacto"
+          htmlFor="fecha_contacto"
+          ayuda="Desde acá se cuenta el plazo de resolución, no desde la detección."
+        >
+          <Entrada
+            id="fecha_contacto"
+            name="fecha_contacto"
+            type="date"
+            defaultValue={hoyEnAsuncion()}
+          />
+        </GrupoCampo>
+
+        {error ? <p className="mt-3 text-xs text-semaforo-critico">{error}</p> : null}
+
+        <div className="mt-4 flex justify-end">
+          <Boton type="submit" tamano="pequeno" cargando={enviando}>
+            Confirmar
+          </Boton>
+        </div>
+      </form>
+    </Tarjeta>
+  );
+}
+
+/**
+ * Planificar: qué se hace, quién lo hace y para cuándo.
+ *
+ * LO GUARDADO QUEDA DE SOLO LECTURA. Lo que se promete tiene que quedar
+ * escrito: si el plazo se pudiera corregir después, el «en plazo / fuera
+ * de plazo» del bloque siguiente mediría contra un plazo movido a
+ * conveniencia, y dejaría de medir nada.
+ *
+ * Se pueden AGREGAR acciones más adelante —un plan puede quedar corto— y
+ * eso no toca las que ya están.
+ */
+function PlanificacionDeAcciones({
   reclamoId,
   personas,
   iniciales,
-  evidenciaPorAccion,
-  exigeCorrectiva,
+  cerrado,
 }: {
   reclamoId: string;
   personas: Persona[];
   iniciales: AccionDelPlan[];
-  evidenciaPorAccion: Record<string, ArchivoDeEvidencia[]>;
-  exigeCorrectiva: boolean;
+  cerrado: boolean;
 }) {
   const router = useRouter();
-  const hoy = hoyEnAsuncion();
   const [guardando, definirGuardando] = React.useState(false);
-  const [filas, definirFilas] = React.useState(() =>
-    iniciales.length > 0
-      ? iniciales.map((accion, indice) => ({ clave: indice, ...accion }))
-      : [
-          {
-            clave: 0,
-            id: "",
-            descripcion: "",
-            responsable_id: null as string | null,
-            fecha_limite: null as string | null,
-            ejecutada_en: null as string | null,
-          },
-        ],
+  const [nuevas, definirNuevas] = React.useState<{ clave: number }[]>(
+    iniciales.length === 0 ? [{ clave: 0 }] : [],
   );
-  const siguiente = React.useRef(Math.max(iniciales.length, 1));
+  const siguiente = React.useRef(1);
 
-  const pendientes = iniciales.filter((a) => !a.ejecutada_en).length;
+  const nombrePorId = React.useMemo(
+    () => new Map(personas.map((persona) => [persona.id, persona.nombre_completo])),
+    [personas],
+  );
 
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     definirGuardando(true);
-    const respuesta = await guardarAccionesDelPlan(reclamoId, new FormData(evento.currentTarget));
+
+    // Las ya guardadas viajan igual, sin cambios: la acción de servidor
+    // borra lo que no venga en el formulario, así que omitirlas las
+    // eliminaría.
+    const datos = new FormData(evento.currentTarget);
+    const respuesta = await guardarAccionesDelPlan(reclamoId, datos);
     definirGuardando(false);
 
-    if (respuesta.exito) {
-      toast.success(respuesta.mensaje ?? "Guardado.");
-      router.refresh();
-    } else {
+    if (!respuesta.exito) {
       toast.error(respuesta.error);
+      return;
     }
+
+    toast.success(respuesta.mensaje ?? "Guardado.");
+    definirNuevas([]);
+    router.refresh();
   }
 
   return (
     <Tarjeta className="p-4">
       <p className="text-xs font-semibold">Acciones del plan</p>
       <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
-        Qué se hace, quién lo hace y cuándo.
-        {exigeCorrectiva
-          ? ` En este plan el caso no se cierra hasta que estén todas ejecutadas${
-              pendientes > 0 ? ` (quedan ${pendientes})` : ""
-            }.`
-          : null}
+        Qué se hace, quién lo hace y para cuándo. Una vez guardada, la acción no se edita: su
+        plazo es contra lo que después se mide si se cumplió.
       </p>
 
       <form onSubmit={guardar} className="space-y-3">
-        {filas.map((fila) => {
-          const plazo = estadoDePlazoDeAccion(fila.fecha_limite, fila.ejecutada_en, hoy);
+        {/* LAS YA GUARDADAS, DE SOLO LECTURA. Viajan en campos ocultos
+            para que el servidor no las borre al recibir el formulario. */}
+        {iniciales.map((accion, indice) => (
+          <div key={accion.id} className="rounded-md border border-borde bg-acento/30 p-2.5">
+            <input type="hidden" name="accion_id" value={accion.id} />
+            <input type="hidden" name="accion_descripcion" value={accion.descripcion} />
+            <input type="hidden" name="accion_responsable" value={accion.responsable_id ?? ""} />
+            <input type="hidden" name="accion_fecha_limite" value={accion.fecha_limite ?? ""} />
+            <input type="hidden" name="accion_ejecutada_en" value={accion.ejecutada_en ?? ""} />
 
-          return (
+            <p className="text-xs leading-snug">
+              <span className="mr-1.5 text-atenuado-contraste">{indice + 1}.</span>
+              {accion.descripcion}
+            </p>
+            <p className="mt-1 text-[11px] text-atenuado-contraste">
+              {accion.responsable_id
+                ? (nombrePorId.get(accion.responsable_id) ?? "Responsable sin asignar")
+                : "Responsable sin asignar"}
+              {accion.fecha_limite ? ` · para el ${formatearFecha(accion.fecha_limite)}` : null}
+            </p>
+          </div>
+        ))}
+
+        {nuevas.map((fila, indice) => (
           <div key={fila.clave} className="rounded-md border border-borde p-2.5">
-            <input type="hidden" name="accion_id" value={fila.id} />
+            <input type="hidden" name="accion_id" value="" />
+            <input type="hidden" name="accion_ejecutada_en" value="" />
 
             <div className="flex items-start gap-2">
               <AreaTexto
                 name="accion_descripcion"
                 rows={2}
-                defaultValue={fila.descripcion}
                 required
                 minLength={10}
                 placeholder="Retirar el artículo equivocado y entregar el correcto"
                 className="text-xs"
-                aria-label="Qué se hace"
+                aria-label={`Qué se hace, acción ${iniciales.length + indice + 1}`}
               />
               <Boton
                 type="button"
@@ -598,9 +321,7 @@ function AccionesDelPlan({
                 variante="fantasma"
                 aria-label="Quitar acción"
                 onClick={() =>
-                  definirFilas((actuales) =>
-                    actuales.length === 1 ? actuales : actuales.filter((o) => o.clave !== fila.clave),
-                  )
+                  definirNuevas((actuales) => actuales.filter((o) => o.clave !== fila.clave))
                 }
               >
                 <X />
@@ -610,7 +331,7 @@ function AccionesDelPlan({
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <Seleccion
                 name="accion_responsable"
-                defaultValue={fila.responsable_id ?? ""}
+                defaultValue=""
                 required
                 className="text-xs"
                 aria-label="Responsable de la acción"
@@ -623,145 +344,162 @@ function AccionesDelPlan({
                 ))}
               </Seleccion>
 
-              {/* UNA SOLA FECHA, Y DICE CUÁL ES. Eran dos campos de fecha
-                  pegados y sin rótulo —el plazo y la ejecución—, así que
-                  no había forma de saber cuál era cuál sin pasar el
-                  puntero por encima. */}
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] text-atenuado-contraste">
                   Límite para ejecutar la acción
                 </span>
-                <Entrada
-                  name="accion_fecha_limite"
-                  type="date"
-                  value={fila.fecha_limite ?? ""}
-                  onChange={(evento) =>
-                    definirFilas((actuales) =>
-                      actuales.map((otra) =>
-                        otra.clave === fila.clave
-                          ? { ...otra, fecha_limite: evento.target.value || null }
-                          : otra,
-                      ),
-                    )
-                  }
-                  required
-                  className="text-xs"
-                />
-
-                {/* EN PLAZO O FUERA DE PLAZO, LA MISMA CUENTA ABIERTA Y
-                    CERRADA. Mientras la acción está abierta se compara
-                    contra hoy y sirve para saberlo ANTES de que se
-                    venza; al marcarla ejecutada queda fija contra la
-                    fecha en que se ejecutó. Si fueran dos cuentas
-                    distintas, la leyenda podría decir una cosa abierta y
-                    otra cerrada sobre la misma acción. */}
-                {plazo && fila.id ? (
-                  <span
-                    className={
-                      plazo === "en_plazo"
-                        ? "text-[11px] font-medium text-semaforo-bajo"
-                        : "text-[11px] font-medium text-semaforo-critico"
-                    }
-                  >
-                    {ETIQUETAS_ESTADO_PLAZO[plazo]}
-                    {!fila.ejecutada_en ? (
-                      <span className="font-normal text-atenuado-contraste">
-                        {" "}
-                        · todavía sin ejecutar
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
+                <Entrada name="accion_fecha_limite" type="date" required className="text-xs" />
               </label>
             </div>
-
-            {/* EJECUTADA Y EVIDENCIA, RECIÉN DESPUÉS DE GUARDAR. Primero
-                se planifica —qué se hace, quién y para cuándo— y se
-                guarda; a partir de ahí la acción existe y se la puede
-                medir. Ofrecer «Ejecutada» en una fila que todavía no se
-                guardó es ofrecer declarar cumplido algo que todavía no
-                se planificó, y la evidencia ni siquiera tiene dónde
-                colgarse: hace falta el id de la acción. */}
-            {!fila.id ? (
-              <p className="mt-2 border-t border-borde pt-2 text-[11px] text-atenuado-contraste">
-                Guarde la acción para poder marcarla ejecutada y adjuntarle evidencia.
-              </p>
-            ) : (
-              <>
-            {/* LA EJECUCIÓN PASA A SER UNA CASILLA. Era la segunda fecha,
-                y no se podía sacar sin romper el cierre del caso: en los
-                planes B y C el reclamo no cierra hasta que estén todas
-                ejecutadas. Como casilla sigue cumpliendo esa función y
-                deja una sola fecha, que es lo que se pidió.
-
-                Marcarla guarda la fecha de hoy; si ya tenía una, se
-                respeta la que estaba. */}
-            <label className="mt-2 flex items-center gap-2 text-[11px]">
-              <input
-                type="checkbox"
-                checked={Boolean(fila.ejecutada_en)}
-                onChange={(evento) =>
-                  definirFilas((actuales) =>
-                    actuales.map((otra) =>
-                      otra.clave === fila.clave
-                        ? {
-                            ...otra,
-                            ejecutada_en: evento.target.checked
-                              ? (otra.ejecutada_en ?? hoyEnAsuncion())
-                              : null,
-                          }
-                        : otra,
-                    ),
-                  )
-                }
-                className="size-3.5 accent-[#E01E37]"
-              />
-              <span>
-                Ejecutada
-                {fila.ejecutada_en ? (
-                  <span className="text-atenuado-contraste">
-                    {" "}
-                    el {formatearFecha(fila.ejecutada_en)}
-                  </span>
-                ) : null}
-              </span>
-            </label>
-            <input type="hidden" name="accion_ejecutada_en" value={fila.ejecutada_en ?? ""} />
-
-            <EvidenciaDeAccion
-              accionId={fila.id}
-              reclamoId={reclamoId}
-              archivos={evidenciaPorAccion[fila.id] ?? []}
-            />
-              </>
-            )}
           </div>
+        ))}
+
+        {cerrado ? null : (
+          <div className="flex items-center justify-between gap-2">
+            <Boton
+              type="button"
+              tamano="pequeno"
+              variante="contorno"
+              onClick={() =>
+                definirNuevas((actuales) => [...actuales, { clave: siguiente.current++ }])
+              }
+            >
+              <Plus /> {iniciales.length === 0 ? "Otra acción" : "Agregar acción"}
+            </Boton>
+
+            {nuevas.length > 0 ? (
+              <Boton type="submit" tamano="pequeno" cargando={guardando}>
+                Guardar acciones
+              </Boton>
+            ) : null}
+          </div>
+        )}
+      </form>
+    </Tarjeta>
+  );
+}
+
+/**
+ * Medir: cuándo se ejecutó cada acción.
+ *
+ * LA FECHA DECIDE SOLA SI FUE EN PLAZO. No hay nada que elegir: se carga
+ * la fecha real y el sistema la compara contra el plazo que se había
+ * prometido. Dejar que la persona declarara «en plazo» a mano sería
+ * pedirle que se califique a sí misma.
+ */
+function EjecucionDeAcciones({
+  reclamoId,
+  acciones,
+  personas,
+  evidenciaPorAccion,
+}: {
+  reclamoId: string;
+  acciones: AccionDelPlan[];
+  personas: Persona[];
+  evidenciaPorAccion: Record<string, ArchivoDeEvidencia[]>;
+}) {
+  const router = useRouter();
+  const hoy = hoyEnAsuncion();
+  const [guardando, definirGuardando] = React.useState(false);
+  const [fechas, definirFechas] = React.useState<Record<string, string>>(() =>
+    Object.fromEntries(acciones.map((accion) => [accion.id, accion.ejecutada_en ?? ""])),
+  );
+
+  const nombrePorId = React.useMemo(
+    () => new Map(personas.map((persona) => [persona.id, persona.nombre_completo])),
+    [personas],
+  );
+
+  async function guardar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    definirGuardando(true);
+    const respuesta = await guardarEjecucionDeAcciones(reclamoId, new FormData(evento.currentTarget));
+    definirGuardando(false);
+
+    if (respuesta.exito) {
+      toast.success(respuesta.mensaje ?? "Guardado.");
+      router.refresh();
+    } else {
+      toast.error(respuesta.error);
+    }
+  }
+
+  return (
+    <Tarjeta className="p-4">
+      <p className="text-xs font-semibold">Ejecución de las acciones</p>
+      <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+        Cargue la fecha en que se ejecutó cada una. El sistema dice solo si fue en plazo o fuera
+        de plazo, comparando contra el límite que se había fijado.
+      </p>
+
+      <form onSubmit={guardar} className="space-y-3">
+        {acciones.map((accion, indice) => {
+          const fecha = fechas[accion.id] ?? "";
+          const plazo = estadoDePlazoDeAccion(accion.fecha_limite, fecha || null, hoy);
+
+          return (
+            <div key={accion.id} className="rounded-md border border-borde p-2.5">
+              <input type="hidden" name="accion_id" value={accion.id} />
+
+              <p className="text-xs leading-snug">
+                <span className="mr-1.5 text-atenuado-contraste">{indice + 1}.</span>
+                {accion.descripcion}
+              </p>
+              <p className="mt-1 text-[11px] text-atenuado-contraste">
+                {accion.responsable_id
+                  ? (nombrePorId.get(accion.responsable_id) ?? "Sin responsable")
+                  : "Sin responsable"}
+                {accion.fecha_limite ? ` · límite ${formatearFecha(accion.fecha_limite)}` : null}
+              </p>
+
+              <div className="mt-2 grid items-end gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-atenuado-contraste">Ejecutada el</span>
+                  <Entrada
+                    name="accion_ejecutada_en"
+                    type="date"
+                    value={fecha}
+                    onChange={(evento) =>
+                      definirFechas((actuales) => ({
+                        ...actuales,
+                        [accion.id]: evento.target.value,
+                      }))
+                    }
+                    className="text-xs"
+                  />
+                </label>
+
+                <p className="text-[11px]">
+                  {!fecha ? (
+                    <span className="text-atenuado-contraste">Sin ejecutar</span>
+                  ) : plazo === "en_plazo" ? (
+                    <span className="font-medium text-semaforo-bajo">
+                      {ETIQUETAS_ESTADO_PLAZO.en_plazo}
+                    </span>
+                  ) : plazo === "fuera_de_plazo" ? (
+                    <span className="font-medium text-semaforo-critico">
+                      {ETIQUETAS_ESTADO_PLAZO.fuera_de_plazo}
+                    </span>
+                  ) : (
+                    <span className="text-atenuado-contraste">
+                      Sin límite declarado: no hay contra qué compararla
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <EvidenciaDeAccion
+                accionId={accion.id}
+                reclamoId={reclamoId}
+                archivos={evidenciaPorAccion[accion.id] ?? []}
+              />
+            </div>
           );
         })}
 
-        <div className="flex items-center justify-between gap-2">
-          <Boton
-            type="button"
-            tamano="pequeno"
-            variante="contorno"
-            onClick={() =>
-              definirFilas((actuales) => [
-                ...actuales,
-                {
-                  clave: siguiente.current++,
-                  id: "",
-                  descripcion: "",
-                  responsable_id: null,
-                  fecha_limite: null,
-                  ejecutada_en: null,
-                },
-              ])
-            }
-          >
-            <Plus /> Otra acción
-          </Boton>
+        <div className="flex justify-end">
           <Boton type="submit" tamano="pequeno" cargando={guardando}>
-            Guardar acciones
+            Guardar ejecución
           </Boton>
         </div>
       </form>
@@ -770,114 +508,113 @@ function AccionesDelPlan({
 }
 
 /**
- * Reanudar el plazo cuando el trámite ante la DIGEMABEL terminó.
+ * El cierre: resuelto o no resuelto.
  *
- * Va suelto y arriba de todo porque mientras el caso está suspendido no
- * corre ningún plazo: es lo primero que hay que resolver, no un paso más
- * del ciclo.
- */
-function BotonReanudar({ reclamoId }: { reclamoId: string }) {
-  const router = useRouter();
-  const [enviando, definirEnviando] = React.useState(false);
-
-  return (
-    <Tarjeta className="border-semaforo-medio/40 bg-semaforo-medio/5 p-4">
-      <p className="text-xs font-semibold">Plazo suspendido</p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
-        Mientras dure el trámite el caso no cuenta como fuera de plazo. Al reanudarlo, los días
-        hábiles que el trámite duró se le devuelven al plazo de resolución.
-      </p>
-      <Boton
-        tamano="pequeno"
-        variante="contorno"
-        className="mt-2"
-        cargando={enviando}
-        onClick={async () => {
-          definirEnviando(true);
-          const respuesta = await reanudarPlazoSuspendido(reclamoId);
-          definirEnviando(false);
-          if (respuesta.exito) {
-            toast.success(respuesta.mensaje ?? "Plazo reanudado.");
-            router.refresh();
-          } else {
-            toast.error(respuesta.error);
-          }
-        }}
-      >
-        <PlayCircle /> El trámite terminó, reanudar el plazo
-      </Boton>
-    </Tarjeta>
-  );
-}
-
-/**
- * La verificación con el cliente a los 30 días de cerrar un Plan C.
+ * SE HABILITA RECIEN CON TODAS LAS ACCIONES EJECUTADAS, sin importar si
+ * fueron en plazo o fuera: lo que decide que el caso se puede cerrar es
+ * que el plan esté hecho, no que haya salido bien.
  *
- * Es lo único que separa un caso cerrado de un caso resuelto: que alguien
- * volvió a preguntarle al cliente si la solución sirvió.
+ * LA COMPENSACION SOLO APARECE EN «RESUELTO». Un caso que no se resolvió
+ * no compensó nada, y dejar el campo visible invitaría a escribir algo
+ * ahí que después nadie sabría cómo leer.
  */
-function Verificacion({
+function CierreDelCaso({
   reclamoId,
-  fechaVerificacion,
+  sinEjecutar,
 }: {
   reclamoId: string;
-  fechaVerificacion: string | null;
+  sinEjecutar: number;
 }) {
   const router = useRouter();
+  const [resultado, definirResultado] = React.useState("");
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
 
-  async function guardar(evento: React.FormEvent<HTMLFormElement>) {
+  if (sinEjecutar > 0) {
+    return (
+      <Tarjeta className="p-4">
+        <p className="text-xs font-semibold text-atenuado-contraste">Cierre del caso</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
+          Se habilita cuando las {sinEjecutar} acci{sinEjecutar === 1 ? "ón" : "ones"} que quedan
+          tengan su fecha de ejecución. Hasta entonces el plan no está hecho, por más que el
+          cliente ya esté conforme.
+        </p>
+      </Tarjeta>
+    );
+  }
+
+  async function cerrar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     definirEnviando(true);
     definirError(null);
 
-    const respuesta = await registrarVerificacion(reclamoId, new FormData(evento.currentTarget));
+    const respuesta = await cerrarCaso(reclamoId, new FormData(evento.currentTarget));
     definirEnviando(false);
 
-    if (respuesta.exito) {
-      toast.success(respuesta.mensaje ?? "Verificación registrada.");
-      router.refresh();
-    } else {
+    if (!respuesta.exito) {
       definirError(respuesta.error);
+      return;
     }
+
+    toast.success(respuesta.mensaje ?? "Caso cerrado.");
+    router.refresh();
   }
 
   return (
     <Tarjeta className="p-4">
-      <p className="text-xs font-semibold">
-        Verificación con el cliente a los {DIAS_VERIFICACION_PLAN_C} días
-      </p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
-        {fechaVerificacion
-          ? "Ya está registrada. Si vuelve a hablar con el cliente, se puede corregir."
-          : "El Plan C la pide después del cierre: si la solución se sostuvo y qué dijo el cliente."}
+      <p className="text-xs font-semibold">Cierre del caso</p>
+      <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+        Todas las acciones están ejecutadas. Declare con qué resultado cierra el caso.
       </p>
 
-      <form onSubmit={guardar} className="mt-3 space-y-3">
-        <GrupoCampo etiqueta="Fecha de la verificación" htmlFor="fecha_verificacion">
-          <Entrada
-            id="fecha_verificacion"
-            name="fecha_verificacion"
-            type="date"
-            defaultValue={fechaVerificacion ?? hoyEnAsuncion()}
-          />
-        </GrupoCampo>
-        <GrupoCampo etiqueta="Qué dijo el cliente" htmlFor="verificacion_observacion" requerido>
-          <AreaTexto
-            id="verificacion_observacion"
-            name="verificacion_observacion"
-            rows={3}
+      <form onSubmit={cerrar} className="space-y-3">
+        <GrupoCampo etiqueta="Resultado" htmlFor="resultado" requerido>
+          <Seleccion
+            id="resultado"
+            name="resultado"
+            value={resultado}
+            onChange={(evento) => definirResultado(evento.target.value)}
             required
-            minLength={10}
-          />
+          >
+            <option value="">Elija el resultado…</option>
+            <option value="resuelto">Resuelto</option>
+            <option value="no_resuelto">No resuelto</option>
+          </Seleccion>
         </GrupoCampo>
+
+        <GrupoCampo
+          etiqueta="Comentarios"
+          htmlFor="comentario"
+          requerido
+          ayuda="Qué pasó con el caso. Es lo que queda como registro de la gestión."
+        >
+          <AreaTexto id="comentario" name="comentario" rows={3} required minLength={10} />
+        </GrupoCampo>
+
+        {/* UN CAMPO QUE NO CORRESPONDE SE DESMONTA, no se esconde con
+            CSS: el navegador se niega a enviar un formulario por un
+            campo `required` que no se ve, y el botón queda muerto sin
+            decir por qué. Pasó el 9 de octubre con el riesgo. */}
+        {resultado === "resuelto" ? (
+          <GrupoCampo
+            etiqueta="Compensación otorgada"
+            htmlFor="compensacion"
+            ayuda="Qué se le dio al cliente. Vacío si no hubo compensación."
+          >
+            <AreaTexto
+              id="compensacion"
+              name="compensacion"
+              rows={2}
+              placeholder="Cambio del artículo sin costo y envío a domicilio."
+            />
+          </GrupoCampo>
+        ) : null}
 
         {error ? <p className="text-xs text-semaforo-critico">{error}</p> : null}
 
         <div className="flex justify-end">
           <Boton type="submit" tamano="pequeno" cargando={enviando}>
-            Guardar la verificación
+            Cerrar el caso
           </Boton>
         </div>
       </form>
@@ -888,7 +625,7 @@ function Verificacion({
 /**
  * La evidencia de una acción del plan.
  *
- * HASTA CINCO ARCHIVOS POR ACCIÓN, contando los que ya tiene: es un tope
+ * HASTA CINCO ARCHIVOS POR ACCION, contando los que ya tiene: es un tope
  * por acción y no por subida. Alcanza para el acta, la foto, el correo y
  * el comprobante; más que eso deja de ser evidencia de una acción y pasa
  * a ser un archivo. Es el mismo tope que en las acciones de tratamiento
@@ -969,9 +706,9 @@ function EvidenciaDeAccion({
         </ul>
       ) : null}
 
-      {/* La subida va por fuera del formulario de las acciones: es una
+      {/* La subida va por fuera del formulario de la ejecución: es una
           acción de servidor distinta y no tiene que arrastrar consigo el
-          guardado de las descripciones y los plazos. */}
+          guardado de las fechas. */}
       {libres > 0 ? (
         <>
           <input
@@ -1002,5 +739,110 @@ function EvidenciaDeAccion({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Reanudar el plazo cuando el trámite ante la DIGEMABEL terminó.
+ *
+ * El trámite detiene el reloj: el caso no puede correr contra un plazo
+ * que depende de un tercero. Al volver, el plazo se recalcula desde hoy.
+ */
+function BotonReanudar({ reclamoId }: { reclamoId: string }) {
+  const router = useRouter();
+  const [enviando, definirEnviando] = React.useState(false);
+
+  async function reanudar() {
+    definirEnviando(true);
+    const respuesta = await reanudarPlazoSuspendido(reclamoId);
+    definirEnviando(false);
+
+    if (respuesta.exito) {
+      toast.success(respuesta.mensaje ?? "Plazo reanudado.");
+      router.refresh();
+    } else {
+      toast.error(respuesta.error);
+    }
+  }
+
+  return (
+    <Tarjeta className="p-4">
+      <p className="text-xs font-semibold">Trámite ante la DIGEMABEL</p>
+      <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+        El plazo del caso está detenido mientras dure el trámite. Al reanudarlo, se recalcula
+        desde hoy.
+      </p>
+      <Boton tamano="pequeno" variante="contorno" cargando={enviando} onClick={reanudar}>
+        <PlayCircle /> El trámite terminó, reanudar el plazo
+      </Boton>
+    </Tarjeta>
+  );
+}
+
+/**
+ * La verificación con el cliente a los 30 días del cierre, que el plan C
+ * exige. Antes de esa fecha no hay nada que verificar.
+ */
+function Verificacion({
+  reclamoId,
+  fechaVerificacion,
+}: {
+  reclamoId: string;
+  fechaVerificacion: string | null;
+}) {
+  const router = useRouter();
+  const [enviando, definirEnviando] = React.useState(false);
+
+  async function registrar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    definirEnviando(true);
+    const respuesta = await registrarVerificacion(reclamoId, new FormData(evento.currentTarget));
+    definirEnviando(false);
+
+    if (respuesta.exito) {
+      toast.success(respuesta.mensaje ?? "Verificación registrada.");
+      router.refresh();
+    } else {
+      toast.error(respuesta.error);
+    }
+  }
+
+  if (fechaVerificacion) {
+    return (
+      <Tarjeta className="p-4">
+        <p className="text-xs font-semibold">Verificación con el cliente</p>
+        <p className="mt-1 text-[11px] text-atenuado-contraste">
+          Registrada el {formatearFecha(fechaVerificacion)}.
+        </p>
+      </Tarjeta>
+    );
+  }
+
+  return (
+    <Tarjeta className="p-4">
+      <p className="text-xs font-semibold">Verificación con el cliente</p>
+      <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-atenuado-contraste">
+        El Plan C pide volver a hablar con el cliente a los {DIAS_VERIFICACION_PLAN_C} días del
+        cierre, para confirmar que la solución se sostuvo.
+      </p>
+
+      <form onSubmit={registrar} className="space-y-3">
+        <GrupoCampo etiqueta="Qué dijo el cliente" htmlFor="verificacion_observacion" requerido>
+          <AreaTexto
+            id="verificacion_observacion"
+            name="verificacion_observacion"
+            rows={3}
+            required
+            minLength={10}
+          />
+        </GrupoCampo>
+
+        <div className="flex justify-end">
+          <Boton type="submit" tamano="pequeno" cargando={enviando}>
+            Registrar la verificación
+          </Boton>
+        </div>
+      </form>
+    </Tarjeta>
   );
 }

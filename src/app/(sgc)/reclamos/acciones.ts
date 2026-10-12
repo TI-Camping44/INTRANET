@@ -721,8 +721,176 @@ export async function guardarAccionesDelPlan(
     }
   }
 
+  // GUARDAR EL PLAN ES DEFINIR EL PLAN. Antes había además un paso
+  // «Definir el plan de acción» que no hacía otra cosa que confirmar que
+  // estas acciones existieran: un botón que repetía lo que acababa de
+  // pasar. Ahora el caso avanza solo, que es como se comporta el resto
+  // del circuito —se hace la cosa, y el estado la sigue—.
+  const { data: reclamo } = await supabase
+    .from("reclamos")
+    .select("estado, plan, no_conformidad_id")
+    .eq("id", reclamoId)
+    .maybeSingle();
+
+  const caso = reclamo as {
+    estado: EstadoReclamo;
+    plan: PlanReclamo;
+    no_conformidad_id: string | null;
+  } | null;
+
+  if (caso?.estado === "contactado") {
+    await supabase
+      .from("reclamos")
+      .update({ estado: "plan_definido", fecha_definicion_plan: hoyEnAsuncion() })
+      .eq("id", reclamoId);
+
+    // El plan C genera su no conformidad al quedar definido el plan, no
+    // al cerrarse: la causa se trata en paralelo con el caso.
+    if (exigeNoConformidad(caso.plan) && !caso.no_conformidad_id) {
+      await supabase.rpc("generar_no_conformidad_desde_reclamo", { p_reclamo_id: reclamoId });
+    }
+  }
+
   revalidatePath(`/reclamos/${reclamoId}`);
-  return { exito: true, mensaje: "Acciones del plan guardadas." };
+  revalidatePath("/reclamos");
+  return {
+    exito: true,
+    mensaje:
+      caso?.estado === "contactado"
+        ? "Plan guardado. Ahora se registra la ejecución de cada acción."
+        : "Acciones del plan guardadas.",
+  };
+}
+
+/**
+ * La ejecución de las acciones: cuándo se hizo cada una.
+ *
+ * ES UN PASO APARTE DE LA PLANIFICACION, y por eso es otra acción de
+ * servidor. Primero se declara qué se va a hacer y para cuándo, y eso
+ * queda escrito; después se registra qué pasó. Si fuera el mismo
+ * formulario, al cargar la fecha real se podría estar corrigiendo el
+ * plazo que se había prometido, y el «en plazo / fuera de plazo» dejaría
+ * de significar algo.
+ *
+ * Por eso ACA SOLO SE ESCRIBE `ejecutada_en`: la descripción, el
+ * responsable y el plazo no se tocan.
+ */
+export async function guardarEjecucionDeAcciones(
+  reclamoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const ids = datos.getAll("accion_id").map((valor) => String(valor));
+  const fechas = datos.getAll("accion_ejecutada_en").map((valor) => String(valor).trim());
+
+  if (ids.length === 0) return { exito: false, error: "No hay acciones que registrar." };
+
+  for (let i = 0; i < ids.length; i += 1) {
+    if (!ids[i]) continue;
+    await supabase
+      .from("reclamo_acciones")
+      .update({ ejecutada_en: fechas[i] || null })
+      .eq("id", ids[i])
+      .eq("reclamo_id", reclamoId);
+  }
+
+  revalidatePath(`/reclamos/${reclamoId}`);
+  revalidatePath("/reclamos");
+  return { exito: true, mensaje: "Ejecución registrada." };
+}
+
+/**
+ * El cierre del caso.
+ *
+ * DOS SALIDAS Y NADA MAS: resuelto o no resuelto. Las dos piden el
+ * comentario —qué pasó, que es lo que queda como registro de la
+ * gestión— y solo la primera pide la compensación otorgada, porque un
+ * caso que no se resolvió no compensó nada.
+ *
+ * NO SE CIERRA CON ACCIONES SIN EJECUTAR, y vale para los tres planes:
+ * declarar cerrado un caso con el plan a medias es decirle al cliente
+ * que está solucionado antes de haberlo solucionado.
+ *
+ * LA COMPENSACION ES TEXTO. Lo definió Calidad el 12 de octubre. Los
+ * tramos de autorización por monto y el tope porcentual siguen escritos
+ * en `lib/reclamos.ts` y en el `CHECK` de la base, pero sin un monto que
+ * mirar no tienen qué controlar: hoy no se aplican a este camino.
+ */
+export async function cerrarCaso(
+  reclamoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  }
+
+  const supabase = crearClienteServidor();
+  const hoy = hoyEnAsuncion();
+
+  const { count: pendientes } = await supabase
+    .from("reclamo_acciones")
+    .select("id", { count: "exact", head: true })
+    .eq("reclamo_id", reclamoId)
+    .is("ejecutada_en", null);
+
+  if (pendientes) {
+    return {
+      exito: false,
+      error:
+        `Quedan ${pendientes} acci${pendientes === 1 ? "ón" : "ones"} sin fecha de ejecución. ` +
+        "Regístrelas antes de cerrar el caso.",
+    };
+  }
+
+  const resultado = String(datos.get("resultado") ?? "");
+  if (resultado !== "resuelto" && resultado !== "no_resuelto") {
+    return { exito: false, error: "Elija si el caso se resolvió o no." };
+  }
+
+  const comentario = String(datos.get("comentario") ?? "").trim();
+  if (comentario.length < 10) {
+    return {
+      exito: false,
+      error: "Escriba qué pasó: es lo que queda como registro de la gestión del caso.",
+    };
+  }
+
+  const parche: Record<string, unknown> = {
+    resolucion_detalle: comentario,
+    fecha_resolucion: hoy,
+    fecha_cierre: hoy,
+  };
+
+  if (resultado === "resuelto") {
+    parche.estado = "cerrado";
+    parche.estado_cliente = "recuperado";
+    parche.compensacion_detalle = String(datos.get("compensacion") ?? "").trim() || null;
+  } else {
+    // «No resuelto» es `no_conciliado`, que es el estado que el circuito
+    // ya tenía para eso. La base exige el motivo escrito, y el motivo es
+    // el mismo comentario: pedirlo dos veces sería pedir lo mismo con
+    // otro nombre.
+    parche.estado = "no_conciliado";
+    parche.estado_cliente = "no_conciliado";
+    parche.motivo_no_conciliado = comentario;
+  }
+
+  const { error } = await supabase.from("reclamos").update(parche).eq("id", reclamoId);
+  if (error) return { exito: false, error: `No se pudo cerrar el caso: ${error.message}` };
+
+  revalidatePath(`/reclamos/${reclamoId}`);
+  revalidatePath("/reclamos");
+  return {
+    exito: true,
+    mensaje: resultado === "resuelto" ? "Caso cerrado como resuelto." : "Caso cerrado sin resolver.",
+  };
 }
 
 export async function eliminarReclamo(id: string): Promise<ResultadoAccion> {
