@@ -157,6 +157,26 @@ export const obtenerPermisos = cache(async (): Promise<PermisosDelRol> => {
     .eq("rol", usuario.rol);
 
   if (error) {
+    // LA TABLA TODAVIA NO EXISTE: el código llegó antes que la
+    // migración. Las migraciones se aplican a mano, así que entre el
+    // despliegue y el `psql` hay una ventana, y fallar cerrado ahí
+    // dejaría a todos menos al Administrador SGC sin menú y sin
+    // entender por qué.
+    //
+    // En esa ventana se devuelve lo que el sistema hacía ANTES de que
+    // existiera la matriz: todo visible. No es abrir nada que estuviera
+    // cerrado, es no cerrar todavía. Y se nota en el registro.
+    //
+    // Cualquier otro error sí cierra: un permiso que no se pudo leer
+    // por un problema real no se asume concedido.
+    if (error.code === "42P01") {
+      console.warn(
+        "permisos: la tabla no existe todavía. Aplique las migraciones " +
+          "20261012000200 y 20261012000300. Hasta entonces rige el comportamiento anterior.",
+      );
+      return permisosDelAdministrador();
+    }
+
     console.error("permisos:", error.message);
     return permisosVacios();
   }
