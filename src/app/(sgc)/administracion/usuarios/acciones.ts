@@ -99,3 +99,71 @@ export async function actualizarPerfilPropio(datos: FormData): Promise<Resultado
   revalidatePath("/perfil");
   return { exito: true, mensaje: "Perfil actualizado." };
 }
+
+/**
+ * Corrige el puesto de una persona, haya ingresado o no.
+ *
+ * ODOO TIENE CARGOS DESACTUALIZADOS: gente que cambió de puesto y nadie
+ * lo actualizó en el ERP. La regla era «se corrige en Odoo y se vuelve a
+ * cargar el padrón», y no sirve: el puesto correcto hace falta hoy y
+ * actualizar Odoo no está en manos de Calidad.
+ *
+ * ESCRIBE EN DOS LUGARES SEGÚN EL CASO, y es a propósito:
+ *
+ *  · Quien ya ingresó tiene perfil, y su puesto vive en
+ *    `usuarios.puesto_id`. La carga del padrón no lo toca.
+ *  · Quien todavía no ingresó no tiene perfil —`usuarios.id` depende de
+ *    `auth.users`—, así que la corrección va a `personas_nomina`, en una
+ *    columna de ajuste a mano que la próxima carga del padrón tampoco
+ *    pisa. `crear_perfil_usuario()` la traslada al perfil en el primer
+ *    ingreso: sin eso la corrección se perdería justo el día en que la
+ *    persona entra.
+ *
+ * Son dos lugares porque son dos cosas distintas, no dos copias de la
+ * misma: un perfil que existe y una nómina que todavía no tiene perfil.
+ * Quien usa la pantalla no ve la diferencia, que es el punto.
+ *
+ * RECIBE LA CLAVE, no el id: `usuario:<uuid>` o `nomina:<uuid>`, igual
+ * que `mover_en_organigrama()`. Así la pantalla manda lo que tiene sin
+ * tener que saber en cuál de las dos tablas cae cada fila.
+ */
+export async function definirPuesto(
+  clave: string,
+  puestoId: string | null,
+): Promise<ResultadoAccion> {
+  await requerirRol(["administrador_sgc"]);
+  const supabase = crearClienteServidor();
+
+  const [tipo, id] = clave.split(":");
+  if ((tipo !== "usuario" && tipo !== "nomina") || !id) {
+    return { exito: false, error: "No se reconoce a quién corresponde el cambio." };
+  }
+
+  if (tipo === "usuario") {
+    const { error } = await supabase
+      .from("usuarios")
+      .update({ puesto_id: puestoId })
+      .eq("id", id);
+
+    if (error) {
+      console.error("definirPuesto (usuario):", error.message);
+      return { exito: false, error: "No se pudo guardar el puesto." };
+    }
+  } else {
+    // La bandera va SIEMPRE en true, incluso al dejarlo sin puesto: eso
+    // es una decisión —«no tiene cargo equivalente»— y tiene que poder
+    // distinguirse de «todavía nadie lo miró».
+    const { error } = await supabase
+      .from("personas_nomina")
+      .update({ puesto_manual_id: puestoId, puesto_manual_fijado: true })
+      .eq("id", id);
+
+    if (error) {
+      console.error("definirPuesto (nomina):", error.message);
+      return { exito: false, error: "No se pudo guardar el puesto." };
+    }
+  }
+
+  revalidatePath("/administracion/usuarios");
+  return { exito: true, mensaje: "Puesto actualizado." };
+}

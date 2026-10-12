@@ -45,6 +45,8 @@ interface FilaNomina {
   usuario_id: string | null;
   invitado_en: string | null;
   invitaciones_enviadas: number;
+  puesto_manual_id: string | null;
+  puesto_manual_fijado: boolean;
 }
 
 interface FilaUsuario {
@@ -121,6 +123,9 @@ export default async function PaginaUsuarios() {
 
   // Qué puestos existen, para avisar cuál no va a poder asignarse.
   const puestosCargados = new Set(listaPuestos.map((p) => normalizar(p.nombre)));
+  const idPorPuestoNormalizado = new Map(
+    listaPuestos.map((p) => [normalizar(p.nombre), p.id] as const),
+  );
   // Quiénes figuran en el padrón, para avisar qué líder no se va a poder
   // resolver: si el jefe no está, nadie le va a escalar una acción.
   const nombresDelPadron = new Set(filasNomina.map((f) => normalizar(f.nombre_completo)));
@@ -128,18 +133,29 @@ export default async function PaginaUsuarios() {
   const personas: PersonaDeLaLista[] = filasNomina.map((fila) => {
     const usuario = fila.usuario_id ? usuarioPorId.get(fila.usuario_id) : undefined;
 
+    // EL PUESTO, POR PRECEDENCIA: el perfil de quien ya ingresó manda —ahí
+    // es donde se edita—, después el ajuste a mano del padrón, y al final
+    // el cargo de Odoo resuelto por nombre.
+    const puestoId =
+      usuario?.puesto_id ??
+      (fila.puesto_manual_fijado
+        ? fila.puesto_manual_id
+        : (idPorPuestoNormalizado.get(normalizar(fila.puesto_nombre)) ?? null));
+
     return {
-      clave: `nomina:${fila.id}`,
+      clave: usuario ? `usuario:${usuario.id}` : `nomina:${fila.id}`,
       nominaId: fila.id,
       usuarioId: fila.usuario_id,
       nombre: usuario?.nombre_completo ?? fila.nombre_completo,
       correo: fila.correo,
       cedula: fila.cedula,
-      puesto: usuario?.puesto_id
-        ? (puestoPorId.get(usuario.puesto_id) ?? fila.puesto_nombre)
-        : fila.puesto_nombre,
+      puesto: puestoId ? (puestoPorId.get(puestoId) ?? null) : fila.puesto_nombre,
+      puestoId,
+      puestoDeOdoo: fila.puesto_nombre,
+      puestoCorregido: fila.puesto_manual_fijado || usuario?.puesto_id != null,
       puestoResuelve:
-        fila.puesto_nombre !== null && puestosCargados.has(normalizar(fila.puesto_nombre)),
+        puestoId !== null ||
+        (fila.puesto_nombre !== null && puestosCargados.has(normalizar(fila.puesto_nombre))),
       empresa: fila.empresa_del_puesto,
       lider: usuario?.superior_id
         ? (nombrePorUsuarioId.get(usuario.superior_id) ?? fila.gerente_nombre)
@@ -170,6 +186,9 @@ export default async function PaginaUsuarios() {
       correo: usuario.correo,
       cedula: null,
       puesto: usuario.puesto_id ? (puestoPorId.get(usuario.puesto_id) ?? null) : null,
+      puestoId: usuario.puesto_id,
+      puestoDeOdoo: null,
+      puestoCorregido: false,
       puestoResuelve: true,
       empresa: null,
       lider: usuario.superior_id ? (nombrePorUsuarioId.get(usuario.superior_id) ?? null) : null,
@@ -289,7 +308,7 @@ export default async function PaginaUsuarios() {
         </Tarjeta>
       </div>
 
-      <ListaUsuarios personas={personas} />
+      <ListaUsuarios personas={personas} puestos={listaPuestos} />
     </>
   );
 }

@@ -16,6 +16,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { BotonInvitar } from "@/app/(sgc)/administracion/usuarios/invitar";
+import { SelectorPuesto } from "@/app/(sgc)/administracion/usuarios/selector-puesto";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
 import { formatearFecha, formatearFechaHora } from "@/lib/formato";
 import type { RolUsuario } from "@/lib/tipos";
@@ -32,6 +33,12 @@ export interface PersonaDeLaLista {
   cedula: string | null;
   puesto: string | null;
   puestoResuelve: boolean;
+  /** El id del cargo cargado que le corresponde hoy, si hay. */
+  puestoId: string | null;
+  /** Lo que dice la exportación de Odoo, para poder compararlo. */
+  puestoDeOdoo: string | null;
+  /** Si alguien ya lo corrigió a mano. */
+  puestoCorregido: boolean;
   empresa: string | null;
   lider: string | null;
   liderResuelve: boolean;
@@ -66,7 +73,14 @@ function normalizar(valor: string | null | undefined): string {
  * días es la otra —quién tiene tal rol, quién ocupa tal puesto, de quién
  * es esta cédula—.
  */
-export function ListaUsuarios({ personas }: { personas: PersonaDeLaLista[] }) {
+export function ListaUsuarios({
+  personas,
+  puestos,
+}: {
+  personas: PersonaDeLaLista[];
+  /** Los cargos cargados, para corregir el puesto desde la lista. */
+  puestos: { id: string; nombre: string }[];
+}) {
   const [busqueda, definirBusqueda] = React.useState("");
   const [soloPendientes, definirSoloPendientes] = React.useState(false);
 
@@ -185,13 +199,18 @@ export function ListaUsuarios({ personas }: { personas: PersonaDeLaLista[] }) {
                       {persona.cedula ?? "—"}
                     </TablaCelda>
 
+                    {/* EL PUESTO SE CORRIGE ACA. Odoo tiene cargos
+                        desactualizados y la pregunta «¿este es el que
+                        ocupa hoy?» se hace mirando la lista entera, no
+                        entrando de a una persona. */}
                     <TablaCelda className="text-xs">
-                      {persona.puesto ?? "—"}
-                      {persona.puesto && !persona.puestoResuelve ? (
-                        <Insignia variante="atencion" className="ml-1.5">
-                          sin equivalente
-                        </Insignia>
-                      ) : null}
+                      <SelectorPuesto
+                        clave={persona.clave}
+                        puestoActual={persona.puestoId}
+                        puestoDeOdoo={persona.puestoDeOdoo}
+                        corregido={persona.puestoCorregido}
+                        puestos={puestos}
+                      />
                     </TablaCelda>
 
                     <TablaCelda className="whitespace-nowrap text-xs text-atenuado-contraste">
@@ -281,9 +300,10 @@ export function ListaUsuarios({ personas }: { personas: PersonaDeLaLista[] }) {
         {busqueda || soloPendientes
           ? `${filtradas.length} de ${personas.length} personas.`
           : `${personas.length} personas.`}{" "}
-        La lista sale de la exportación de Odoo: una corrección de puesto o de líder se hace en
-        Odoo y se vuelve a cargar el padrón. El rol, el líder del sistema, el puesto y los
-        permisos de quien ya ingresó se ajustan en su ficha.
+        La lista sale de la exportación de Odoo. <strong>El puesto se corrige acá</strong>: toque
+        el cargo y elija el que corresponde. La corrección queda en la intranet y la próxima carga
+        del padrón no la pisa, así que no hace falta esperar a que Odoo se actualice. El rol, el
+        líder y los permisos de quien ya ingresó se ajustan en su ficha.
       </p>
     </>
   );
