@@ -3,7 +3,21 @@
 import os, subprocess
 
 V = os.path.dirname(os.path.abspath(__file__))
-FFMPEG = os.path.join(os.path.dirname(V), "node_modules", "ffmpeg-static", "ffmpeg")
+# De donde sale ffmpeg: la variable de entorno manda, y si no hay se
+# busca el binario de `ffmpeg-static` junto al script y despues en el
+# PATH. Estaba apuntado a una carpeta que no existe en el repositorio,
+# asi que armar.py no corria en una maquina limpia.
+FFMPEG = (
+    os.environ.get("FFMPEG")
+    or next(
+        (c for c in [
+            os.path.join(V, "node_modules", "ffmpeg-static", "ffmpeg"),
+            os.path.join(os.path.dirname(V), "node_modules", "ffmpeg-static", "ffmpeg"),
+        ] if os.path.exists(c)),
+        None,
+    )
+    or "ffmpeg"
+)
 
 # (cuadro, segundos en pantalla, segundos de fundido hacia el siguiente)
 GUION = [
@@ -38,7 +52,9 @@ for i in range(len(GUION) - 1):
 total = sum(d for _, d, _ in GUION) - sum(f for _, _, f in GUION)
 filtros.append("%sformat=yuv420p[vf]" % etiqueta)
 
-salida = os.path.join(V, "intranet-camping44-como-ingresar.mp4")
+# El video terminado va junto a la hoja, no entre las fuentes: en
+# `fuentes/` queda lo que se edita y lo que se genera se ignora.
+salida = os.path.join(os.path.dirname(V), "intranet-camping44-como-ingresar.mp4")
 orden += [
     "-f", "lavfi", "-t", "%.2f" % total, "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
     "-filter_complex", ";".join(filtros),

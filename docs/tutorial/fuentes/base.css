@@ -23,7 +23,7 @@ h2{font-size:62px;font-weight:700;letter-spacing:-.028em;line-height:1.1;text-al
   padding:0 20px;font-size:21px;color:#D7DCE3;gap:12px;margin-left:10px}
 .navegador img{display:block;width:100%}
 /* telefono */
-.telefono{width:360px;border-radius:44px;border:11px solid #2A2E37;overflow:hidden;
+.telefono{width:440px;border-radius:44px;border:11px solid #2A2E37;overflow:hidden;
   box-shadow:0 40px 90px rgba(0,0,0,.6);background:#fff}
 .telefono img{display:block;width:100%}
 /* tarjeta esquema */

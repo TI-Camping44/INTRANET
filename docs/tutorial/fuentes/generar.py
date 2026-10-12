@@ -77,10 +77,33 @@ Conviene guardarlo en favoritos: lo va a usar todos los días.</div>
 """)
 
 # ------------------------------------------- 04 y 05 paso 2 (captura real)
+# DONDE CAE EL BOTON EN LA CAPTURA, calculado y no puesto a ojo.
+#
+# La captura se toma a 1280 px de ancho y se dibuja dentro de
+# `.navegador`, que mide 1180 con 1 px de borde, asi que la imagen entra
+# a 1178 y todo lo que esta adentro se achica en la misma proporcion.
+# Arriba de la imagen va la barra del navegador, 62 px, mas el borde.
+#
+# BOTON_* es lo que mide `getByRole("button", {name: /Google/})` en la
+# pantalla real de ingreso. Si la pantalla cambia, se vuelve a medir y
+# el anillo sigue cayendo donde tiene que caer; con el numero puesto a
+# mano, el anillo se queda donde estaba y señala el lugar equivocado.
+ANCHO_CAPTURA = 1280.0
+ANCHO_NAVEGADOR = 1178.0
+ALTO_BARRA = 63.0
+BOTON_CENTRO_X = 640.0
+BOTON_CENTRO_Y = 538.6
+
+_escala = ANCHO_NAVEGADOR / ANCHO_CAPTURA
+ANILLO_X = round(1 + BOTON_CENTRO_X * _escala)
+ANILLO_Y = round(ALTO_BARRA + BOTON_CENTRO_Y * _escala)
+
+
 def paso_dos(ancho, alto, grosor):
-    anillo = ("""<div style="position:absolute;left:590px;top:541px;width:{w}px;height:{h}px;
+    anillo = ("""<div style="position:absolute;left:{x}px;top:{y}px;width:{w}px;height:{h}px;
         margin-left:-{mw}px;margin-top:-{mh}px;border:{g}px solid #E01E37;border-radius:999px;
-        opacity:.95"></div>""").format(w=ancho, h=alto, mw=ancho // 2, mh=alto // 2, g=grosor)
+        opacity:.95"></div>""").format(x=ANILLO_X, y=ANILLO_Y,
+                                        w=ancho, h=alto, mw=ancho // 2, mh=alto // 2, g=grosor)
     return MARCA + """
 <div class="paso">Paso 2</div>
 <h2 style="margin-bottom:40px">Toque «Continuar con Google»</h2>
@@ -104,8 +127,12 @@ def paso_dos(ancho, alto, grosor):
 </div>
 """
 
-escribir("f04.html", paso_dos(372, 86, 7))
-escribir("f05.html", paso_dos(404, 104, 9))
+# El anillo abraza al boton y NO SE COME LA LINEA DE ARRIBA: con 86 y
+# 104 px de alto tapaba «del dominio camping44.com.py o
+# vitalica.com.py», que es justamente el dato que la persona tiene
+# que leer antes de apretar.
+escribir("f04.html", paso_dos(360, 70, 7))
+escribir("f05.html", paso_dos(392, 84, 9))
 
 # -------------------------------------------------------- 06 paso 3 la cuenta
 escribir("f06.html", MARCA + """

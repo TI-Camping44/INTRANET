@@ -23,8 +23,12 @@ header .sub{font-size:20px;color:#5B6572;margin-top:6px}
 .figura{position:relative;width:620px;margin-top:20px;border:1px solid #E1E5EA;border-radius:12px;
   overflow:visible;background:#fff;box-shadow:0 10px 30px rgba(20,22,27,.09)}
 .figura img{display:block;width:100%;border-radius:12px}
-.elipse{position:absolute;left:50%;top:79.4%;width:300px;height:68px;margin-left:-150px;
-  margin-top:-34px;border:6px solid #E01E37;border-radius:999px}
+/* El 73,3 % y los 470 px salen de medir el boton en la pantalla real y
+   pasarlo a la escala del recorte, no de acomodarlo a ojo: con el
+   numero puesto a mano, cualquier cambio en la pantalla deja la elipse
+   marcando el lugar equivocado. */
+.elipse{position:absolute;left:50%;top:73.3%;width:470px;height:62px;margin-left:-235px;
+  margin-top:-31px;border:6px solid #E01E37;border-radius:999px}
 .rotulo{position:absolute;background:#E01E37;color:#fff;font-size:19px;font-weight:700;
   padding:10px 16px;border-radius:8px;white-space:nowrap}
 .cuentas{width:620px;margin-top:20px;border:1px solid #E1E5EA;border-radius:12px;padding:26px 28px;
@@ -93,12 +97,12 @@ svg.flecha{position:absolute;filter:drop-shadow(0 6px 14px rgba(224,30,55,.35))}
     <div class="figura">
       <img src="img/ingreso-recorte.png" alt="Pantalla de ingreso a la Intranet">
       <div class="elipse"></div>
-      <svg class="flecha" width="210" height="130" viewBox="0 0 210 130" style="left:462px;top:506px">
+      <svg class="flecha" width="210" height="130" viewBox="0 0 210 130" style="left:530px;top:392px">
         <path d="M196 18 C 150 8, 70 24, 30 70" stroke="#E01E37" stroke-width="7"
               stroke-linecap="round" fill="none"/>
         <path d="M25 78 L 56 61 L 49 90 Z" fill="#E01E37"/>
       </svg>
-      <div class="rotulo" style="left:596px;top:484px">Tóquelo acá</div>
+      <div class="rotulo" style="left:650px;top:372px">Tóquelo acá</div>
     </div>
   </div>
 </div>

@@ -1,0 +1,5 @@
+# Lo que produce `generar.py` y `render.mjs`: se vuelve a generar en un
+# comando y no tiene por qué viajar en el repositorio.
+f??.html
+cuadros/
+node_modules/
