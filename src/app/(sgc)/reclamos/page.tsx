@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MessageSquareWarning, Plus } from "lucide-react";
 
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
+import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { Torta } from "@/components/comunes/graficos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -19,6 +20,7 @@ import {
 import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha } from "@/lib/formato";
+import { sinTildes } from "@/lib/utilidades";
 import {
   casoCerrado,
   CLASES_ESTADO_RECLAMO,
@@ -54,18 +56,35 @@ interface FilaReclamo {
   fecha_resolucion: string | null;
 }
 
+const PLANES_RECLAMO: PlanReclamo[] = ["a", "b", "c"];
+
 /**
  * Los reclamos de clientes.
  *
- * LA VISTA QUE JUSTIFICA EL MÓDULO es «Fuera de plazo»: los casos cuyo
- * primer contacto o cuya resolución vencieron sin hacerse. El
+ * UNA SOLA VISTA. Hasta el 12 de octubre la pantalla arrancaba en
+ * «Abiertos» y las otras tres —«Fuera de plazo», «Cerrados» y «Todos»—
+ * eran pestañas: para saber cuántos reclamos hay en el sistema había que
+ * cambiar de vista, y un caso cerrado no aparecía en la pantalla
+ * principal. Ahora el listado trae todo y lo que acota es la barra de
+ * filtros, que es la misma de riesgos y activos y escribe en la
+ * dirección: el filtro se comparte y sobrevive a una recarga.
+ *
+ * «Fuera de plazo» no se perdió: es una opción del filtro Situación, y
+ * sigue siendo LA PREGUNTA QUE JUSTIFICA EL MÓDULO —los casos cuyo
+ * primer contacto o cuya resolución vencieron sin hacerse—. El
  * procedimiento pone plazos de horas para el primer contacto, y un plazo
  * que nadie mira es un plazo que no existe.
  */
 export default async function PaginaReclamos({
   searchParams,
 }: {
-  searchParams: { vista?: string };
+  searchParams: {
+    q?: string;
+    situacion?: string;
+    estado?: string;
+    gravedad?: string;
+    plan?: string;
+  };
 }) {
   const usuario = await requerirModulo("reclamos");
   const supabase = crearClienteServidor();
@@ -80,7 +99,6 @@ export default async function PaginaReclamos({
     .order("creado_en", { ascending: false });
 
   const todos = (data as unknown as FilaReclamo[] | null) ?? [];
-  const vista = searchParams.vista ?? "abiertos";
 
   // La regla de «fuera de plazo» no se repite acá: es la misma que usa la
   // ficha, y cuando el listado tenía la suya propia marcaba en rojo casos
@@ -88,14 +106,32 @@ export default async function PaginaReclamos({
   const estaCerrado = (r: FilaReclamo) => casoCerrado(r.estado);
   const fueraDePlazo = (r: FilaReclamo) => estaFueraDePlazo(r);
 
-  const reclamos =
-    vista === "plazo"
-      ? todos.filter(fueraDePlazo)
-      : vista === "cerrados"
-        ? todos.filter(estaCerrado)
-        : vista === "todos"
-          ? todos
-          : todos.filter((r) => !estaCerrado(r));
+  // El filtrado se hace acá y no en la consulta por dos razones: «fuera
+  // de plazo» es una regla de TypeScript —compara plazos y mira el
+  // trámite— que no existe en SQL, y la búsqueda tiene que ignorar las
+  // tildes, que es justo lo que `ilike` no hace: «lopez» no encuentra
+  // «LÓPEZ», que en una cartera paraguaya es la mitad de los apellidos.
+  const partes = sinTildes(searchParams.q ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const reclamos = todos.filter((reclamo) => {
+    if (searchParams.situacion === "abiertos" && estaCerrado(reclamo)) return false;
+    if (searchParams.situacion === "cerrados" && !estaCerrado(reclamo)) return false;
+    if (searchParams.situacion === "fuera_de_plazo" && !fueraDePlazo(reclamo)) return false;
+    if (searchParams.estado && reclamo.estado !== searchParams.estado) return false;
+    if (searchParams.gravedad && reclamo.gravedad !== searchParams.gravedad) return false;
+    if (searchParams.plan && reclamo.plan !== searchParams.plan) return false;
+
+    if (partes.length > 0) {
+      const texto = sinTildes(`${reclamo.codigo} ${reclamo.titulo} ${reclamo.cliente_nombre}`);
+      if (!partes.every((parte) => texto.includes(parte))) return false;
+    }
+
+    return true;
+  });
+
+  const hayFiltros = reclamos.length !== todos.length;
 
   // Los colores salen de `lib/reclamos.ts` y no de acá: son la misma
   // escala que usa el resto del módulo, y ahí está escrito por qué
@@ -113,13 +149,6 @@ export default async function PaginaReclamos({
     color: COLOR_ESTADO_RECLAMO[estado],
   }));
 
-  const contadores = {
-    abiertos: todos.filter((r) => !estaCerrado(r)).length,
-    plazo: todos.filter(fueraDePlazo).length,
-    cerrados: todos.filter(estaCerrado).length,
-    todos: todos.length,
-  };
-
   return (
     <div>
       <EncabezadoPagina
@@ -136,30 +165,51 @@ export default async function PaginaReclamos({
         }
       />
 
-      <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
-        {[
-          { clave: "abiertos", texto: `Abiertos (${contadores.abiertos})` },
-          { clave: "plazo", texto: `Fuera de plazo (${contadores.plazo})` },
-          { clave: "cerrados", texto: `Cerrados (${contadores.cerrados})` },
-          { clave: "todos", texto: `Todos (${contadores.todos})` },
-        ].map((opcion) => (
-          <Link
-            key={opcion.clave}
-            href={opcion.clave === "abiertos" ? "/reclamos" : `/reclamos?vista=${opcion.clave}`}
-            className={`rounded-md border px-2.5 py-1 ${
-              vista === opcion.clave
-                ? "border-primario bg-primario/10 text-primario"
-                : "border-borde text-atenuado-contraste hover:bg-acento"
-            }`}
-          >
-            {opcion.texto}
-          </Link>
-        ))}
-      </div>
+      {/* LA BARRA DE FILTROS REEMPLAZA A LAS CUATRO PESTAÑAS. «Situación»
+          es la que trae lo que antes eran vistas; las otras tres acotan
+          por los datos que la tabla ya muestra en sus columnas. */}
+      <FiltrosListado
+        marcadorBusqueda="Buscar por código, caso o cliente…"
+        campos={[
+          {
+            nombre: "situacion",
+            etiqueta: "Situación",
+            opciones: [
+              { valor: "abiertos", etiqueta: "Abiertos" },
+              { valor: "fuera_de_plazo", etiqueta: "Fuera de plazo" },
+              { valor: "cerrados", etiqueta: "Cerrados" },
+            ],
+          },
+          {
+            nombre: "estado",
+            etiqueta: "Estado",
+            opciones: (Object.keys(ETIQUETAS_ESTADO_RECLAMO) as EstadoReclamo[]).map((estado) => ({
+              valor: estado,
+              etiqueta: ETIQUETAS_ESTADO_RECLAMO[estado],
+            })),
+          },
+          {
+            nombre: "gravedad",
+            etiqueta: "Gravedad",
+            opciones: GRAVEDADES_RECLAMO.map((gravedad) => ({
+              valor: gravedad,
+              etiqueta: ETIQUETAS_GRAVEDAD_RECLAMO[gravedad],
+            })),
+          },
+          {
+            nombre: "plan",
+            etiqueta: "Plan",
+            opciones: PLANES_RECLAMO.map((plan) => ({
+              valor: plan,
+              etiqueta: ETIQUETAS_PLAN_RECLAMO[plan].split(" · ")[0],
+            })),
+          },
+        ]}
+      />
 
       {/* LAS DOS TORTAS, sobre lo que quedó en el listado y no sobre el
-          total: si alguien filtra por una vista, los porcentajes son de
-          esa vista, que es lo que está mirando.
+          total: si alguien filtra, los porcentajes son de lo que está
+          mirando.
 
           Van en torta y no en barras porque son tres y cinco porciones:
           se comparan de un vistazo. Cada una lleva su tabla de datos al
@@ -176,11 +226,11 @@ export default async function PaginaReclamos({
       {reclamos.length === 0 ? (
         <EstadoVacio
           icono={<MessageSquareWarning className="size-6" />}
-          titulo={vista === "abiertos" ? "No hay reclamos abiertos" : "Nada en esta vista"}
+          titulo={todos.length === 0 ? "Todavía no hay reclamos" : "Ningún reclamo coincide"}
           descripcion={
-            vista === "abiertos"
+            todos.length === 0
               ? "Acá se registran los reclamos de clientes por cualquier vía: encuestas, reseñas, devoluciones, errores de facturación, fallas de entrega o de servicio técnico, y quejas verbales aunque no sean formales."
-              : "Pruebe con otra vista."
+              : "Pruebe con otros filtros o límpielos para ver todos los reclamos."
           }
         />
       ) : (
@@ -220,6 +270,11 @@ export default async function PaginaReclamos({
                         {reclamo.material_controlado ? (
                           <span className="ml-1 text-semaforo-medio">material controlado</span>
                         ) : null}
+                      </span>
+                      {/* El cliente se esconde en el celular, pero no se
+                          pierde: reaparece acá abajo. */}
+                      <span className="block text-[10px] text-atenuado-contraste md:hidden">
+                        {reclamo.cliente_nombre}
                       </span>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
@@ -272,6 +327,14 @@ export default async function PaginaReclamos({
               })}
             </TablaCuerpo>
           </Tabla>
+          {/* El pie dice cuántos hay en el listado, y cuando hay filtros
+              puestos también sobre cuántos: sin el total, un listado
+              acotado se lee como si fuera todo lo que existe. */}
+          <p className="border-t border-borde px-3 py-2 text-xs text-atenuado-contraste">
+            {hayFiltros
+              ? `${reclamos.length} de ${todos.length} reclamos`
+              : `${reclamos.length} ${reclamos.length === 1 ? "reclamo" : "reclamos"}`}
+          </p>
         </Tarjeta>
       )}
     </div>
