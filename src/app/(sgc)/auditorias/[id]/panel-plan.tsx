@@ -32,6 +32,7 @@ export interface AuditoriaDelPlan {
   empresa_auditada_id: string | null;
   auditor_lider_id: string | null;
   fecha_planificada: string | null;
+  fecha_planificada_fin: string | null;
   fecha_aviso: string | null;
 }
 
@@ -66,6 +67,8 @@ export function PanelPlan({
   const router = useRouter();
   const [abierto, definirAbierto] = React.useState(false);
   const [procesando, definirProcesando] = React.useState(false);
+  /** Solo para acotar el `min` del fin de la ventana planificada. */
+  const [inicio, definirInicio] = React.useState(auditoria.fecha_planificada ?? "");
 
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -253,7 +256,7 @@ export function PanelPlan({
                 </GrupoCampo>
 
                 <GrupoCampo
-                  etiqueta="Fecha planificada"
+                  etiqueta="Planificada: inicio"
                   htmlFor="fecha_planificada"
                   requerido
                   ayuda="Define a qué programa anual pertenece."
@@ -264,6 +267,25 @@ export function PanelPlan({
                     type="date"
                     required
                     defaultValue={auditoria.fecha_planificada ?? ""}
+                    onChange={(evento) => definirInicio(evento.target.value)}
+                  />
+                </GrupoCampo>
+
+                {/* El fin no se exige acá y sí en el alta: las auditorías
+                    cargadas antes de que la ventana existiera no lo
+                    tienen, y pedirlo para guardar un cambio de objetivo
+                    obligaría a inventar una fecha. */}
+                <GrupoCampo
+                  etiqueta="Planificada: fin"
+                  htmlFor="fecha_planificada_fin"
+                  ayuda="Opcional. Último día previsto, si la auditoría dura más de uno."
+                >
+                  <Entrada
+                    id="fecha_planificada_fin"
+                    name="fecha_planificada_fin"
+                    type="date"
+                    min={inicio || undefined}
+                    defaultValue={auditoria.fecha_planificada_fin ?? ""}
                   />
                 </GrupoCampo>
 

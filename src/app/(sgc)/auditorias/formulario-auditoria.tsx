@@ -48,6 +48,19 @@ export function FormularioAuditoria({
 
   const hoy = hoyEnAsuncion();
   const [planificada, definirPlanificada] = React.useState(sumarDias(hoy, 30));
+  const [planificadaFin, definirPlanificadaFin] = React.useState(sumarDias(hoy, 30));
+
+  /**
+   * Mover el inicio arrastra el fin si le quedó antes.
+   *
+   * Sin esto, correr el inicio a después del fin deja el formulario con
+   * una ventana invertida: el navegador la rechaza por el `min` y el
+   * botón no hace nada visible, que se lee como roto.
+   */
+  function cambiarInicio(nuevo: string) {
+    definirPlanificada(nuevo);
+    definirPlanificadaFin((fin) => (fin < nuevo ? nuevo : fin));
+  }
 
   function alternarDocumento(id: string) {
     definirElegidosDocumentos((actuales) =>
@@ -261,7 +274,18 @@ export function FormularioAuditoria({
             </Seleccion>
           </GrupoCampo>
 
-          <GrupoCampo etiqueta="Fecha planificada" htmlFor="fecha_planificada" requerido>
+          {/* LA AUDITORÍA SE PLANIFICA COMO UNA VENTANA, NO COMO UN DÍA.
+              Una interna del SGC recorre cinco o seis procesos y se
+              reparte en varias jornadas. Con una sola fecha, el aviso
+              que sale a toda la empresa anuncia un día y el auditor
+              aparece tres seguidos, que es lo que descoordina al área
+              auditada. */}
+          <GrupoCampo
+            etiqueta="Planificada: inicio"
+            htmlFor="fecha_planificada"
+            requerido
+            ayuda="Define a qué programa anual entra, por su año."
+          >
             <Entrada
               id="fecha_planificada"
               name="fecha_planificada"
@@ -269,7 +293,24 @@ export function FormularioAuditoria({
               value={planificada}
               min={hoy}
               required
-              onChange={(evento) => definirPlanificada(evento.target.value || hoy)}
+              onChange={(evento) => cambiarInicio(evento.target.value || hoy)}
+            />
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Planificada: fin"
+            htmlFor="fecha_planificada_fin"
+            requerido
+            ayuda="Último día previsto. Si dura un solo día, déjelo igual al inicio."
+          >
+            <Entrada
+              id="fecha_planificada_fin"
+              name="fecha_planificada_fin"
+              type="date"
+              value={planificadaFin}
+              min={planificada}
+              required
+              onChange={(evento) => definirPlanificadaFin(evento.target.value || planificada)}
             />
           </GrupoCampo>
 

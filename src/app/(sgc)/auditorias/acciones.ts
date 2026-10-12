@@ -329,6 +329,7 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
 
   const objetivo = String(datos.get("objetivo") ?? "").trim();
   const fechaPlanificada = String(datos.get("fecha_planificada") ?? "");
+  const fechaPlanificadaFin = String(datos.get("fecha_planificada_fin") ?? "");
 
   // TODOS LOS CAMPOS SON OBLIGATORIOS. Lo pidio Direccion el 6 de
   // octubre. La validacion del navegador es comodidad; el control va
@@ -347,7 +348,18 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
     return { exito: false, error: "Indique los criterios contra los que se audita." };
   }
   if (!fechaPlanificada) {
-    return { exito: false, error: "La auditoría necesita una fecha planificada." };
+    return { exito: false, error: "La auditoría necesita una fecha planificada de inicio." };
+  }
+  // La ventana planificada: el alta exige las dos puntas, porque es
+  // justo el momento en que se decide cuánto va a durar.
+  if (!fechaPlanificadaFin) {
+    return { exito: false, error: "Indique hasta qué día se planifica la auditoría." };
+  }
+  if (fechaPlanificadaFin < fechaPlanificada) {
+    return {
+      exito: false,
+      error: "La fecha de fin no puede ser anterior a la de inicio.",
+    };
   }
   if (!fechaAviso) {
     return { exito: false, error: "Indique qué día se avisa a la empresa." };
@@ -409,7 +421,10 @@ export async function crearAuditoria(datos: FormData): Promise<ResultadoAccion> 
       objetivo,
       alcance,
       criterios,
+      // La ventana planificada. `fecha_planificada` es el inicio y
+      // ademas define a que programa anual entra, por su año.
       fecha_planificada: fechaPlanificada,
+      fecha_planificada_fin: fechaPlanificadaFin,
       // El aviso a toda la empresa: el trabajo programado lo manda ese
       // dia y marca `aviso_enviado`.
       fecha_aviso: fechaAviso,
@@ -486,7 +501,19 @@ export async function actualizarAuditoria(
 
   const fechaPlanificada = String(datos.get("fecha_planificada") ?? "");
   if (!fechaPlanificada) {
-    return { exito: false, error: "La auditoría necesita una fecha planificada." };
+    return { exito: false, error: "La auditoría necesita una fecha planificada de inicio." };
+  }
+
+  // EL FIN NO SE EXIGE AL EDITAR, y si en el alta. Las auditorias
+  // cargadas antes de que la ventana existiera no lo tienen, y trabar
+  // su edicion pidiendo una fecha que nadie decidio nunca obligaria a
+  // inventarla. Es el mismo criterio que rige para `fecha_aviso`.
+  const fechaPlanificadaFin = String(datos.get("fecha_planificada_fin") ?? "");
+  if (fechaPlanificadaFin && fechaPlanificadaFin < fechaPlanificada) {
+    return {
+      exito: false,
+      error: "La fecha de fin no puede ser anterior a la de inicio.",
+    };
   }
 
   // Al mover la fecha a otro año, la auditoría pasa al programa de ese
@@ -524,6 +551,7 @@ export async function actualizarAuditoria(
       sede_id: String(datos.get("sede_id") ?? "") || null,
       auditor_lider_id: String(datos.get("auditor_lider_id") ?? "") || null,
       fecha_planificada: fechaPlanificada,
+      fecha_planificada_fin: fechaPlanificadaFin || null,
       fecha_aviso: String(datos.get("fecha_aviso") ?? "") || null,
     })
     .eq("id", id);

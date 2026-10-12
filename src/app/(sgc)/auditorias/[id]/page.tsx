@@ -38,6 +38,7 @@ interface AuditoriaDetalle {
   criterios: string | null;
   conclusiones: string | null;
   fecha_planificada: string | null;
+  fecha_planificada_fin: string | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   estado: EstadoAuditoria;
@@ -336,9 +337,18 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
                   etiqueta="Auditor líder"
                   valor={auditoria.auditor?.nombre_completo ?? "—"}
                 />
+                {/* La ventana planificada. Se muestra una sola fecha
+                    cuando dura un día o cuando la auditoría es vieja y
+                    no tiene fin: «del 11/11 al 11/11» no dice nada. */}
                 <Dato
                   etiqueta="Planificada"
-                  valor={formatearFecha(auditoria.fecha_planificada)}
+                  valor={
+                    auditoria.fecha_planificada_fin &&
+                    auditoria.fecha_planificada_fin !== auditoria.fecha_planificada
+                      ? `${formatearFecha(auditoria.fecha_planificada)} al ` +
+                        `${formatearFecha(auditoria.fecha_planificada_fin)}`
+                      : formatearFecha(auditoria.fecha_planificada)
+                  }
                 />
                 <Dato etiqueta="Inicio" valor={formatearFecha(auditoria.fecha_inicio)} />
                 <Dato etiqueta="Fin" valor={formatearFecha(auditoria.fecha_fin)} />
