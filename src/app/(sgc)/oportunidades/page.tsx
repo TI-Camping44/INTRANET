@@ -4,6 +4,8 @@ import { Grid3x3, Lightbulb, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { BarrasPorcentaje, Torta } from "@/components/comunes/graficos";
+import { ListaEnTarjetas } from "@/components/comunes/lista-en-tarjetas";
+import { Insignia } from "@/components/ui/insignia";
 import {
   InsigniaDemostracion,
 } from "@/components/comunes/insignias-estado";
@@ -266,7 +268,47 @@ export default async function PaginaOportunidades({
           }
         />
       ) : (
-        <Tarjeta>
+        <>
+        {/* EN EL CELULAR CAMBIA EL FORMATO, no los datos. Son dieciséis
+            columnas: en 360 píxeles la tabla es un rectángulo de dos mil
+            píxeles que hay que arrastrar de costado para leer un solo
+            registro. De `md` para arriba vuelve la tabla entera.
+
+            Lleva lo mismo que la tarjeta de riesgos: si se agrega un
+            dato a una, va en la otra. */}
+        <ListaEnTarjetas
+          className="md:hidden"
+          filas={oportunidades.map((fila) => ({
+            clave: fila.id,
+            identificador: fila.codigo,
+            titulo: fila.descripcion ?? fila.efecto_deseado ?? "Sin descripción",
+            enlace: `/riesgos/${fila.id}`,
+            insignias: (
+              <>
+                <Insignia variante="neutra">
+                  Índice {fila.indice ?? "—"} · {prioridadOportunidad(fila.indice)}
+                </Insignia>
+                {fila.se_decide_abordar ? (
+                  <Insignia variante="atencion">Se aborda</Insignia>
+                ) : null}
+              </>
+            ),
+            datos: [
+              { etiqueta: "Fecha", valor: formatearFecha(fila.fecha_identificacion) },
+              { etiqueta: "Origen", valor: fila.origen },
+              { etiqueta: "Beneficio", valor: fila.beneficio },
+              { etiqueta: "Factibilidad", valor: fila.factibilidad },
+              { etiqueta: "Efecto deseado", valor: fila.efecto_deseado, ancho: true },
+              {
+                etiqueta: "Alineación estratégica",
+                valor: fila.alineacion_estrategica,
+                ancho: true,
+              },
+            ],
+          }))}
+        />
+
+        <Tarjeta className="hidden md:block">
           {/* LAS COLUMNAS DE LA HOJA 6.1.3, EN SU ORDEN. Son veintiuna: la
               tabla se desplaza en horizontal por su cuenta y el código
               queda fijo a la izquierda. Las columnas de párrafo van
@@ -424,6 +466,7 @@ export default async function PaginaOportunidades({
             </TablaCuerpo>
           </Tabla>
         </Tarjeta>
+        </>
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">

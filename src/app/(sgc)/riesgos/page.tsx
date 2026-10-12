@@ -5,12 +5,14 @@ import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { CeldaSiNo, CeldaTexto } from "@/components/comunes/celda-texto";
 import { Torta } from "@/components/comunes/graficos";
+import { ListaEnTarjetas } from "@/components/comunes/lista-en-tarjetas";
 import {
   InsigniaDemostracion,
   InsigniaNivelRiesgo,
 } from "@/components/comunes/insignias-estado";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
+import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
   Tabla,
@@ -228,7 +230,53 @@ export default async function PaginaRiesgos({
           descripcion="Ajuste los filtros o registre el primer riesgo de la matriz. Las oportunidades están en su propia pantalla."
         />
       ) : (
-        <Tarjeta>
+        <>
+        {/* EN EL CELULAR CAMBIA EL FORMATO, no los datos. Son dieciséis
+            columnas de la hoja 6.1.2: en 360 píxeles la tabla es un
+            rectángulo de dos mil píxeles que hay que arrastrar de
+            costado para leer un solo registro. De `md` para arriba
+            vuelve la tabla entera, con su barra de arriba y su primera
+            columna fija.
+
+            Lleva lo mismo que la tabla de oportunidades: si se agrega un dato
+            a una, va en la otra. */}
+        <ListaEnTarjetas
+          className="md:hidden"
+          filas={riesgos.map((registro) => ({
+            clave: registro.id,
+            identificador: registro.codigo,
+            titulo: registro.titulo,
+            enlace: `/riesgos/${registro.id}`,
+            insignias: (
+              <>
+                <InsigniaNivelRiesgo nivel={registro.nivel} />
+                {registro.requiere_accion ? (
+                  <Insignia variante="atencion">Requiere acción</Insignia>
+                ) : null}
+              </>
+            ),
+            datos: [
+              { etiqueta: "Fecha", valor: formatearFecha(registro.fecha_identificacion) },
+              { etiqueta: "Origen", valor: registro.origen },
+              { etiqueta: "Probabilidad", valor: registro.probabilidad },
+              { etiqueta: "Severidad", valor: registro.severidad },
+              { etiqueta: "Causa potencial", valor: registro.causas, ancho: true },
+              { etiqueta: "Consecuencia potencial", valor: registro.consecuencias, ancho: true },
+              {
+                etiqueta: "Nivel residual",
+                valor:
+                  registro.nivel_residual !== null ? (
+                    <InsigniaNivelRiesgo nivel={registro.nivel_residual} />
+                  ) : (
+                    "Sin evaluar"
+                  ),
+                ancho: true,
+              },
+            ],
+          }))}
+        />
+
+        <Tarjeta className="hidden md:block">
           {/* LAS COLUMNAS DE LA HOJA 6.1.2, EN SU ORDEN. Son veinticuatro
               y no caben en una pantalla: la tabla se desplaza en
               horizontal por su cuenta —lo hace `Tabla`— y el código queda
@@ -351,6 +399,7 @@ export default async function PaginaRiesgos({
             </TablaCuerpo>
           </Tabla>
         </Tarjeta>
+        </>
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">

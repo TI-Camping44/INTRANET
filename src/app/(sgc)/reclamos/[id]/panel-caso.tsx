@@ -116,23 +116,6 @@ export function PanelCaso({
   const [monto, definirMonto] = React.useState("");
   const [factura, definirFactura] = React.useState("");
 
-  // LAS ACCIONES SE CARGAN AL DEFINIR EL PLAN. Definir el plan ES decir
-  // qué se hace, quién lo hace y cuándo: antes el paso solo pedía la
-  // fecha y después rechazaba el cambio pidiendo cargarlas en la
-  // tarjeta de arriba, que es una vuelta que nadie adivina.
-  const [nuevasAcciones, definirNuevasAcciones] = React.useState([{ clave: 0 }]);
-  const claveSiguiente = React.useRef(1);
-
-  function agregarAccionDelPaso() {
-    definirNuevasAcciones((actuales) => [...actuales, { clave: claveSiguiente.current++ }]);
-  }
-
-  function quitarAccionDelPaso(clave: number) {
-    definirNuevasAcciones((actuales) =>
-      actuales.length === 1 ? actuales : actuales.filter((fila) => fila.clave !== clave),
-    );
-  }
-
   // EL CASO NO SE RESUELVE CON ACCIONES ABIERTAS. Declararlo resuelto
   // con el plan a medias es decirle al cliente que está solucionado
   // antes de haberlo solucionado. El servidor lo rechaza igual; acá se
@@ -178,7 +161,6 @@ export function PanelCaso({
 
     toast.success(respuesta.mensaje ?? "Actualizado.");
     definirDestino(null);
-    definirNuevasAcciones([{ clave: 0 }]);
     router.refresh();
   }
 
@@ -272,74 +254,18 @@ export function PanelCaso({
                     />
                   </GrupoCampo>
 
-                  <div className="rounded-md border border-borde p-3">
-                    <p className="text-xs font-semibold">Acciones del plan</p>
-                    <p className="mb-2 mt-0.5 text-[11px] text-atenuado-contraste">
-                      Qué se hace, quién lo hace y cuándo. Al menos una; agregue las que hagan
-                      falta.
-                    </p>
-
-                    <div className="space-y-2">
-                      {nuevasAcciones.map((fila, indice) => (
-                        <div key={fila.clave} className="rounded-md border border-borde p-2.5">
-                          <div className="flex items-start gap-2">
-                            <AreaTexto
-                              name="accion_descripcion"
-                              rows={2}
-                              required={indice === 0}
-                              placeholder="Retirar el artículo equivocado y entregar el correcto"
-                              className="text-xs"
-                              aria-label={`Acción ${indice + 1}`}
-                            />
-                            <Boton
-                              type="button"
-                              tamano="iconoPequeno"
-                              variante="fantasma"
-                              aria-label={`Quitar la acción ${indice + 1}`}
-                              onClick={() => quitarAccionDelPaso(fila.clave)}
-                            >
-                              <X />
-                            </Boton>
-                          </div>
-
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            <Seleccion
-                              name="accion_responsable"
-                              required={indice === 0}
-                              defaultValue=""
-                              className="text-xs"
-                              aria-label={`Responsable de la acción ${indice + 1}`}
-                            >
-                              <option value="">Responsable…</option>
-                              {personas.map((persona) => (
-                                <option key={persona.id} value={persona.id}>
-                                  {persona.nombre_completo}
-                                </option>
-                              ))}
-                            </Seleccion>
-                            <Entrada
-                              name="accion_fecha_limite"
-                              type="date"
-                              required={indice === 0}
-                              className="text-xs"
-                              aria-label={`Plazo de la acción ${indice + 1}`}
-                              title="Plazo"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <Boton
-                      type="button"
-                      tamano="pequeno"
-                      variante="contorno"
-                      className="mt-2"
-                      onClick={agregarAccionDelPaso}
-                    >
-                      <Plus /> Agregar acción
-                    </Boton>
-                  </div>
+                  {/* LAS ACCIONES NO SE PIDEN DOS VECES. Este paso
+                      tenía su propio formulario de acciones al lado de
+                      la tarjeta «Acciones del plan», que pide lo mismo:
+                      quien cargaba en los dos terminaba con la acción
+                      duplicada. Acá solo se confirma que el plan quedó
+                      definido; las acciones se cargan y se guardan
+                      arriba, que es donde después se les carga la
+                      evidencia y se las marca ejecutadas. */}
+                  <p className="rounded-md border border-borde bg-acento/40 p-2.5 text-[11px] leading-relaxed text-atenuado-contraste">
+                    Las acciones se cargan en «Acciones del plan», acá abajo. Guárdelas antes de
+                    confirmar este paso.
+                  </p>
 
                   <label className="flex items-start gap-2 text-[11px] leading-relaxed">
                     <input type="checkbox" name="tramite_digemabel" className="mt-0.5 size-3.5 accent-[#E01E37]" />
@@ -729,7 +655,7 @@ function AccionesDelPlan({
                     fecha en que se ejecutó. Si fueran dos cuentas
                     distintas, la leyenda podría decir una cosa abierta y
                     otra cerrada sobre la misma acción. */}
-                {plazo ? (
+                {plazo && fila.id ? (
                   <span
                     className={
                       plazo === "en_plazo"
@@ -749,6 +675,19 @@ function AccionesDelPlan({
               </label>
             </div>
 
+            {/* EJECUTADA Y EVIDENCIA, RECIÉN DESPUÉS DE GUARDAR. Primero
+                se planifica —qué se hace, quién y para cuándo— y se
+                guarda; a partir de ahí la acción existe y se la puede
+                medir. Ofrecer «Ejecutada» en una fila que todavía no se
+                guardó es ofrecer declarar cumplido algo que todavía no
+                se planificó, y la evidencia ni siquiera tiene dónde
+                colgarse: hace falta el id de la acción. */}
+            {!fila.id ? (
+              <p className="mt-2 border-t border-borde pt-2 text-[11px] text-atenuado-contraste">
+                Guarde la acción para poder marcarla ejecutada y adjuntarle evidencia.
+              </p>
+            ) : (
+              <>
             {/* LA EJECUCIÓN PASA A SER UNA CASILLA. Era la segunda fecha,
                 y no se podía sacar sin romper el cierre del caso: en los
                 planes B y C el reclamo no cierra hasta que estén todas
@@ -789,18 +728,13 @@ function AccionesDelPlan({
             </label>
             <input type="hidden" name="accion_ejecutada_en" value={fila.ejecutada_en ?? ""} />
 
-            {/* LA EVIDENCIA, SOLO EN LAS ACCIONES YA GUARDADAS. Un
-                archivo necesita una fila a la que colgarse: en una
-                acción que todavía no se guardó no hay id, y subirlo
-                antes dejaría el archivo huérfano si la persona cierra la
-                pantalla sin guardar. */}
-            {fila.id ? (
-              <EvidenciaDeAccion
-                accionId={fila.id}
-                reclamoId={reclamoId}
-                archivos={evidenciaPorAccion[fila.id] ?? []}
-              />
-            ) : null}
+            <EvidenciaDeAccion
+              accionId={fila.id}
+              reclamoId={reclamoId}
+              archivos={evidenciaPorAccion[fila.id] ?? []}
+            />
+              </>
+            )}
           </div>
           );
         })}

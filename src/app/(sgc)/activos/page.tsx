@@ -36,6 +36,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { CeldaTexto } from "@/components/comunes/celda-texto";
+import { ListaEnTarjetas } from "@/components/comunes/lista-en-tarjetas";
 import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
@@ -231,13 +232,70 @@ export default async function PaginaActivos({
           }
         />
       ) : (
-        <Tarjeta>
+        <>
+        {/* EN EL CELULAR CAMBIA EL FORMATO, no los datos. Son diez
+            columnas: en 360 píxeles la tabla es un rectángulo de mil
+            ochocientos que hay que arrastrar de costado para leer un
+            solo activo, y el depósito se mira justamente desde el
+            teléfono. De `md` para arriba vuelve la tabla entera. */}
+        <ListaEnTarjetas
+          className="md:hidden"
+          filas={activos.map((activo) => ({
+            clave: activo.id,
+            identificador: activo.codigo,
+            titulo: activo.nombre,
+            enlace: `/activos/${activo.id}`,
+            insignias: (
+              <>
+                <InsigniaEstadoActivo estado={activo.estado as EstadoActivo} />
+                <InsigniaCriticidadActivo criticidad={activo.criticidad as CriticidadActivo} />
+              </>
+            ),
+            datos: [
+              { etiqueta: "Ubicación", valor: activo.ubicacion ?? activo.sedes?.nombre ?? null },
+              { etiqueta: "Responsable", valor: activo.responsable?.nombre_completo ?? null },
+              {
+                etiqueta: "Último mant.",
+                valor: activo.fecha_ultimo_mantenimiento
+                  ? formatearFecha(activo.fecha_ultimo_mantenimiento)
+                  : null,
+              },
+              {
+                etiqueta: "Próximo mant.",
+                valor:
+                  activo.requiere_mantenimiento && activo.fecha_proximo_mantenimiento ? (
+                    <>
+                      {formatearFecha(activo.fecha_proximo_mantenimiento)}
+                      <span className="block text-[10px] text-atenuado-contraste">
+                        {describirVencimiento(activo.fecha_proximo_mantenimiento)}
+                      </span>
+                    </>
+                  ) : (
+                    "No aplica"
+                  ),
+              },
+              {
+                etiqueta: "Garantía o licencia",
+                valor: activo.vencimiento_garantia
+                  ? formatearFecha(activo.vencimiento_garantia)
+                  : null,
+                ancho: true,
+              },
+              ...(activo.observaciones
+                ? [{ etiqueta: "Observaciones", valor: activo.observaciones, ancho: true }]
+                : []),
+            ],
+          }))}
+        />
+
+        <Tarjeta className="hidden md:block">
           <Tabla>
             <TablaCabecera>
               <TablaFila>
                 {/* LAS COLUMNAS QUE PIDIÓ DIRECCIÓN EL 6 DE OCTUBRE,
-                    en su orden. La tabla se desplaza sola en horizontal:
-                    son diez y en un celular no entran. */}
+                    en su orden. La tabla se desplaza sola en horizontal
+                    y solo se dibuja de `md` para arriba: en el celular
+                    el mismo listado va como tarjetas. */}
                 <TablaEncabezado className="w-[7rem]">Código</TablaEncabezado>
                 <TablaEncabezado className="min-w-[14rem]">Descripción</TablaEncabezado>
                 <TablaEncabezado className="min-w-[9rem]">Ubicación</TablaEncabezado>
@@ -315,6 +373,7 @@ export default async function PaginaActivos({
             </TablaCuerpo>
           </Tabla>
         </Tarjeta>
+        </>
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">

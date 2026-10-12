@@ -400,32 +400,12 @@ export async function cambiarEstadoReclamo(
   }
 
   if (nuevoEstado === "plan_definido") {
-    // LAS ACCIONES SE CARGAN EN ESTE MISMO PASO. Definir el plan ES
-    // decir que se hace, quien lo hace y cuando: antes el paso solo
-    // pedia la fecha y despues rechazaba el cambio pidiendo que las
-    // acciones se cargaran en otra tarjeta, que es una vuelta que nadie
-    // adivina. Las que vengan en el formulario se agregan; las que ya
-    // estaban no se tocan.
-    const { filas, error: problema } = leerAccionesDelPlan(datos);
-    if (problema) return { exito: false, error: problema };
-
-    if (filas.length > 0) {
-      const { error: alGuardar } = await supabase.from("reclamo_acciones").insert(
-        filas.map((fila) => ({
-          reclamo_id: id,
-          descripcion: fila.descripcion,
-          responsable_id: fila.responsable_id,
-          fecha_limite: fila.fecha_limite,
-        })),
-      );
-      if (alGuardar) {
-        return {
-          exito: false,
-          error: `No se pudieron guardar las acciones del plan: ${alGuardar.message}`,
-        };
-      }
-    }
-
+    // LAS ACCIONES YA ESTAN CARGADAS CUANDO SE LLEGA ACA. El paso las
+    // pedia de nuevo en su propio formulario, al lado de la tarjeta
+    // «Acciones del plan» que las pide igual: dos lugares para lo mismo
+    // en la misma pantalla, y quien cargaba en los dos terminaba con la
+    // accion duplicada. Ahora el paso solo CONFIRMA que esten, que es lo
+    // que de verdad decide si el plan esta definido.
     const { count } = await supabase
       .from("reclamo_acciones")
       .select("id", { count: "exact", head: true })
@@ -435,8 +415,8 @@ export async function cambiarEstadoReclamo(
       return {
         exito: false,
         error:
-          "Cargue al menos una acción del plan, con responsable y fecha: el procedimiento pide " +
-          "qué se hace, quién lo hace y cuándo.",
+          "Cargue al menos una acción en «Acciones del plan», con responsable y plazo, y " +
+          "guárdela. Recién entonces el plan queda definido.",
       };
     }
 
