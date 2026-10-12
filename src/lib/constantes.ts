@@ -113,20 +113,32 @@ export function esDiaHabil(fecha: Date): boolean {
 // ---------------------------------------------------------------------
 // Roles
 // ---------------------------------------------------------------------
+/**
+ * El nombre de cada rol como lo lee la gente.
+ *
+ * «Jefe de área» y «Responsable de proceso» son la misma persona: en
+ * Camping 44 se piensa por áreas y el SGC escribe por procesos. Se
+ * cambió la etiqueta y NO el valor del enumerado, que sigue siendo
+ * `responsable_proceso`: agregar un rol nuevo con el mismo significado
+ * habría terminado con la mitad de la gente en cada uno.
+ */
 export const ETIQUETAS_ROL: Record<RolUsuario, string> = {
   administrador_sgc: "Administrador SGC",
-  responsable_proceso: "Responsable de proceso",
-  colaborador: "Colaborador",
-  auditor: "Auditor",
   direccion: "Dirección",
+  responsable_proceso: "Jefe de área",
+  auditor: "Auditor",
+  vendedor: "Vendedor",
+  colaborador: "Colaborador",
 };
 
 export const DESCRIPCION_ROL: Record<RolUsuario, string> = {
   administrador_sgc: "Control total del sistema de gestión.",
-  responsable_proceso: "Gestiona la documentación y los registros de sus procesos.",
-  colaborador: "Consulta documentación vigente y registra desviaciones.",
-  auditor: "Lectura amplia y gestión de auditorías internas.",
   direccion: "Consulta de indicadores y tableros, sin edición.",
+  responsable_proceso: "Gestiona la documentación y los registros de su área.",
+  auditor: "Lectura amplia y gestión de auditorías internas.",
+  vendedor:
+    "Piso de venta: sus ventas, la documentación vigente, y levantar reclamos y desviaciones.",
+  colaborador: "Consulta documentación vigente y registra desviaciones.",
 };
 
 /** Perfiles que pueden crear y editar registros del sistema. */

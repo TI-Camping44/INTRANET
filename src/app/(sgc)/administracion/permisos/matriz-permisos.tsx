@@ -8,7 +8,15 @@ import { Aviso, AvisoDescripcion } from "@/components/ui/aviso";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { guardarPermisosDelRol } from "@/app/(sgc)/administracion/permisos/acciones";
 import { DESCRIPCION_ROL, ETIQUETAS_ROL } from "@/lib/constantes";
-import { GRUPOS_MODULO, MODULOS, type ClaveModulo, type PermisoDeModulo } from "@/lib/permisos";
+import {
+  GRUPOS_MODULO,
+  MODULOS,
+  permisosDelAdministrador,
+  rolConPisoCompleto,
+  ROL_SIEMPRE_COMPLETO,
+  type ClaveModulo,
+  type PermisoDeModulo,
+} from "@/lib/permisos";
 import { cn } from "@/lib/utilidades";
 import type { RolUsuario } from "@/lib/tipos";
 
@@ -35,6 +43,14 @@ export function MatrizPermisos({
   const [matriz, definirMatriz] = React.useState<Matriz>(matrices[roles[0]] ?? {});
   const [guardando, definirGuardando] = React.useState(false);
   const [sucio, definirSucio] = React.useState(false);
+
+  /**
+   * El Administrador SGC se muestra pero no se toca: tiene todo y no hay
+   * forma de quitárselo. Se dibuja igual que los demás para que se vea
+   * qué alcanza, con las casillas apagadas y sin botón de guardar.
+   */
+  const bloqueado = rolConPisoCompleto(rol);
+  const matrizEnPantalla = bloqueado ? permisosDelAdministrador() : matriz;
 
   function cambiarRol(nuevo: RolUsuario) {
     if (sucio && !confirm("Hay cambios sin guardar en este rol. ¿Los descarta?")) return;
@@ -65,7 +81,7 @@ export function MatrizPermisos({
     const datos = new FormData();
     datos.set("rol", rol);
     for (const modulo of MODULOS) {
-      const valor = matriz[modulo.clave] ?? { ver: false, editar: false };
+      const valor = matrizEnPantalla[modulo.clave] ?? { ver: false, editar: false };
       if (valor.ver) datos.append("permiso", `${modulo.clave}:ver`);
       if (valor.editar) datos.append("permiso", `${modulo.clave}:editar`);
     }
@@ -88,7 +104,7 @@ export function MatrizPermisos({
       {/* El selector de rol. Pestañas y no un desplegable: son cinco y
           conviene verlos todos, que es media decisión. */}
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {roles.map((valor) => (
+        {[...roles, ROL_SIEMPRE_COMPLETO].map((valor) => (
           <button
             key={valor}
             type="button"
@@ -121,7 +137,7 @@ export function MatrizPermisos({
               </div>
               <ul className="divide-y divide-borde">
                 {delGrupo.map((modulo) => {
-                  const valor = matriz[modulo.clave] ?? { ver: false, editar: false };
+                  const valor = matrizEnPantalla[modulo.clave] ?? { ver: false, editar: false };
                   const sinEdicion = modulo.queEsEditar.startsWith("No aplica");
 
                   return (
@@ -138,12 +154,14 @@ export function MatrizPermisos({
                       </div>
 
                       <div className="flex shrink-0 gap-4">
-                        <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+                        <label className={cn("flex items-center gap-1.5 text-xs",
+                            bloqueado ? "cursor-default" : "cursor-pointer")}>
                           <input
                             type="checkbox"
                             checked={valor.ver}
+                            disabled={bloqueado}
                             onChange={() => alternar(modulo.clave, "ver")}
-                            className="size-3.5 accent-primario"
+                            className="size-3.5 accent-primario disabled:opacity-60"
                           />
                           Ver
                         </label>
@@ -155,12 +173,14 @@ export function MatrizPermisos({
                         {sinEdicion ? (
                           <span className="w-[4.5rem] text-xs text-atenuado-contraste">—</span>
                         ) : (
-                          <label className="flex w-[4.5rem] cursor-pointer items-center gap-1.5 text-xs">
+                          <label className={cn("flex w-[4.5rem] items-center gap-1.5 text-xs",
+                              bloqueado ? "cursor-default" : "cursor-pointer")}>
                             <input
                               type="checkbox"
                               checked={valor.editar}
+                              disabled={bloqueado}
                               onChange={() => alternar(modulo.clave, "editar")}
-                              className="size-3.5 accent-primario"
+                              className="size-3.5 accent-primario disabled:opacity-60"
                             />
                             Editar
                           </label>
@@ -176,12 +196,22 @@ export function MatrizPermisos({
       </div>
 
       <div className="mt-5 flex items-center justify-end gap-3">
-        {sucio ? (
-          <span className="text-xs text-atenuado-contraste">Hay cambios sin guardar.</span>
-        ) : null}
-        <Boton type="submit" cargando={guardando} disabled={!sucio}>
-          Guardar permisos de {ETIQUETAS_ROL[rol]}
-        </Boton>
+        {bloqueado ? (
+          <p className="text-xs text-atenuado-contraste">
+            El {ETIQUETAS_ROL[ROL_SIEMPRE_COMPLETO]} conserva todos los módulos y no se
+            configura. Es lo que garantiza que siempre quede alguien que pueda entrar a
+            corregir esta pantalla.
+          </p>
+        ) : (
+          <>
+            {sucio ? (
+              <span className="text-xs text-atenuado-contraste">Hay cambios sin guardar.</span>
+            ) : null}
+            <Boton type="submit" cargando={guardando} disabled={!sucio}>
+              Guardar permisos de {ETIQUETAS_ROL[rol]}
+            </Boton>
+          </>
+        )}
       </div>
     </form>
   );

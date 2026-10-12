@@ -11,11 +11,19 @@ import type { RolUsuario } from "@/lib/tipos";
 export const metadata: Metadata = { title: "Permisos por rol" };
 export const dynamic = "force-dynamic";
 
-/** Los roles que se configuran. El Administrador SGC no: tiene piso. */
+/**
+ * Los roles que se configuran, en orden de alcance.
+ *
+ * El Administrador SGC NO está acá: su piso vive en `puede_ver()` y
+ * `puede_editar()` de la base. Igual se muestra, en una pestaña que no
+ * se puede tocar: que faltara se leía como un olvido, y lo que hay que
+ * poder ver es justamente que lo tiene todo y que nadie se lo saca.
+ */
 const ROLES_EDITABLES: RolUsuario[] = [
   "direccion",
   "responsable_proceso",
   "auditor",
+  "vendedor",
   "colaborador",
 ];
 

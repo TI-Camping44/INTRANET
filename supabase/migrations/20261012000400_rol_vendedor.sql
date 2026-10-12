@@ -1,0 +1,27 @@
+-- ---------------------------------------------------------------------
+-- Un rol mas: Vendedor
+--
+-- Lo pidio Facundo el 12 de octubre, junto con «jefe de area» y
+-- «colaborador de area X». De los tres, este es el unico que es un
+-- NIVEL DE PERMISO distinto de los que ya habia:
+--
+--   «Jefe de area» es lo que el sistema ya llamaba «Responsable de
+--   proceso». Son la misma persona con dos nombres, asi que se cambia
+--   la ETIQUETA y no se agrega un rol: dos roles que significan lo
+--   mismo terminan con la mitad de la gente en cada uno.
+--
+--   «Colaborador de area X» no es un rol sino un rol mas un area. Como
+--   rol daria catorce —una por area— multiplicadas por cada nivel, y
+--   ademas `usuarios` no tiene columna de area contra la cual atarlas:
+--   el area de una persona hoy se deduce de su puesto y su proceso.
+--
+-- El Vendedor si hace falta: es el unico que necesita «Mis ventas» y no
+-- necesita el resto del SGC, y el sistema ya distingue a esa gente por
+-- `usuarios.vendedor_planilla` y `usuarios.ventas_canales`.
+--
+-- VA SOLO EN ESTA MIGRACION, sin cargar sus permisos. PostgreSQL no
+-- deja usar un valor de enumerado recien agregado en la misma
+-- transaccion que lo agrego, asi que las filas van en la siguiente.
+-- ---------------------------------------------------------------------
+
+alter type public.rol_usuario add value if not exists 'vendedor';

@@ -8,6 +8,7 @@ export type RolUsuario =
   | "administrador_sgc"
   | "responsable_proceso"
   | "colaborador"
+  | "vendedor"
   | "auditor"
   | "direccion";
 
