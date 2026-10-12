@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
+import { archivosDelFormulario, quitarAdjunto, subirAdjuntos } from "@/lib/adjuntos-servidor";
+import { MAXIMO_EVIDENCIAS_ACCION } from "@/lib/constantes";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import {
@@ -445,6 +447,39 @@ export async function cambiarEstadoReclamo(
   }
 
   if (nuevoEstado === "resuelto") {
+    // EL CASO NO SE RESUELVE CON ACCIONES ABIERTAS. Antes esto se
+    // controlaba recien al cerrar, y solo en los planes B y C: se podia
+    // declarar resuelto un caso cuyo plan todavia no se habia ejecutado,
+    // que es decirle al cliente que esta solucionado antes de haberlo
+    // solucionado. Vale para los tres planes.
+    const { count: pendientes } = await supabase
+      .from("reclamo_acciones")
+      .select("id", { count: "exact", head: true })
+      .eq("reclamo_id", id)
+      .is("ejecutada_en", null);
+
+    if (pendientes) {
+      return {
+        exito: false,
+        error:
+          `Quedan ${pendientes} acci${pendientes === 1 ? "ón" : "ones"} del plan sin ejecutar. ` +
+          "Márquelas como ejecutadas antes de registrar la resolución.",
+      };
+    }
+
+    // Y TIENE QUE DECIR COMO SE SOLUCIONO. Es distinto de la
+    // compensacion: la compensacion es lo que se le dio al cliente, la
+    // resolucion es lo que se hizo para que el problema deje de existir.
+    // Un caso puede resolverse sin compensacion ninguna.
+    const resolucion = String(datos.get("resolucion_detalle") ?? "").trim();
+    if (resolucion.length < 10) {
+      return {
+        exito: false,
+        error: "Detalle cómo se solucionó el caso: es lo que queda como registro de la gestión.",
+      };
+    }
+    parche.resolucion_detalle = resolucion;
+
     parche.fecha_resolucion = String(datos.get("fecha_resolucion") ?? "") || hoy;
 
     const detalle = String(datos.get("compensacion_detalle") ?? "").trim();
@@ -977,4 +1012,114 @@ export async function buscarClientes(texto: string): Promise<ResultadoBusquedaCl
     exito: true,
     clientes: (data as ClienteEncontrado[] | null) ?? [],
   };
+}
+
+/**
+ * Cuantos archivos de evidencia se pueden sumar todavia a una accion.
+ *
+ * El tope es POR ACCION, no por subida: lo que ya esta cargado cuenta.
+ * Si no, cinco subidas de uno dejaban cinco veces el tope. Es la misma
+ * regla que en las acciones de tratamiento del riesgo, y el mismo
+ * numero, porque es la misma pregunta: que alcance para el acta, la
+ * foto, el correo y el comprobante, y nada mas.
+ */
+async function revisarCupoDeEvidencia(
+  supabase: ReturnType<typeof crearClienteServidor>,
+  accionId: string,
+  cuantos: number,
+): Promise<string | null> {
+  if (cuantos === 0) return null;
+
+  const { count } = await supabase
+    .from("adjuntos")
+    .select("id", { count: "exact", head: true })
+    .eq("entidad", "reclamo_acciones")
+    .eq("entidad_id", accionId);
+
+  const cargados = count ?? 0;
+  const libres = MAXIMO_EVIDENCIAS_ACCION - cargados;
+
+  if (cuantos > libres) {
+    return libres <= 0
+      ? `Esta acción ya tiene ${MAXIMO_EVIDENCIAS_ACCION} archivos de evidencia, que es el ` +
+          "máximo. Quite alguno antes de subir otro."
+      : `Solo entra${libres === 1 ? "" : "n"} ${libres} archivo${libres === 1 ? "" : "s"} más: ` +
+          `el máximo por acción es ${MAXIMO_EVIDENCIAS_ACCION} y ya hay ${cargados}.`;
+  }
+
+  return null;
+}
+
+/**
+ * Evidencia de una accion del plan.
+ *
+ * Va sobre `adjuntos` con `entidad = 'reclamo_acciones'`, sin esquema
+ * nuevo: es el mismo mecanismo que usan las acciones del riesgo y las
+ * del plan de objetivos.
+ */
+export async function adjuntarEvidenciaDeAccion(
+  accionId: string,
+  reclamoId: string,
+  datos: FormData,
+): Promise<ResultadoAccion> {
+  const usuario = await requerirUsuario();
+  if (esSoloLectura(usuario)) {
+    return { exito: false, error: "Su rol no permite cargar evidencia." };
+  }
+
+  const supabase = crearClienteServidor();
+
+  const archivos = archivosDelFormulario(datos, "evidencia");
+  if (archivos.length === 0) return { exito: false, error: "Elija al menos un archivo." };
+
+  const sinCupo = await revisarCupoDeEvidencia(supabase, accionId, archivos.length);
+  if (sinCupo) return { exito: false, error: sinCupo };
+
+  // Que la accion exista y sea de este reclamo. Quien puede subir lo
+  // decide RLS sobre `adjuntos`.
+  const { data: accion } = await supabase
+    .from("reclamo_acciones")
+    .select("id")
+    .eq("id", accionId)
+    .eq("reclamo_id", reclamoId)
+    .maybeSingle();
+
+  if (!accion) return { exito: false, error: "La acción no existe o no tiene acceso." };
+
+  const { subidos, fallidos } = await subirAdjuntos(supabase, {
+    entidad: "reclamo_acciones",
+    entidadId: accionId,
+    carpeta: "reclamos",
+    archivos,
+    empresaId: usuario.empresa_id,
+    usuarioId: usuario.id,
+  });
+
+  revalidatePath(`/reclamos/${reclamoId}`);
+
+  if (subidos === 0) {
+    return { exito: false, error: fallidos[0] ?? "No se pudo subir la evidencia." };
+  }
+
+  return {
+    exito: true,
+    mensaje:
+      `${subidos} archivo${subidos === 1 ? "" : "s"} cargado${subidos === 1 ? "" : "s"}.` +
+      (fallidos.length > 0 ? ` No entraron ${fallidos.length}.` : ""),
+  };
+}
+
+export async function eliminarEvidenciaDeAccion(
+  adjuntoId: string,
+  accionId: string,
+  reclamoId: string,
+): Promise<ResultadoAccion> {
+  await requerirUsuario();
+  const supabase = crearClienteServidor();
+
+  const resultado = await quitarAdjunto(supabase, adjuntoId, "reclamo_acciones", accionId);
+  if (!resultado.ok) return { exito: false, error: resultado.error };
+
+  revalidatePath(`/reclamos/${reclamoId}`);
+  return { exito: true, mensaje: `«${resultado.nombre}» eliminado.` };
 }

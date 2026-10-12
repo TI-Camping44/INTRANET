@@ -3,19 +3,22 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { PlayCircle, Plus, ThumbsDown, X } from "lucide-react";
+import { Paperclip, PlayCircle, Plus, ThumbsDown, Trash2, X } from "lucide-react";
 
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
+  adjuntarEvidenciaDeAccion,
   cambiarEstadoReclamo,
+  eliminarEvidenciaDeAccion,
   guardarAccionesDelPlan,
   reanudarPlazoSuspendido,
   registrarRechazo,
   registrarVerificacion,
 } from "@/app/(sgc)/reclamos/acciones";
 import {
+  accionesPendientes,
   admiteRechazo,
   casoCerrado,
   COMPENSACIONES_SUGERIDAS,
@@ -24,6 +27,8 @@ import {
   ETIQUETAS_ESTADO_CLIENTE_RECLAMO,
   exigeAccionCorrectiva,
   exigeNoConformidad,
+  estadoDePlazoDeAccion,
+  ETIQUETAS_ESTADO_PLAZO,
   excedeTopePorcentual,
   tramoDeAutorizacion,
   TRANSICIONES_RECLAMO,
@@ -32,6 +37,7 @@ import {
   type PlanReclamo,
 } from "@/lib/reclamos";
 import { formatearFecha, formatearGuaranies, hoyEnAsuncion } from "@/lib/formato";
+import { MAXIMO_EVIDENCIAS_ACCION } from "@/lib/constantes";
 
 interface Persona {
   id: string;
@@ -44,6 +50,13 @@ export interface AccionDelPlan {
   responsable_id: string | null;
   fecha_limite: string | null;
   ejecutada_en: string | null;
+}
+
+/** Un archivo de evidencia, como lo devuelve la consulta de la ficha. */
+export interface ArchivoDeEvidencia {
+  id: string;
+  nombre: string;
+  entidad_id: string;
 }
 
 /**
@@ -64,6 +77,7 @@ export function PanelCaso({
   gravedad,
   personas,
   acciones,
+  evidenciaPorAccion,
   suspendido,
   fechaVerificacion,
 }: {
@@ -73,6 +87,8 @@ export function PanelCaso({
   gravedad: GravedadReclamo;
   personas: Persona[];
   acciones: AccionDelPlan[];
+  /** La evidencia ya cargada, agrupada por acción. */
+  evidenciaPorAccion: Record<string, ArchivoDeEvidencia[]>;
   /** Si hay un trámite ante la DIGEMABEL con el plazo detenido. */
   suspendido: boolean;
   fechaVerificacion: string | null;
@@ -90,9 +106,10 @@ export function PanelCaso({
    * Con más de un paso sigue habiendo que elegir, que ahí sí es una
    * decisión.
    */
-  const unicoPaso = TRANSICIONES_RECLAMO[estado].length === 1
-    ? TRANSICIONES_RECLAMO[estado][0]
-    : null;
+  const pasosDelEstado = TRANSICIONES_RECLAMO[estado].filter(
+    (posible) => !(posible === "resuelto" && accionesPendientes(acciones) > 0),
+  );
+  const unicoPaso = pasosDelEstado.length === 1 ? pasosDelEstado[0] : null;
   const [destino, definirDestino] = React.useState<EstadoReclamo | null>(unicoPaso);
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
@@ -116,7 +133,15 @@ export function PanelCaso({
     );
   }
 
-  const posibles = TRANSICIONES_RECLAMO[estado];
+  // EL CASO NO SE RESUELVE CON ACCIONES ABIERTAS. Declararlo resuelto
+  // con el plan a medias es decirle al cliente que está solucionado
+  // antes de haberlo solucionado. El servidor lo rechaza igual; acá se
+  // saca el paso de la pantalla para que no se ofrezca algo que va a ser
+  // negado, y se dice por qué.
+  const sinEjecutar = accionesPendientes(acciones);
+  const posibles = TRANSICIONES_RECLAMO[estado].filter(
+    (posible) => !(posible === "resuelto" && sinEjecutar > 0),
+  );
 
   const etiquetas: Partial<Record<EstadoReclamo, string>> = {
     contactado: "Registrar el contacto con el cliente",
@@ -172,35 +197,57 @@ export function PanelCaso({
 
   const paso = (
     <>
-      {posibles.length === 0 ? null : (
+      {posibles.length === 0 ? (
+        sinEjecutar > 0 && TRANSICIONES_RECLAMO[estado].includes("resuelto") ? (
+          <Tarjeta className="p-4">
+            <p className="text-xs font-semibold text-atenuado-contraste">Resolución del caso</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
+              Se habilita cuando estén ejecutadas las {sinEjecutar} acci
+              {sinEjecutar === 1 ? "ón" : "ones"} que quedan abiertas. Hasta entonces el caso no
+              está resuelto, por más que el cliente ya esté conforme.
+            </p>
+          </Tarjeta>
+        ) : null
+      ) : (
         <Tarjeta className="p-4">
           <p className="text-xs font-semibold">
             {unicoPaso ? (etiquetas[unicoPaso] ?? "Siguiente paso") : "Siguiente paso"}
           </p>
 
-          <div className="mt-2 flex flex-wrap gap-2">
-            {posibles.map((posible) => (
-              <Boton
-                key={posible}
-                tamano="pequeno"
-                variante={destino === posible ? "primario" : "contorno"}
-                onClick={() => {
-                  definirError(null);
-                  definirDestino(destino === posible ? null : posible);
-                }}
-              >
-                {etiquetas[posible] ?? posible}
-              </Boton>
-            ))}
+          {/* CON UN SOLO PASO NO HAY BOTON QUE ELEGIR. El titulo ya
+              dice que se va a hacer y abajo esta el campo: un boton
+              encendido que repite el titulo y no decide nada es ruido, y
+              encima se lee como si hubiera que apretarlo primero. Con
+              mas de un paso sigue habiendo que elegir, y ahi si son
+              botones. */}
+          {!unicoPaso || admiteRechazo(estado) ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {unicoPaso
+                ? null
+                : posibles.map((posible) => (
+                    <Boton
+                      key={posible}
+                      tamano="pequeno"
+                      variante={destino === posible ? "primario" : "contorno"}
+                      onClick={() => {
+                        definirError(null);
+                        definirDestino(destino === posible ? null : posible);
+                      }}
+                    >
+                      {etiquetas[posible] ?? posible}
+                    </Boton>
+                  ))}
 
-            {/* El rechazo del cliente no es un estado: es lo que hace que
-                el caso escale al plan siguiente para otra propuesta. */}
-            {admiteRechazo(estado) ? (
-              <Boton tamano="pequeno" variante="contorno" cargando={enviando} onClick={rechazar}>
-                <ThumbsDown /> El cliente rechazó
-              </Boton>
-            ) : null}
-          </div>
+              {/* El rechazo del cliente no es un estado: es lo que hace
+                  que el caso escale al plan siguiente para otra
+                  propuesta. */}
+              {admiteRechazo(estado) ? (
+                <Boton tamano="pequeno" variante="contorno" cargando={enviando} onClick={rechazar}>
+                  <ThumbsDown /> El cliente rechazó
+                </Boton>
+              ) : null}
+            </div>
+          ) : null}
 
           {destino ? (
             <form onSubmit={mover} className="mt-4 border-t border-borde pt-4">
@@ -327,6 +374,28 @@ export function PanelCaso({
 
               {destino === "resuelto" ? (
                 <div className="space-y-3">
+                  {/* CÓMO SE SOLUCIONÓ, antes que la plata. Es distinto
+                      de la compensación: la compensación es lo que se le
+                      dio al cliente, la resolución es lo que se hizo
+                      para que el problema deje de existir. Un caso puede
+                      resolverse sin compensación ninguna, y así quedaba
+                      sin registro de nada. */}
+                  <GrupoCampo
+                    etiqueta="Resolución del caso"
+                    htmlFor="resolucion_detalle"
+                    requerido
+                    ayuda="Cómo se solucionó. Es lo que queda como registro de la gestión."
+                  >
+                    <AreaTexto
+                      id="resolucion_detalle"
+                      name="resolucion_detalle"
+                      rows={3}
+                      required
+                      minLength={10}
+                      placeholder="Se retiró el artículo equivocado y se entregó el correcto en el domicilio del cliente."
+                    />
+                  </GrupoCampo>
+
                   <GrupoCampo etiqueta="Fecha de resolución" htmlFor="fecha_resolucion">
                     <Entrada id="fecha_resolucion" name="fecha_resolucion" type="date" defaultValue={hoyEnAsuncion()} />
                   </GrupoCampo>
@@ -477,12 +546,28 @@ export function PanelCaso({
           se contacta, y de esa conversación salen las acciones. */}
       {paso}
 
-      <AccionesDelPlan
-        reclamoId={reclamoId}
-        personas={personas}
-        iniciales={acciones}
-        exigeCorrectiva={exigeAccionCorrectiva(plan)}
-      />
+      {/* LAS ACCIONES SE HABILITAN RECIEN CON EL CONTACTO HECHO. De la
+          conversacion con el cliente salen las acciones: ofrecerlas
+          antes es pedir que se invente el plan sin haber escuchado el
+          reclamo, y encima el plazo de resolucion se cuenta desde el
+          contacto, no desde la deteccion. */}
+      {estado === "registrado" ? (
+        <Tarjeta className="p-4">
+          <p className="text-xs font-semibold text-atenuado-contraste">Acciones del plan</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
+            Se habilitan al registrar el contacto con el cliente: de esa conversación salen las
+            acciones, y el plazo de resolución se cuenta desde ahí.
+          </p>
+        </Tarjeta>
+      ) : (
+        <AccionesDelPlan
+          reclamoId={reclamoId}
+          personas={personas}
+          iniciales={acciones}
+          evidenciaPorAccion={evidenciaPorAccion}
+          exigeCorrectiva={exigeAccionCorrectiva(plan)}
+        />
+      )}
 
       {suspendido ? <BotonReanudar reclamoId={reclamoId} /> : null}
 
@@ -506,14 +591,17 @@ function AccionesDelPlan({
   reclamoId,
   personas,
   iniciales,
+  evidenciaPorAccion,
   exigeCorrectiva,
 }: {
   reclamoId: string;
   personas: Persona[];
   iniciales: AccionDelPlan[];
+  evidenciaPorAccion: Record<string, ArchivoDeEvidencia[]>;
   exigeCorrectiva: boolean;
 }) {
   const router = useRouter();
+  const hoy = hoyEnAsuncion();
   const [guardando, definirGuardando] = React.useState(false);
   const [filas, definirFilas] = React.useState(() =>
     iniciales.length > 0
@@ -560,7 +648,10 @@ function AccionesDelPlan({
       </p>
 
       <form onSubmit={guardar} className="space-y-3">
-        {filas.map((fila) => (
+        {filas.map((fila) => {
+          const plazo = estadoDePlazoDeAccion(fila.fecha_limite, fila.ejecutada_en, hoy);
+
+          return (
           <div key={fila.clave} className="rounded-md border border-borde p-2.5">
             <input type="hidden" name="accion_id" value={fila.id} />
 
@@ -617,10 +708,44 @@ function AccionesDelPlan({
                 <Entrada
                   name="accion_fecha_limite"
                   type="date"
-                  defaultValue={fila.fecha_limite ?? ""}
+                  value={fila.fecha_limite ?? ""}
+                  onChange={(evento) =>
+                    definirFilas((actuales) =>
+                      actuales.map((otra) =>
+                        otra.clave === fila.clave
+                          ? { ...otra, fecha_limite: evento.target.value || null }
+                          : otra,
+                      ),
+                    )
+                  }
                   required
                   className="text-xs"
                 />
+
+                {/* EN PLAZO O FUERA DE PLAZO, LA MISMA CUENTA ABIERTA Y
+                    CERRADA. Mientras la acción está abierta se compara
+                    contra hoy y sirve para saberlo ANTES de que se
+                    venza; al marcarla ejecutada queda fija contra la
+                    fecha en que se ejecutó. Si fueran dos cuentas
+                    distintas, la leyenda podría decir una cosa abierta y
+                    otra cerrada sobre la misma acción. */}
+                {plazo ? (
+                  <span
+                    className={
+                      plazo === "en_plazo"
+                        ? "text-[11px] font-medium text-semaforo-bajo"
+                        : "text-[11px] font-medium text-semaforo-critico"
+                    }
+                  >
+                    {ETIQUETAS_ESTADO_PLAZO[plazo]}
+                    {!fila.ejecutada_en ? (
+                      <span className="font-normal text-atenuado-contraste">
+                        {" "}
+                        · todavía sin ejecutar
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </label>
             </div>
 
@@ -663,8 +788,22 @@ function AccionesDelPlan({
               </span>
             </label>
             <input type="hidden" name="accion_ejecutada_en" value={fila.ejecutada_en ?? ""} />
+
+            {/* LA EVIDENCIA, SOLO EN LAS ACCIONES YA GUARDADAS. Un
+                archivo necesita una fila a la que colgarse: en una
+                acción que todavía no se guardó no hay id, y subirlo
+                antes dejaría el archivo huérfano si la persona cierra la
+                pantalla sin guardar. */}
+            {fila.id ? (
+              <EvidenciaDeAccion
+                accionId={fila.id}
+                reclamoId={reclamoId}
+                archivos={evidenciaPorAccion[fila.id] ?? []}
+              />
+            ) : null}
           </div>
-        ))}
+          );
+        })}
 
         <div className="flex items-center justify-between gap-2">
           <Boton
@@ -809,5 +948,125 @@ function Verificacion({
         </div>
       </form>
     </Tarjeta>
+  );
+}
+
+/**
+ * La evidencia de una acción del plan.
+ *
+ * HASTA CINCO ARCHIVOS POR ACCIÓN, contando los que ya tiene: es un tope
+ * por acción y no por subida. Alcanza para el acta, la foto, el correo y
+ * el comprobante; más que eso deja de ser evidencia de una acción y pasa
+ * a ser un archivo. Es el mismo tope que en las acciones de tratamiento
+ * del riesgo, porque es la misma pregunta.
+ *
+ * El tope lo hace cumplir el servidor; acá se dice cuántos quedan para
+ * que la persona no elija siete archivos y se entere después.
+ */
+function EvidenciaDeAccion({
+  accionId,
+  reclamoId,
+  archivos,
+}: {
+  accionId: string;
+  reclamoId: string;
+  archivos: ArchivoDeEvidencia[];
+}) {
+  const router = useRouter();
+  const [subiendo, definirSubiendo] = React.useState(false);
+  const entrada = React.useRef<HTMLInputElement>(null);
+
+  const libres = MAXIMO_EVIDENCIAS_ACCION - archivos.length;
+
+  async function subir(lista: FileList | null) {
+    if (!lista || lista.length === 0) return;
+
+    const datos = new FormData();
+    for (const archivo of Array.from(lista)) datos.append("evidencia", archivo);
+
+    definirSubiendo(true);
+    const respuesta = await adjuntarEvidenciaDeAccion(accionId, reclamoId, datos);
+    definirSubiendo(false);
+    if (entrada.current) entrada.current.value = "";
+
+    if (respuesta.exito) {
+      toast.success(respuesta.mensaje ?? "Evidencia cargada.");
+      router.refresh();
+    } else {
+      toast.error(respuesta.error);
+    }
+  }
+
+  async function quitar(adjuntoId: string) {
+    const respuesta = await eliminarEvidenciaDeAccion(adjuntoId, accionId, reclamoId);
+    if (respuesta.exito) {
+      toast.success(respuesta.mensaje ?? "Eliminado.");
+      router.refresh();
+    } else {
+      toast.error(respuesta.error);
+    }
+  }
+
+  return (
+    <div className="mt-2 border-t border-borde pt-2">
+      <p className="text-[11px] font-medium">
+        Evidencia
+        <span className="ml-1 font-normal text-atenuado-contraste">
+          {archivos.length} de {MAXIMO_EVIDENCIAS_ACCION}
+        </span>
+      </p>
+
+      {archivos.length > 0 ? (
+        <ul className="mt-1 space-y-0.5">
+          {archivos.map((archivo) => (
+            <li key={archivo.id} className="flex items-center gap-1.5 text-[11px]">
+              <Paperclip className="size-3 shrink-0 text-atenuado-contraste" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate">{archivo.nombre}</span>
+              <button
+                type="button"
+                onClick={() => quitar(archivo.id)}
+                className="shrink-0 text-atenuado-contraste hover:text-semaforo-critico"
+                aria-label={`Quitar ${archivo.nombre}`}
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* La subida va por fuera del formulario de las acciones: es una
+          acción de servidor distinta y no tiene que arrastrar consigo el
+          guardado de las descripciones y los plazos. */}
+      {libres > 0 ? (
+        <>
+          <input
+            ref={entrada}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(evento) => subir(evento.target.files)}
+          />
+          <Boton
+            type="button"
+            tamano="pequeno"
+            variante="fantasma"
+            cargando={subiendo}
+            className="mt-1 h-7 px-2 text-[11px]"
+            onClick={() => entrada.current?.click()}
+          >
+            {subiendo ? null : <Paperclip className="size-3" />}
+            Adjuntar evidencia
+            <span className="font-normal text-atenuado-contraste">
+              (entra{libres === 1 ? "" : "n"} {libres})
+            </span>
+          </Boton>
+        </>
+      ) : (
+        <p className="mt-1 text-[11px] text-atenuado-contraste">
+          Llegó al máximo de {MAXIMO_EVIDENCIAS_ACCION}. Quite alguno para subir otro.
+        </p>
+      )}
+    </div>
   );
 }

@@ -12,7 +12,11 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import { PanelCaso, type AccionDelPlan } from "@/app/(sgc)/reclamos/[id]/panel-caso";
+import {
+  PanelCaso,
+  type AccionDelPlan,
+  type ArchivoDeEvidencia,
+} from "@/app/(sgc)/reclamos/[id]/panel-caso";
 import { EliminarReclamo } from "@/app/(sgc)/reclamos/[id]/eliminar-reclamo";
 import { esAdministrador, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
@@ -73,6 +77,7 @@ interface Reclamo {
   fecha_cierre: string | null;
   fecha_verificacion: string | null;
   verificacion_observacion: string | null;
+  resolucion_detalle: string | null;
   compensacion_detalle: string | null;
   compensacion_monto: number | null;
   monto_factura: number | null;
@@ -93,7 +98,8 @@ const CAMPOS =
   "rechazos, material_controlado, tramite_digemabel, suspendido_desde, notificado_gerencia, " +
   "fecha_deteccion, fecha_limite_contacto, fecha_contacto, fecha_limite_plan, " +
   "fecha_definicion_plan, fecha_limite_resolucion, fecha_resolucion, fecha_cierre, " +
-  "fecha_verificacion, verificacion_observacion, compensacion_detalle, compensacion_monto, " +
+  "fecha_verificacion, verificacion_observacion, resolucion_detalle, " +
+  "compensacion_detalle, compensacion_monto, " +
   "gestor_id, responsable_area_id, " +
   "monto_factura, conformidad_firmada, motivo_no_conciliado, " +
   "cliente:cliente_id (id, razon_social), gestor:gestor_id (nombre_completo), " +
@@ -190,7 +196,8 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
 
-  const [{ data }, { data: filasAcciones }, { data: personas }] = await Promise.all([
+  const [{ data }, { data: filasAcciones }, { data: personas }, { data: filasEvidencia }] =
+    await Promise.all([
     supabase.from("reclamos").select(CAMPOS).eq("id", params.id).maybeSingle(),
     supabase
       .from("reclamo_acciones")
@@ -202,12 +209,29 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
       .select("id, nombre_completo")
       .eq("activo", true)
       .order("nombre_completo"),
+    // LA EVIDENCIA DE LAS ACCIONES, en una sola consulta y no una por
+    // acción: son pocas filas y cinco archivos como mucho cada una.
+    supabase
+      .from("adjuntos")
+      .select("id, nombre, entidad_id")
+      .eq("entidad", "reclamo_acciones")
+      .order("creado_en"),
   ]);
 
   const reclamo = data as unknown as Reclamo | null;
   if (!reclamo) notFound();
 
   const acciones = (filasAcciones as AccionDelPlan[] | null) ?? [];
+
+  // La evidencia llega de toda la tabla —RLS acota por empresa, no por
+  // reclamo— así que se agrupa por acción y las de otros casos quedan
+  // afuera solas: ninguna acción de otro reclamo está en esta lista.
+  const idsDeAcciones = new Set(acciones.map((accion) => accion.id));
+  const evidenciaPorAccion: Record<string, ArchivoDeEvidencia[]> = {};
+  for (const archivo of ((filasEvidencia as ArchivoDeEvidencia[] | null) ?? [])) {
+    if (!idsDeAcciones.has(archivo.entidad_id)) continue;
+    (evidenciaPorAccion[archivo.entidad_id] ??= []).push(archivo);
+  }
 
   // QUIEN PUEDE OPERAR EL CASO ES LO QUE DICE RLS, no el rol a secas: la
   // política `reclamos_edicion` deja a Calidad, al gestor del caso y al
@@ -327,6 +351,21 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
             </TarjetaContenido>
           </Tarjeta>
 
+          {/* CÓMO SE SOLUCIONÓ, en su propia tarjeta y antes que la
+              compensación: un caso puede resolverse sin compensación
+              ninguna, y mezclarlos haría que el registro de la gestión
+              dependa de que haya habido plata de por medio. */}
+          {reclamo.resolucion_detalle ? (
+            <Tarjeta>
+              <TarjetaCabecera>
+                <TarjetaTitulo>Resolución del caso</TarjetaTitulo>
+              </TarjetaCabecera>
+              <TarjetaContenido>
+                <Bloque titulo="Cómo se solucionó" texto={reclamo.resolucion_detalle} />
+              </TarjetaContenido>
+            </Tarjeta>
+          ) : null}
+
           {reclamo.compensacion_detalle || monto > 0 ? (
             <Tarjeta>
               <TarjetaCabecera>
@@ -412,6 +451,7 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
               gravedad={reclamo.gravedad}
               personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
               acciones={acciones}
+              evidenciaPorAccion={evidenciaPorAccion}
               suspendido={reclamo.tramite_digemabel && reclamo.suspendido_desde !== null}
               fechaVerificacion={reclamo.fecha_verificacion}
             />

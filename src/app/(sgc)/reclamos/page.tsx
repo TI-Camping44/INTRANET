@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MessageSquareWarning, Plus } from "lucide-react";
 
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
+import { Torta } from "@/components/comunes/graficos";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
@@ -25,6 +26,7 @@ import {
   ETIQUETAS_ESTADO_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
   ETIQUETAS_PLAN_RECLAMO,
+  GRAVEDADES_RECLAMO,
   type EstadoReclamo,
   type GravedadReclamo,
   type PlanReclamo,
@@ -94,6 +96,33 @@ export default async function PaginaReclamos({
           ? todos
           : todos.filter((r) => !estaCerrado(r));
 
+  // EL COLOR DE LA GRAVEDAD ES EL DEL SEMAFORO, no uno inventado: leve,
+  // real y grave son tres niveles de lo mismo y el ojo ya los lee asi en
+  // el resto del sistema. Salen de las variables del tema para que
+  // funcionen igual en modo claro y oscuro.
+  const COLOR_GRAVEDAD: Record<GravedadReclamo, string> = {
+    leve: "hsl(var(--semaforo-bajo))",
+    real: "hsl(var(--semaforo-medio))",
+    grave: "hsl(var(--semaforo-critico))",
+  };
+
+  const porGravedad = GRAVEDADES_RECLAMO.map((gravedad) => ({
+    etiqueta: ETIQUETAS_GRAVEDAD_RECLAMO[gravedad],
+    valor: reclamos.filter((reclamo) => reclamo.gravedad === gravedad).length,
+    color: COLOR_GRAVEDAD[gravedad],
+  }));
+
+  const porEstado = Object.entries(ETIQUETAS_ESTADO_RECLAMO).map(([valor, etiqueta]) => ({
+    etiqueta,
+    valor: reclamos.filter((reclamo) => reclamo.estado === valor).length,
+    color:
+      valor === "cerrado"
+        ? "hsl(var(--semaforo-bajo))"
+        : valor === "no_conciliado"
+          ? "hsl(var(--semaforo-critico))"
+          : "hsl(var(--primario))",
+  }));
+
   const contadores = {
     abiertos: todos.filter((r) => !estaCerrado(r)).length,
     plazo: todos.filter(fueraDePlazo).length,
@@ -137,6 +166,22 @@ export default async function PaginaReclamos({
           </Link>
         ))}
       </div>
+
+      {/* LAS DOS TORTAS, sobre lo que quedó en el listado y no sobre el
+          total: si alguien filtra por una vista, los porcentajes son de
+          esa vista, que es lo que está mirando.
+
+          Van en torta y no en barras porque son tres y cinco porciones:
+          se comparan de un vistazo. Cada una lleva su tabla de datos al
+          lado —la ponen los propios componentes— y el total en el
+          agujero, que es «Total de reclamos» sin una tarjeta aparte que
+          repita el número. */}
+      {reclamos.length > 0 ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Torta titulo="Por gravedad" porciones={porGravedad} />
+          <Torta titulo="Por estado" porciones={porEstado} />
+        </div>
+      ) : null}
 
       {reclamos.length === 0 ? (
         <EstadoVacio

@@ -562,3 +562,42 @@ export interface ClienteEncontrado {
 export type ResultadoBusquedaClientes =
   | { exito: true; clientes: ClienteEncontrado[] }
   | { exito: false; error: string };
+
+/**
+ * Si una acción del plan va en plazo o se pasó.
+ *
+ * SIRVE PARA LAS DOS COSAS, y es el punto: mientras la acción está
+ * abierta es informativo —falta saberlo antes de que se venza, no
+ * después— y al marcarla ejecutada queda fijo contra la fecha en que se
+ * ejecutó. Una sola función para que la leyenda no pueda decir una cosa
+ * abierta y otra cerrada.
+ *
+ * `null` cuando no hay plazo declarado: sin fecha límite no hay nada
+ * contra qué comparar, y escribir «En plazo» ahí sería inventar.
+ */
+export type EstadoDePlazo = "en_plazo" | "fuera_de_plazo";
+
+export function estadoDePlazoDeAccion(
+  fechaLimite: string | null,
+  ejecutadaEn: string | null,
+  hoy: string,
+): EstadoDePlazo | null {
+  if (!fechaLimite) return null;
+  // La comparación es de texto y funciona: las fechas de PostgreSQL
+  // llegan como `AAAA-MM-DD`, que ordena igual alfabéticamente que
+  // cronológicamente. Pasarlas por `new Date()` las correría un día.
+  const referencia = ejecutadaEn ?? hoy;
+  return referencia <= fechaLimite ? "en_plazo" : "fuera_de_plazo";
+}
+
+export const ETIQUETAS_ESTADO_PLAZO: Record<EstadoDePlazo, string> = {
+  en_plazo: "En plazo",
+  fuera_de_plazo: "Fuera de plazo",
+};
+
+/** Si quedan acciones sin ejecutar. El caso no se resuelve con pendientes. */
+export function accionesPendientes(
+  acciones: { ejecutada_en: string | null }[],
+): number {
+  return acciones.filter((accion) => !accion.ejecutada_en).length;
+}
