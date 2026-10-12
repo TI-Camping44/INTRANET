@@ -15,6 +15,7 @@ import {
 import {
   BotonInvitar,
   BotonInvitarAPendientes,
+  BotonProbarCorreo,
 } from "@/app/(sgc)/administracion/padron/invitar";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
@@ -115,7 +116,14 @@ export default async function PaginaPadron() {
       <EncabezadoPagina
         titulo="Padrón de la nómina"
         descripcion="Quiénes pueden entrar y quiénes ya entraron. Sale de la exportación de Odoo; el perfil se arma solo en el primer ingreso con Google."
-        acciones={<BotonInvitarAPendientes pendientes={filas.length - ingresaron.length} />}
+        acciones={
+          <>
+            {/* La prueba va primero: es lo que corresponde hacer antes
+                de tocar el que invita de verdad. */}
+            <BotonProbarCorreo />
+            <BotonInvitarAPendientes pendientes={filas.length - ingresaron.length} />
+          </>
+        }
       />
 
       {filas.length === 0 ? (

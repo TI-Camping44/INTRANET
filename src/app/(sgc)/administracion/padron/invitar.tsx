@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Send } from "lucide-react";
+import { MailCheck, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Boton } from "@/components/ui/boton";
 import {
+  enviarInvitacionDePrueba,
   invitarAlSistema,
   invitarAPendientes,
 } from "@/app/(sgc)/administracion/padron/acciones";
@@ -91,6 +92,44 @@ export function BotonInvitarAPendientes({ pendientes }: { pendientes: number }) 
     <Boton cargando={enviando} onClick={enviar}>
       {enviando ? null : <Send className="size-4" />}
       Invitar a los pendientes
+    </Boton>
+  );
+}
+
+/**
+ * Manda el aviso al propio administrador, para verlo antes de mandárselo
+ * a nadie.
+ *
+ * VA PRIMERO Y EN SECUNDARIO. Primero porque es lo que corresponde hacer
+ * antes de tocar el otro botón; en secundario porque el que importa es el
+ * que invita de verdad, y dos botones iguales al lado dejan la pantalla
+ * sin decir cuál es cuál.
+ */
+export function BotonProbarCorreo() {
+  const [enviando, definirEnviando] = React.useState(false);
+
+  async function enviar() {
+    definirEnviando(true);
+    const resultado = await enviarInvitacionDePrueba();
+    definirEnviando(false);
+
+    if (!resultado.exito) {
+      toast.error(resultado.error);
+      return;
+    }
+
+    toast.success(resultado.mensaje ?? "Prueba enviada.");
+  }
+
+  return (
+    <Boton
+      variante="contorno"
+      cargando={enviando}
+      onClick={enviar}
+      title="Se lo manda a usted mismo, sin tocar el padrón"
+    >
+      {enviando ? null : <MailCheck className="size-4" />}
+      Probar el correo conmigo
     </Boton>
   );
 }

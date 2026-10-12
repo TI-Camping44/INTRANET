@@ -44,12 +44,22 @@ interface PersonaDelPadron {
   invitaciones_enviadas: number;
 }
 
-/** El texto del aviso. Es el mismo para una persona o para una tanda. */
-function armarCorreo(persona: PersonaDelPadron, enlace: string | null) {
-  const nombre = persona.nombre_completo.split(" ")[0] ?? persona.nombre_completo;
+/**
+ * El texto del aviso.
+ *
+ * ES UNO SOLO para la invitación de a una, la tanda y la prueba: si la
+ * prueba armara su propio texto, lo que se mira antes de mandarle a 53
+ * personas no sería lo que esas 53 personas van a recibir.
+ */
+function armarCorreo(
+  destinatario: { correo: string; nombre_completo: string },
+  enlace: string | null,
+) {
+  const nombre =
+    destinatario.nombre_completo.split(" ")[0] ?? destinatario.nombre_completo;
 
   return {
-    para: persona.correo,
+    para: destinatario.correo,
     asunto: `Su acceso a la ${NOMBRE_SISTEMA}`,
     titulo: `${nombre}, ya puede entrar a la ${NOMBRE_SISTEMA}`,
     cuerpo:
@@ -205,5 +215,51 @@ export async function invitarAPendientes(): Promise<ResultadoAccion> {
       `Se enviaron ${enviados} avisos.` +
       (restantes > 0 ? ` Quedan ${restantes} sin avisar: vuelva a tocar el botón.` : "") +
       (fallaron.length > 0 ? ` No salieron ${fallaron.length}: ${fallaron.join(", ")}.` : ""),
+  };
+}
+
+/**
+ * Manda el aviso al propio administrador, para verlo antes de mandárselo
+ * a nadie.
+ *
+ * HACE FALTA PORQUE QUIEN TIENE QUE REVISARLO NO LO PUEDE RECIBIR: el
+ * botón de cada fila solo aparece en quien todavía no ingresó, y el
+ * Administrador SGC ingresó por definición. Sin esto, la única forma de
+ * ver cómo queda el correo sería mandárselo a alguien de verdad.
+ *
+ * NO TOCA EL PADRÓN. No marca a nadie como invitado ni suma al contador:
+ * una prueba no es un aviso enviado, y contarla haría que el padrón
+ * mienta sobre a quién se le avisó.
+ *
+ * El cuerpo es idéntico al que sale de verdad; lo único distinto es el
+ * «[Prueba]» del asunto, para que en la bandeja no se confunda con el
+ * aviso real cuando empiecen a llegar las respuestas.
+ */
+export async function enviarInvitacionDePrueba(): Promise<ResultadoAccion> {
+  const administrador = await requerirRol(["administrador_sgc"]);
+
+  const correo = armarCorreo(
+    { correo: administrador.correo, nombre_completo: administrador.nombre_completo },
+    urlAbsoluta("/ingresar"),
+  );
+
+  const enviado = await enviarCorreo({
+    ...correo,
+    asunto: `[Prueba] ${correo.asunto}`,
+    deParteDe: departe(administrador),
+  });
+
+  if (!enviado) {
+    return {
+      exito: false,
+      error:
+        "No se pudo enviar. Revise que SMTP_HOST, SMTP_USUARIO y SMTP_CLAVE estén cargados " +
+        "en el proyecto: si falla acá, también va a fallar con el resto.",
+    };
+  }
+
+  return {
+    exito: true,
+    mensaje: `Prueba enviada a ${administrador.correo}. Es el mismo correo que les va a llegar.`,
   };
 }
