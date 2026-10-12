@@ -463,12 +463,25 @@ export const COMPENSACIONES_SUGERIDAS: Record<GravedadReclamo, string[]> = {
 /**
  * Quién tiene que autorizar una compensación, según su monto.
  *
- * TODAVÍA NO SE HACE CUMPLIR, y es a propósito. Los cargos del
- * procedimiento —Supervisor y Jefe del Canal Consumidor Final— no
- * coinciden con los puestos cargados en la intranet, y adivinar quién
- * firma plata es exactamente lo que no hay que adivinar. La pantalla dice
- * qué nivel corresponde y guarda quién autorizó; cuando Calidad confirme
- * los puestos, se pasa a exigirlo.
+ * EL TOPE PORCENTUAL SE HACE CUMPLIR desde el 12 de octubre: el monto y
+ * el porcentaje son dos candados simultáneos y vale el que se alcance
+ * primero. Lo pidió Calidad con este ejemplo: Gs. 2.000.000 están dentro
+ * del primer tramo por monto, y sobre una factura de Gs. 2.500.000 son el
+ * 80 %, muy por encima del 50 % que ese tramo admite. La acción de
+ * servidor lo rechaza y el `CHECK` `reclamos_tope_porcentual` lo sostiene
+ * en la base.
+ *
+ * El tope viaja con el tramo, y el tramo lo decide el monto: una
+ * compensación mayor cae en el tramo siguiente, donde el tope es el
+ * 100 %. No es que más sea más fácil, es que ese monto ya no lo firma el
+ * Supervisor sino el Jefe del Canal. El caso del ejemplo no se destraba
+ * subiendo el monto: se baja la compensación o se asume sin compensar.
+ *
+ * QUIÉN FIRMA SIGUE SIN HACERSE CUMPLIR, y es aparte. Los cargos del
+ * procedimiento —Supervisor y Jefe del Canal Consumidor Final— ya existen
+ * entre los puestos cargados, así que es alcanzable; hasta que Calidad
+ * confirme el mapeo, la pantalla dice qué nivel corresponde y guarda
+ * quién autorizó, pero no verifica que sea esa persona.
  *
  * El porcentaje se calcula sobre el monto de la transacción afectada —la
  * factura vinculada al reclamo— y no sobre el perjuicio estimado.

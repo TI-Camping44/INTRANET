@@ -130,6 +130,11 @@ export function PanelCaso({
   const facturaNumero = Number(factura.replace(/[^\d]/g, "")) || 0;
   const tramo = montoNumero > 0 ? tramoDeAutorizacion(montoNumero) : null;
   const excede = montoNumero > 0 ? excedeTopePorcentual(montoNumero, facturaNumero || null) : null;
+  /** El maximo en guaranies que admite el tramo para esta factura. */
+  const topeDelTramo =
+    tramo?.topePorcentaje != null && facturaNumero > 0
+      ? Math.floor((facturaNumero * tramo.topePorcentaje) / 100)
+      : null;
 
   async function mover(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -377,15 +382,23 @@ export function PanelCaso({
                           : null}
                         .
                       </p>
+                      {/* EL TOPE PORCENTUAL BLOQUEA, no avisa. Antes
+                          decía «tiene que autorizarlo el nivel
+                          siguiente», y no es lo que pasa: el tramo lo
+                          decide el monto, así que no hay nivel
+                          siguiente al que pasarle este caso. La salida
+                          es bajar la compensación. */}
                       {excede === true ? (
                         <p className="mt-1 font-medium text-semaforo-critico">
-                          Excede el tope del {tramo.topePorcentaje}% de la factura para ese nivel:
-                          tiene que autorizarlo el nivel siguiente.
+                          Excede el tope del {tramo.topePorcentaje} % de la factura para este
+                          tramo. El máximo es {formatearGuaranies(topeDelTramo ?? 0)}: con más
+                          que eso no se puede guardar.
                         </p>
                       ) : null}
                       {excede === null ? (
                         <p className="mt-1 text-semaforo-medio">
-                          Sin el monto de la factura no se puede verificar el tope porcentual.
+                          Cargue el monto de la factura: sin él no hay porcentaje que calcular y
+                          la compensación no se puede guardar.
                         </p>
                       ) : null}
                     </div>

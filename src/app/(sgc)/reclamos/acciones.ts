@@ -11,12 +11,14 @@ import {
   DIAS_VERIFICACION_PLAN_C,
   ESTADOS_CLIENTE_FINAL,
   exigeAccionCorrectiva,
+  excedeTopePorcentual,
   exigeNoConformidad,
   MAXIMO_COMPENSACIONES_ANUALES,
   planDelCaso,
   planSiguiente,
   puedePasarA,
   sumarDiasHabiles,
+  tramoDeAutorizacion,
   vencimientosDelPlan,
   type EstadoClienteReclamo,
   type EstadoReclamo,
@@ -27,7 +29,7 @@ import {
   type ClienteEncontrado,
   type ResultadoBusquedaClientes,
 } from "@/lib/reclamos";
-import { hoyEnAsuncion, formatearFecha } from "@/lib/formato";
+import { hoyEnAsuncion, formatearFecha, formatearGuaranies } from "@/lib/formato";
 import { departe, notificar } from "@/lib/notificaciones";
 import type { ResultadoAccion } from "@/lib/tipos";
 
@@ -49,6 +51,7 @@ interface CamposDelReclamo {
   tipoFalla: TipoFallaReclamo;
   gravedad: GravedadReclamo;
   responsableAreaId: string | null;
+  materialControlado: boolean;
 }
 
 function leerCampos(datos: FormData): CamposDelReclamo {
@@ -61,6 +64,12 @@ function leerCampos(datos: FormData): CamposDelReclamo {
     tipoFalla: String(datos.get("tipo_falla") ?? "otro") as TipoFallaReclamo,
     gravedad: String(datos.get("gravedad") ?? "leve") as GravedadReclamo,
     responsableAreaId: String(datos.get("responsable_area_id") ?? "") || null,
+    // MATERIAL CONTROLADO VOLVIO AL ALTA el 12 de octubre, y vuelve
+    // OPCIONAL. Habia salido el 9 porque era obligatorio y se preguntaba
+    // al registrar; Calidad confirmo que la pregunta corresponde pero sin
+    // trabar el alta de quien no lo sabe todavia. Sin marcar vale `false`,
+    // que es lo que la columna ya tenia por omision.
+    materialControlado: datos.get("material_controlado") === "si",
   };
 }
 
@@ -138,6 +147,7 @@ export async function crearReclamo(datos: FormData): Promise<ResultadoAccion> {
       plan,
       estado: "registrado",
       responsable_area_id: campos.responsableAreaId,
+      material_controlado: campos.materialControlado,
       es_reincidencia: esReincidencia,
       fecha_deteccion: hoy,
       fecha_limite_contacto: vencimientos.contacto,
@@ -226,6 +236,12 @@ export async function actualizarReclamo(id: string, datos: FormData): Promise<Re
     origen: campos.origen,
     tipo_falla: campos.tipoFalla,
     responsable_area_id: campos.responsableAreaId,
+    // LA EDICION TAMBIEN LO GUARDA, ahora que el alta lo pregunta.
+    // Mientras el campo no estaba en el formulario, no escribirlo era lo
+    // que impedia que editar un reclamo viejo lo borrara. Con la casilla
+    // en pantalla eso se da vuelta: mostrarla y no guardarla seria peor
+    // —alguien la desmarca, guarda, y no pasa nada—.
+    material_controlado: campos.materialControlado,
   };
 
   // Si cambia la gravedad, el plan y los plazos se recalculan. NUNCA HACIA
@@ -462,6 +478,41 @@ export async function cambiarEstadoReclamo(
       }
       if (!parche.autorizado_por) {
         return { exito: false, error: "Indique quién autorizó la compensación." };
+      }
+
+      // EL TOPE PORCENTUAL SE HACE CUMPLIR, no solo se avisa. El monto y
+      // el porcentaje son dos candados simultaneos y vale el que se
+      // alcance primero: Gs. 2.000.000 estan dentro del primer tramo por
+      // monto, y sobre una factura de Gs. 2.500.000 son el 80 %, muy por
+      // encima del 50 % que ese tramo permite.
+      //
+      // Sin el monto de la factura no hay porcentaje que calcular, y
+      // dejar pasar la compensacion porque falta el divisor es lo
+      // contrario de un candado. Por eso se exige.
+      const tramo = tramoDeAutorizacion(monto);
+      if (tramo.topePorcentaje !== null) {
+        if (!parche.monto_factura) {
+          return {
+            exito: false,
+            error:
+              "Cargue el monto de la factura afectada. El tope de la compensación es un " +
+              `porcentaje de ese monto —${tramo.topePorcentaje} % en este tramo— y sin él no ` +
+              "hay forma de controlarlo.",
+          };
+        }
+        if (excedeTopePorcentual(monto, Number(parche.monto_factura))) {
+          const factura = Number(parche.monto_factura);
+          const porcentaje = Math.round((monto / factura) * 100);
+          const maximo = Math.floor((factura * tramo.topePorcentaje) / 100);
+          return {
+            exito: false,
+            error:
+              `La compensación de ${formatearGuaranies(monto)} es el ${porcentaje} % de la ` +
+              `factura de ${formatearGuaranies(factura)}, y en su tramo el tope es el ` +
+              `${tramo.topePorcentaje} %. El máximo para esta factura es ` +
+              `${formatearGuaranies(maximo)}.`,
+          };
+        }
       }
       // La autorizacion tiene fecha propia: es la que vale para la
       // auditoria, no la de resolucion del caso.

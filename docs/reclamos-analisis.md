@@ -66,12 +66,16 @@ Esto es trabajo nuevo, ordenado por lo que cuesta:
    número, y el documento lo pide para poder rastrear la compensación.
 3. **Canal de venta en el reclamo.** No está. Hoy se sabe el tipo de
    falla y el área responsable, no por qué canal compró el cliente.
-4. **Exigir la autorización, no solo registrarla.** Ver el recuadro de
-   arriba.
-5. **Historial de compensaciones por cliente.** Para avisar —o
-   bloquear— cuando un cliente ya recibió dos en el año hace falta
-   poder contarlas. Hoy la compensación vive en el reclamo, una por
-   caso, sin forma de sumarlas por cliente y por año.
+4. **Exigir que firme quien corresponde.** El tope porcentual ya se hace
+   cumplir desde el 12 de octubre —ver el apartado 6—, pero quién firma
+   todavía no se verifica: la pantalla dice qué nivel corresponde y
+   guarda a quién se eligió. Los dos puestos del procedimiento ya
+   existen entre los 44 cargados, así que falta el mapeo, no el dato.
+5. **Historial de compensaciones por cliente, a la vista.** Contarlas ya
+   se puede: el bloqueo de la tercera del año consulta `reclamos` por
+   cliente y por año, y funciona. Lo que no hay es dónde verlas: quien
+   atiende el cuarto reclamo de un cliente no tiene cómo saber qué se le
+   compensó antes hasta que el sistema le corta el paso.
 6. **Tareas asignadas a un área, no a una persona.**
    `reclamo_acciones.responsable_id` apunta a una persona. El documento
    pide asignar al área de origen. Con el departamento del puesto ya
@@ -103,6 +107,11 @@ confirmen, porque significa volver atrás algo decidido hace tres días.
 Las tres salieron por el mismo motivo y está escrito en el commit: **se
 preguntaban al registrar, que es cuando todavía no se sabe la
 respuesta.**
+
+> **Resuelto el 12 de octubre** —ver el apartado 6—: de las tres volvió
+> una, «Material controlado», y volvió **opcional**, que era el motivo por
+> el que había salido. El gestor del caso y los otros departamentos
+> intervinientes siguen fuera del alta.
 
 No digo que el documento esté equivocado. Puede que Calidad haya
 cambiado de criterio, o que quien lo escribió no supiera de esos
@@ -184,19 +193,109 @@ saltar de registrado a cerrado.
 
 ---
 
-## 6 · Qué hay que decidir antes de programar
+## 6 · Las respuestas, y qué cambió con cada una
 
-Cinco preguntas, por orden de importancia. Ninguna es técnica:
+Contestadas el 12 de octubre de 2026.
 
-1. **¿Vuelve el Gestor del Caso al formulario?** Es la que más cambia el
-   trabajo diario, y es la que se decidió al revés hace tres días.
-2. **¿Vuelve «Material Controlado» como casilla obligatoria del alta?**
-3. **¿La reincidencia sube la gravedad o el plan?**
-4. **Compensaciones: ¿el porcentaje cuenta además del monto, y la
-   tercera del año se avisa o se bloquea?**
-5. **La alerta del 5 %: ¿5 % de qué, y sobre cuántos casos como mínimo
-   tiene sentido calcularla?**
+### 1 · El Gestor del Caso queda fuera del alta
 
-Con esas cinco respondidas, lo que queda es trabajo, no decisiones: los
-diez puntos del apartado 2, en ese orden, con el tablero y la alerta de
-recurrencia al final porque son los que dependen de todo lo demás.
+> «Queda como está (fuera del alta inicial si lo carga un colaborador de
+> primera línea).»
+
+**Sin cambios.** El aviso al registrar sigue yendo al responsable del
+área, que es el único asignado en ese momento. El gestor se carga después,
+desde la ficha.
+
+### 2 · «Material controlado» vuelve al alta, opcional
+
+> «Vuelve, pero opcional (o condicionada).»
+
+**Hecho.** La casilla está de nuevo en el formulario de alta, sin
+`required`: quien todavía no sabe la deja sin marcar y la carga después
+desde la ficha. Es el único de los tres campos del 9 de octubre que
+volvió.
+
+Y ahora que la pregunta está en pantalla, **la edición la guarda**.
+Mientras el campo no se preguntaba, no escribirlo era justamente lo que
+impedía que editar un reclamo viejo lo borrara; con la casilla a la vista
+eso se da vuelta, porque mostrarla y no guardarla sería peor —alguien la
+desmarca, guarda, y no pasa nada—.
+
+> Quedó sin definir la variante «o condicionada» que trae la respuesta
+> entre paréntesis: condicionada **a qué** —al tipo de falla, al canal, al
+> producto— no se dijo. Se implementó opcional a secas, que es lo que no
+> traba el alta en ningún caso. Si Calidad quiere condicionarla a algo, es
+> un cambio chico sobre esto.
+
+### 3 · La reincidencia sube el plan, no la gravedad
+
+> «Sube el plan.»
+
+**Sin cambios**, y es lo que el sistema ya hacía. Queda registrado que el
+hecho fue leve y que igual se trató como real, que es lo que se puede
+explicar en una auditoría.
+
+### 4 · Compensaciones: los dos límites son candados, y la tercera bloquea
+
+> «Ambos actúan como candados simultáneos. Un colaborador no debería
+> poder regalar un accesorio de Gs. 2.000.000 como compensación por un
+> error en una compra que originalmente fue de Gs. 2.500.000 (sería un
+> 80 %, superando el límite del 50 %). Se aplica la restricción que se
+> alcance primero.» · «Bloquea.»
+
+**El tope porcentual pasó de avisar a bloquear.** Hasta hoy la pantalla
+calculaba el porcentaje, lo mostraba en rojo y guardaba igual. Ahora la
+acción de servidor lo rechaza y el `CHECK` `reclamos_tope_porcentual` lo
+sostiene en la base, con el ejemplo de la respuesta como caso de prueba.
+
+**Y exige el monto de la factura** cuando hay compensación económica: sin
+el divisor no hay porcentaje que calcular, y dejar pasar la compensación
+porque falta el dato es lo contrario de un candado.
+
+> **Una consecuencia que conviene tener presente.** El tope viaja con el
+> tramo, y el tramo lo decide el monto. Esa misma compensación de
+> Gs. 2.100.000 sobre la factura de Gs. 2.500.000 —un 84 %— cae en el
+> segundo tramo, donde el tope es el 100 %, y pasa. No es que más sea más
+> fácil: es que ese monto ya no lo firma el Supervisor sino el Jefe del
+> Canal. Pero significa que el caso del ejemplo **no se destraba subiendo
+> el monto ni escalándolo**: se baja la compensación a Gs. 1.250.000 o se
+> asume sin compensar. La pantalla lo dice con el número exacto.
+
+El bloqueo de la **tercera compensación del año** por cliente ya estaba
+hecho y ya bloqueaba, así que la respuesta lo confirma sin trabajo nuevo.
+Lo que sigue faltando es poder **ver** ese historial antes de que el
+sistema corte el paso.
+
+### 5 · La alerta del 5 % se mide sobre los reclamos del área
+
+> «Sobre los reclamos de esa área.»
+
+**Decisión registrada, trabajo pendiente.** Es el punto 10 del apartado 2
+y el más caro: necesita antes el informe mensual por área de origen, que
+tampoco existe.
+
+Queda una cosa sin definir, y es la que hace o deshace la alerta: **sobre
+cuántos casos tiene sentido calcular un 5 %**. Un área con 4 reclamos en
+el mes y 1 reincidente da 25 %, dispara la alerta dos meses seguidos y
+genera una no conformidad por dos casos. El resto del sistema ya resuelve
+esto en otros lados —el NPS no grafica un mes con menos de 5 respuestas,
+por la misma razón— y acá va a hacer falta un mínimo parecido.
+
+---
+
+## 7 · Lo que queda por hacer
+
+Con las cinco respondidas, lo que sigue es trabajo. En orden:
+
+1. Aviso automático a Gerencia cuando el caso es Grave o involucra
+   material controlado.
+2. Número de factura, además del monto.
+3. Canal de venta en el reclamo.
+4. Verificar que firme quien corresponde, con los dos puestos del
+   procedimiento mapeados.
+5. Historial de compensaciones del cliente, a la vista en la ficha.
+6. Tareas asignadas a un área, no solo a una persona.
+7. Estado propio de la tarea, con quién la marcó cumplida y cuándo.
+8. Tablero del gestor, con semáforo por plazo.
+9. Informe mensual por área de origen.
+10. Alerta de recurrencia del 5 %, con su mínimo de casos definido.
