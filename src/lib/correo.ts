@@ -72,8 +72,32 @@ interface OpcionesCorreo {
   deParteDe?: { nombre: string; correo?: string | null } | null;
 }
 
-/** Plantilla sobria, con la marca de Camping 44 y legible en modo oscuro. */
-function construirHtml({ titulo, cuerpo, enlace, textoEnlace }: OpcionesCorreo): string {
+/**
+ * La plantilla del correo.
+ *
+ * VA EL LOGOTIPO OFICIAL, NO EL «C44». El C44 tipografico lo invento el
+ * proyecto y no es el logotipo de la empresa: salio de la barra de la
+ * aplicacion el 12 de octubre por eso mismo, y este correo lo seguia
+ * usando. Queda solo como respaldo para cuando no hay direccion publica
+ * desde donde servir la imagen —sin eso el encabezado quedaria vacio, que
+ * es peor—.
+ *
+ * SOBRE RECUADRO BLANCO, por la misma razon que en la aplicacion: el
+ * logotipo tiene las dos armas en negro y sobre la barra oscura
+ * desapareceria.
+ *
+ * LA IMAGEN SE ENLAZA, no se adjunta. Un adjunto en linea hace que el
+ * correo figure con clip en la bandeja, como si trajera un archivo para
+ * descargar, y en una invitacion eso invita a desconfiar. El `alt` cubre
+ * al cliente que bloquea imagenes.
+ */
+function construirHtml({
+  titulo,
+  cuerpo,
+  enlace,
+  textoEnlace,
+  deParteDe,
+}: OpcionesCorreo): string {
   const boton = enlace
     ? `<tr><td style="padding:24px 32px 0 32px;">
          <a href="${enlace}" style="display:inline-block;background:#E01E37;color:#ffffff;
@@ -81,6 +105,33 @@ function construirHtml({ titulo, cuerpo, enlace, textoEnlace }: OpcionesCorreo):
             font-size:14px;">${textoEnlace ?? `Abrir en la ${NOMBRE_SISTEMA}`}</a>
        </td></tr>`
     : "";
+
+  const logotipo = urlAbsoluta("/logotipo-camping44.png");
+
+  const marca = logotipo
+    ? `<td width="44" style="background:#ffffff;border-radius:6px;padding:5px;text-align:center;">
+         <img src="${logotipo}" width="34" alt="${NOMBRE_EMPRESA}"
+              style="display:block;width:34px;height:auto;border:0;" />
+       </td>`
+    : `<td width="44" style="text-align:left;">
+         <span style="display:inline-block;background:#E01E37;color:#ffffff;font-weight:700;
+                      font-size:15px;letter-spacing:0.5px;padding:6px 10px;border-radius:5px;">
+           C44</span>
+       </td>`;
+
+  /**
+   * EL PIE DICE LA VERDAD SOBRE LA RESPUESTA. Decia «No responda a esta
+   * direccion» en todos los correos, incluso en los que salen de parte de
+   * una persona y llevan su casilla en `replyTo`: quien respondia llegaba
+   * igual, y quien leia el pie no respondia cuando convenia que lo
+   * hiciera. En una invitacion a ingresar eso importa: la duda tipica
+   * —«no me aparece mi cuenta»— se contesta respondiendo.
+   */
+  const pie = deParteDe
+    ? `Mensaje del Sistema de Gestión de Calidad de ${NOMBRE_EMPRESA}.
+       Si necesita ayuda, responda a este correo: le llega a ${deParteDe.nombre}.`
+    : `Mensaje automático del Sistema de Gestión de Calidad de ${NOMBRE_EMPRESA}.
+       No responda a esta dirección.`;
 
   return `<!doctype html>
 <html lang="es"><body style="margin:0;padding:0;background:#f4f5f7;
@@ -91,12 +142,16 @@ function construirHtml({ titulo, cuerpo, enlace, textoEnlace }: OpcionesCorreo):
       <table role="presentation" width="600" cellpadding="0" cellspacing="0"
         style="max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;
                border:1px solid #e5e7eb;">
-        <tr><td style="background:#14161B;padding:20px 32px;">
-          <span style="display:inline-block;background:#E01E37;color:#ffffff;font-weight:700;
-                       font-size:15px;letter-spacing:0.5px;padding:6px 10px;border-radius:5px;">
-            C44</span>
-          <span style="color:#ffffff;font-size:14px;font-weight:600;margin-left:10px;
-                       letter-spacing:0.3px;">${NOMBRE_SISTEMA}</span>
+        <tr><td style="background:#14161B;padding:16px 32px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              ${marca}
+              <td style="padding-left:12px;">
+                <span style="color:#ffffff;font-size:14px;font-weight:600;
+                             letter-spacing:0.3px;">${NOMBRE_SISTEMA}</span>
+              </td>
+            </tr>
+          </table>
         </td></tr>
         <tr><td style="padding:32px 32px 0 32px;">
           <h1 style="margin:0 0 12px 0;font-size:19px;font-weight:600;line-height:1.35;">
@@ -106,10 +161,7 @@ function construirHtml({ titulo, cuerpo, enlace, textoEnlace }: OpcionesCorreo):
         ${boton}
         <tr><td style="padding:32px;">
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px 0;" />
-          <p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;">
-            Mensaje automático del Sistema de Gestión de Calidad de ${NOMBRE_EMPRESA}.
-            No responda a esta dirección.
-          </p>
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;">${pie}</p>
         </td></tr>
       </table>
     </td></tr>

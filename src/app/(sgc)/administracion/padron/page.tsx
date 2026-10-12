@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Users } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
@@ -297,7 +298,18 @@ export default async function PaginaPadron() {
                           acceso—. */}
                       <TablaCelda className="whitespace-nowrap text-right">
                         {entro ? (
-                          <span className="text-[11px] text-atenuado-contraste">—</span>
+                          /* QUIEN YA ENTRÓ LLEVA A SU FICHA. Antes decía
+                             «—», que es un callejón sin salida justo
+                             donde uno va a buscar: el padrón es la
+                             pantalla donde se mira a la gente, y de los
+                             que ya ingresaron lo que se quiere es
+                             configurarlos. */
+                          <Link
+                            href={`/administracion/usuarios/${fila.usuario_id}`}
+                            className="inline-flex items-center gap-1 text-[11px] underline underline-offset-2 hover:text-primario"
+                          >
+                            Ver ficha y permisos
+                          </Link>
                         ) : (
                           <BotonInvitar
                             personaId={fila.id}
@@ -313,10 +325,22 @@ export default async function PaginaPadron() {
             </Tabla>
           </Tarjeta>
 
+          {/* POR QUÉ NO SE PUEDE CONFIGURAR A LOS 53. Es la pregunta
+              que se hace cualquiera parado en esta pantalla, y conviene
+              que esté contestada acá y no solo en el código. */}
           <p className="mt-3 text-[11px] leading-relaxed text-atenuado-contraste">
             De solo lectura. El padrón se vuelve a cargar desde la exportación de Odoo, así que una
-            corrección hecha acá se perdería en la próxima carga: se corrige en Odoo. El puesto y el
-            rol de quien ya ingresó se ajustan en Usuarios y roles.
+            corrección hecha acá se perdería en la próxima carga: se corrige en Odoo.{" "}
+            <strong className="font-medium text-texto">
+              Al rol y los permisos solo se llega cuando la persona ingresó.
+            </strong>{" "}
+            Su perfil no existe hasta el primer ingreso con Google —lo crea Google, no la
+            intranet— así que a quien dice «Pendiente» no hay todavía qué configurarle. Los que
+            ya entraron abren su ficha desde «Ver ficha y permisos», o desde{" "}
+            <Link href="/administracion/usuarios" className="underline underline-offset-2">
+              Usuarios y roles
+            </Link>
+            .
           </p>
         </>
       )}
