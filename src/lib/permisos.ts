@@ -76,7 +76,8 @@ export const MODULOS: Modulo[] = [
     clave: "aplicaciones",
     nombre: "Aplicaciones",
     grupo: "Intranet",
-    queEsEditar: "No aplica: es una lista de enlaces.",
+    queEsEditar:
+      "Agregar, editar y eliminar aplicaciones, y definir a qué roles se les muestra cada una.",
   },
   {
     clave: "mis_ventas",

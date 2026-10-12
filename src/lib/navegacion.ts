@@ -64,7 +64,20 @@ export const NAVEGACION: GrupoNavegacion[] = [
     entradas: [
       { titulo: "Inicio", ruta: "/inicio", icono: "Home", fase: "operativo" },
       { titulo: "Directorio", ruta: "/directorio", icono: "Contact", fase: "operativo" },
-      { titulo: "Aplicaciones", ruta: "/aplicaciones", icono: "LayoutGrid", fase: "operativo" },
+      {
+        titulo: "Aplicaciones",
+        ruta: "/aplicaciones",
+        icono: "LayoutGrid",
+        fase: "operativo",
+        // «Administrar» sale de `soloGestion`, que mira «editar» del
+        // modulo: asi el atajo lo ve quien de verdad puede usarlo, sea
+        // hoy el Administrador SGC o manana otro rol al que Calidad le
+        // habilite la casilla.
+        subentradas: [
+          { titulo: "Todas", ruta: "/aplicaciones" },
+          { titulo: "Administrar", ruta: "/aplicaciones/administrar", soloGestion: true },
+        ],
+      },
       // La busqueda NO va en la barra: ya esta el campo de arriba, que
       // lleva a la misma pantalla. Dos accesos al mismo lugar, uno al
       // lado del otro, se leen como dos cosas distintas.
