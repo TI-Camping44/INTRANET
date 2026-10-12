@@ -67,7 +67,7 @@ endpoint intermedio de solo lectura.
 | Rojo institucional | `#E01E37` → `352 76% 50%` |
 | Gris tinta | `#14161B` → `223 15% 9%` |
 | Tipografía | Inter, mediante `next/font/google` |
-| Logotipo | Oficial en `public/logotipo-camping44.png`, mostrado por `logotipo-oficial.tsx` en el ingreso. En la barra va el `C44` de `logotipo.tsx`: a 32 px el detalle del oficial se convierte en manchas |
+| Logotipo | **Va el oficial en todas partes.** `logotipo-oficial.tsx` muestra los **dos** —Camping 44 y Vitálica, `public/logotipo-camping44.png` y `logotipo-vitalica.png`— en el ingreso y en completar el perfil: el grupo son dos empresas y por la intranet entran las dos. En la barra va el de Camping 44 a 32 px, por `Marca` de `logotipo.tsx`. **El «C44» tipográfico salió de la barra el 12 de octubre**: se había puesto porque en chico se lee mejor, pero lo inventó el proyecto y no es el logotipo de la empresa. Queda como `Logotipo` y solo se usa si el archivo no carga. El **ícono del navegador** —`src/app/icon.png`— es el logotipo con la flor de Vitálica en una esquina; antes no había ninguno. **Recuadro blanco solo en modo oscuro**: el logotipo tiene las dos armas en negro y desaparecerían |
 
 Los colores se declaran como variables CSS en `src/app/globals.css` y se
 exponen en Tailwind con nombres en español: `bg-fondo`, `text-texto`,

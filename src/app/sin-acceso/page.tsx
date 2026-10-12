@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldX } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { Logotipo } from "@/components/comunes/logotipo";
+import { Marca } from "@/components/comunes/logotipo";
 import { DOMINIOS_AUTORIZADOS_TEXTO } from "@/lib/constantes";
 
 export const metadata: Metadata = { title: "Sin acceso" };
@@ -39,7 +39,7 @@ export default function PaginaSinAcceso({
     <main className="flex min-h-dvh items-center justify-center bg-fondo px-4 py-10">
       <div className="w-full max-w-md text-center">
         <div className="mb-6 flex justify-center">
-          <Logotipo tamano={40} />
+          <Marca tamano={44} />
         </div>
         <div className="rounded-lg border border-borde bg-tarjeta p-8">
           <ShieldX className="mx-auto size-8 text-primario" />
