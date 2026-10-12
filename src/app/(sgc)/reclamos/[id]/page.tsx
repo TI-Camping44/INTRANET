@@ -30,6 +30,7 @@ import {
   ETIQUETAS_TIPO_FALLA,
   excedeTopePorcentual,
   exigeNoConformidad,
+  planDelCaso,
   RESPONSABLE_POR_TIPO_FALLA,
   tramoDeAutorizacion,
   vencido,
@@ -281,6 +282,23 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
                 />
                 <Bloque titulo="Gravedad" texto={ETIQUETAS_GRAVEDAD_RECLAMO[reclamo.gravedad]} />
               </div>
+              {/* EL PLAN JUNTO A LA GRAVEDAD, porque es su consecuencia:
+                  decide los plazos de contacto y de resolución. Se
+                  muestra el PLAN GUARDADO y no el que tocaría por la
+                  gravedad: la reincidencia pudo haberlo subido, y
+                  recalcularlo acá haría que la ficha discuta con el
+                  plazo que el caso está corriendo de verdad. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Bloque
+                  titulo="Plan"
+                  texto={
+                    ETIQUETAS_PLAN_RECLAMO[reclamo.plan] +
+                    (reclamo.plan !== planDelCaso(reclamo.gravedad, false)
+                      ? " · subido por reincidencia"
+                      : "")
+                  }
+                />
+              </div>
               <Bloque
                 titulo="Tipo de falla"
                 texto={`${ETIQUETAS_TIPO_FALLA[reclamo.tipo_falla]} · responde: ${
@@ -456,7 +474,11 @@ export default async function PaginaReclamo({ params }: { params: { id: string }
             <dl className="space-y-2 text-xs">
               {[
                 ["Cliente", reclamo.cliente?.razon_social ?? reclamo.cliente_nombre],
-                ["Gestor del caso", reclamo.gestor?.nombre_completo ?? "—"],
+                // «Gestor del caso» salió de la ficha el 12 de octubre.
+                // Había salido del alta el 9, así que en todo reclamo
+                // cargado desde entonces decía «—»: una fila que solo
+                // informa que no hay dato. La columna `gestor_id` queda,
+                // con lo cargado antes y con la política que la usa.
                 ["Responsable del área", reclamo.responsable_area?.nombre_completo ?? "—"],
                 ["Estado del cliente", ETIQUETAS_ESTADO_CLIENTE_RECLAMO[reclamo.estado_cliente]],
               ].map(([etiqueta, valor]) => (

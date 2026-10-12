@@ -16,9 +16,12 @@ import {
   DEFINICION_GRAVEDAD_RECLAMO,
   ETIQUETAS_GRAVEDAD_RECLAMO,
   ETIQUETAS_ORIGEN_RECLAMO,
+  ETIQUETAS_PLAN_RECLAMO,
   ETIQUETAS_TIPO_FALLA,
   GRAVEDADES_RECLAMO,
   ORIGENES_RECLAMO,
+  planDelCaso,
+  PLAZOS_RECLAMO,
   RESPONSABLE_POR_TIPO_FALLA,
   TIPOS_FALLA_RECLAMO,
   type GravedadReclamo,
@@ -194,11 +197,39 @@ export function FormularioReclamo({
                 </option>
               ))}
             </Seleccion>
+
+            {/* QUÉ PLAN ACTIVA LO QUE ACABA DE ELEGIR. La gravedad no es
+                una etiqueta: decide los plazos de contacto, de definición
+                y de resolución. Quien clasifica tiene que ver la
+                consecuencia de clasificar, igual que en la valoración
+                del riesgo.
+
+                Se muestra el plan que le toca a la gravedad sola. El
+                definitivo lo calcula el servidor al registrar, porque
+                depende de la reincidencia, que todavía no se consultó. */}
+            <p
+              className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md
+                         border border-primario/30 bg-primario/5 px-3 py-2 text-xs"
+            >
+              <span className="font-semibold text-primario">
+                Activa el {ETIQUETAS_PLAN_RECLAMO[planDelCaso(gravedad, false)].split(" · ")[0]}
+              </span>
+              <span className="text-atenuado-contraste">
+                Contacto en {PLAZOS_RECLAMO[planDelCaso(gravedad, false)].contacto === 0
+                  ? "el mismo día"
+                  : `${PLAZOS_RECLAMO[planDelCaso(gravedad, false)].contacto} día hábil`}
+                {" · "}
+                resolución en {PLAZOS_RECLAMO[planDelCaso(gravedad, false)].resolucion} días hábiles
+              </span>
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-atenuado-contraste">
+              Si el cliente ya reclamó en los últimos 6 meses, al registrar sube un nivel.
+            </p>
           </GrupoCampo>
 
 
           <GrupoCampo
-            etiqueta="Dónde se originó la falla"
+            etiqueta="Cómo se originó la falla"
             htmlFor="tipo_falla"
             requerido
             ayuda={`Responsable de referencia: ${RESPONSABLE_POR_TIPO_FALLA[tipoFalla]}`}

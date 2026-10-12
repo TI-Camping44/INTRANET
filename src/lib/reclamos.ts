@@ -38,7 +38,8 @@ export type OrigenReclamo =
   | "incumplimiento_entrega"
   | "falla_servicio_tecnico"
   | "incumplimiento_condicion"
-  | "queja_verbal";
+  | "queja_verbal"
+  | "otro";
 export type TipoFallaReclamo =
   | "picking_despacho_entrega"
   | "facturacion_cobro_credito"
@@ -121,6 +122,7 @@ export const ETIQUETAS_ORIGEN_RECLAMO: Record<OrigenReclamo, string> = {
   falla_servicio_tecnico: "Falla de servicio técnico",
   incumplimiento_condicion: "Incumplimiento de una condición pactada",
   queja_verbal: "Queja verbal, aunque no sea formal",
+  otro: "Otro",
 };
 
 export const ORIGENES_RECLAMO: OrigenReclamo[] = [
@@ -133,6 +135,11 @@ export const ORIGENES_RECLAMO: OrigenReclamo[] = [
   "falla_servicio_tecnico",
   "incumplimiento_condicion",
   "queja_verbal",
+  // «Otro» VA ÚLTIMO Y NO ALFABÉTICO. La lista está en el orden en que
+  // Calidad la escribió, y el cajón de sastre es lo que se elige cuando
+  // ninguna de las anteriores sirve: ofrecerlo antes es invitar a no
+  // leer el resto.
+  "otro",
 ];
 
 /**

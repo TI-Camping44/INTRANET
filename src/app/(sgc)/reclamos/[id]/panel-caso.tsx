@@ -31,7 +31,7 @@ import {
   type GravedadReclamo,
   type PlanReclamo,
 } from "@/lib/reclamos";
-import { formatearGuaranies, hoyEnAsuncion } from "@/lib/formato";
+import { formatearFecha, formatearGuaranies, hoyEnAsuncion } from "@/lib/formato";
 
 interface Persona {
   id: string;
@@ -78,7 +78,22 @@ export function PanelCaso({
   fechaVerificacion: string | null;
 }) {
   const router = useRouter();
-  const [destino, definirDestino] = React.useState<EstadoReclamo | null>(null);
+  /**
+   * EL PASO VIENE ABIERTO CUANDO HAY UNO SOLO.
+   *
+   * Antes había que tocar el botón para que apareciera el campo. Con un
+   * único paso posible, ese botón no es una elección: es un clic de más
+   * entre la persona y lo único que puede hacer. Registrar el contacto
+   * con el cliente, que es el caso de todo reclamo recién cargado, pasa
+   * a mostrar la fecha directamente.
+   *
+   * Con más de un paso sigue habiendo que elegir, que ahí sí es una
+   * decisión.
+   */
+  const unicoPaso = TRANSICIONES_RECLAMO[estado].length === 1
+    ? TRANSICIONES_RECLAMO[estado][0]
+    : null;
+  const [destino, definirDestino] = React.useState<EstadoReclamo | null>(unicoPaso);
   const [enviando, definirEnviando] = React.useState(false);
   const [error, definirError] = React.useState<string | null>(null);
   const [monto, definirMonto] = React.useState("");
@@ -150,24 +165,13 @@ export function PanelCaso({
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <AccionesDelPlan
-        reclamoId={reclamoId}
-        personas={personas}
-        iniciales={acciones}
-        exigeCorrectiva={exigeAccionCorrectiva(plan)}
-      />
-
-      {suspendido ? <BotonReanudar reclamoId={reclamoId} /> : null}
-
-      {exigeNoConformidad(plan) && casoCerrado(estado) ? (
-        <Verificacion reclamoId={reclamoId} fechaVerificacion={fechaVerificacion} />
-      ) : null}
-
+  const paso = (
+    <>
       {posibles.length === 0 ? null : (
         <Tarjeta className="p-4">
-          <p className="text-xs font-semibold">Siguiente paso</p>
+          <p className="text-xs font-semibold">
+            {unicoPaso ? (etiquetas[unicoPaso] ?? "Siguiente paso") : "Siguiente paso"}
+          </p>
 
           <div className="mt-2 flex flex-wrap gap-2">
             {posibles.map((posible) => (
@@ -449,6 +453,30 @@ export function PanelCaso({
           ) : null}
         </Tarjeta>
       )}
+    </>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* EL PASO DEL CASO VA ARRIBA DE LAS ACCIONES. El orden anterior
+          pedía primero cargar las acciones y recién abajo registrar que
+          se habló con el cliente, que es al revés de como pasa: primero
+          se contacta, y de esa conversación salen las acciones. */}
+      {paso}
+
+      <AccionesDelPlan
+        reclamoId={reclamoId}
+        personas={personas}
+        iniciales={acciones}
+        exigeCorrectiva={exigeAccionCorrectiva(plan)}
+      />
+
+      {suspendido ? <BotonReanudar reclamoId={reclamoId} /> : null}
+
+      {exigeNoConformidad(plan) && casoCerrado(estado) ? (
+        <Verificacion reclamoId={reclamoId} fechaVerificacion={fechaVerificacion} />
+      ) : null}
+
     </div>
   );
 }
@@ -528,8 +556,11 @@ function AccionesDelPlan({
                 name="accion_descripcion"
                 rows={2}
                 defaultValue={fila.descripcion}
+                required
+                minLength={10}
                 placeholder="Retirar el artículo equivocado y entregar el correcto"
                 className="text-xs"
+                aria-label="Qué se hace"
               />
               <Boton
                 type="button"
@@ -546,8 +577,14 @@ function AccionesDelPlan({
               </Boton>
             </div>
 
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              <Seleccion name="accion_responsable" defaultValue={fila.responsable_id ?? ""} className="text-xs">
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <Seleccion
+                name="accion_responsable"
+                defaultValue={fila.responsable_id ?? ""}
+                required
+                className="text-xs"
+                aria-label="Responsable de la acción"
+              >
                 <option value="">Responsable…</option>
                 {personas.map((persona) => (
                   <option key={persona.id} value={persona.id}>
@@ -555,22 +592,64 @@ function AccionesDelPlan({
                   </option>
                 ))}
               </Seleccion>
-              <Entrada
-                name="accion_fecha_limite"
-                type="date"
-                defaultValue={fila.fecha_limite ?? ""}
-                className="text-xs"
-                aria-label="Fecha límite"
-              />
-              <Entrada
-                name="accion_ejecutada_en"
-                type="date"
-                defaultValue={fila.ejecutada_en ?? ""}
-                className="text-xs"
-                aria-label="Ejecutada el"
-                title="Ejecutada el"
-              />
+
+              {/* UNA SOLA FECHA, Y DICE CUÁL ES. Eran dos campos de fecha
+                  pegados y sin rótulo —el plazo y la ejecución—, así que
+                  no había forma de saber cuál era cuál sin pasar el
+                  puntero por encima. */}
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-atenuado-contraste">
+                  Límite para ejecutar la acción
+                </span>
+                <Entrada
+                  name="accion_fecha_limite"
+                  type="date"
+                  defaultValue={fila.fecha_limite ?? ""}
+                  required
+                  className="text-xs"
+                />
+              </label>
             </div>
+
+            {/* LA EJECUCIÓN PASA A SER UNA CASILLA. Era la segunda fecha,
+                y no se podía sacar sin romper el cierre del caso: en los
+                planes B y C el reclamo no cierra hasta que estén todas
+                ejecutadas. Como casilla sigue cumpliendo esa función y
+                deja una sola fecha, que es lo que se pidió.
+
+                Marcarla guarda la fecha de hoy; si ya tenía una, se
+                respeta la que estaba. */}
+            <label className="mt-2 flex items-center gap-2 text-[11px]">
+              <input
+                type="checkbox"
+                checked={Boolean(fila.ejecutada_en)}
+                onChange={(evento) =>
+                  definirFilas((actuales) =>
+                    actuales.map((otra) =>
+                      otra.clave === fila.clave
+                        ? {
+                            ...otra,
+                            ejecutada_en: evento.target.checked
+                              ? (otra.ejecutada_en ?? hoyEnAsuncion())
+                              : null,
+                          }
+                        : otra,
+                    ),
+                  )
+                }
+                className="size-3.5 accent-[#E01E37]"
+              />
+              <span>
+                Ejecutada
+                {fila.ejecutada_en ? (
+                  <span className="text-atenuado-contraste">
+                    {" "}
+                    el {formatearFecha(fila.ejecutada_en)}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+            <input type="hidden" name="accion_ejecutada_en" value={fila.ejecutada_en ?? ""} />
           </div>
         ))}
 
