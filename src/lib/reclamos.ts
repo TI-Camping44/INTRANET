@@ -103,7 +103,13 @@ export const ETIQUETAS_ESTADO_CLIENTE_RECLAMO: Record<EstadoClienteReclamo, stri
   recuperado: "Recuperado",
   en_observacion: "En observación",
   perdido: "Perdido",
-  no_conciliado: "No conciliado",
+  // EL VALOR SIGUE SIENDO `no_conciliado`, lo que cambió es la etiqueta.
+  // «No conciliado» describe la negociación; lo que esta columna dice es
+  // cómo quedó el cliente, y ahí el opuesto de «Recuperado» es «No
+  // recuperado». Lo pidió Calidad el 12 de octubre. El estado del CASO
+  // sigue diciendo «No conciliado», que es otra pregunta: ese habla del
+  // acuerdo, este de la persona.
+  no_conciliado: "No recuperado",
 };
 
 export const ESTADOS_CLIENTE_FINAL: EstadoClienteReclamo[] = [

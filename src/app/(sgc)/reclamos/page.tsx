@@ -52,7 +52,6 @@ interface FilaReclamo {
   fecha_contacto: string | null;
   fecha_limite_resolucion: string;
   fecha_resolucion: string | null;
-  gestor: { nombre_completo: string } | null;
 }
 
 /**
@@ -76,7 +75,7 @@ export default async function PaginaReclamos({
     .select(
       "id, codigo, titulo, cliente_nombre, gravedad, plan, estado, es_reincidencia, " +
         "material_controlado, tramite_digemabel, fecha_limite_contacto, fecha_contacto, " +
-        "fecha_limite_resolucion, fecha_resolucion, gestor:gestor_id (nombre_completo)",
+        "fecha_limite_resolucion, fecha_resolucion",
     )
     .order("creado_en", { ascending: false });
 
@@ -193,7 +192,9 @@ export default async function PaginaReclamos({
                 <TablaEncabezado>Caso</TablaEncabezado>
                 <TablaEncabezado className="hidden md:table-cell">Cliente</TablaEncabezado>
                 <TablaEncabezado>Plan</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Gestor</TablaEncabezado>
+                {/* «Gestor» salió el 12 de octubre: el gestor no se
+                    pregunta al registrar, así que la columna estaba
+                    vacía en casi todas las filas. */}
                 <TablaEncabezado>Resolución</TablaEncabezado>
                 <TablaEncabezado>Estado</TablaEncabezado>
               </TablaFila>
@@ -230,15 +231,27 @@ export default async function PaginaReclamos({
                         {ETIQUETAS_GRAVEDAD_RECLAMO[reclamo.gravedad]}
                       </span>
                     </TablaCelda>
-                    <TablaCelda className="hidden whitespace-nowrap text-xs lg:table-cell">
-                      {reclamo.gestor?.nombre_completo ?? "—"}
-                    </TablaCelda>
+                    {/* RESOLUCION ES CUANDO SE CERRO, no cuándo vencía.
+                        La columna mostraba el límite, así que un caso ya
+                        cerrado seguía anunciando una fecha futura como
+                        si faltara algo. Mientras el caso está abierto se
+                        muestra el límite, que ahí sí es el dato que
+                        importa, y se dice que es un vencimiento. */}
                     <TablaCelda
                       className={`whitespace-nowrap text-xs tabular ${
-                        atrasado ? "font-semibold text-semaforo-critico" : ""
+                        atrasado && !reclamo.fecha_resolucion
+                          ? "font-semibold text-semaforo-critico"
+                          : ""
                       }`}
                     >
-                      {formatearFecha(reclamo.fecha_limite_resolucion)}
+                      {reclamo.fecha_resolucion ? (
+                        formatearFecha(reclamo.fecha_resolucion)
+                      ) : (
+                        <>
+                          <span className="text-atenuado-contraste">vence </span>
+                          {formatearFecha(reclamo.fecha_limite_resolucion)}
+                        </>
+                      )}
                       {/* Un caso pasado de fecha y sin marcar en rojo
                           necesita decir por que: el tramite lo detuvo. */}
                       {reclamo.tramite_digemabel ? (

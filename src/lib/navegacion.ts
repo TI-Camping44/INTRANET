@@ -209,10 +209,12 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ruta: "/reclamos",
         icono: "MessageSquareWarning",
         fase: "operativo",
+        // ABIERTOS, FUERA DE PLAZO Y CERRADOS SALIERON DEL MENU el 12
+        // de octubre: son filtros de la misma lista, no secciones
+        // distintas, y el menu se leia como si fueran cuatro pantallas.
+        // Los tres siguen adentro, como botones de la pantalla.
         subentradas: [
-          { titulo: "Abiertos", ruta: "/reclamos" },
-          { titulo: "Fuera de plazo", ruta: "/reclamos?vista=plazo" },
-          { titulo: "Cerrados", ruta: "/reclamos?vista=cerrados" },
+          { titulo: "Todos", ruta: "/reclamos" },
           { titulo: "+ Nuevo Reclamo", ruta: "/reclamos/nuevo", soloGestion: true },
         ],
       },
