@@ -7,7 +7,7 @@ import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Boton } from "@/components/ui/boton";
 import { requerirModuloEditable } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import type { Aplicacion } from "@/lib/aplicaciones";
+import type { Aplicacion, PersonaDeAplicacion } from "@/lib/aplicaciones";
 
 export const metadata: Metadata = { title: "Administrar aplicaciones" };
 export const dynamic = "force-dynamic";
@@ -26,11 +26,24 @@ export default async function PaginaAdministrarAplicaciones() {
 
   const { data } = await supabase
     .from("aplicaciones")
-    .select("id, nombre, descripcion, url, publico, orden, roles_visibles")
+    .select("id, nombre, descripcion, url, publico, orden, roles_visibles, usuarios_visibles")
     .order("publico")
     .order("orden");
 
   const aplicaciones = (data as unknown as Aplicacion[] | null) ?? [];
+
+  // SOLO QUIEN YA INGRESÓ puede nombrarse: la fila de `usuarios` no
+  // existe hasta el primer ingreso con Google, y lo que compara la
+  // política de lectura es `auth.uid()`. A quien todavía no entró no hay
+  // id que ponerle, y ofrecerlo en la lista sería prometer algo que no
+  // va a funcionar.
+  const { data: gente } = await supabase
+    .from("usuarios")
+    .select("id, nombre_completo, rol")
+    .eq("activo", true)
+    .order("nombre_completo");
+
+  const personas = (gente as unknown as PersonaDeAplicacion[] | null) ?? [];
 
   return (
     <>
@@ -62,7 +75,7 @@ export default async function PaginaAdministrarAplicaciones() {
         </AvisoDescripcion>
       </Aviso>
 
-      <ListaAplicaciones aplicaciones={aplicaciones} />
+      <ListaAplicaciones aplicaciones={aplicaciones} personas={personas} />
     </>
   );
 }

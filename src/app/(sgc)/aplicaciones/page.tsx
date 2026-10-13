@@ -47,7 +47,7 @@ export default async function PaginaAplicaciones() {
   const supabase = crearClienteServidor();
   const { data } = await supabase
     .from("aplicaciones")
-    .select("id, nombre, descripcion, url, publico, orden, roles_visibles")
+    .select("id, nombre, descripcion, url, publico, orden, roles_visibles, usuarios_visibles")
     .order("orden");
 
   const aplicaciones = (data as unknown as Aplicacion[] | null) ?? [];

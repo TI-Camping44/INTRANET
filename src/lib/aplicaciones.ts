@@ -49,6 +49,26 @@ export interface Aplicacion {
    * Administrador SGC las ve todas, por la política de lectura.
    */
   roles_visibles: RolUsuario[];
+  /**
+   * Personas que la ven además de los roles.
+   *
+   * SE SUMAN, no se cruzan: la tarjeta le llega a quien tenga uno de los
+   * roles marcados **o** a quien esté nombrado acá. Con los roles vacíos
+   * y una sola persona, «la ve solo él» es literal.
+   *
+   * Hizo falta el 13 de octubre, con el primer pedido de un tablero
+   * propio: los permisos del sistema son por rol, y el rol de quien lo
+   * pidió lo comparte otra persona de Dirección, así que lo más cerrado
+   * que se podía era «lo ve Dirección» —dos personas en vez de una—.
+   */
+  usuarios_visibles: string[];
+}
+
+/** Una persona que puede ser nombrada en una aplicación. */
+export interface PersonaDeAplicacion {
+  id: string;
+  nombre_completo: string;
+  rol: RolUsuario;
 }
 
 export const ETIQUETAS_PUBLICO: Record<PublicoAplicacion, string> = {
@@ -121,7 +141,7 @@ export function agruparAplicaciones(
  * podría volver a habilitarla— y la pantalla se la marca.
  */
 export function estaOculta(aplicacion: Aplicacion): boolean {
-  return aplicacion.roles_visibles.length === 0;
+  return aplicacion.roles_visibles.length === 0 && aplicacion.usuarios_visibles.length === 0;
 }
 
 /**

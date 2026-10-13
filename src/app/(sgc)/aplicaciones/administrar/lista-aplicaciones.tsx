@@ -33,6 +33,7 @@ import {
   ORDEN_PUBLICO,
   ROLES_DE_APLICACION,
   type Aplicacion,
+  type PersonaDeAplicacion,
 } from "@/lib/aplicaciones";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
 
@@ -48,7 +49,14 @@ import { ETIQUETAS_ROL } from "@/lib/constantes";
  * mismo. Con uno propio para cada una, el de edición termina pidiendo
  * menos campos y guardar le borra a la fila lo que no le preguntó.
  */
-export function ListaAplicaciones({ aplicaciones }: { aplicaciones: Aplicacion[] }) {
+export function ListaAplicaciones({
+  aplicaciones,
+  personas,
+}: {
+  aplicaciones: Aplicacion[];
+  /** Quienes ya ingresaron: son los únicos que se pueden nombrar. */
+  personas: PersonaDeAplicacion[];
+}) {
   const router = useRouter();
   const [editando, definirEditando] = React.useState<Aplicacion | null>(null);
   const [abierto, definirAbierto] = React.useState(false);
@@ -149,17 +157,30 @@ export function ListaAplicaciones({ aplicaciones }: { aplicaciones: Aplicacion[]
                     <Insignia variante="contorno">
                       <span className="text-semaforo-medio">Oculta para todos</span>
                     </Insignia>
-                  ) : aplicacion.roles_visibles.length === ROLES_DE_APLICACION.length ? (
-                    <span className="text-xs text-atenuado-contraste">Todos los roles</span>
                   ) : (
                     <span className="flex flex-wrap gap-1">
-                      {ROLES_DE_APLICACION.filter((rol) =>
-                        aplicacion.roles_visibles.includes(rol),
-                      ).map((rol) => (
-                        <Insignia key={rol} variante="contorno">
-                          {ETIQUETAS_ROL[rol]}
-                        </Insignia>
-                      ))}
+                      {aplicacion.roles_visibles.length === ROLES_DE_APLICACION.length ? (
+                        <span className="text-xs text-atenuado-contraste">Todos los roles</span>
+                      ) : (
+                        ROLES_DE_APLICACION.filter((rol) =>
+                          aplicacion.roles_visibles.includes(rol),
+                        ).map((rol) => (
+                          <Insignia key={rol} variante="contorno">
+                            {ETIQUETAS_ROL[rol]}
+                          </Insignia>
+                        ))
+                      )}
+                      {/* Las personas nombradas van con su nombre y no
+                          con un número: «y 2 personas más» obliga a
+                          abrir la ficha para saber quiénes son. */}
+                      {personas
+                        .filter((persona) => aplicacion.usuarios_visibles.includes(persona.id))
+                        .map((persona) => (
+                          <Insignia key={persona.id} variante="contorno">
+                            {persona.nombre_completo.split(" ")[0]}{" "}
+                            {persona.nombre_completo.split(" ")[1] ?? ""}
+                          </Insignia>
+                        ))}
                     </span>
                   )}
                 </TablaCelda>
@@ -283,8 +304,51 @@ export function ListaAplicaciones({ aplicaciones }: { aplicaciones: Aplicacion[]
               </div>
               <p className="mt-2 text-[10px] leading-relaxed text-atenuado-contraste">
                 El Administrador SGC ve todas y no se puede configurar: es lo que garantiza que
-                siempre quede alguien capaz de volver a mostrar lo que se ocultó. Sin ningún rol
-                marcado, la aplicación deja de verse y su dirección queda guardada.
+                siempre quede alguien capaz de volver a mostrar lo que se ocultó.
+              </p>
+            </fieldset>
+
+            {/* LAS PERSONAS SE SUMAN A LOS ROLES, no los reemplazan: la
+                tarjeta le llega a quien tenga uno de los roles marcados
+                o a quien esté nombrado acá. Con los roles sin marcar y
+                una sola persona, «la ve solo él» es literal. */}
+            <fieldset className="rounded-md border border-borde p-3">
+              <legend className="px-1 text-xs font-medium">Y además, estas personas</legend>
+              {personas.length === 0 ? (
+                <p className="text-xs text-atenuado-contraste">
+                  Todavía no ingresó nadie al sistema, así que no hay a quién nombrar.
+                </p>
+              ) : (
+                <div className="max-h-40 overflow-y-auto">
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {personas.map((persona) => (
+                      <label key={persona.id} className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          name="persona"
+                          value={persona.id}
+                          defaultChecked={
+                            editando ? editando.usuarios_visibles.includes(persona.id) : false
+                          }
+                          className="size-3.5 shrink-0 accent-primario"
+                        />
+                        <span className="truncate">
+                          {persona.nombre_completo}
+                          <span className="ml-1 text-[10px] text-atenuado-contraste">
+                            {ETIQUETAS_ROL[persona.rol]}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="mt-2 text-[10px] leading-relaxed text-atenuado-contraste">
+                Se suman a los roles: la ve quien tenga uno de los roles marcados arriba{" "}
+                <strong>o</strong> quien esté nombrado acá. Para que la vea una sola persona, no
+                marque ningún rol y nómbrela. Solo figura quien ya ingresó al sistema: antes del
+                primer ingreso con Google la persona no existe para la base. Sin roles ni
+                personas, la aplicación deja de verse y su dirección queda guardada.
               </p>
             </fieldset>
 

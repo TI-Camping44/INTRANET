@@ -28,6 +28,7 @@ function revisarCampos(datos: FormData): { error: string } | {
   publico: string;
   orden: number;
   roles: RolUsuario[];
+  personas: string[];
 } {
   const nombre = String(datos.get("nombre") ?? "").trim();
   const descripcion = String(datos.get("descripcion") ?? "").trim();
@@ -71,7 +72,20 @@ function revisarCampos(datos: FormData): { error: string } | {
   const marcados = new Set(datos.getAll("rol").map((valor) => String(valor)));
   const roles = ROLES_DE_APLICACION.filter((rol) => marcados.has(rol));
 
-  return { nombre, descripcion, url, publico, orden, roles };
+  // Las personas se nombran ADEMÁS de los roles, no en vez de ellos: la
+  // tarjeta le llega a quien tenga uno de esos roles o a quien esté
+  // nombrado. Se quitan los repetidos porque el formulario podría
+  // mandar el mismo id dos veces y el arreglo de la base no lo impide.
+  const personas = Array.from(
+    new Set(
+      datos
+        .getAll("persona")
+        .map((valor) => String(valor).trim())
+        .filter(Boolean),
+    ),
+  );
+
+  return { nombre, descripcion, url, publico, orden, roles, personas };
 }
 
 /**
@@ -90,6 +104,25 @@ export async function guardarAplicacion(datos: FormData): Promise<ResultadoAccio
 
   const id = String(datos.get("id") ?? "").trim();
 
+  // LAS PERSONAS SE COMPRUEBAN CONTRA `usuarios`. La columna es un
+  // arreglo y PostgreSQL no admite clave foránea sobre un arreglo, así
+  // que el control vive acá: un id que no existe no rompe nada, pero
+  // guardarlo sería guardar basura que nadie va a poder explicar.
+  if (revisado.personas.length > 0) {
+    const { data: existen } = await supabase
+      .from("usuarios")
+      .select("id")
+      .in("id", revisado.personas);
+
+    if ((existen?.length ?? 0) !== revisado.personas.length) {
+      return {
+        exito: false,
+        error:
+          "Alguna de las personas elegidas ya no existe. Vuelva a abrir la pantalla y elíjalas de nuevo.",
+      };
+    }
+  }
+
   const fila = {
     nombre: revisado.nombre,
     descripcion: revisado.descripcion,
@@ -97,6 +130,7 @@ export async function guardarAplicacion(datos: FormData): Promise<ResultadoAccio
     publico: revisado.publico,
     orden: revisado.orden,
     roles_visibles: revisado.roles,
+    usuarios_visibles: revisado.personas,
   };
 
   const { error } = id
