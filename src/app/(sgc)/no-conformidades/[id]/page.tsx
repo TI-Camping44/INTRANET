@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -21,6 +22,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
+import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { esSoloLectura, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { DEPARTAMENTOS, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
@@ -302,7 +304,10 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
           <TarjetaContenido>
             <dl className="grid gap-x-8 gap-y-2.5 text-xs sm:grid-cols-2">
               <Dato etiqueta="Departamento" valor={nc.area ? DEPARTAMENTOS[nc.area] : "—"} />
-              <Dato etiqueta="Empresa" valor={nc.empresa_afectada?.razon_social ?? "—"} />
+              <Dato
+                etiqueta="Empresa"
+                valor={<NombreDeEmpresa nombre={nc.empresa_afectada?.razon_social} />}
+              />
               <Dato etiqueta="Proceso" valor={nc.procesos?.nombre ?? "—"} />
               <Dato etiqueta="Detectada por" valor={nc.detector?.nombre_completo ?? "—"} />
               <Dato
@@ -355,7 +360,9 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+// `valor` acepta un nodo y no solo texto porque la empresa va con su
+// color cuando es de Vitalica. Ver `marca-empresa.tsx`.
+function Dato({ etiqueta, valor }: { etiqueta: string; valor: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-borde/60 pb-1.5">
       <dt className="shrink-0 text-atenuado-contraste">{etiqueta}</dt>

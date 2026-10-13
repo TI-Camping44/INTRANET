@@ -9,6 +9,8 @@ import { moverEnOrganigrama } from "@/app/(sgc)/directorio/acciones";
 import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
+import { MarcaVitalica } from "@/components/comunes/marca-empresa";
+import { esDeVitalica } from "@/lib/empresas";
 import { iniciales } from "@/lib/utilidades";
 
 export interface NodoOrganigrama {
@@ -33,9 +35,8 @@ export interface NodoOrganigrama {
  * con su propio dominio pero vive bajo el mismo inquilino: si se la
  * marcara por `empresa_id` no se marcaría nunca.
  */
-function esDeVitalica(empresa: string | null): boolean {
-  return (empresa ?? "").trim().toLowerCase().startsWith("vitalica");
-}
+// La comparacion vive en `lib/empresas.ts`: la usan las nueve
+// pantallas que declaran empresa, y repetirla las separaria.
 
 interface Rama extends NodoOrganigrama {
   hijos: Rama[];
@@ -212,11 +213,7 @@ function Caja({
         <span className="text-[9px] text-atenuado-contraste">Sin ingresar</span>
       ) : null}
 
-      {vitalica ? (
-        <span className="text-[9px] font-semibold uppercase tracking-wide text-vitalica">
-          Vitalica
-        </span>
-      ) : null}
+      {vitalica ? <MarcaVitalica /> : null}
 
       {nodo.lider_manual ? (
         <span className="text-[9px] text-atenuado-contraste" title="La línea de reporte se corrigió a mano; Odoo ya no manda sobre ella">

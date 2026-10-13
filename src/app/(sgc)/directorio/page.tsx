@@ -9,6 +9,8 @@ import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { MarcaVitalica } from "@/components/comunes/marca-empresa";
+import { esDeVitalica } from "@/lib/empresas";
 import { puedeEditarElOrganigrama, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { iniciales } from "@/lib/utilidades";
@@ -206,7 +208,26 @@ export default async function PaginaDirectorio({
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {filtradas.map((persona) => (
-                <Tarjeta key={persona.clave} className="p-3">
+                /* VITALICA SE DISTINGUE POR COLOR, igual que en el
+                   organigrama: franja naranja arriba y la palabra al
+                   lado del nombre. Se mira la empresa DEL PUESTO y no
+                   `empresa_id`, que siempre vale Camping 44 porque es el
+                   inquilino de RLS: marcando por ahí no se marcaría
+                   nunca a nadie. */
+                <Tarjeta
+                  key={persona.clave}
+                  className={`relative overflow-hidden p-3 ${
+                    esDeVitalica(persona.empresa_del_puesto)
+                      ? "border-vitalica/50"
+                      : ""
+                  }`}
+                >
+                  {esDeVitalica(persona.empresa_del_puesto) ? (
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-0 top-0 h-1 bg-vitalica"
+                    />
+                  ) : null}
                   <div className="flex gap-3">
                     <Avatar className="size-10 shrink-0">
                       {persona.url_avatar ? (
@@ -223,6 +244,9 @@ export default async function PaginaDirectorio({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold">
                         {persona.nombre_completo}
+                        {esDeVitalica(persona.empresa_del_puesto) ? (
+                          <MarcaVitalica className="ml-1.5" />
+                        ) : null}
                       </p>
 
                       {persona.puesto_id && persona.puesto ? (

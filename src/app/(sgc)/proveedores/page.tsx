@@ -20,6 +20,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
+import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { puedeGestionar, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_ESTADO_PROVEEDOR } from "@/lib/constantes";
@@ -45,7 +46,8 @@ export default async function PaginaProveedores({
 
   let consulta = supabase.from("proveedores").select("*").order("razon_social");
 
-  if (searchParams.estado) consulta = consulta.eq("estado", searchParams.estado);
+  if (searchParams.estado)
+    consulta = consulta.eq("estado", searchParams.estado);
   if (searchParams.reevaluacion === "vencida") {
     // Solo los que siguen en el padron activo. Un proveedor rechazado o
     // inactivo con fecha pasada no esta «por reevaluar»: ya no se le
@@ -70,17 +72,17 @@ export default async function PaginaProveedores({
   // de un Asociado de Negocio de Vitalica saldría vacía.
   const { data: datosEmpresas } = await supabase.rpc("empresas_del_grupo");
   const nombreDeEmpresa = new Map(
-    ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).map((empresa) => [
-      empresa.id,
-      empresa.nombre,
-    ]),
+    ((datosEmpresas as { id: string; nombre: string }[] | null) ?? []).map(
+      (empresa) => [empresa.id, empresa.nombre],
+    ),
   );
   const hoy = hoyEnAsuncion();
 
   const criticos = proveedores.filter((proveedor) => proveedor.critico).length;
   const porReevaluar = proveedores.filter(
     (proveedor) =>
-      proveedor.fecha_proxima_evaluacion !== null && proveedor.fecha_proxima_evaluacion <= hoy,
+      proveedor.fecha_proxima_evaluacion !== null &&
+      proveedor.fecha_proxima_evaluacion <= hoy,
   ).length;
   const sinEvaluar = proveedores.filter(
     (proveedor) => proveedor.calificacion_actual === null,
@@ -103,7 +105,10 @@ export default async function PaginaProveedores({
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <TarjetaIndicador titulo="Asociados de Negocio" valor={proveedores.length} />
+        <TarjetaIndicador
+          titulo="Asociados de Negocio"
+          valor={proveedores.length}
+        />
         <TarjetaIndicador
           titulo="Críticos"
           valor={criticos}
@@ -130,10 +135,12 @@ export default async function PaginaProveedores({
           {
             nombre: "estado",
             etiqueta: "Estado",
-            opciones: Object.entries(ETIQUETAS_ESTADO_PROVEEDOR).map(([valor, etiqueta]) => ({
-              valor,
-              etiqueta,
-            })),
+            opciones: Object.entries(ETIQUETAS_ESTADO_PROVEEDOR).map(
+              ([valor, etiqueta]) => ({
+                valor,
+                etiqueta,
+              }),
+            ),
           },
         ]}
       />
@@ -160,12 +167,22 @@ export default async function PaginaProveedores({
               <TablaFila>
                 <TablaEncabezado className="w-[7rem]">Código</TablaEncabezado>
                 <TablaEncabezado>Razón social</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">Empresa</TablaEncabezado>
-                <TablaEncabezado className="hidden lg:table-cell">Rubro</TablaEncabezado>
-                <TablaEncabezado className="hidden xl:table-cell">RUC</TablaEncabezado>
-                <TablaEncabezado className="w-[6rem] text-right">Calificación</TablaEncabezado>
+                <TablaEncabezado className="hidden md:table-cell">
+                  Empresa
+                </TablaEncabezado>
+                <TablaEncabezado className="hidden lg:table-cell">
+                  Rubro
+                </TablaEncabezado>
+                <TablaEncabezado className="hidden xl:table-cell">
+                  RUC
+                </TablaEncabezado>
+                <TablaEncabezado className="w-[6rem] text-right">
+                  Calificación
+                </TablaEncabezado>
                 <TablaEncabezado className="w-[8rem]">Estado</TablaEncabezado>
-                <TablaEncabezado className="hidden md:table-cell">Reevaluación</TablaEncabezado>
+                <TablaEncabezado className="hidden md:table-cell">
+                  Reevaluación
+                </TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
@@ -176,7 +193,10 @@ export default async function PaginaProveedores({
                 return (
                   <TablaFila key={proveedor.id}>
                     <TablaCelda className="font-medium tabular">
-                      <Link href={`/proveedores/${proveedor.id}`} className="hover:text-primario">
+                      <Link
+                        href={`/proveedores/${proveedor.id}`}
+                        className="hover:text-primario"
+                      >
                         {proveedor.codigo}
                       </Link>
                     </TablaCelda>
@@ -189,11 +209,17 @@ export default async function PaginaProveedores({
                         {proveedor.critico ? (
                           <Insignia variante="atencion">Crítico</Insignia>
                         ) : null}
-                        {proveedor.es_demostracion ? <InsigniaDemostracion /> : null}
+                        {proveedor.es_demostracion ? (
+                          <InsigniaDemostracion />
+                        ) : null}
                       </Link>
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
-                      {nombreDeEmpresa.get(proveedor.empresa_compradora_id) ?? "—"}
+                      <NombreDeEmpresa
+                        nombre={nombreDeEmpresa.get(
+                          proveedor.empresa_compradora_id,
+                        )}
+                      />
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
                       {proveedor.rubro ?? "—"}
@@ -207,18 +233,30 @@ export default async function PaginaProveedores({
                         : "—"}
                     </TablaCelda>
                     <TablaCelda>
-                      <InsigniaEstadoProveedor estado={proveedor.estado as EstadoProveedor} />
+                      <InsigniaEstadoProveedor
+                        estado={proveedor.estado as EstadoProveedor}
+                      />
                     </TablaCelda>
                     <TablaCelda className="hidden text-xs md:table-cell">
                       {proveedor.fecha_proxima_evaluacion ? (
-                        <span className={vencida ? "text-semaforo-alto" : "text-atenuado-contraste"}>
+                        <span
+                          className={
+                            vencida
+                              ? "text-semaforo-alto"
+                              : "text-atenuado-contraste"
+                          }
+                        >
                           {formatearFecha(proveedor.fecha_proxima_evaluacion)}
                           <span className="block text-[10px]">
-                            {describirVencimiento(proveedor.fecha_proxima_evaluacion)}
+                            {describirVencimiento(
+                              proveedor.fecha_proxima_evaluacion,
+                            )}
                           </span>
                         </span>
                       ) : (
-                        <span className="text-atenuado-contraste">Sin evaluar</span>
+                        <span className="text-atenuado-contraste">
+                          Sin evaluar
+                        </span>
                       )}
                     </TablaCelda>
                   </TablaFila>
@@ -230,7 +268,8 @@ export default async function PaginaProveedores({
       )}
 
       <p className="mt-3 text-[11px] text-atenuado-contraste">
-        {proveedores.length} proveedor{proveedores.length === 1 ? "" : "es"} en el padrón.
+        {proveedores.length} proveedor{proveedores.length === 1 ? "" : "es"} en
+        el padrón.
       </p>
     </>
   );

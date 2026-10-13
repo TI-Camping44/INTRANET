@@ -7,7 +7,7 @@ import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Boton } from "@/components/ui/boton";
 import { requerirModuloEditable } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import type { Aplicacion, PersonaDeAplicacion } from "@/lib/aplicaciones";
+import type { Aplicacion, EmpresaDelGrupo, PersonaDeAplicacion } from "@/lib/aplicaciones";
 
 export const metadata: Metadata = { title: "Administrar aplicaciones" };
 export const dynamic = "force-dynamic";
@@ -26,7 +26,10 @@ export default async function PaginaAdministrarAplicaciones() {
 
   const { data } = await supabase
     .from("aplicaciones")
-    .select("id, nombre, descripcion, url, publico, orden, roles_visibles, usuarios_visibles")
+    .select(
+      "id, nombre, descripcion, url, publico, orden, roles_visibles, " +
+        "usuarios_visibles, empresa_de_la_aplicacion_id",
+    )
     .order("publico")
     .order("orden");
 
@@ -44,6 +47,12 @@ export default async function PaginaAdministrarAplicaciones() {
     .order("nombre_completo");
 
   const personas = (gente as unknown as PersonaDeAplicacion[] | null) ?? [];
+
+  // Las dos del grupo, por `empresas_del_grupo()` y nunca por un select
+  // a `empresas`: RLS acota esa tabla a la propia y Vitalica volvería
+  // vacía, así que el desplegable ofrecería una sola opción.
+  const { data: lasEmpresas } = await supabase.rpc("empresas_del_grupo");
+  const empresas = (lasEmpresas as EmpresaDelGrupo[] | null) ?? [];
 
   return (
     <>
@@ -75,7 +84,7 @@ export default async function PaginaAdministrarAplicaciones() {
         </AvisoDescripcion>
       </Aviso>
 
-      <ListaAplicaciones aplicaciones={aplicaciones} personas={personas} />
+      <ListaAplicaciones aplicaciones={aplicaciones} personas={personas} empresas={empresas} />
     </>
   );
 }

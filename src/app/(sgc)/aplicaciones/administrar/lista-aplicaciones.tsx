@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { LayoutGrid, Pencil, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
-import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
+import {
+  AreaTexto,
+  Entrada,
+  GrupoCampo,
+  Seleccion,
+} from "@/components/ui/campo";
 import {
   Dialogo,
   DialogoCabecera,
@@ -24,7 +29,10 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { eliminarAplicacion, guardarAplicacion } from "@/app/(sgc)/aplicaciones/acciones";
+import {
+  eliminarAplicacion,
+  guardarAplicacion,
+} from "@/app/(sgc)/aplicaciones/acciones";
 import {
   estaOculta,
   ETIQUETAS_PUBLICO,
@@ -33,8 +41,11 @@ import {
   ORDEN_PUBLICO,
   ROLES_DE_APLICACION,
   type Aplicacion,
+  type EmpresaDelGrupo,
   type PersonaDeAplicacion,
 } from "@/lib/aplicaciones";
+import { MarcaVitalica } from "@/components/comunes/marca-empresa";
+import { esDeVitalica } from "@/lib/empresas";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
 
 /**
@@ -52,10 +63,13 @@ import { ETIQUETAS_ROL } from "@/lib/constantes";
 export function ListaAplicaciones({
   aplicaciones,
   personas,
+  empresas,
 }: {
   aplicaciones: Aplicacion[];
   /** Quienes ya ingresaron: son los únicos que se pueden nombrar. */
   personas: PersonaDeAplicacion[];
+  /** Las dos del grupo, como las devuelve `empresas_del_grupo()`. */
+  empresas: EmpresaDelGrupo[];
 }) {
   const router = useRouter();
   const [editando, definirEditando] = React.useState<Aplicacion | null>(null);
@@ -75,7 +89,9 @@ export function ListaAplicaciones({
   async function guardar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     definirProcesando(true);
-    const resultado = await guardarAplicacion(new FormData(evento.currentTarget));
+    const resultado = await guardarAplicacion(
+      new FormData(evento.currentTarget),
+    );
     definirProcesando(false);
 
     if (resultado.exito) {
@@ -130,7 +146,9 @@ export function ListaAplicaciones({
           <TablaCabecera>
             <TablaFila>
               <TablaEncabezado>Aplicación</TablaEncabezado>
-              <TablaEncabezado className="hidden w-[11rem] md:table-cell">Grupo</TablaEncabezado>
+              <TablaEncabezado className="hidden w-[11rem] md:table-cell">
+                Grupo
+              </TablaEncabezado>
               <TablaEncabezado>Quién la ve</TablaEncabezado>
               <TablaEncabezado className="w-[5rem]" />
             </TablaFila>
@@ -140,6 +158,13 @@ export function ListaAplicaciones({
               <TablaFila key={aplicacion.id}>
                 <TablaCelda className="text-xs">
                   <span className="font-medium">{aplicacion.nombre}</span>
+                  {esDeVitalica(
+                    empresas.find(
+                      (e) => e.id === aplicacion.empresa_de_la_aplicacion_id,
+                    )?.nombre,
+                  ) ? (
+                    <MarcaVitalica className="ml-1.5" />
+                  ) : null}
                   {/* El grupo se esconde en el celular, pero no se
                       pierde: reaparece acá abajo. */}
                   <span className="block text-[10px] text-atenuado-contraste md:hidden">
@@ -155,12 +180,17 @@ export function ListaAplicaciones({
                 <TablaCelda>
                   {estaOculta(aplicacion) ? (
                     <Insignia variante="contorno">
-                      <span className="text-semaforo-medio">Oculta para todos</span>
+                      <span className="text-semaforo-medio">
+                        Oculta para todos
+                      </span>
                     </Insignia>
                   ) : (
                     <span className="flex flex-wrap gap-1">
-                      {aplicacion.roles_visibles.length === ROLES_DE_APLICACION.length ? (
-                        <span className="text-xs text-atenuado-contraste">Todos los roles</span>
+                      {aplicacion.roles_visibles.length ===
+                      ROLES_DE_APLICACION.length ? (
+                        <span className="text-xs text-atenuado-contraste">
+                          Todos los roles
+                        </span>
                       ) : (
                         ROLES_DE_APLICACION.filter((rol) =>
                           aplicacion.roles_visibles.includes(rol),
@@ -174,7 +204,9 @@ export function ListaAplicaciones({
                           con un número: «y 2 personas más» obliga a
                           abrir la ficha para saber quiénes son. */}
                       {personas
-                        .filter((persona) => aplicacion.usuarios_visibles.includes(persona.id))
+                        .filter((persona) =>
+                          aplicacion.usuarios_visibles.includes(persona.id),
+                        )
                         .map((persona) => (
                           <Insignia key={persona.id} variante="contorno">
                             {persona.nombre_completo.split(" ")[0]}{" "}
@@ -202,18 +234,27 @@ export function ListaAplicaciones({
       <Dialogo open={abierto} onOpenChange={definirAbierto}>
         <DialogoContenido className="max-w-xl">
           <DialogoCabecera>
-            <DialogoTitulo>{editando ? "Editar aplicación" : "Nueva aplicación"}</DialogoTitulo>
+            <DialogoTitulo>
+              {editando ? "Editar aplicación" : "Nueva aplicación"}
+            </DialogoTitulo>
             <DialogoDescripcion>
-              La tarjeta abre en una pestaña nueva. Quien no tenga el rol marcado no recibe la
-              aplicación desde la base: no la ve ni escribiendo la dirección de esta pantalla.
+              La tarjeta abre en una pestaña nueva. Quien no tenga el rol
+              marcado no recibe la aplicación desde la base: no la ve ni
+              escribiendo la dirección de esta pantalla.
             </DialogoDescripcion>
           </DialogoCabecera>
 
           {/* La clave fuerza a React a rehacer el formulario al cambiar
               de aplicación: sin eso, los campos no controlados conservan
               lo que tenían de la fila anterior. */}
-          <form key={editando?.id ?? "nueva"} onSubmit={guardar} className="space-y-3">
-            {editando ? <input type="hidden" name="id" value={editando.id} /> : null}
+          <form
+            key={editando?.id ?? "nueva"}
+            onSubmit={guardar}
+            className="space-y-3"
+          >
+            {editando ? (
+              <input type="hidden" name="id" value={editando.id} />
+            ) : null}
 
             <GrupoCampo etiqueta="Nombre" htmlFor="nombre" requerido>
               <Entrada
@@ -275,7 +316,11 @@ export function ListaAplicaciones({
                 </Seleccion>
               </GrupoCampo>
 
-              <GrupoCampo etiqueta="Orden" htmlFor="orden" ayuda="Menor, más arriba.">
+              <GrupoCampo
+                etiqueta="Orden"
+                htmlFor="orden"
+                ayuda="Menor, más arriba."
+              >
                 <Entrada
                   id="orden"
                   name="orden"
@@ -286,6 +331,30 @@ export function ListaAplicaciones({
               </GrupoCampo>
             </div>
 
+            {/* DE QUÉ EMPRESA ES. «Del grupo» es la opción por omisión y
+                la de casi todas: marcarlas todas llenaría la pantalla de
+                etiquetas que no distinguen nada. Lo que se marca como
+                Vitalica lleva franja naranja y su nombre en la tarjeta,
+                igual que en el organigrama. */}
+            <GrupoCampo
+              etiqueta="De qué empresa es"
+              htmlFor="empresa"
+              ayuda="Lo de Vitalica se muestra con su franja naranja. Déjelo en «Del grupo» si es de las dos."
+            >
+              <Seleccion
+                id="empresa"
+                name="empresa"
+                defaultValue={editando?.empresa_de_la_aplicacion_id ?? ""}
+              >
+                <option value="">Del grupo</option>
+                {empresas.map((empresa) => (
+                  <option key={empresa.id} value={empresa.id}>
+                    {empresa.nombre}
+                  </option>
+                ))}
+              </Seleccion>
+            </GrupoCampo>
+
             <fieldset className="rounded-md border border-borde p-3">
               <legend className="px-1 text-xs font-medium">Quién la ve</legend>
               <div className="grid gap-1.5 sm:grid-cols-2">
@@ -295,7 +364,9 @@ export function ListaAplicaciones({
                       type="checkbox"
                       name="rol"
                       value={rol}
-                      defaultChecked={editando ? editando.roles_visibles.includes(rol) : true}
+                      defaultChecked={
+                        editando ? editando.roles_visibles.includes(rol) : true
+                      }
                       className="size-3.5 accent-primario"
                     />
                     {ETIQUETAS_ROL[rol]}
@@ -303,8 +374,9 @@ export function ListaAplicaciones({
                 ))}
               </div>
               <p className="mt-2 text-[10px] leading-relaxed text-atenuado-contraste">
-                El Administrador SGC ve todas y no se puede configurar: es lo que garantiza que
-                siempre quede alguien capaz de volver a mostrar lo que se ocultó.
+                El Administrador SGC ve todas y no se puede configurar: es lo
+                que garantiza que siempre quede alguien capaz de volver a
+                mostrar lo que se ocultó.
               </p>
             </fieldset>
 
@@ -313,22 +385,30 @@ export function ListaAplicaciones({
                 o a quien esté nombrado acá. Con los roles sin marcar y
                 una sola persona, «la ve solo él» es literal. */}
             <fieldset className="rounded-md border border-borde p-3">
-              <legend className="px-1 text-xs font-medium">Y además, estas personas</legend>
+              <legend className="px-1 text-xs font-medium">
+                Y además, estas personas
+              </legend>
               {personas.length === 0 ? (
                 <p className="text-xs text-atenuado-contraste">
-                  Todavía no ingresó nadie al sistema, así que no hay a quién nombrar.
+                  Todavía no ingresó nadie al sistema, así que no hay a quién
+                  nombrar.
                 </p>
               ) : (
                 <div className="max-h-40 overflow-y-auto">
                   <div className="grid gap-1.5 sm:grid-cols-2">
                     {personas.map((persona) => (
-                      <label key={persona.id} className="flex items-center gap-2 text-xs">
+                      <label
+                        key={persona.id}
+                        className="flex items-center gap-2 text-xs"
+                      >
                         <input
                           type="checkbox"
                           name="persona"
                           value={persona.id}
                           defaultChecked={
-                            editando ? editando.usuarios_visibles.includes(persona.id) : false
+                            editando
+                              ? editando.usuarios_visibles.includes(persona.id)
+                              : false
                           }
                           className="size-3.5 shrink-0 accent-primario"
                         />
@@ -344,11 +424,13 @@ export function ListaAplicaciones({
                 </div>
               )}
               <p className="mt-2 text-[10px] leading-relaxed text-atenuado-contraste">
-                Se suman a los roles: la ve quien tenga uno de los roles marcados arriba{" "}
-                <strong>o</strong> quien esté nombrado acá. Para que la vea una sola persona, no
-                marque ningún rol y nómbrela. Solo figura quien ya ingresó al sistema: antes del
-                primer ingreso con Google la persona no existe para la base. Sin roles ni
-                personas, la aplicación deja de verse y su dirección queda guardada.
+                Se suman a los roles: la ve quien tenga uno de los roles
+                marcados arriba <strong>o</strong> quien esté nombrado acá. Para
+                que la vea una sola persona, no marque ningún rol y nómbrela.
+                Solo figura quien ya ingresó al sistema: antes del primer
+                ingreso con Google la persona no existe para la base. Sin roles
+                ni personas, la aplicación deja de verse y su dirección queda
+                guardada.
               </p>
             </fieldset>
 
@@ -366,7 +448,11 @@ export function ListaAplicaciones({
                 <span />
               )}
               <span className="flex gap-2">
-                <Boton type="button" variante="contorno" onClick={() => definirAbierto(false)}>
+                <Boton
+                  type="button"
+                  variante="contorno"
+                  onClick={() => definirAbierto(false)}
+                >
                   Cancelar
                 </Boton>
                 <Boton type="submit" cargando={procesando}>

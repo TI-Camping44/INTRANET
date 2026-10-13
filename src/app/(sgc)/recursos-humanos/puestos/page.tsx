@@ -19,6 +19,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
+import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { esAdministrador, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { FormularioPuesto } from "@/app/(sgc)/recursos-humanos/puestos/formulario-puesto";
@@ -63,7 +64,12 @@ export interface FilaPuesto {
 export default async function PaginaPuestos({
   searchParams,
 }: {
-  searchParams: { q?: string; puesto?: string; empresa?: string; area?: string };
+  searchParams: {
+    q?: string;
+    puesto?: string;
+    empresa?: string;
+    area?: string;
+  };
 }) {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
@@ -73,24 +79,31 @@ export default async function PaginaPuestos({
   // `empresas`: esa tabla solo deja ver la propia, así que Vitalica no
   // aparecería en el selector. Es el mismo camino que usa el formulario
   // de no conformidad.
-  const [{ data: datosPuestos }, { data: datosPersonas }, { data: adjuntos }, { data: datosEmpresas }] =
-    await Promise.all([
-      supabase
-        .from("puestos")
-        .select("id, nombre, area, activo, empresa_del_puesto_id")
-        .eq("activo", true)
-        .order("nombre"),
-      supabase
-        .from("usuarios")
-        .select("id, nombre_completo, correo, puesto_id, puesto_secundario_id, url_avatar")
-        .eq("activo", true)
-        .order("nombre_completo"),
-      supabase.from("adjuntos").select("entidad_id").eq("entidad", "puestos"),
-      supabase.rpc("empresas_del_grupo"),
-    ]);
+  const [
+    { data: datosPuestos },
+    { data: datosPersonas },
+    { data: adjuntos },
+    { data: datosEmpresas },
+  ] = await Promise.all([
+    supabase
+      .from("puestos")
+      .select("id, nombre, area, activo, empresa_del_puesto_id")
+      .eq("activo", true)
+      .order("nombre"),
+    supabase
+      .from("usuarios")
+      .select(
+        "id, nombre_completo, correo, puesto_id, puesto_secundario_id, url_avatar",
+      )
+      .eq("activo", true)
+      .order("nombre_completo"),
+    supabase.from("adjuntos").select("entidad_id").eq("entidad", "puestos"),
+    supabase.rpc("empresas_del_grupo"),
+  ]);
 
   const puestos = (datosPuestos as FilaPuesto[] | null) ?? [];
-  const empresas = (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
+  const empresas =
+    (datosEmpresas as { id: string; nombre: string }[] | null) ?? [];
   const personas =
     (datosPersonas as
       | {
@@ -103,7 +116,9 @@ export default async function PaginaPuestos({
         }[]
       | null) ?? [];
 
-  const nombreDeEmpresa = new Map(empresas.map((empresa) => [empresa.id, empresa.nombre]));
+  const nombreDeEmpresa = new Map(
+    empresas.map((empresa) => [empresa.id, empresa.nombre]),
+  );
 
   // Cuánta gente hay en cada puesto, contando los dos puestos que puede
   // ocupar cada persona, y cuántos archivos tiene cada uno.
@@ -123,21 +138,35 @@ export default async function PaginaPuestos({
     );
   }
 
-  const ocupados = puestos.filter((puesto) => (gentePorPuesto.get(puesto.id) ?? 0) > 0).length;
+  const ocupados = puestos.filter(
+    (puesto) => (gentePorPuesto.get(puesto.id) ?? 0) > 0,
+  ).length;
   const sinPuesto = personas.filter((persona) => !persona.puesto_id);
 
   // Los departamentos del desplegable salen de los puestos cargados: una
   // lista fija se desactualizaría el día que Capital Humano cree uno.
   const departamentos = Array.from(
-    new Set(puestos.map((puesto) => puesto.area).filter((area): area is string => Boolean(area))),
+    new Set(
+      puestos
+        .map((puesto) => puesto.area)
+        .filter((area): area is string => Boolean(area)),
+    ),
   ).sort((a, b) => a.localeCompare(b, "es"));
 
   const texto = (searchParams.q ?? "").trim().toLowerCase();
   const filtrados = puestos.filter((puesto) => {
     if (searchParams.puesto && puesto.id !== searchParams.puesto) return false;
-    if (searchParams.empresa && puesto.empresa_del_puesto_id !== searchParams.empresa) return false;
-    if (searchParams.area && (puesto.area ?? "") !== searchParams.area) return false;
-    if (texto && !`${puesto.nombre} ${puesto.area ?? ""}`.toLowerCase().includes(texto)) {
+    if (
+      searchParams.empresa &&
+      puesto.empresa_del_puesto_id !== searchParams.empresa
+    )
+      return false;
+    if (searchParams.area && (puesto.area ?? "") !== searchParams.area)
+      return false;
+    if (
+      texto &&
+      !`${puesto.nombre} ${puesto.area ?? ""}`.toLowerCase().includes(texto)
+    ) {
       return false;
     }
     return true;
@@ -165,7 +194,9 @@ export default async function PaginaPuestos({
         <TarjetaIndicador
           titulo="Personas sin puesto"
           valor={sinPuesto.length}
-          contexto={sinPuesto.length > 0 ? "Esperan asignación" : "Todas asignadas"}
+          contexto={
+            sinPuesto.length > 0 ? "Esperan asignación" : "Todas asignadas"
+          }
         />
       </div>
 
@@ -200,7 +231,10 @@ export default async function PaginaPuestos({
               {
                 nombre: "area",
                 etiqueta: "Departamento",
-                opciones: departamentos.map((area) => ({ valor: area, etiqueta: area })),
+                opciones: departamentos.map((area) => ({
+                  valor: area,
+                  etiqueta: area,
+                })),
               },
             ]}
           />
@@ -227,8 +261,12 @@ export default async function PaginaPuestos({
                     <TablaEncabezado className="hidden w-[14rem] lg:table-cell">
                       Departamento
                     </TablaEncabezado>
-                    <TablaEncabezado className="w-[9rem] text-center">Personas</TablaEncabezado>
-                    <TablaEncabezado className="w-[9rem] text-center">Perfil</TablaEncabezado>
+                    <TablaEncabezado className="w-[9rem] text-center">
+                      Personas
+                    </TablaEncabezado>
+                    <TablaEncabezado className="w-[9rem] text-center">
+                      Perfil
+                    </TablaEncabezado>
                   </TablaFila>
                 </TablaCabecera>
                 <TablaCuerpo>
@@ -247,9 +285,15 @@ export default async function PaginaPuestos({
                           </Link>
                         </TablaCelda>
                         <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
-                          {puesto.empresa_del_puesto_id
-                            ? (nombreDeEmpresa.get(puesto.empresa_del_puesto_id) ?? "—")
-                            : "—"}
+                          <NombreDeEmpresa
+                            nombre={
+                              puesto.empresa_del_puesto_id
+                                ? nombreDeEmpresa.get(
+                                    puesto.empresa_del_puesto_id,
+                                  )
+                                : null
+                            }
+                          />
                         </TablaCelda>
                         <TablaCelda className="hidden text-xs text-atenuado-contraste lg:table-cell">
                           {puesto.area ?? "—"}
@@ -267,7 +311,9 @@ export default async function PaginaPuestos({
                               {archivos} archivo{archivos === 1 ? "" : "s"}
                             </span>
                           ) : (
-                            <span className="text-semaforo-alto">Sin perfil</span>
+                            <span className="text-semaforo-alto">
+                              Sin perfil
+                            </span>
                           )}
                         </TablaCelda>
                       </TablaFila>
@@ -279,8 +325,9 @@ export default async function PaginaPuestos({
           )}
 
           <p className="mt-3 text-[11px] text-atenuado-contraste">
-            {filtrados.length} de {puestos.length} puesto{puestos.length === 1 ? "" : "s"} en el
-            listado. Una persona puede ocupar hasta dos puestos.
+            {filtrados.length} de {puestos.length} puesto
+            {puestos.length === 1 ? "" : "s"} en el listado. Una persona puede
+            ocupar hasta dos puestos.
           </p>
         </>
       )}

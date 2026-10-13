@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tabla";
 import { BotonInvitar } from "@/app/(sgc)/administracion/usuarios/invitar";
 import { SelectorPuesto } from "@/app/(sgc)/administracion/usuarios/selector-puesto";
+import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
 import { formatearFecha, formatearFechaHora } from "@/lib/formato";
 import type { RolUsuario } from "@/lib/tipos";
@@ -53,10 +54,7 @@ export interface PersonaDeLaLista {
 
 /** Para comparar sin que una tilde o una mayúscula separen. */
 function normalizar(valor: string | null | undefined): string {
-  return (valor ?? "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
+  return (valor ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
 /**
@@ -149,11 +147,21 @@ export function ListaUsuarios({
                   Siguen estando: aparecen al girar el teléfono y en
                   cualquier pantalla de escritorio. */}
               <TablaEncabezado>Persona</TablaEncabezado>
-              <TablaEncabezado className="hidden lg:table-cell">Cédula</TablaEncabezado>
-              <TablaEncabezado className="hidden md:table-cell">Puesto</TablaEncabezado>
-              <TablaEncabezado className="hidden xl:table-cell">Empresa</TablaEncabezado>
-              <TablaEncabezado className="hidden lg:table-cell">Líder inmediato</TablaEncabezado>
-              <TablaEncabezado className="hidden xl:table-cell">Rol</TablaEncabezado>
+              <TablaEncabezado className="hidden lg:table-cell">
+                Cédula
+              </TablaEncabezado>
+              <TablaEncabezado className="hidden md:table-cell">
+                Puesto
+              </TablaEncabezado>
+              <TablaEncabezado className="hidden xl:table-cell">
+                Empresa
+              </TablaEncabezado>
+              <TablaEncabezado className="hidden lg:table-cell">
+                Líder inmediato
+              </TablaEncabezado>
+              <TablaEncabezado className="hidden xl:table-cell">
+                Rol
+              </TablaEncabezado>
               <TablaEncabezado>Estado</TablaEncabezado>
               <TablaEncabezado className="text-right">Acceso</TablaEncabezado>
             </TablaFila>
@@ -194,7 +202,9 @@ export function ListaUsuarios({
                           {persona.nombre}
                         </Link>
                       ) : (
-                        <span className="block font-medium">{persona.nombre}</span>
+                        <span className="block font-medium">
+                          {persona.nombre}
+                        </span>
                       )}
                       <span className="block truncate text-[11px] text-atenuado-contraste">
                         {persona.correo}
@@ -237,12 +247,14 @@ export function ListaUsuarios({
                     </TablaCelda>
 
                     <TablaCelda className="hidden whitespace-nowrap text-xs text-atenuado-contraste xl:table-cell">
-                      {persona.empresa ?? "—"}
+                      <NombreDeEmpresa nombre={persona.empresa} />
                     </TablaCelda>
 
                     <TablaCelda className="hidden text-xs lg:table-cell">
                       {persona.lider ?? (
-                        <span className="text-atenuado-contraste">Sin líder declarado</span>
+                        <span className="text-atenuado-contraste">
+                          Sin líder declarado
+                        </span>
                       )}
                       {persona.lider && !persona.liderResuelve ? (
                         <Insignia variante="atencion" className="ml-1.5">
@@ -308,7 +320,9 @@ export function ListaUsuarios({
                           yaInvitada={persona.invitacionesEnviadas > 0}
                         />
                       ) : (
-                        <span className="text-[11px] text-atenuado-contraste">—</span>
+                        <span className="text-[11px] text-atenuado-contraste">
+                          —
+                        </span>
                       )}
                     </TablaCelda>
                   </TablaFila>
@@ -323,10 +337,12 @@ export function ListaUsuarios({
         {busqueda || soloPendientes
           ? `${filtradas.length} de ${personas.length} personas.`
           : `${personas.length} personas.`}{" "}
-        La lista sale de la exportación de Odoo. <strong>El puesto se corrige acá</strong>: toque
-        el cargo y elija el que corresponde. La corrección queda en la intranet y la próxima carga
-        del padrón no la pisa, así que no hace falta esperar a que Odoo se actualice. El rol, el
-        líder y los permisos de quien ya ingresó se ajustan en su ficha.
+        La lista sale de la exportación de Odoo.{" "}
+        <strong>El puesto se corrige acá</strong>: toque el cargo y elija el que
+        corresponde. La corrección queda en la intranet y la próxima carga del
+        padrón no la pisa, así que no hace falta esperar a que Odoo se
+        actualice. El rol, el líder y los permisos de quien ya ingresó se
+        ajustan en su ficha.
       </p>
     </>
   );

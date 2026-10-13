@@ -29,6 +29,7 @@ function revisarCampos(datos: FormData): { error: string } | {
   orden: number;
   roles: RolUsuario[];
   personas: string[];
+  empresa: string | null;
 } {
   const nombre = String(datos.get("nombre") ?? "").trim();
   const descripcion = String(datos.get("descripcion") ?? "").trim();
@@ -85,7 +86,12 @@ function revisarCampos(datos: FormData): { error: string } | {
     ),
   );
 
-  return { nombre, descripcion, url, publico, orden, roles, personas };
+  // Vacío quiere decir «es del grupo», que es el caso de casi todas. No
+  // se guarda Camping 44 por omisión: marcarlas todas llenaría la
+  // pantalla de etiquetas que no distinguen nada.
+  const empresa = String(datos.get("empresa") ?? "").trim() || null;
+
+  return { nombre, descripcion, url, publico, orden, roles, personas, empresa };
 }
 
 /**
@@ -131,6 +137,7 @@ export async function guardarAplicacion(datos: FormData): Promise<ResultadoAccio
     orden: revisado.orden,
     roles_visibles: revisado.roles,
     usuarios_visibles: revisado.personas,
+    empresa_de_la_aplicacion_id: revisado.empresa,
   };
 
   const { error } = id

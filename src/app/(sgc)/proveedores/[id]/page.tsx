@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -20,6 +21,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
+import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { describirVencimiento, formatearFecha, formatearNumero } from "@/lib/formato";
@@ -232,7 +234,10 @@ export default async function PaginaProveedor({ params }: { params: { id: string
             </TarjetaCabecera>
             <TarjetaContenido>
               <dl className="space-y-2.5 text-xs">
-                <Dato etiqueta="Empresa del grupo" valor={empresaDelAsociado ?? "—"} />
+                <Dato
+                  etiqueta="Empresa del grupo"
+                  valor={<NombreDeEmpresa nombre={empresaDelAsociado} />}
+                />
                 <Dato etiqueta="RUC" valor={proveedor.ruc ?? "—"} />
                 <Dato etiqueta="Rubro" valor={proveedor.rubro ?? "—"} />
                 <Dato etiqueta="Contacto" valor={proveedor.contacto ?? "—"} />
@@ -316,7 +321,9 @@ export default async function PaginaProveedor({ params }: { params: { id: string
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+// `valor` acepta un nodo y no solo texto porque la empresa va con su
+// color cuando es de Vitalica. Ver `marca-empresa.tsx`.
+function Dato({ etiqueta, valor }: { etiqueta: string; valor: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-atenuado-contraste">{etiqueta}</dt>

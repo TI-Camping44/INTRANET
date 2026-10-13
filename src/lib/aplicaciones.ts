@@ -62,7 +62,23 @@ export interface Aplicacion {
    * que se podía era «lo ve Dirección» —dos personas en vez de una—.
    */
   usuarios_visibles: string[];
+  /**
+   * De qué empresa del grupo es la aplicación.
+   *
+   * NULO ES UN VALOR: quiere decir que es del grupo y no de una empresa
+   * en particular, que es el caso de casi todas —los tickets, los
+   * catálogos, el panel de NPS—. Marcarlas todas llenaría la pantalla de
+   * etiquetas que no distinguen nada.
+   *
+   * No se confunde con `empresa_id`, que es el inquilino de RLS y
+   * siempre vale Camping 44.
+   */
+  empresa_de_la_aplicacion_id: string | null;
 }
+
+// Cómo se distingue a Vitalica vive en `lib/empresas.ts`, que lo usan
+// las nueve pantallas que declaran empresa. Acá no se repite.
+export type { EmpresaDelGrupo } from "@/lib/empresas";
 
 /** Una persona que puede ser nombrada en una aplicación. */
 export interface PersonaDeAplicacion {

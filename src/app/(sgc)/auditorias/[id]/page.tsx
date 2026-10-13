@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -21,6 +22,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
+import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { ETIQUETAS_TIPO_AUDITORIA, ETIQUETAS_TIPO_HALLAZGO } from "@/lib/constantes";
@@ -335,7 +337,7 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
                     se audita. La norma salió de la ficha: está en
                     «Criterios», donde Calidad la escribe junto con la
                     legislación y los procedimientos. */}
-                <Dato etiqueta="Empresa" valor={empresaAuditada ?? "—"} />
+                <Dato etiqueta="Empresa" valor={<NombreDeEmpresa nombre={empresaAuditada} />} />
                 <Dato
                   etiqueta="Auditor líder"
                   valor={auditoria.auditor?.nombre_completo ?? "—"}
@@ -419,7 +421,9 @@ function Bloque({ titulo, texto }: { titulo: string; texto: string | null }) {
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+// `valor` acepta un nodo y no solo texto porque la empresa va con su
+// color cuando es de Vitalica. Ver `marca-empresa.tsx`.
+function Dato({ etiqueta, valor }: { etiqueta: string; valor: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 text-atenuado-contraste">{etiqueta}</dt>
