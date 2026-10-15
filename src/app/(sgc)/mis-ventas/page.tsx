@@ -18,7 +18,13 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { AvanceDelMes } from "@/app/(sgc)/mis-ventas/avance-del-mes";
-import { TablaEquipo } from "@/app/(sgc)/mis-ventas/tabla-equipo";
+import {
+  esOrdenDeEquipo,
+  ORDENES_EQUIPO,
+  TablaEquipo,
+  type OrdenEquipo,
+} from "@/app/(sgc)/mis-ventas/tabla-equipo";
+import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import { BotonSincronizar } from "@/app/(sgc)/mis-ventas/boton-sincronizar";
 import { SelectorVendedor } from "@/app/(sgc)/mis-ventas/selector-vendedor";
 import {
@@ -65,7 +71,7 @@ const MILLON = 1_000_000;
 export default async function PaginaMisVentas({
   searchParams,
 }: {
-  searchParams: { vendedor?: string };
+  searchParams: { vendedor?: string; q?: string; canal?: string; orden?: string };
 }) {
   const usuario = await requerirModulo("mis_ventas");
   const supabase = crearClienteServidor();
@@ -146,6 +152,27 @@ export default async function PaginaMisVentas({
       canalesVisibles.includes(f.canal as (typeof canalesVisibles)[number]) &&
       !mias.includes(f),
   );
+
+  // Los canales que de verdad aparecen en la tabla del equipo. Se saca
+  // de las filas y no de `canalesVisibles` para no ofrecer en el
+  // desplegable un canal que este mes no tiene a nadie: un filtro que
+  // deja la tabla vacía se lee como un error de la pantalla.
+  const canalesDelEquipo = Array.from(new Set(equipo.map((f) => f.canal))).sort((a, b) =>
+    a.localeCompare(b, "es"),
+  );
+
+  // Un canal pedido que no está entre los suyos se ignora, igual que
+  // `?vendedor=`: acá no expone nada —el filtro solo acota lo que ya
+  // llegó— pero dejarlo pasar daría una tabla vacía sin explicación.
+  const canalElegido =
+    searchParams.canal && canalesDelEquipo.includes(searchParams.canal)
+      ? searchParams.canal
+      : "";
+
+  const ordenElegido: OrdenEquipo =
+    searchParams.orden && esOrdenDeEquipo(searchParams.orden)
+      ? searchParams.orden
+      : "alcance";
 
   // DE QUIÉN SE MUESTRA EL DETALLE.
   //
@@ -398,11 +425,45 @@ export default async function PaginaMisVentas({
               descripcion="El informe no trae ventas este mes para los canales que usted supervisa."
             />
           ) : (
-            <TablaEquipo
-              filas={equipo}
-              diasMes={resumen.diasMes}
-              diasTranscurridos={resumen.diasTranscurridos}
-            />
+            <>
+              {/* LOS FILTROS DEL EQUIPO ESCRIBEN EN LA DIRECCIÓN, igual
+                  que `?vendedor=`: así el jefe comparte el enlace de lo
+                  que está mirando y el botón de atrás funciona. Y
+                  «Limpiar» conserva `vendedor`, que no es un filtro de
+                  esta tabla sino de quién se está mirando el detalle
+                  más arriba. */}
+              <FiltrosListado
+                marcadorBusqueda="Buscar por vendedor…"
+                conservar={["vendedor"]}
+                campos={[
+                  {
+                    nombre: "canal",
+                    etiqueta: "Canal",
+                    opciones: canalesDelEquipo.map((nombre) => ({
+                      valor: nombre,
+                      etiqueta: nombre,
+                    })),
+                  },
+                  {
+                    nombre: "orden",
+                    etiqueta: "Ordenar por",
+                    opciones: (Object.keys(ORDENES_EQUIPO) as OrdenEquipo[]).map((clave) => ({
+                      valor: clave,
+                      etiqueta: ORDENES_EQUIPO[clave],
+                    })),
+                  },
+                ]}
+              />
+
+              <TablaEquipo
+                filas={equipo}
+                diasMes={resumen.diasMes}
+                diasTranscurridos={resumen.diasTranscurridos}
+                busqueda={searchParams.q ?? ""}
+                canal={canalElegido}
+                orden={ordenElegido}
+              />
+            </>
           )}
         </section>
       ) : null}

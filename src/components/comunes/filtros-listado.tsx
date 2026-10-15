@@ -19,9 +19,19 @@ export interface CampoFiltro {
 export function FiltrosListado({
   campos,
   marcadorBusqueda = "Buscar por código o título…",
+  conservar = [],
 }: {
   campos: CampoFiltro[];
   marcadorBusqueda?: string;
+  /**
+   * Parámetros que «Limpiar» NO borra.
+   *
+   * Hizo falta en Mis ventas: ahí la dirección lleva también
+   * `?vendedor=`, que no es un filtro de la tabla sino de quién se está
+   * mirando el detalle. Sin esto, limpiar los filtros del equipo le
+   * cambiaba además la persona que estaba mirando.
+   */
+  conservar?: string[];
 }) {
   const router = useRouter();
   const ruta = usePathname();
@@ -40,7 +50,18 @@ export function FiltrosListado({
     aplicar("q", texto.trim());
   }
 
-  const hayFiltros = Array.from(parametros.keys()).length > 0;
+  const hayFiltros = Array.from(parametros.keys()).some((clave) => !conservar.includes(clave));
+
+  function limpiar() {
+    const quedan = new URLSearchParams();
+    for (const clave of conservar) {
+      const valor = parametros.get(clave);
+      if (valor) quedan.set(clave, valor);
+    }
+    const cola = quedan.toString();
+    definirTexto("");
+    router.push(cola ? `${ruta}?${cola}` : ruta);
+  }
 
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -77,7 +98,7 @@ export function FiltrosListado({
       ))}
 
       {hayFiltros ? (
-        <Boton variante="fantasma" tamano="pequeno" onClick={() => router.push(ruta)}>
+        <Boton variante="fantasma" tamano="pequeno" onClick={limpiar}>
           <X /> Limpiar
         </Boton>
       ) : null}

@@ -9,6 +9,7 @@ import {
   TablaFila,
 } from "@/components/ui/tabla";
 import { formatearGuaranies } from "@/lib/formato";
+import { sinTildes } from "@/lib/utilidades";
 import {
   alcance,
   CLASES_NIVEL_ALCANCE,
@@ -18,38 +19,97 @@ import {
   type VentaDelMes,
 } from "@/lib/ventas";
 
+/** Por qué se ordena la tabla del equipo. */
+export const ORDENES_EQUIPO = {
+  alcance: "Alcance",
+  vendido: "Vendido",
+  objetivo: "Objetivo",
+  vendedor: "Vendedor (A-Z)",
+} as const;
+
+export type OrdenEquipo = keyof typeof ORDENES_EQUIPO;
+
+export function esOrdenDeEquipo(valor: string): valor is OrdenEquipo {
+  return valor in ORDENES_EQUIPO;
+}
+
 /**
  * Como va el equipo, para quien tiene canales asignados.
  *
- * Se ordena por alcance y no por monto a proposito: quien mira esto lo
- * mira para saber a quien hay que ayudar, y el que esta mas lejos de su
- * meta puede ser el que mas factura.
+ * SE ORDENA POR ALCANCE Y NO POR MONTO por omisión, y a propósito: quien
+ * mira esto lo mira para saber a quién hay que ayudar, y el que está más
+ * lejos de su meta puede ser el que más factura. Pedir otro orden es una
+ * decisión explícita, no lo que la pantalla hace sola.
  *
  * Quien no tiene objetivo cargado va al final y sin porcentaje, no con un
- * cero: son cosas distintas y mezclarlas haria que alguien le reclame a
- * quien no tiene meta.
+ * cero: son cosas distintas y mezclarlas haría que alguien le reclame a
+ * quien no tiene meta. Por la misma razón queda último también cuando se
+ * ordena por objetivo.
+ *
+ * EL TOTAL ES DE LO QUE SE ESTÁ VIENDO, no del equipo entero: una suma
+ * que no corresponde a las filas de arriba es peor que no poner suma. El
+ * pie dice sobre cuántos está calculada.
  */
 export function TablaEquipo({
   filas,
   diasMes,
   diasTranscurridos,
+  busqueda = "",
+  canal = "",
+  orden = "alcance",
 }: {
   filas: VentaDelMes[];
   diasMes: number;
   diasTranscurridos: number;
+  /** Texto del buscador: se compara sin tildes y por partes. */
+  busqueda?: string;
+  canal?: string;
+  orden?: OrdenEquipo;
 }) {
-  const ordenadas = [...filas].sort((a, b) => {
-    const alcanceA = alcance(a.meta, a.venta);
-    const alcanceB = alcance(b.meta, b.venta);
-    if (alcanceA === null && alcanceB === null) return a.vendedor.localeCompare(b.vendedor);
-    if (alcanceA === null) return 1;
-    if (alcanceB === null) return -1;
-    return alcanceB - alcanceA;
+  const partes = sinTildes(busqueda).split(/\s+/).filter(Boolean);
+
+  const filtradas = filas.filter((fila) => {
+    if (canal && fila.canal !== canal) return false;
+    if (partes.length === 0) return true;
+    const texto = sinTildes(fila.vendedor);
+    return partes.every((parte) => texto.includes(parte));
   });
 
-  const totalVenta = filas.reduce((suma, f) => suma + (f.venta ?? 0), 0);
-  const totalMeta = filas.reduce((suma, f) => suma + (f.meta ?? 0), 0);
+  // Quien no tiene el dato cargado va al final en todos los órdenes: un
+  // nulo no es un cero, y ponerlo entre los ceros lo haría parecer uno.
+  function porNumero(a: number | null, b: number | null) {
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return b - a;
+  }
+
+  const ordenadas = [...filtradas].sort((a, b) => {
+    if (orden === "vendedor") return a.vendedor.localeCompare(b.vendedor, "es");
+    if (orden === "vendido") {
+      return porNumero(a.venta, b.venta) || a.vendedor.localeCompare(b.vendedor, "es");
+    }
+    if (orden === "objetivo") {
+      return porNumero(a.meta, b.meta) || a.vendedor.localeCompare(b.vendedor, "es");
+    }
+    return (
+      porNumero(alcance(a.meta, a.venta), alcance(b.meta, b.venta)) ||
+      a.vendedor.localeCompare(b.vendedor, "es")
+    );
+  });
+
+  const totalVenta = filtradas.reduce((suma, f) => suma + (f.venta ?? 0), 0);
+  const totalMeta = filtradas.reduce((suma, f) => suma + (f.meta ?? 0), 0);
   const totalAlcance = alcance(totalMeta || null, totalVenta);
+  const acotada = filtradas.length !== filas.length;
+
+  if (filtradas.length === 0) {
+    return (
+      <Tarjeta className="p-6 text-center text-xs text-atenuado-contraste">
+        Ningún vendedor de los {filas.length} coincide con lo que buscó.
+      </Tarjeta>
+    );
+  }
 
   return (
     <Tarjeta>
@@ -114,6 +174,14 @@ export function TablaEquipo({
           </TablaFila>
         </TablaCuerpo>
       </Tabla>
+
+      {/* Sobre cuántos está hecha la suma de arriba. Sin esto, un total
+          de tres vendedores filtrados se lee como el del equipo. */}
+      <p className="border-t border-borde px-3 py-2 text-xs text-atenuado-contraste">
+        {acotada
+          ? `${filtradas.length} de ${filas.length} vendedores · ordenados por ${ORDENES_EQUIPO[orden].toLowerCase()}`
+          : `${filas.length} vendedores · ordenados por ${ORDENES_EQUIPO[orden].toLowerCase()}`}
+      </p>
     </Tarjeta>
   );
 }
