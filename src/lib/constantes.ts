@@ -457,11 +457,21 @@ export const ETIQUETAS_TIPO_AUDITORIA: Record<string, string> = {
   interna: "Interna",
   externa: "Externa",
   terceros: "A terceros",
+  // Lo pidió Calidad el 19 de octubre: el conteo de lo que hay en
+  // depósito contra lo que dice el sistema no entraba en ninguno de los
+  // otros cuatro.
+  inventario_existencias: "Inventario de Existencias",
   proveedor: "A un Asociado de Negocio",
   seguimiento: "De seguimiento",
 };
 
-export const TIPOS_AUDITORIA_VIGENTES = ["por_proceso", "interna", "externa", "terceros"];
+export const TIPOS_AUDITORIA_VIGENTES = [
+  "por_proceso",
+  "interna",
+  "externa",
+  "terceros",
+  "inventario_existencias",
+];
 
 /**
  * Las cinco preguntas de la cadena.

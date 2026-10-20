@@ -1,0 +1,21 @@
+-- ---------------------------------------------------------------------
+-- Un tipo de auditoria mas: Inventario de Existencias
+--
+-- Lo pidio Calidad el 19 de octubre. Camping 44 audita el inventario
+-- —el conteo de lo que hay en deposito contra lo que dice el sistema— y
+-- eso no entraba en ninguno de los cuatro tipos: no es un control de
+-- proceso, ni una interna, ni una externa, ni una a terceros.
+--
+-- Va en el enumerado y no como texto libre por lo mismo que los otros
+-- cuatro: el tipo se usa para filtrar y para contar, y escrito a mano
+-- terminarian conviviendo «Inventario», «inventario de existencias» y
+-- «Inv. de existencias» como tres tipos distintos.
+--
+-- OJO AL APLICARLA: un valor recien agregado a un enumerado no se puede
+-- usar en la misma transaccion en que se agrego. Por eso esta migracion
+-- solo agrega el valor; si mas adelante hiciera falta normalizar filas,
+-- va en una migracion aparte, como se hizo en septiembre con
+-- `20260922000800_tipos_auditoria_nuevos.sql`.
+-- ---------------------------------------------------------------------
+
+alter type public.tipo_auditoria add value if not exists 'inventario_existencias';
