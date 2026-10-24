@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tabla";
 import { BotonInvitar } from "@/app/(sgc)/administracion/usuarios/invitar";
 import { SelectorPuesto } from "@/app/(sgc)/administracion/usuarios/selector-puesto";
+import { SelectorLider } from "@/app/(sgc)/administracion/usuarios/selector-lider";
 import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { ETIQUETAS_ROL } from "@/lib/constantes";
 import { formatearFecha, formatearFechaHora } from "@/lib/formato";
@@ -41,7 +42,14 @@ export interface PersonaDeLaLista {
   /** Si alguien ya lo corrigió a mano. */
   puestoCorregido: boolean;
   empresa: string | null;
+  /** El nombre de su líder, ya resuelto. Nulo si no cuelga de nadie. */
   lider: string | null;
+  /** La clave de ese líder, para poder corregirlo desde la lista. */
+  liderClave: string | null;
+  /** Lo que dice la exportación de Odoo, para poder compararlo. */
+  liderDeOdoo: string | null;
+  /** Si alguien ya lo corrigió a mano. */
+  liderCorregido: boolean;
   liderResuelve: boolean;
   rol: RolUsuario | null;
   activo: boolean;
@@ -97,6 +105,7 @@ export function ListaUsuarios({
           persona.puesto,
           persona.empresa,
           persona.lider,
+          persona.liderDeOdoo,
           persona.rol ? ETIQUETAS_ROL[persona.rol] : "pendiente",
           persona.usuarioId ? "ingreso" : "pendiente",
         ]
@@ -108,6 +117,14 @@ export function ListaUsuarios({
   }, [busqueda, personas, soloPendientes]);
 
   const pendientes = personas.filter((p) => p.usuarioId === null).length;
+
+  // Los candidatos a líder son TODAS las personas, no las filtradas: el
+  // buscador acota lo que se está mirando, no de quién puede colgar
+  // alguien. Si no, buscar «bruno» dejaría elegible solo a Bruno.
+  const candidatos = React.useMemo(
+    () => personas.map((persona) => ({ clave: persona.clave, nombre: persona.nombre })),
+    [personas],
+  );
 
   return (
     <>
@@ -251,16 +268,15 @@ export function ListaUsuarios({
                     </TablaCelda>
 
                     <TablaCelda className="hidden text-xs lg:table-cell">
-                      {persona.lider ?? (
-                        <span className="text-atenuado-contraste">
-                          Sin líder declarado
-                        </span>
-                      )}
-                      {persona.lider && !persona.liderResuelve ? (
-                        <Insignia variante="atencion" className="ml-1.5">
-                          fuera del padrón
-                        </Insignia>
-                      ) : null}
+                      <SelectorLider
+                        clave={persona.clave}
+                        liderClave={persona.liderClave}
+                        liderNombre={persona.lider}
+                        gerenteDeOdoo={persona.liderDeOdoo}
+                        corregido={persona.liderCorregido}
+                        enElPadron={persona.enElPadron}
+                        candidatos={candidatos}
+                      />
                     </TablaCelda>
 
                     <TablaCelda className="hidden whitespace-nowrap text-xs xl:table-cell">

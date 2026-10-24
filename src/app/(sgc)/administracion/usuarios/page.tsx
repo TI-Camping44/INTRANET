@@ -47,6 +47,8 @@ interface FilaNomina {
   invitaciones_enviadas: number;
   puesto_manual_id: string | null;
   puesto_manual_fijado: boolean;
+  lider_manual_id: string | null;
+  lider_manual_fijado: boolean;
 }
 
 interface FilaUsuario {
@@ -92,12 +94,14 @@ export default async function PaginaUsuarios() {
     { data: usuarios },
     { data: puestos },
     { data: datosEmpresas },
+    { data: directorio },
   ] = await Promise.all([
     supabase
       .from("personas_nomina")
       .select(
         "id, correo, nombre_completo, cedula, puesto_nombre, gerente_nombre," +
-          " empresa_del_puesto, fecha_ingreso, usuario_id, invitado_en, invitaciones_enviadas",
+          " empresa_del_puesto, fecha_ingreso, usuario_id, invitado_en, invitaciones_enviadas," +
+          " puesto_manual_id, puesto_manual_fijado, lider_manual_id, lider_manual_fijado",
       )
       .eq("activo", true)
       .order("nombre_completo"),
@@ -110,6 +114,12 @@ export default async function PaginaUsuarios() {
     // `empresas`: esa tabla solo deja ver la propia, así que Vitálica
     // volvería vacía.
     supabase.rpc("empresas_del_grupo"),
+    // LA LINEA DE REPORTE SALE DE `vista_directorio`, no se recalcula
+    // acá: esa vista ya resuelve la precedencia —el ajuste a mano,
+    // `usuarios.superior_id`, el gerente de Odoo— y es la que dibuja el
+    // organigrama. Repetir la cuenta sería tener dos jerarquías, la que
+    // muestra esta pantalla y la que muestra aquella.
+    supabase.from("vista_directorio").select("clave, lider_clave"),
   ]);
 
   const filasNomina = (nomina ?? []) as unknown as FilaNomina[];
@@ -126,9 +136,24 @@ export default async function PaginaUsuarios() {
   const idPorPuestoNormalizado = new Map(
     listaPuestos.map((p) => [normalizar(p.nombre), p.id] as const),
   );
-  // Quiénes figuran en el padrón, para avisar qué líder no se va a poder
-  // resolver: si el jefe no está, nadie le va a escalar una acción.
-  const nombresDelPadron = new Set(filasNomina.map((f) => normalizar(f.nombre_completo)));
+  /** La misma clave con la que viaja cada caja del organigrama. */
+  const claveDeNomina = (fila: FilaNomina) =>
+    fila.usuario_id ? `usuario:${fila.usuario_id}` : `nomina:${fila.id}`;
+
+  const liderClavePorClave = new Map(
+    ((directorio ?? []) as { clave: string; lider_clave: string | null }[]).map(
+      (fila) => [fila.clave, fila.lider_clave] as const,
+    ),
+  );
+
+  const nombrePorClave = new Map<string, string>();
+  for (const fila of filasNomina) {
+    const usuario = fila.usuario_id ? usuarioPorId.get(fila.usuario_id) : undefined;
+    nombrePorClave.set(claveDeNomina(fila), usuario?.nombre_completo ?? fila.nombre_completo);
+  }
+  for (const usuario of filasUsuario) {
+    nombrePorClave.set(`usuario:${usuario.id}`, usuario.nombre_completo);
+  }
 
   const personas: PersonaDeLaLista[] = filasNomina.map((fila) => {
     const usuario = fila.usuario_id ? usuarioPorId.get(fila.usuario_id) : undefined;
@@ -142,8 +167,16 @@ export default async function PaginaUsuarios() {
         ? fila.puesto_manual_id
         : (idPorPuestoNormalizado.get(normalizar(fila.puesto_nombre)) ?? null));
 
+    const clave = claveDeNomina(fila);
+    const liderClave = liderClavePorClave.get(clave) ?? null;
+
+    // FIJADO A MANO Y SIN NADIE ARRIBA ES UNA DECISION —«no cuelga de
+    // nadie»—, no un dato que falta: no se cae al gerente de Odoo ni se
+    // marca como pendiente de resolver.
+    const sinLiderPorDecision = fila.lider_manual_fijado && fila.lider_manual_id === null;
+
     return {
-      clave: usuario ? `usuario:${usuario.id}` : `nomina:${fila.id}`,
+      clave,
       nominaId: fila.id,
       usuarioId: fila.usuario_id,
       nombre: usuario?.nombre_completo ?? fila.nombre_completo,
@@ -157,11 +190,11 @@ export default async function PaginaUsuarios() {
         puestoId !== null ||
         (fila.puesto_nombre !== null && puestosCargados.has(normalizar(fila.puesto_nombre))),
       empresa: fila.empresa_del_puesto,
-      lider: usuario?.superior_id
-        ? (nombrePorUsuarioId.get(usuario.superior_id) ?? fila.gerente_nombre)
-        : fila.gerente_nombre,
-      liderResuelve:
-        fila.gerente_nombre !== null && nombresDelPadron.has(normalizar(fila.gerente_nombre)),
+      lider: liderClave ? (nombrePorClave.get(liderClave) ?? null) : null,
+      liderClave,
+      liderDeOdoo: sinLiderPorDecision ? null : fila.gerente_nombre,
+      liderCorregido: fila.lider_manual_fijado,
+      liderResuelve: liderClave !== null,
       rol: usuario?.rol ?? null,
       activo: usuario?.activo ?? true,
       fechaIngreso: fila.fecha_ingreso,
@@ -192,6 +225,9 @@ export default async function PaginaUsuarios() {
       puestoResuelve: true,
       empresa: null,
       lider: usuario.superior_id ? (nombrePorUsuarioId.get(usuario.superior_id) ?? null) : null,
+      liderClave: usuario.superior_id ? `usuario:${usuario.superior_id}` : null,
+      liderDeOdoo: null,
+      liderCorregido: false,
       liderResuelve: true,
       rol: usuario.rol,
       activo: usuario.activo,
@@ -209,7 +245,7 @@ export default async function PaginaUsuarios() {
   const pendientes = personas.length - ingresaron;
   const sinPuesto = personas.filter((p) => p.enElPadron && !p.puestoResuelve).length;
   const sinLider = personas.filter(
-    (p) => p.enElPadron && p.lider !== null && !p.liderResuelve,
+    (p) => p.enElPadron && p.liderDeOdoo !== null && !p.liderResuelve,
   ).length;
 
   return (
