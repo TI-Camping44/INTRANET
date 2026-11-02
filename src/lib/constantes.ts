@@ -154,6 +154,19 @@ export const DESCRIPCION_ROL: Record<RolUsuario, string> = {
 /** Perfiles que pueden crear y editar registros del sistema. */
 export const ROLES_GESTION: RolUsuario[] = ["administrador_sgc", "responsable_proceso"];
 
+/**
+ * El proceso que custodia los Perfiles de Resultados de Puesto.
+ *
+ * SE COMPARA POR CODIGO Y NO POR ID: el id cambia entre bases, y el
+ * codigo es lo que Calidad usa para nombrar el proceso.
+ *
+ * Es el codigo de la VERSION 01 del mapa, que es la que usa
+ * `usuarios.proceso_id` —la ficha de la persona solo ofrece procesos de
+ * esa version—. En la 00 el mismo proceso es `SOP-01`, pero esa version
+ * la usa unicamente Informacion Documentada.
+ */
+export const CODIGO_PROCESO_CAPITAL_HUMANO = "MP-SOP-02";
+
 // ---------------------------------------------------------------------
 // Documentos
 // ---------------------------------------------------------------------

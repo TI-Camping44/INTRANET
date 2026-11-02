@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { esAdministrador, puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { esAdministrador, puedeSubirPerfilDePuesto, requerirUsuario } from "@/lib/sesion";
 import { archivosDelFormulario, quitarAdjunto, subirAdjuntos } from "@/lib/adjuntos-servidor";
 import type { ResultadoAccion } from "@/lib/tipos";
 
@@ -174,8 +174,13 @@ export async function adjuntarPerfilDePuesto(
   datos: FormData,
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
-  if (!puedeGestionar(usuario)) {
-    return { exito: false, error: "Su rol no permite subir archivos al puesto." };
+  if (!(await puedeSubirPerfilDePuesto(usuario))) {
+    return {
+      exito: false,
+      error:
+        "El Perfil de Resultados de Puesto lo cargan Calidad y Capital Humano. " +
+        "Si corresponde que usted lo haga, pida que le asignen el proceso de Capital Humano.",
+    };
   }
 
   const archivos = archivosDelFormulario(datos, "perfil");

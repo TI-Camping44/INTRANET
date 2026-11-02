@@ -10,7 +10,7 @@ import {
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
 import { Boton } from "@/components/ui/boton";
-import { esAdministrador, requerirUsuario } from "@/lib/sesion";
+import { esAdministrador, puedeSubirPerfilDePuesto, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { FormularioPuesto } from "@/app/(sgc)/recursos-humanos/puestos/formulario-puesto";
 import { PerfilesDelPuesto } from "@/app/(sgc)/recursos-humanos/puestos/[id]/perfiles-del-puesto";
@@ -69,6 +69,14 @@ export default async function PaginaPuesto({ params }: { params: { id: string } 
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
   const administra = esAdministrador(usuario);
+
+  // EL PERFIL LO SUBE CAPITAL HUMANO ADEMAS DE CALIDAD, así que no va
+  // con `administra`: el puesto en sí —crearlo, editarlo, eliminarlo y
+  // asignarle personas— sigue siendo solo de Calidad, pero el R-02-01
+  // lo custodia Capital Humano. Hasta el 2 de noviembre la pantalla
+  // pedía `esAdministrador` y la acción admitía a los jefes de área: el
+  // permiso estaba y el formulario no se dibujaba.
+  const subePerfil = await puedeSubirPerfilDePuesto(usuario);
 
   const [{ data: consulta }, { data: todas }, { data: archivos }, { data: datosEmpresas }] =
     await Promise.all([
@@ -172,7 +180,7 @@ export default async function PaginaPuesto({ params }: { params: { id: string } 
                 }[]
               | null) ?? []
           }
-          puedeEditar={administra}
+          puedeEditar={subePerfil}
         />
 
         <Tarjeta className="h-fit">

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ROLES_GESTION } from "@/lib/constantes";
+import { CODIGO_PROCESO_CAPITAL_HUMANO, ROLES_GESTION } from "@/lib/constantes";
 import {
   esClaveDeModulo,
   permisosDelAdministrador,
@@ -128,6 +128,39 @@ export function puedeEditarElOrganigrama(usuario: Usuario | null): boolean {
 /** Gestiona el programa de auditorias: Calidad y los auditores internos. */
 export function puedeGestionarAuditorias(usuario: Usuario | null): boolean {
   return usuario?.rol === "administrador_sgc" || usuario?.rol === "auditor";
+}
+
+/**
+ * Quien sube el Perfil de Resultados de Puesto: Calidad y Capital Humano.
+ *
+ * NO ES «LOS JEFES DE AREA». El rol `responsable_proceso` lo comparten
+ * los cuatro jefes que ingresaron, y el R-02-01 lo custodia Capital
+ * Humano: habilitarlo por rol se lo daria tambien a Logistica, a
+ * Comercial y al Canal Consumidor Final. Por eso se mira el PROCESO que
+ * la persona tiene asignado y no su rol.
+ *
+ * ES PARA TODOS LOS PUESTOS, no solo los del area de Capital Humano: el
+ * formulario es de ellos para toda la empresa.
+ *
+ * ASI ESTABA ROTO HASTA EL 2 DE NOVIEMBRE, y vale la pena que quede
+ * escrito: la accion admitia `puedeGestionar()` —Calidad y los cuatro
+ * jefes— y la pantalla dibujaba el formulario solo con
+ * `esAdministrador()`. El permiso estaba concedido y el boton no se
+ * dibujaba nunca, que es el error inverso al habitual: un boton
+ * escondido tapando un permiso que si existia.
+ */
+export async function puedeSubirPerfilDePuesto(usuario: Usuario | null): Promise<boolean> {
+  if (esAdministrador(usuario)) return true;
+  if (!usuario?.proceso_id) return false;
+
+  const supabase = crearClienteServidor();
+  const { data } = await supabase
+    .from("procesos")
+    .select("codigo")
+    .eq("id", usuario.proceso_id)
+    .maybeSingle();
+
+  return (data as { codigo: string } | null)?.codigo === CODIGO_PROCESO_CAPITAL_HUMANO;
 }
 
 /**
