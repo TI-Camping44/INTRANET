@@ -9,7 +9,6 @@ import { InsigniaEstadoAuditoria } from "@/components/comunes/insignias-estado";
 import { PanelPrograma } from "@/app/(sgc)/auditorias/panel-programa";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
-import { Insignia } from "@/components/ui/insignia";
 import { Progreso } from "@/components/ui/progreso";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
@@ -36,6 +35,7 @@ interface FilaAuditoria {
   tipo: string;
   objetivo: string | null;
   fecha_planificada: string | null;
+  fecha_planificada_fin: string | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   estado: EstadoAuditoria;
@@ -59,7 +59,8 @@ export default async function PaginaAuditorias({
   let consulta = supabase
     .from("auditorias")
     .select(
-      "id, codigo, tipo, objetivo, fecha_planificada, fecha_inicio, fecha_fin, estado, " +
+      "id, codigo, tipo, objetivo, fecha_planificada, fecha_planificada_fin, "
+        + "fecha_inicio, fecha_fin, estado, " +
         "procesos:proceso_id (nombre), auditor:auditor_lider_id (nombre_completo), " +
         "auditoria_hallazgos (id, tipo, no_conformidad_id), " +
         // Todos los procesos que abarca, no solo el primero.
@@ -286,20 +287,26 @@ export default async function PaginaAuditorias({
                     objetivo está entero en la ficha. */}
                 <TablaEncabezado>Tipo</TablaEncabezado>
                 <TablaEncabezado className="hidden xl:table-cell">Auditor líder</TablaEncabezado>
-                <TablaEncabezado className="w-[6rem] text-center">Hallazgos</TablaEncabezado>
                 <TablaEncabezado className="w-[9rem]">Estado</TablaEncabezado>
-                <TablaEncabezado className="w-[9rem]">Fecha</TablaEncabezado>
+                {/* DOS COLUMNAS Y NO UNA. Habia una sola «Fecha» que
+                    mostraba el inicio, asi que el cierre de la auditoria
+                    —lo que define si se hizo dentro de la ventana que se
+                    planifico— no estaba en ninguna parte del listado.
+                    Cada una cae a la fecha planificada cuando la real
+                    todavia no se cargo, y lo dice: una fecha de plan
+                    puesta como si fuera un hecho es justo lo que no
+                    conviene en una auditoria. */}
+                <TablaEncabezado className="w-[8rem]">Inicio</TablaEncabezado>
+                <TablaEncabezado className="w-[8rem]">Fin</TablaEncabezado>
               </TablaFila>
             </TablaCabecera>
             <TablaCuerpo>
               {auditorias.map((auditoria) => {
-                const propios = auditoria.auditoria_hallazgos ?? [];
-                const pendientes = propios.filter(
-                  (hallazgo) =>
-                    hallazgo.tipo.startsWith("no_conformidad") && !hallazgo.no_conformidad_id,
-                ).length;
-                const fecha = auditoria.fecha_inicio ?? auditoria.fecha_planificada;
-                const dias = diasHasta(fecha);
+                const inicio = auditoria.fecha_inicio ?? auditoria.fecha_planificada;
+                const inicioEsPlan = auditoria.fecha_inicio === null;
+                const fin = auditoria.fecha_fin ?? auditoria.fecha_planificada_fin;
+                const finEsPlan = auditoria.fecha_fin === null;
+                const dias = diasHasta(inicio);
                 const proxima =
                   auditoria.estado === "planificada" && dias !== null && dias <= 30;
 
@@ -318,30 +325,26 @@ export default async function PaginaAuditorias({
                     <TablaCelda className="hidden text-xs text-atenuado-contraste xl:table-cell">
                       {auditoria.auditor?.nombre_completo ?? "—"}
                     </TablaCelda>
-                    {/* El total y el aviso van en RENGLONES DISTINTOS. Pegados
-                        con un margen, «1» seguido de «1 sin NC» se leia «11 sin
-                        NC»: los conteos estaban bien y la pantalla mentia. Lo
-                        reporto Calidad leyendo once hallazgos donde habia uno. */}
-                    <TablaCelda className="text-center">
-                      <span className="block text-xs tabular">{propios.length}</span>
-                      {pendientes > 0 ? (
-                        <Insignia variante="peligro" className="mt-1">
-                          {pendientes === 1 ? "1 sin NC" : `${pendientes} sin NC`}
-                        </Insignia>
-                      ) : null}
-                    </TablaCelda>
                     <TablaCelda>
                       <InsigniaEstadoAuditoria estado={auditoria.estado} />
                     </TablaCelda>
                     <TablaCelda className="text-xs">
                       <span className={proxima ? "text-semaforo-medio" : "text-atenuado-contraste"}>
-                        {formatearFecha(fecha)}
+                        {formatearFecha(inicio)}
                         {proxima ? (
                           <span className="block text-[10px]">
-                            {describirVencimiento(fecha)}
+                            {describirVencimiento(inicio)}
                           </span>
+                        ) : inicioEsPlan && inicio ? (
+                          <span className="block text-[10px]">planificada</span>
                         ) : null}
                       </span>
+                    </TablaCelda>
+                    <TablaCelda className="text-xs text-atenuado-contraste">
+                      {formatearFecha(fin)}
+                      {finEsPlan && fin ? (
+                        <span className="block text-[10px]">planificada</span>
+                      ) : null}
                     </TablaCelda>
                   </TablaFila>
                 );

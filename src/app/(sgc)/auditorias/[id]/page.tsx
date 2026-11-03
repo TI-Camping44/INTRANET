@@ -2,12 +2,11 @@ import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import { InsigniaEstadoAuditoria } from "@/components/comunes/insignias-estado";
 import { PanelEjecucion } from "@/app/(sgc)/auditorias/[id]/panel-ejecucion";
-import { PanelHallazgos } from "@/app/(sgc)/auditorias/[id]/panel-hallazgos";
 import { PanelPlan } from "@/app/(sgc)/auditorias/[id]/panel-plan";
 import {
   PanelArchivosAuditoria,
@@ -177,14 +176,33 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
       <EncabezadoPagina
         titulo={auditoria.objetivo ?? auditoria.codigo}
         acciones={
-          <PanelEjecucion
+          <>
+            {/* LA TARJETA DE HALLAZGOS SALIO, PERO ESTE BOTON NO. Carlos
+                pidio quitar «Hallazgos» de la ficha el 3 de noviembre, y
+                tenia razon: desde el 6 de octubre la NC se registra en su
+                propio modulo, asi que la tarjeta mostraba «0 registrados»
+                y nada mas —no habia un solo hallazgo cargado en todo el
+                sistema—. Lo que si hacia falta era el camino para
+                levantar la NC desde la auditoria con el origen y el
+                proceso ya puestos; sacarlo entero obligaria a cargarlos
+                a mano. */}
+            {gestiona && auditoria.estado !== "cerrada" ? (
+              <Boton tamano="pequeno" variante="contorno" comoHijo>
+                <Link href={`/no-conformidades/nueva?auditoria=${auditoria.id}`}>
+                  <Plus /> Registrar no conformidad
+                </Link>
+              </Boton>
+            ) : null}
+
+            <PanelEjecucion
             auditoriaId={auditoria.id}
             estado={auditoria.estado}
             equipoActual={listaEquipo.map((fila) => fila.usuario_id)}
             auditorLiderId={auditoria.auditor_lider_id}
             personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-            puedeEditar={gestiona}
-          />
+              puedeEditar={gestiona}
+            />
+          </>
         }
       />
 
@@ -271,24 +289,6 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
             archivos={(archivosDelPlan as unknown as ArchivoDeAuditoria[] | null) ?? []}
             puedeGestionar={gestiona}
           />
-
-          <Tarjeta>
-            <TarjetaCabecera className="flex-row items-center justify-between">
-              <TarjetaTitulo>Hallazgos</TarjetaTitulo>
-              <span className="text-[11px] text-atenuado-contraste">
-                {listaHallazgos.length} registrado{listaHallazgos.length === 1 ? "" : "s"}
-              </span>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              <PanelHallazgos
-                auditoriaId={auditoria.id}
-                hallazgos={listaHallazgos}
-                procesos={(procesos as { id: string; nombre: string }[] | null) ?? []}
-                personas={(personas as { id: string; nombre_completo: string }[] | null) ?? []}
-                puedeEditar={gestiona && auditoria.estado !== "cerrada"}
-              />
-            </TarjetaContenido>
-          </Tarjeta>
 
           {auditoria.conclusiones ? (
             <Tarjeta>
