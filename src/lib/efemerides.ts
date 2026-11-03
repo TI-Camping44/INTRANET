@@ -99,3 +99,28 @@ export function motivoEnPalabras(efemeride: Efemeride): string {
   if (efemeride.anos === null) return "Aniversario en la empresa";
   return `${efemeride.anos} año${efemeride.anos === 1 ? "" : "s"} en la empresa`;
 }
+
+/**
+ * El mes abreviado, para el recuadro de la fecha.
+ *
+ * Se lee con `.at(mes - 1)` y no con un índice calculado: la convención
+ * del proyecto para un índice que sale de una cuenta.
+ */
+const MESES_CORTOS = [
+  "ENE",
+  "FEB",
+  "MAR",
+  "ABR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AGO",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DIC",
+];
+
+export function mesCorto(mes: number): string {
+  return MESES_CORTOS.at(mes - 1) ?? "";
+}

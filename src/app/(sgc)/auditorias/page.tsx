@@ -41,7 +41,6 @@ interface FilaAuditoria {
   estado: EstadoAuditoria;
   procesos: { nombre: string } | null;
   auditor: { nombre_completo: string } | null;
-  auditoria_hallazgos: { id: string; tipo: string; no_conformidad_id: string | null }[];
   auditoria_procesos: { procesos: { nombre: string } | null }[];
   auditoria_documentos: { documentos: { codigo: string | null; titulo: string } | null }[];
 }
@@ -62,7 +61,6 @@ export default async function PaginaAuditorias({
       "id, codigo, tipo, objetivo, fecha_planificada, fecha_planificada_fin, "
         + "fecha_inicio, fecha_fin, estado, " +
         "procesos:proceso_id (nombre), auditor:auditor_lider_id (nombre_completo), " +
-        "auditoria_hallazgos (id, tipo, no_conformidad_id), " +
         // Todos los procesos que abarca, no solo el primero.
         // `auditorias.proceso_id` guarda uno —el primero que se eligio— y
         // la columna del listado mostraba ese y nada mas: una auditoria
@@ -110,11 +108,6 @@ export default async function PaginaAuditorias({
   const cerradas = delAnio.filter((auditoria) => auditoria.estado === "cerrada").length;
   const avance = delAnio.length > 0 ? Math.round((cerradas / delAnio.length) * 100) : 0;
 
-  const hallazgos = auditorias.flatMap((auditoria) => auditoria.auditoria_hallazgos ?? []);
-  const noConformidadesPendientes = hallazgos.filter(
-    (hallazgo) => hallazgo.tipo.startsWith("no_conformidad") && !hallazgo.no_conformidad_id,
-  ).length;
-
   const gestiona = puedeGestionarAuditorias(usuario);
 
   return (
@@ -139,7 +132,12 @@ export default async function PaginaAuditorias({
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* DOS TARJETAS, NO CUATRO. «Hallazgos registrados» y «NC por
+          generar» salieron el 3 de noviembre con la columna y la
+          tarjeta de hallazgos: desde el 6 de octubre la NC se registra
+          en su propio modulo, asi que las dos quedaban en cero para
+          siempre. Con dos, una grilla de cuatro deja la mitad vacia. */}
+      <div className="mb-4 grid grid-cols-2 gap-3">
         <TarjetaIndicador
           titulo={`Avance ${anio}`}
           valor={`${avance}%`}
@@ -150,21 +148,6 @@ export default async function PaginaAuditorias({
           titulo="Auditorías del año"
           valor={delAnio.length}
           contexto={programaVigente ? ETIQUETAS_ESTADO_AUDITORIA[programaVigente.estado as EstadoAuditoria] : "Sin programa"}
-        />
-        <TarjetaIndicador
-          titulo="Hallazgos registrados"
-          valor={hallazgos.length}
-          contexto="En todas las auditorías"
-        />
-        <TarjetaIndicador
-          titulo="NC por generar"
-          valor={noConformidadesPendientes}
-          contexto={
-            noConformidadesPendientes > 0
-              ? "Hallazgos sin tratar"
-              : "Todos los hallazgos tratados"
-          }
-          tono={noConformidadesPendientes > 0 ? "peligro" : "exito"}
         />
       </div>
 

@@ -24,9 +24,9 @@ import {
 import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
 import { puedeGestionarAuditorias, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { ETIQUETAS_TIPO_AUDITORIA, ETIQUETAS_TIPO_HALLAZGO } from "@/lib/constantes";
+import { ETIQUETAS_TIPO_AUDITORIA } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
-import type { EstadoAuditoria, TipoHallazgo } from "@/lib/tipos";
+import type { EstadoAuditoria } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -90,28 +90,12 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
   if (!auditoria) notFound();
 
   const [
-    { data: hallazgos },
-    { data: evidencias },
     { data: equipo },
     { data: personas },
     { data: procesos },
     { data: datosEmpresas },
     { data: archivosDelPlan },
   ] = await Promise.all([
-      supabase
-        .from("auditoria_hallazgos")
-        .select(
-          "*, procesos:proceso_id (nombre), no_conformidad:no_conformidad_id (codigo, estado)",
-        )
-        .eq("auditoria_id", params.id)
-        .order("codigo"),
-      // Las evidencias adjuntas de los hallazgos de esta auditoria. Una
-      // sola consulta por `entidad`, no una por hallazgo; se reparten
-      // despues por `entidad_id`.
-      supabase
-        .from("adjuntos")
-        .select("id, entidad_id, nombre_archivo, tamano_bytes")
-        .eq("entidad", "auditoria_hallazgos"),
       supabase
         .from("auditoria_equipo")
         .select("usuario_id, rol_equipo, usuarios:usuario_id (nombre_completo)")
@@ -143,27 +127,9 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
     (empresa) => empresa.id === auditoria.empresa_auditada_id,
   )?.nombre;
 
-  // Cada hallazgo con sus evidencias adjuntas.
-  const porHallazgo = new Map<string, { id: string; nombre_archivo: string; tamano_bytes: number }[]>();
-  for (const adjunto of (evidencias as
-    | { id: string; entidad_id: string; nombre_archivo: string; tamano_bytes: number }[]
-    | null) ?? []) {
-    const suyos = porHallazgo.get(adjunto.entidad_id) ?? [];
-    suyos.push(adjunto);
-    porHallazgo.set(adjunto.entidad_id, suyos);
-  }
 
-  const listaHallazgos = ((hallazgos as any[] | null) ?? []).map((hallazgo) => ({
-    ...hallazgo,
-    adjuntos: porHallazgo.get(hallazgo.id) ?? [],
-  }));
   const listaEquipo = (equipo as any[] | null) ?? [];
   const gestiona = puedeGestionarAuditorias(usuario);
-
-  const resumen = listaHallazgos.reduce<Record<string, number>>((cuenta, hallazgo) => {
-    cuenta[hallazgo.tipo] = (cuenta[hallazgo.tipo] ?? 0) + 1;
-    return cuenta;
-  }, {});
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -384,26 +350,6 @@ export default async function PaginaAuditoria({ params }: { params: { id: string
               )}
             </TarjetaContenido>
           </Tarjeta>
-
-          {listaHallazgos.length > 0 ? (
-            <Tarjeta>
-              <TarjetaCabecera>
-                <TarjetaTitulo>Resumen de hallazgos</TarjetaTitulo>
-              </TarjetaCabecera>
-              <TarjetaContenido>
-                <dl className="space-y-2 text-xs">
-                  {Object.entries(resumen).map(([tipo, cantidad]) => (
-                    <div key={tipo} className="flex items-baseline justify-between gap-3">
-                      <dt className="text-atenuado-contraste">
-                        {ETIQUETAS_TIPO_HALLAZGO[tipo as TipoHallazgo]}
-                      </dt>
-                      <dd className="font-semibold tabular">{cantidad}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </TarjetaContenido>
-            </Tarjeta>
-          ) : null}
         </div>
       </div>
     </div>
