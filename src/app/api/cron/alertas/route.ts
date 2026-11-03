@@ -8,6 +8,7 @@ import {
   CORREO_TODOS,
   DIAS_AVISO_ACCION,
   DIAS_AVISO_REVISION_DOCUMENTO,
+  DIAS_DE_REENVIO_DE_CORREO,
   DIAS_LIMITE_CIERRE_NC,
   ESTADOS_NC_ABIERTOS,
   ETIQUETAS_TIPO_AUDITORIA,
@@ -272,7 +273,10 @@ export async function GET(peticion: NextRequest) {
     .select("id, titulo, mensaje, enlace, usuarios:usuario_id (correo)")
     .eq("requiere_correo", true)
     .eq("correo_enviado", false)
-    .gte("creado_en", new Date(Date.now() - 7 * 86_400_000).toISOString())
+    .gte(
+      "creado_en",
+      new Date(Date.now() - DIAS_DE_REENVIO_DE_CORREO * 86_400_000).toISOString(),
+    )
     .order("creado_en", { ascending: true })
     .limit(50);
 

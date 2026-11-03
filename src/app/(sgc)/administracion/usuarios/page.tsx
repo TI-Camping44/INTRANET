@@ -11,7 +11,12 @@ import { Aviso, AvisoDescripcion, AvisoTitulo } from "@/components/ui/aviso";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { DOMINIOS_AUTORIZADOS_TEXTO } from "@/lib/constantes";
+import {
+  DIAS_DE_REENVIO_DE_CORREO,
+  DOMINIOS_AUTORIZADOS_TEXTO,
+  HORAS_SIN_ENVIAR_PARA_AVISAR,
+} from "@/lib/constantes";
+import { formatearFechaHora } from "@/lib/formato";
 import type { RolUsuario } from "@/lib/tipos";
 
 export const metadata: Metadata = { title: "Usuarios" };
@@ -95,6 +100,7 @@ export default async function PaginaUsuarios() {
     { data: puestos },
     { data: datosEmpresas },
     { data: directorio },
+    { data: datosCorreo },
   ] = await Promise.all([
     supabase
       .from("personas_nomina")
@@ -120,6 +126,11 @@ export default async function PaginaUsuarios() {
     // organigrama. Repetir la cuenta sería tener dos jerarquías, la que
     // muestra esta pantalla y la que muestra aquella.
     supabase.from("vista_directorio").select("clave, lider_clave"),
+    // CUANTOS CORREOS QUEDARON SIN SALIR. Va por funcion y no por una
+    // consulta porque la politica de `notificaciones` es
+    // `usuario_id = auth.uid()`: el Administrador SGC solo ve las
+    // propias. La funcion devuelve el agregado, nunca el contenido.
+    supabase.rpc("correos_pendientes", { p_horas: HORAS_SIN_ENVIAR_PARA_AVISAR }),
   ]);
 
   const filasNomina = (nomina ?? []) as unknown as FilaNomina[];
@@ -248,6 +259,25 @@ export default async function PaginaUsuarios() {
     (p) => p.enElPadron && p.liderDeOdoo !== null && !p.liderResuelve,
   ).length;
 
+  // EL CORREO CAIDO TIENE QUE VERSE, y solo puede verse acá: el aviso no
+  // puede salir por correo porque el correo es lo que está fallando.
+  // `atrasadas` son las que ya pasaron una corrida del reenvío sin salir,
+  // que es lo que distingue una falla real de lo normal —casi todo correo
+  // sale recién en la corrida de las 11:00, así que una notificación de
+  // hace tres horas sin enviar no es noticia—.
+  const correo = ((datosCorreo as
+    | { pendientes: number; atrasadas: number; mas_vieja: string | null }[]
+    | null) ?? [])[0];
+
+  const atrasadas = correo?.atrasadas ?? 0;
+  const masVieja = correo?.mas_vieja ?? null;
+
+  // Lo anterior a la ventana del reenvío ya no se va a intentar nunca:
+  // eso deja de ser un atraso y pasa a ser una pérdida.
+  const hayPerdidas =
+    masVieja !== null &&
+    Date.now() - Date.parse(masVieja) > DIAS_DE_REENVIO_DE_CORREO * 86_400_000;
+
   return (
     <>
       <EncabezadoPagina
@@ -269,6 +299,38 @@ export default async function PaginaUsuarios() {
           </>
         }
       />
+
+      {atrasadas > 0 ? (
+        <Aviso className="mb-4" variante={hayPerdidas ? "peligro" : "advertencia"}>
+          <div>
+            <AvisoTitulo>
+              {atrasadas === 1
+                ? "Hay 1 notificación que no salió por correo"
+                : `Hay ${atrasadas} notificaciones que no salieron por correo`}
+            </AvisoTitulo>
+            <AvisoDescripcion>
+              {masVieja ? (
+                <>
+                  La más vieja es del <strong>{formatearFechaHora(masVieja)}</strong>.{" "}
+                </>
+              ) : null}
+              Las notificaciones están en la campana de cada persona; lo que no salió es
+              el correo. Pruebe el envío con <strong>«Probar el correo conmigo»</strong>,
+              acá arriba: el mensaje dice qué responde el servidor.
+              {hayPerdidas ? (
+                <>
+                  {" "}
+                  <strong>
+                    El reenvío solo recupera las de los últimos{" "}
+                    {DIAS_DE_REENVIO_DE_CORREO} días
+                  </strong>
+                  , así que las anteriores no se van a enviar aunque se arregle.
+                </>
+              ) : null}
+            </AvisoDescripcion>
+          </div>
+        </Aviso>
+      ) : null}
 
       <Aviso className="mb-4">
         <div>

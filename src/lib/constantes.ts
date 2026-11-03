@@ -155,6 +155,33 @@ export const DESCRIPCION_ROL: Record<RolUsuario, string> = {
 export const ROLES_GESTION: RolUsuario[] = ["administrador_sgc", "responsable_proceso"];
 
 /**
+ * Cuantos dias hacia atras recupera el reenvio de correos pendientes.
+ *
+ * Lo que queda mas viejo que esto NO SE VUELVE A INTENTAR NUNCA: la
+ * notificacion sigue en la campana, pero el correo no sale. Por eso la
+ * pantalla de Usuarios avisa con la fecha de la mas vieja.
+ */
+export const DIAS_DE_REENVIO_DE_CORREO = 7;
+
+/**
+ * A partir de cuantas horas sin enviarse una notificacion se considera
+ * atrasada y la pantalla lo avisa.
+ *
+ * SON MAS DE 24 A PROPOSITO. El envio dentro de la peticion casi nunca
+ * llega —tiene un tope de 6 segundos— asi que practicamente todo correo
+ * sale recien en el reenvio de las 11:00: una notificacion de hace tres
+ * horas sin enviar es lo normal, no una falla. Lo que no es normal es
+ * que haya pasado una corrida entera y siga sin salir, y en el plan de
+ * Vercel la corrida cae en cualquier momento dentro de la hora, de ahi
+ * el margen.
+ *
+ * Hizo falta porque el SMTP se cayo el 10 de octubre y nadie se entero
+ * hasta el 3 de noviembre, de casualidad. El aviso no puede ir por
+ * correo —es justo lo que esta caido—, asi que va en la pantalla.
+ */
+export const HORAS_SIN_ENVIAR_PARA_AVISAR = 26;
+
+/**
  * El proceso que custodia los Perfiles de Resultados de Puesto.
  *
  * SE COMPARA POR CODIGO Y NO POR ID: el id cambia entre bases, y el
