@@ -13,7 +13,7 @@ import {
   MAXIMO_EN_LA_FRANJA,
   type Efemeride,
 } from "@/lib/efemerides";
-import { FranjaEfemerides } from "./franja-efemerides";
+import { TarjetaEfemerides } from "./tarjeta-efemerides";
 import { MuroPublicaciones, type Publicacion } from "./muro-publicaciones";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -149,13 +149,7 @@ export default async function PaginaInicio() {
   const primerNombre = usuario.nombre_completo.split(" ")[0];
 
   return (
-    // UNA SOLA COLUMNA DE LECTURA. El muro estaba en dos tercios de una
-    // grilla de tres y el tercio restante lo ocupaba la tarjeta de
-    // cumpleaños; al subir la franja, ese tercio quedaba vacío. Se topea
-    // el ancho porque el contenedor del sistema llega a 110rem y una
-    // publicación de texto a ese ancho deja renglones imposibles de
-    // seguir.
-    <div className="max-w-5xl">
+    <>
       <div className="mb-5">
         <h1 className="text-xl font-semibold tracking-tight">
           Hola, {primerNombre}
@@ -165,12 +159,24 @@ export default async function PaginaInicio() {
         </p>
       </div>
 
-      <FranjaEfemerides proximas={proximas} />
+      {/* LA TARJETA VA PRIMERO EN EL HTML Y SEGUNDA EN PANTALLA GRANDE.
+          En el celular esto es una sola columna, asi que el orden del
+          HTML manda y los cumpleanos quedan arriba, que es lo que antes
+          no pasaba: estaban debajo de todas las publicaciones. De `lg`
+          para arriba el `order` los manda a la columna derecha, donde
+          sobra lugar, y el muro recupera sus dos tercios. */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:order-2">
+          <TarjetaEfemerides proximas={proximas} />
+        </div>
 
-      <MuroPublicaciones
-        publicaciones={listaPublicaciones}
-        puedeGestionar={gestiona}
-      />
-    </div>
+        <div className="min-w-0 lg:order-1 lg:col-span-2">
+          <MuroPublicaciones
+            publicaciones={listaPublicaciones}
+            puedeGestionar={gestiona}
+          />
+        </div>
+      </div>
+    </>
   );
 }
