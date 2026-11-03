@@ -1,13 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Cake, PartyPopper } from "lucide-react";
-import { Avatar, AvatarImagen, AvatarRespaldo } from "@/components/ui/avatar";
-import {
-  Tarjeta,
-  TarjetaCabecera,
-  TarjetaContenido,
-  TarjetaTitulo,
-} from "@/components/ui/tarjeta";
 import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { hoyEnAsuncion } from "@/lib/formato";
@@ -17,37 +8,16 @@ import {
   DURACION_ENLACE_IMAGEN,
   esRutaDelBucket,
 } from "@/lib/imagenes";
-import { iniciales } from "@/lib/utilidades";
+import {
+  proximasEfemerides,
+  MAXIMO_EN_LA_FRANJA,
+  type Efemeride,
+} from "@/lib/efemerides";
+import { FranjaEfemerides } from "./franja-efemerides";
 import { MuroPublicaciones, type Publicacion } from "./muro-publicaciones";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
-
-interface Efemeride {
-  id: string;
-  nombre_completo: string;
-  url_avatar: string | null;
-  puesto: string | null;
-  motivo: string;
-  mes: number;
-  dia: number;
-  anos: number | null;
-}
-
-const MESES = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-];
 
 export default async function PaginaInicio() {
   const usuario = await requerirUsuario();
@@ -71,8 +41,6 @@ export default async function PaginaInicio() {
   ]);
 
   const hoy = hoyEnAsuncion();
-  const mesActual = Number(hoy.slice(5, 7));
-  const diaActual = Number(hoy.slice(8, 10));
 
   // El muro muestra lo publicado y vigente. El borrador propio y lo
   // archivado se ven, pero mas abajo: RLS ya filtro lo que no corresponde.
@@ -169,20 +137,25 @@ export default async function PaginaInicio() {
       })),
   }));
 
-  // Del mes en curso, y de hoy en adelante: un cumpleanos de hace dos
-  // semanas ya no sirve para saludar.
-  const delMes = ((efemerides ?? []) as unknown as Efemeride[])
-    .filter(
-      (efemeride) => efemeride.mes === mesActual && efemeride.dia >= diaActual,
-    )
-    .sort((a, b) => a.dia - b.dia)
-    .slice(0, 8);
+  // De hoy en adelante y por 30 dias corridos. La ventana y el orden
+  // viven en `lib/efemerides.ts`: antes el techo era el fin de mes y la
+  // tarjeta se vaciaba sola cada vez que se acababa la hoja.
+  const proximas = proximasEfemerides(
+    (efemerides ?? []) as unknown as Efemeride[],
+    hoy,
+  ).slice(0, MAXIMO_EN_LA_FRANJA);
 
   const gestiona = puedeGestionar(usuario);
   const primerNombre = usuario.nombre_completo.split(" ")[0];
 
   return (
-    <>
+    // UNA SOLA COLUMNA DE LECTURA. El muro estaba en dos tercios de una
+    // grilla de tres y el tercio restante lo ocupaba la tarjeta de
+    // cumpleaños; al subir la franja, ese tercio quedaba vacío. Se topea
+    // el ancho porque el contenedor del sistema llega a 110rem y una
+    // publicación de texto a ese ancho deja renglones imposibles de
+    // seguir.
+    <div className="max-w-5xl">
       <div className="mb-5">
         <h1 className="text-xl font-semibold tracking-tight">
           Hola, {primerNombre}
@@ -192,72 +165,12 @@ export default async function PaginaInicio() {
         </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <MuroPublicaciones
-            publicaciones={listaPublicaciones}
-            puedeGestionar={gestiona}
-          />
-        </div>
+      <FranjaEfemerides proximas={proximas} />
 
-        <div className="min-w-0 space-y-4">
-          <Tarjeta>
-            <TarjetaCabecera>
-              <TarjetaTitulo>Este mes</TarjetaTitulo>
-            </TarjetaCabecera>
-            <TarjetaContenido>
-              {delMes.length === 0 ? (
-                <p className="text-xs text-atenuado-contraste">
-                  No quedan cumpleaños ni aniversarios en {MESES[mesActual - 1]}
-                  .
-                </p>
-              ) : (
-                <ul className="space-y-3">
-                  {delMes.map((efemeride) => (
-                    <li
-                      key={`${efemeride.id}-${efemeride.motivo}`}
-                      className="flex items-center gap-2.5"
-                    >
-                      <Avatar className="size-8 shrink-0">
-                        {efemeride.url_avatar ? (
-                          <AvatarImagen
-                            src={efemeride.url_avatar}
-                            alt={efemeride.nombre_completo}
-                          />
-                        ) : null}
-                        <AvatarRespaldo className="text-[10px]">
-                          {iniciales(efemeride.nombre_completo)}
-                        </AvatarRespaldo>
-                      </Avatar>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium">
-                          {efemeride.nombre_completo}
-                        </p>
-                        <p className="flex items-center gap-1 text-[11px] text-atenuado-contraste">
-                          {efemeride.motivo === "cumpleanos" ? (
-                            <>
-                              <Cake className="size-3" />
-                              Cumple el {efemeride.dia}
-                            </>
-                          ) : (
-                            <>
-                              <PartyPopper className="size-3" />
-                              {efemeride.anos} año
-                              {efemeride.anos === 1 ? "" : "s"} el{" "}
-                              {efemeride.dia}
-                            </>
-                          )}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </TarjetaContenido>
-          </Tarjeta>
-        </div>
-      </div>
-    </>
+      <MuroPublicaciones
+        publicaciones={listaPublicaciones}
+        puedeGestionar={gestiona}
+      />
+    </div>
   );
 }
