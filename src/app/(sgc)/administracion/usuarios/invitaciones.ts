@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
+import { enviarCorreo, enviarCorreoConDetalle, urlAbsoluta } from "@/lib/correo";
 import { departe } from "@/lib/notificaciones";
 import { requerirRol } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
@@ -260,19 +260,20 @@ export async function enviarInvitacionDePrueba(): Promise<ResultadoAccion> {
     urlAbsoluta("/ingresar"),
   );
 
-  const enviado = await enviarCorreo({
+  // LA PRUEBA DICE POR QUE FALLA, no solo que fallo. Es la unica
+  // pantalla donde alguien esta mirando y puede hacer algo con la
+  // respuesta del servidor; el resto de los envios corren sin nadie
+  // delante. El 3 de noviembre se descubrio que no salia un correo
+  // desde el 10 de octubre y el motivo solo estaba en los registros de
+  // Vercel, que no siempre se pueden leer.
+  const resultado = await enviarCorreoConDetalle({
     ...correo,
     asunto: `[Prueba] ${correo.asunto}`,
     deParteDe: departe(administrador),
   });
 
-  if (!enviado) {
-    return {
-      exito: false,
-      error:
-        "No se pudo enviar. Revise que SMTP_HOST, SMTP_USUARIO y SMTP_CLAVE estén cargados " +
-        "en el proyecto: si falla acá, también va a fallar con el resto.",
-    };
+  if (!resultado.ok) {
+    return { exito: false, error: resultado.motivo };
   }
 
   return {

@@ -169,6 +169,124 @@ function construirHtml({
 </body></html>`;
 }
 
+/**
+ * El mensaje tal como se le entrega al SMTP.
+ *
+ * Esta en una funcion propia porque lo arman los dos caminos de envio
+ * —el que devuelve un booleano y el que devuelve el motivo—, y con el
+ * cuerpo duplicado alcanzaba con tocar uno para que los correos de un
+ * camino salieran distintos a los del otro.
+ */
+function armarMensaje(opciones: OpcionesCorreo) {
+  const casilla = process.env.SMTP_USUARIO;
+  const remitentePorDefecto =
+    process.env.SMTP_REMITENTE ?? `${NOMBRE_SISTEMA} <${casilla}>`;
+
+  // Con `deParteDe`, el nombre que se ve en la bandeja es el de quien
+  // origino el aviso; la casilla sigue siendo la del sistema.
+  const remitente = opciones.deParteDe
+    ? `${opciones.deParteDe.nombre} · ${NOMBRE_SISTEMA} <${casilla}>`
+    : remitentePorDefecto;
+
+  return {
+    from: remitente,
+    replyTo: opciones.deParteDe?.correo ?? undefined,
+    to: Array.isArray(opciones.para) ? opciones.para.join(", ") : opciones.para,
+    subject: opciones.asunto,
+    text: `${opciones.titulo}\n\n${opciones.cuerpo}${
+      opciones.enlace ? `\n\n${opciones.enlace}` : ""
+    }`,
+    html: construirHtml(opciones),
+  };
+}
+
+/** El resultado del envío, con el motivo cuando falla. */
+export type ResultadoEnvio = { ok: true } | { ok: false; motivo: string };
+
+/**
+ * Traduce el error crudo del SMTP a algo que se pueda leer y accionar.
+ *
+ * HACE FALTA PORQUE UN SMTP CAIDO ERA INVISIBLE. El envío fallaba, la
+ * notificación quedaba con `correo_enviado = false` y el motivo se perdía
+ * en `console.error`: el 3 de noviembre se descubrió que no salía un
+ * correo desde el 10 de octubre, y para saber por qué había que leer los
+ * registros de Vercel. La causa tiene que llegar a quien administra.
+ *
+ * NO SE INCLUYE NINGUNA CREDENCIAL: el código, la respuesta del servidor
+ * y el mensaje de la librería, nada más. La clave nunca viaja en el error
+ * y tampoco se la agrega acá.
+ */
+function motivoDelError(error: unknown): string {
+  const detalle = error as {
+    code?: string;
+    responseCode?: number;
+    response?: string;
+    message?: string;
+  };
+
+  const crudo = [
+    detalle.code,
+    detalle.responseCode ? `respuesta ${detalle.responseCode}` : null,
+    detalle.response ?? detalle.message,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (detalle.code === "EAUTH" || detalle.responseCode === 535) {
+    return (
+      "El servidor rechazó el usuario o la clave. Si la casilla es de Google Workspace con " +
+      "verificación en dos pasos, SMTP_CLAVE tiene que ser una contraseña de aplicación, y " +
+      "esas se revocan solas cuando se cambia la contraseña de la cuenta o se saca la " +
+      `verificación en dos pasos. Detalle: ${crudo}`
+    );
+  }
+
+  if (
+    detalle.code === "ETIMEDOUT" ||
+    detalle.code === "ECONNECTION" ||
+    detalle.code === "ESOCKET"
+  ) {
+    return (
+      "No se pudo conectar con el servidor de correo. Revise SMTP_HOST y SMTP_PUERTO: con " +
+      `el puerto 465 la conexión va cifrada y con 587 no. Detalle: ${crudo}`
+    );
+  }
+
+  if (detalle.code === "EENVELOPE") {
+    return `El servidor no aceptó el remitente o el destinatario. Detalle: ${crudo}`;
+  }
+
+  return `El servidor de correo rechazó el envío. Detalle: ${crudo || "sin detalle"}`;
+}
+
+/**
+ * Como `enviarCorreo`, pero devuelve el motivo cuando falla.
+ *
+ * Lo usa la prueba de correo de la pantalla de Usuarios, que es donde
+ * alguien está mirando y puede hacer algo con la respuesta.
+ */
+export async function enviarCorreoConDetalle(
+  opciones: OpcionesCorreo,
+): Promise<ResultadoEnvio> {
+  const transporteActual = obtenerTransporte();
+
+  if (!transporteActual) {
+    const motivo =
+      "El SMTP no está configurado en el proyecto: faltan SMTP_HOST, SMTP_USUARIO o " +
+      "SMTP_CLAVE. Mientras falten, ninguna notificación sale por correo.";
+    console.warn(`[correo] ${motivo} No se envió "${opciones.asunto}".`);
+    return { ok: false, motivo };
+  }
+
+  try {
+    await transporteActual.sendMail(armarMensaje(opciones));
+    return { ok: true };
+  } catch (error) {
+    console.error("[correo] Falló el envío:", error);
+    return { ok: false, motivo: motivoDelError(error) };
+  }
+}
+
 export async function enviarCorreo(opciones: OpcionesCorreo): Promise<boolean> {
   const transporteActual = obtenerTransporte();
 
@@ -180,27 +298,8 @@ export async function enviarCorreo(opciones: OpcionesCorreo): Promise<boolean> {
     return false;
   }
 
-  const casilla = process.env.SMTP_USUARIO;
-  const remitentePorDefecto =
-    process.env.SMTP_REMITENTE ?? `${NOMBRE_SISTEMA} <${casilla}>`;
-
-  // Con `deParteDe`, el nombre que se ve en la bandeja es el de quien
-  // origino el aviso; la casilla sigue siendo la del sistema.
-  const remitente = opciones.deParteDe
-    ? `${opciones.deParteDe.nombre} · ${NOMBRE_SISTEMA} <${casilla}>`
-    : remitentePorDefecto;
-
   try {
-    await transporteActual.sendMail({
-      from: remitente,
-      replyTo: opciones.deParteDe?.correo ?? undefined,
-      to: Array.isArray(opciones.para) ? opciones.para.join(", ") : opciones.para,
-      subject: opciones.asunto,
-      text: `${opciones.titulo}\n\n${opciones.cuerpo}${
-        opciones.enlace ? `\n\n${opciones.enlace}` : ""
-      }`,
-      html: construirHtml(opciones),
-    });
+    await transporteActual.sendMail(armarMensaje(opciones));
     return true;
   } catch (error) {
     console.error("[correo] Falló el envío:", error);
