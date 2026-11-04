@@ -15,7 +15,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { esSoloLectura, requerirModulo } from "@/lib/sesion";
+import { esSoloLectura, puedeResponderLaDesviacion, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   ESTADOS_NC_ABIERTOS,
@@ -353,13 +353,15 @@ export default async function PaginaAcciones({
                       {describirVencimiento(nc.fecha_limite_cierre)}
                     </span>
                   ) : null}
-                  {soloLectura ? null : (
+                  {/* Por desviación y no por rol: Dirección ve el botón
+                      en las que tiene a su cargo y en ninguna otra. */}
+                  {puedeResponderLaDesviacion(usuario, nc.responsable_id) ? (
                     <Boton variante="contorno" tamano="pequeno" comoHijo className="shrink-0">
                       <Link href={`/acciones/nueva?nc=${nc.id}`}>
                         <Plus /> Acción correctiva
                       </Link>
                     </Boton>
-                  )}
+                  ) : null}
                 </li>
               ))}
             </ul>

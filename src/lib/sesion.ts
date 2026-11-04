@@ -110,6 +110,40 @@ export function esSoloLectura(usuario: Usuario | null): boolean {
 }
 
 /**
+ * Quien puede cargar y corregir la respuesta de una desviacion.
+ *
+ * ES LA SEGUNDA ESCRITURA DE DIRECCION EN TODO EL SISTEMA, despues de
+ * mover el organigrama, y es igual de acotada: Direccion escribe
+ * UNICAMENTE la respuesta de la desviacion que tiene a su cargo. No le
+ * abre ningun otro modulo, ni siquiera editar la no conformidad en si
+ * —el titulo, el area y la severidad siguen siendo de Calidad—.
+ *
+ * Hizo falta porque Calidad le asigna el tratamiento a Direccion. A
+ * Ariel Kemper le llego NC-2026-010 con el correo que le pide analizar
+ * la causa raiz y definir el plan, y el sistema lo mandaba a «Sin
+ * acceso»: un tratamiento asignado a alguien que no puede cargarlo es
+ * una desviacion que no se cierra nunca.
+ *
+ * OJO CON LA MATRIZ DE PERMISOS: a `direccion` le figura
+ * `editar = true` en 16 de los 21 modulos, asi que el unico freno real
+ * es este archivo. Por eso la excepcion se escribe como una pregunta
+ * concreta —«¿es el responsable de ESTA desviacion?»— y no sacando el
+ * control de solo lectura, que le abriria los otros quince de una.
+ *
+ * Para todos los demas roles devuelve `true` y el permiso lo resuelve
+ * RLS, que es donde vive: `nc_acciones_gestion` exige ser el
+ * responsable, quien la detecto, el responsable del proceso o Calidad.
+ */
+export function puedeResponderLaDesviacion(
+  usuario: Usuario | null,
+  responsableId: string | null,
+): boolean {
+  if (!usuario) return false;
+  if (!esSoloLectura(usuario)) return true;
+  return responsableId !== null && responsableId === usuario.id;
+}
+
+/**
  * Quien puede mover el organigrama: Calidad y Dirección.
  *
  * ES LA ÚNICA ESCRITURA DE DIRECCIÓN EN TODO EL SISTEMA. El rol es de

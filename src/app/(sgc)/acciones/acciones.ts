@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
+import { esSoloLectura, puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
@@ -244,11 +244,27 @@ export async function actualizarRespuesta(
   datos: FormData,
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
-  if (esSoloLectura(usuario)) {
-    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
-  }
-
   const supabase = crearClienteServidor();
+
+  // DIRECCION CORRIGE LA RESPUESTA DE LO QUE TIENE A SU CARGO Y NADA
+  // MAS. Hay que leer quien es el responsable antes de decidir, asi que
+  // el control no puede ser el `esSoloLectura` suelto que habia aca.
+  const { data: duena } = await supabase
+    .from("no_conformidades")
+    .select("responsable_id")
+    .eq("id", noConformidadId)
+    .maybeSingle();
+
+  const responsableId = (duena as { responsable_id: string | null } | null)?.responsable_id ?? null;
+
+  if (!puedeResponderLaDesviacion(usuario, responsableId)) {
+    return {
+      exito: false,
+      error:
+        "El perfil de Dirección solo puede cargar y corregir la respuesta de las " +
+        "desviaciones que tiene a su cargo.",
+    };
+  }
 
   const descargo = String(datos.get("descargo") ?? "").trim();
   const causaRaiz = String(datos.get("causa_raiz") ?? "").trim();

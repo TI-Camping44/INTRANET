@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
+import { esSoloLectura, puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
@@ -511,11 +511,11 @@ export async function crearAccion(
 }
 
 /**
- * Responder una no conformidad: descargo, cinco porques y accion.
+ * Responder una no conformidad: descargo, causa raiz y accion.
  *
  * Es el camino que pidio Calidad. Quien recibe la desviacion contesta en
- * un solo paso —explica que paso, encadena los cinco porques hasta la
- * causa raiz y propone la accion— y con eso la no conformidad se cierra.
+ * un solo paso: explica que paso, declara la causa raiz y propone la
+ * accion. Los cinco porques salieron del formulario el 4 de noviembre.
  *
  * La accion QUEDA ABIERTA a proposito. Lo que hay que controlar de ahi en
  * adelante no es la desviacion, que ya tiene analisis y plan, sino que
@@ -533,6 +533,28 @@ export async function responderNoConformidad(
 ): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
   const supabase = crearClienteServidor();
+
+  // ESTA FUNCION NO TENIA NINGUN CONTROL DE SOLO LECTURA, a diferencia
+  // de las otras seis escrituras del archivo. No era un agujero —RLS
+  // exige ser el responsable, quien la detecto, el responsable del
+  // proceso o Calidad— pero tampoco decia la regla en ningun lado. Ahora
+  // la dice, que es lo que permite acotar la excepcion de Direccion a
+  // «la desviacion que tiene a su cargo» en vez de abrirle el rol.
+  const { data: duena } = await supabase
+    .from("no_conformidades")
+    .select("responsable_id")
+    .eq("id", noConformidadId)
+    .maybeSingle();
+
+  const responsableId = (duena as { responsable_id: string | null } | null)?.responsable_id ?? null;
+
+  if (!puedeResponderLaDesviacion(usuario, responsableId)) {
+    return {
+      exito: false,
+      error:
+        "El perfil de Dirección solo puede responder las desviaciones que tiene a su cargo.",
+    };
+  }
 
   const descargo = String(datos.get("descargo") ?? "").trim();
   const causaRaiz = String(datos.get("causa_raiz") ?? "").trim();

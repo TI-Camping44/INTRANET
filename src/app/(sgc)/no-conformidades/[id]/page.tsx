@@ -23,7 +23,12 @@ import {
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
 import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
-import { esSoloLectura, puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import {
+  esSoloLectura,
+  puedeGestionar,
+  puedeResponderLaDesviacion,
+  requerirUsuario,
+} from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { DEPARTAMENTOS, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
@@ -158,6 +163,12 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
     nc.responsable_id === usuario.id ||
     (puedeGestionar(usuario) && nc.proceso_id === usuario.proceso_id);
   const puedeEditar = gestiona && !esSoloLectura(usuario);
+
+  // CARGAR LA RESPUESTA ES OTRO PERMISO QUE EDITAR LA DESVIACION.
+  // Dirección no puede tocar el título, el área ni la severidad —eso es
+  // de Calidad—, pero sí carga la acción correctiva de la desviación que
+  // tiene a su cargo.
+  const puedeResponder = puedeResponderLaDesviacion(usuario, nc.responsable_id);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -337,22 +348,32 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
                   ? "1 acción correctiva vinculada."
                   : `${vinculadas.length} acciones correctivas vinculadas.`}
             </p>
-            <Boton variante="contorno" tamano="pequeno" comoHijo>
-              {/* Lleva a la accion correctiva de esta desviacion. Antes
-                  iba al listado filtrado por texto, y ese filtro busca en
-                  la descripcion de la accion, no en el codigo de la NC:
-                  la pantalla se abria vacia. */}
-              <Link
-                href={
-                  vinculadas.length === 0
-                    ? `/acciones/nueva?nc=${nc.id}`
-                    : `/acciones/${nc.id}`
-                }
-              >
-                <ListChecks />
-                {vinculadas.length === 0 ? "Cargar la acción correctiva" : "Ver la acción correctiva"}
-              </Link>
-            </Boton>
+            {/* EL BOTON NO SE DIBUJA SI LA PERSONA NO PUEDE CARGARLA.
+                Hasta el 4 de noviembre se dibujaba siempre: Dirección
+                veía «Cargar la acción correctiva», la apretaba y recién
+                ahí la pantalla la rebotaba a «Sin acceso». Un botón que
+                lleva a un cartel de permisos es peor que no tenerlo.
+                «Ver la acción correctiva» sí va para todos: es lectura. */}
+            {vinculadas.length > 0 || puedeResponder ? (
+              <Boton variante="contorno" tamano="pequeno" comoHijo>
+                {/* Lleva a la accion correctiva de esta desviacion. Antes
+                    iba al listado filtrado por texto, y ese filtro busca en
+                    la descripcion de la accion, no en el codigo de la NC:
+                    la pantalla se abria vacia. */}
+                <Link
+                  href={
+                    vinculadas.length === 0
+                      ? `/acciones/nueva?nc=${nc.id}`
+                      : `/acciones/${nc.id}`
+                  }
+                >
+                  <ListChecks />
+                  {vinculadas.length === 0
+                    ? "Cargar la acción correctiva"
+                    : "Ver la acción correctiva"}
+                </Link>
+              </Boton>
+            ) : null}
           </TarjetaContenido>
         </Tarjeta>
       </div>

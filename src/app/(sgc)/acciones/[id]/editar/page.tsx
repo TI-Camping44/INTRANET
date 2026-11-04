@@ -8,7 +8,7 @@ import {
   FormularioAccion,
   type OpcionNoConformidad,
 } from "@/app/(sgc)/acciones/formulario-accion";
-import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
+import { puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 
 export const metadata: Metadata = { title: "Editar acción correctiva" };
@@ -27,8 +27,6 @@ export default async function PaginaEditarAccionCorrectiva({
   params: { id: string };
 }) {
   const usuario = await requerirUsuario();
-  if (esSoloLectura(usuario)) redirect("/sin-acceso?motivo=permisos");
-
   const supabase = crearClienteServidor();
 
   const [{ data: nc }, { data: filas }, { data: personas }] =
@@ -36,7 +34,9 @@ export default async function PaginaEditarAccionCorrectiva({
       supabase
         .from("no_conformidades")
         .select(
-          "id, codigo, titulo, hay_nc_similares, analisis_horizontal, conclusion_causa_raiz",
+          // Un literal solo: partirlo en dos con `+` deja a PostgREST sin
+          // poder inferir el tipo de la fila y todo vuelve como error.
+          "id, codigo, titulo, hay_nc_similares, analisis_horizontal, conclusion_causa_raiz, responsable_id",
         )
         .eq("id", params.id)
         .maybeSingle(),
@@ -53,6 +53,18 @@ export default async function PaginaEditarAccionCorrectiva({
     ]);
 
   if (!nc) notFound();
+
+  // EL CONTROL VA DESPUES DE LEER LA DESVIACION, no antes: para saber si
+  // Dirección puede corregir esta respuesta hay que saber si es el
+  // responsable de esta no conformidad, y eso exige haberla leído.
+  if (
+    !puedeResponderLaDesviacion(
+      usuario,
+      (nc as { responsable_id: string | null }).responsable_id,
+    )
+  ) {
+    redirect("/sin-acceso?motivo=permisos");
+  }
 
   const acciones =
     (filas as
