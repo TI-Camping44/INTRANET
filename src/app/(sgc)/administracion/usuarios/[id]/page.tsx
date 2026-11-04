@@ -59,7 +59,7 @@ export default async function PaginaFichaUsuario({ params }: { params: { id: str
     supabase.from("usuarios").select("id, nombre_completo, rol").order("nombre_completo"),
     supabase
       .from("procesos")
-      .select("id, nombre")
+      .select("id, nombre, responsable_id")
       .eq("activo", true)
       .eq("version", "01")
       .order("nombre"),
@@ -187,7 +187,14 @@ export default async function PaginaFichaUsuario({ params }: { params: { id: str
       <FormularioUsuario
         usuario={ficha}
         personas={personas.map(({ id, nombre_completo }) => ({ id, nombre_completo }))}
-        procesos={(procesos ?? []) as { id: string; nombre: string }[]}
+        procesos={((procesos ?? []) as { id: string; nombre: string }[]).map(
+          ({ id, nombre }) => ({ id, nombre }),
+        )}
+        procesosACargo={(
+          (procesos ?? []) as { id: string; responsable_id: string | null }[]
+        )
+          .filter((proceso) => proceso.responsable_id === params.id)
+          .map((proceso) => proceso.id)}
         puestos={(puestos ?? []) as { id: string; nombre: string }[]}
         vendedores={vendedores}
       />

@@ -163,11 +163,12 @@ export function esSoloLectura(usuario: Usuario | null): boolean {
  * acceso»: un tratamiento asignado a alguien que no puede cargarlo es
  * una desviacion que no se cierra nunca.
  *
- * OJO CON LA MATRIZ DE PERMISOS: a `direccion` le figura
- * `editar = true` en 16 de los 21 modulos, asi que el unico freno real
- * es este archivo. Por eso la excepcion se escribe como una pregunta
- * concreta —«¿es el responsable de ESTA desviacion?»— y no sacando el
- * control de solo lectura, que le abriria los otros quince de una.
+ * SE ESCRIBE COMO UNA PREGUNTA CONCRETA —«¿es el responsable de ESTA
+ * desviacion?»— y no sacando el control de solo lectura, que le abriria
+ * de una todos los modulos que la matriz le concede. La matriz se
+ * reviso el 4 de noviembre y hoy le deja `editar` solo donde la politica
+ * acota la escritura a lo asignado; `no_conformidades` y `acciones` son
+ * dos de esos, y por eso esta excepcion funciona.
  *
  * Para todos los demas roles devuelve `true` y el permiso lo resuelve
  * RLS, que es donde vive: `nc_acciones_gestion` exige ser el
@@ -224,16 +225,28 @@ export function puedeGestionarAuditorias(usuario: Usuario | null): boolean {
  */
 export async function puedeSubirPerfilDePuesto(usuario: Usuario | null): Promise<boolean> {
   if (esAdministrador(usuario)) return true;
-  if (!usuario?.proceso_id) return false;
+  if (!usuario) return false;
 
+  // MIRA `procesos.responsable_id`, NO `usuarios.proceso_id`.
+  //
+  // Hasta el 4 de noviembre miraba el campo del perfil, que dice a que
+  // proceso PERTENECE la persona y no cual responde. Son dos cosas
+  // distintas y el resto del sistema ya usaba la de aca: las siete
+  // politicas por proceso leen `es_responsable_de_proceso()`, que
+  // consulta esta misma columna. Con dos fuentes, alguien podia
+  // responder Capital Humano y no poder subir el R-02-01, o al reves.
+  //
+  // Y ADMITE VARIOS PROCESOS: la pregunta es si Capital Humano esta
+  // entre los que responde, no si es el unico.
   const supabase = crearClienteServidor();
   const { data } = await supabase
     .from("procesos")
     .select("codigo")
-    .eq("id", usuario.proceso_id)
+    .eq("responsable_id", usuario.id)
+    .eq("codigo", CODIGO_PROCESO_CAPITAL_HUMANO)
     .maybeSingle();
 
-  return (data as { codigo: string } | null)?.codigo === CODIGO_PROCESO_CAPITAL_HUMANO;
+  return data !== null;
 }
 
 /**

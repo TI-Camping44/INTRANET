@@ -47,12 +47,15 @@ export function FormularioUsuario({
   usuario,
   personas,
   procesos,
+  procesosACargo,
   puestos,
   vendedores,
 }: {
   usuario: UsuarioFicha;
   personas: { id: string; nombre_completo: string }[];
   procesos: { id: string; nombre: string }[];
+  /** Los que responde hoy, por `procesos.responsable_id`. */
+  procesosACargo: string[];
   puestos: { id: string; nombre: string }[];
   vendedores: string[];
 }) {
@@ -152,19 +155,66 @@ export function FormularioUsuario({
             </Seleccion>
           </GrupoCampo>
 
+          {/* LOS PROCESOS QUE RESPONDE SON VARIOS, no uno.
+              Era un desplegable de uno solo y la responsabilidad no
+              funciona así: la columna vive del lado del proceso
+              —`procesos.responsable_id`— así que una persona puede
+              responder los que haga falta. Además el desplegable
+              escribía `usuarios.proceso_id`, que ninguna política mira,
+              con lo cual la etiqueta prometía una responsabilidad que el
+              dato no concedía.
+
+              NO ES UNA ETIQUETA: quien responde un proceso gana editar
+              los documentos, las no conformidades, los riesgos, los
+              cambios, las acciones de NC y las mediciones de indicadores
+              de ese proceso. Por eso el aviso está a la vista y no en
+              una ayuda que nadie abre. */}
           <GrupoCampo
-            etiqueta="Proceso a cargo"
-            htmlFor="proceso_id"
-            ayuda="Solo si es responsable del proceso. Vacío para el resto."
+            etiqueta="Procesos que responde"
+            htmlFor="procesos_a_cargo"
+            ayuda="Puede responder varios. Sin ninguno marcado, no responde ninguno."
           >
-            <Seleccion id="proceso_id" name="proceso_id" defaultValue={usuario.proceso_id ?? ""}>
-              <option value="">Sin proceso</option>
-              {procesos.map((proceso) => (
-                <option key={proceso.id} value={proceso.id}>
-                  {proceso.nombre}
-                </option>
-              ))}
-            </Seleccion>
+            {/* QUE PROCESOS LLEGO A OFRECER ESTA PANTALLA. Sin esto,
+                guardar soltaba TODOS los procesos de la persona, también
+                los que el formulario no muestra —hoy solo lista los de la
+                versión 01 del mapa— y una responsabilidad de la versión
+                00 se borraba sola al tocar cualquier otro campo. */}
+            <input
+              type="hidden"
+              name="procesos_ofrecidos"
+              value={procesos.map((proceso) => proceso.id).join(",")}
+            />
+            <div
+              id="procesos_a_cargo"
+              className="max-h-52 overflow-y-auto rounded-md border border-borde p-2"
+            >
+              {procesos.length === 0 ? (
+                <p className="px-1 py-2 text-xs text-atenuado-contraste">
+                  No hay procesos cargados.
+                </p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {procesos.map((proceso) => (
+                    <li key={proceso.id}>
+                      <label className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-atenuado/50">
+                        <input
+                          type="checkbox"
+                          name="procesos_a_cargo"
+                          value={proceso.id}
+                          defaultChecked={procesosACargo.includes(proceso.id)}
+                          className="mt-0.5 size-3.5 shrink-0 accent-primario"
+                        />
+                        <span className="min-w-0">{proceso.nombre}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-atenuado-contraste">
+              Responder un proceso habilita a editar sus documentos, no conformidades, riesgos,
+              cambios, acciones y mediciones. No es solo una etiqueta.
+            </p>
           </GrupoCampo>
 
           {/* CON QUÉ NOMBRE FIGURA EN EL TABLERO COMERCIAL. Se elige de

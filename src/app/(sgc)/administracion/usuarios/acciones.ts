@@ -49,12 +49,42 @@ export async function actualizarUsuario(
     };
   }
 
+  // LOS PROCESOS QUE RESPONDE SON VARIOS, Y VIVEN DEL LADO DEL PROCESO.
+  //
+  // `procesos.responsable_id` es lo que lee `es_responsable_de_proceso()`
+  // y con eso las siete politicas que gobiernan las escrituras por
+  // proceso. Como la columna esta del lado del proceso, N procesos
+  // pueden apuntar a la misma persona: por eso aca se eligen de a
+  // varios, que es lo que el desplegable viejo no dejaba.
+  //
+  // OJO CON LO QUE CONCEDE: quien responde un proceso gana editar los
+  // documentos, las no conformidades, los riesgos, los cambios, las
+  // acciones de NC y las mediciones de indicadores DE ESE PROCESO. Eso
+  // es lo que significa responder un proceso y es deliberado, pero no
+  // es solo una etiqueta en la ficha.
+  const procesosACargo = Array.from(
+    new Set(datos.getAll("procesos_a_cargo").map((valor) => String(valor)).filter(Boolean)),
+  );
+
+  // LO QUE SE SUELTA SE ACOTA A LO QUE LA PANTALLA OFRECIO. El
+  // formulario lista solo los procesos activos de la version 01 del
+  // mapa, asi que soltar «todos los de esta persona» le borraria sin
+  // aviso una responsabilidad de la version 00 —que existe: hay dos
+  // cargadas— con solo tocar cualquier otro campo de la ficha.
+  const procesosOfrecidos = String(datos.get("procesos_ofrecidos") ?? "")
+    .split(",")
+    .map((valor) => valor.trim())
+    .filter(Boolean);
+
   const { error } = await supabase
     .from("usuarios")
     .update({
       rol,
       superior_id: superiorId,
-      proceso_id: String(datos.get("proceso_id") ?? "") || null,
+      // A QUE PROCESO PERTENECE, que es de a uno y es otra pregunta
+      // que «cuales responde». Se sigue guardando el primero de los que
+      // responde, para que la ficha de la persona muestre algo.
+      proceso_id: procesosACargo[0] ?? null,
       puesto_id: String(datos.get("puesto_id") ?? "") || null,
       vendedor_planilla: String(datos.get("vendedor_planilla") ?? "").trim() || null,
       // Se filtra contra la lista antes de escribir. La base tiene su
@@ -67,8 +97,49 @@ export async function actualizarUsuario(
 
   if (error) return { exito: false, error: `No se pudo actualizar: ${error.message}` };
 
+  // SE SUELTAN LOS QUE DEJO DE RESPONDER Y SE TOMAN LOS NUEVOS, en ese
+  // orden. Si solo se tomaran los marcados, destildar uno no lo soltaria
+  // nunca y la persona acumularia procesos que ya no responde.
+  const { error: errorSuelta } = procesosOfrecidos.length
+    ? await supabase
+        .from("procesos")
+        .update({ responsable_id: null })
+        .eq("responsable_id", id)
+        .in("id", procesosOfrecidos)
+    : { error: null };
+
+  if (errorSuelta) {
+    return {
+      exito: false,
+      error: `Se guardó el usuario, pero no se pudieron actualizar los procesos: ${errorSuelta.message}`,
+    };
+  }
+
+  if (procesosACargo.length > 0) {
+    const { error: errorToma } = await supabase
+      .from("procesos")
+      .update({ responsable_id: id })
+      .in("id", procesosACargo);
+
+    if (errorToma) {
+      return {
+        exito: false,
+        error: `Se guardó el usuario, pero no se pudieron asignar los procesos: ${errorToma.message}`,
+      };
+    }
+  }
+
   revalidatePath("/administracion/usuarios");
-  return { exito: true, mensaje: "Usuario actualizado." };
+  revalidatePath(`/administracion/usuarios/${id}`);
+  return {
+    exito: true,
+    mensaje:
+      procesosACargo.length === 0
+        ? "Usuario actualizado."
+        : `Usuario actualizado. Responde ${procesosACargo.length} ${
+            procesosACargo.length === 1 ? "proceso" : "procesos"
+          }.`,
+  };
 }
 
 /** Edicion de los datos propios del perfil. */
