@@ -5,7 +5,6 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { hoyEnAsuncion } from "@/lib/formato";
-import { PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
 import {
   archivosDelFormulario,
   quitarAdjunto,
@@ -17,9 +16,13 @@ import type { ResultadoAccion } from "@/lib/tipos";
  * Las escrituras de la acción correctiva.
  *
  * «La acción correctiva» de una desviación es una sola cosa aunque viva
- * en tres tablas: el descargo y las tareas en `nc_acciones`, el análisis
- * en `nc_porques`, y la eficacia en la propia `no_conformidades`. Por eso
+ * en dos tablas: el descargo y las tareas en `nc_acciones`, y la causa
+ * raíz junto con la eficacia en la propia `no_conformidades`. Por eso
  * estas funciones trabajan por no conformidad y no por fila.
+ *
+ * `nc_porques` ya no se escribe desde ningún lado: los cinco porqués
+ * salieron del formulario el 4 de noviembre. La tabla queda con las
+ * cadenas cargadas y la ficha las sigue mostrando.
  *
  * Nada de acá toca el estado de la no conformidad. Lo pidió Calidad y es
  * la regla que ordena el módulo: la desviación queda «En proceso» en
@@ -229,9 +232,9 @@ export async function reabrirEficacia(noConformidadId: string): Promise<Resultad
 /**
  * Guarda la edición de la acción correctiva completa.
  *
- * El descargo, los cinco porqués y las tareas. Las tareas que ya existen
- * se actualizan por su id —conservan su estado de ejecución—, las nuevas
- * se insertan y las que se sacaron del formulario se borran.
+ * El descargo, la causa raíz y las tareas. Las tareas que ya existen se
+ * actualizan por su id —conservan su estado de ejecución—, las nuevas se
+ * insertan y las que se sacaron del formulario se borran.
  *
  * El descargo se escribe en todas las filas: es de la persona y de la
  * desviación, no de cada tarea.
@@ -248,7 +251,7 @@ export async function actualizarRespuesta(
   const supabase = crearClienteServidor();
 
   const descargo = String(datos.get("descargo") ?? "").trim();
-  const porques = datos.getAll("porque").map((valor) => String(valor).trim());
+  const causaRaiz = String(datos.get("causa_raiz") ?? "").trim();
 
   // `null` es «no contesto»: distinto de «no». La validacion de abajo lo
   // exige, asi que no se puede guardar una respuesta sin responder esto.
@@ -272,8 +275,13 @@ export async function actualizarRespuesta(
   if (descargo.length < 10) {
     return { exito: false, error: "El descargo debe tener al menos 10 caracteres." };
   }
-  if (porques.length < 5 || porques.some((porque) => porque.length === 0)) {
-    return { exito: false, error: "Complete los cinco porqués." };
+  if (causaRaiz.length < 10) {
+    return {
+      exito: false,
+      error:
+        "Escriba la causa raíz con al menos 10 caracteres: qué es lo que falta o falla y " +
+        "que, si se corrige, evita que la desviación vuelva a pasar.",
+    };
   }
   if (tareas.length === 0) {
     return { exito: false, error: "Deje al menos una acción." };
@@ -301,25 +309,21 @@ export async function actualizarRespuesta(
     }
   }
 
-  // El análisis se reemplaza entero: la cadena es una sola.
-  await supabase.from("nc_porques").delete().eq("no_conformidad_id", noConformidadId);
-  const { error: errorPorques } = await supabase.from("nc_porques").insert(
-    porques.map((respuesta, indice) => ({
-      no_conformidad_id: noConformidadId,
-      orden: indice + 1,
-      pregunta: PREGUNTAS_CINCO_PORQUES[indice] ?? `¿Por qué? (${indice + 1})`,
-      respuesta,
-    })),
-  );
-
-  if (errorPorques) {
-    return { exito: false, error: `No se pudo guardar el análisis: ${errorPorques.message}` };
-  }
-
+  // `nc_porques` NO SE TOCA, Y ES LO IMPORTANTE DE ESTE CAMBIO. Acá
+  // había un `delete` seguido de un `insert`: con los cinco porqués
+  // fuera del formulario, dejar solo el `delete` habría hecho que
+  // guardar la edición de una respuesta vieja le borrara la cadena que
+  // tenía cargada. Seis no conformidades la tienen. No se escribe ni se
+  // borra: la ficha las sigue mostrando como quedaron.
+  //
+  // Y LA CAUSA RAIZ SALE DE SU PROPIO CAMPO. Antes esta función
+  // escribía `porques[porques.length - 1]` —la quinta respuesta— así
+  // que editar una respuesta le pisaba la conclusión con el último
+  // eslabón de la cadena, justo lo que el alta se cuidaba de no hacer.
   await supabase
     .from("no_conformidades")
     .update({
-      conclusion_causa_raiz: porques[porques.length - 1],
+      conclusion_causa_raiz: causaRaiz,
       hay_nc_similares: hayNcSimilares,
       // Si contesto que no, no queda guardado un analisis que contradice
       // la respuesta: se limpia.

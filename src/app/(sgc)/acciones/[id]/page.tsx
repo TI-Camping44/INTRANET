@@ -99,6 +99,13 @@ export default async function PaginaAccionCorrectiva({ params }: { params: { id:
 
   const filasDelPlan = (filas as unknown as (TareaPlan & { descargo: string | null })[] | null) ?? [];
 
+  // LA CADENA DE LOS CINCO PORQUES SOLO SE DIBUJA DONDE EXISTE. Salio
+  // del formulario el 4 de noviembre, a pedido de Calidad, pero seis no
+  // conformidades la tienen cargada y es parte de su registro: se
+  // conserva y se muestra. Las que se respondan de ahora en mas llegan
+  // con la causa raiz sola y la tarjeta no deja un hueco vacio.
+  const cadena = (porques as NcPorque[] | null) ?? [];
+
   // La evidencia de cada tarea. Una sola consulta para todas, acotada a
   // las tareas de este plan, y se reparte por `entidad_id`. Va despues y
   // no en el lote de arriba porque necesita los ids que ese lote trae.
@@ -225,27 +232,36 @@ export default async function PaginaAccionCorrectiva({ params }: { params: { id:
 
           <Tarjeta>
             <TarjetaCabecera>
-              <TarjetaTitulo>Análisis de causa raíz</TarjetaTitulo>
+              <TarjetaTitulo>Causa raíz</TarjetaTitulo>
             </TarjetaCabecera>
             <TarjetaContenido>
-              <ol className="space-y-2">
-                {((porques as NcPorque[] | null) ?? []).map((porque, indice) => (
-                  <li key={porque.id} className="flex gap-2 text-xs">
-                    <span className="w-4 shrink-0 text-right tabular text-atenuado-contraste">
-                      {indice + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[11px] text-atenuado-contraste">{porque.pregunta}</p>
-                      <p className="leading-relaxed">{porque.respuesta}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              {nc.conclusion_causa_raiz ? (
-                <p className="mt-3 rounded-md border border-borde bg-acento/40 p-2.5 text-xs">
-                  <span className="font-semibold">Causa raíz: </span>
-                  {nc.conclusion_causa_raiz}
-                </p>
+              <p className="whitespace-pre-line text-xs leading-relaxed">
+                {nc.conclusion_causa_raiz ?? (
+                  <span className="text-atenuado-contraste">Sin causa raíz declarada.</span>
+                )}
+              </p>
+
+              {cadena.length > 0 ? (
+                <div className="mt-4 border-t border-borde pt-3">
+                  <p className="text-[11px] font-medium">Análisis de los cinco porqués</p>
+                  <p className="mb-2 mt-0.5 text-[11px] text-atenuado-contraste">
+                    Se cargó cuando el formulario lo pedía. Hoy no se solicita; queda como
+                    registro de cómo se llegó a la causa.
+                  </p>
+                  <ol className="space-y-2">
+                    {cadena.map((porque, indice) => (
+                      <li key={porque.id} className="flex gap-2 text-xs">
+                        <span className="w-4 shrink-0 text-right tabular text-atenuado-contraste">
+                          {indice + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-atenuado-contraste">{porque.pregunta}</p>
+                          <p className="leading-relaxed">{porque.respuesta}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               ) : null}
             </TarjetaContenido>
           </Tarjeta>

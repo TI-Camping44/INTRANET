@@ -10,7 +10,6 @@ import { responderNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
 import { CampoAcciones, type AccionInicial } from "@/app/(sgc)/acciones/campo-acciones";
 import { CampoAnalisisHorizontal } from "@/app/(sgc)/acciones/campo-analisis-horizontal";
 import { actualizarRespuesta } from "@/app/(sgc)/acciones/acciones";
-import { PREGUNTAS_CINCO_PORQUES } from "@/lib/constantes";
 
 export interface OpcionNoConformidad {
   id: string;
@@ -30,9 +29,9 @@ export interface OpcionNoConformidad {
  * una desviación que no está a su nombre. Es lo que pidió Calidad y es lo
  * que permite RLS (`nc_acciones_alta`).
  *
- * Responder es un solo paso: el descargo, los cinco porqués y las
- * acciones. Estaba partido en tres pantallas —ficha, análisis, plan— y
- * la mitad de las desviaciones se quedaban con el análisis a medias.
+ * Responder es un solo paso: el descargo, la causa raíz y las acciones.
+ * Estaba partido en tres pantallas —ficha, análisis, plan— y la mitad de
+ * las desviaciones se quedaban con el análisis a medias.
  *
  * Con esto la desviación pasa sola a «En proceso». No se cierra: el
  * cierre lo decide una persona desde la ficha, diciendo si fue en plazo
@@ -41,7 +40,6 @@ export interface OpcionNoConformidad {
 export interface RespuestaInicial {
   noConformidadId: string;
   descargo: string;
-  porques: string[];
   causaRaiz: string | null;
   acciones: AccionInicial[];
   hayNcSimilares?: boolean | null;
@@ -148,66 +146,35 @@ export function FormularioAccion({
             />
           </GrupoCampo>
 
-          <div className="sm:col-span-2">
-            <p className="text-xs font-medium">
-              Análisis de causa raíz <span className="text-primario">*</span>
-            </p>
-            <p className="mt-0.5 text-[11px] text-atenuado-contraste">
-              Cada respuesta encadena con la siguiente pregunta. Los cinco son obligatorios: si
-              la cadena se corta antes, la acción ataca un síntoma.
-            </p>
-            <div className="mt-2 space-y-2">
-              {PREGUNTAS_CINCO_PORQUES.map((pregunta, indice) => (
-                <div key={indice} className="flex items-start gap-2">
-                  <span
-                    className="mt-2 w-4 shrink-0 text-right text-[11px] tabular
-                               text-atenuado-contraste"
-                  >
-                    {indice + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <label
-                      htmlFor={`porque-${indice}`}
-                      className="text-[11px] text-atenuado-contraste"
-                    >
-                      {pregunta} <span className="text-primario">*</span>
-                    </label>
-                    <AreaTexto
-                      id={`porque-${indice}`}
-                      name="porque"
-                      defaultValue={inicial?.porques[indice] ?? ""}
-                      rows={2}
-                      required
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* LA CAUSA RAIZ SE DECLARA; YA NO SE LLEGA A ELLA POR UNA
+              CADENA DE CINCO. Los cinco porqués salieron del formulario
+              el 4 de noviembre, a pedido de Calidad. Lo que queda es la
+              conclusión, que es lo que la norma pide —determinar la
+              causa— y lo que la acción correctiva tiene que atacar; el
+              método para llegar a ella deja de estar impuesto por la
+              pantalla.
 
-            {/* LA CAUSA RAIZ VA APARTE Y DEBAJO DEL QUINTO. No es la
-                quinta respuesta: el quinto porqué es el último eslabón de
-                la cadena, redactado como respuesta a una pregunta, y la
-                causa raíz es la conclusión, redactada como enunciado.
-                Copiar una en la otra hacía que la ficha mostrara dos
-                veces el mismo párrafo. */}
-            <div className="mt-3 rounded-md border border-borde bg-acento/30 p-3">
-              <label htmlFor="causa_raiz" className="text-xs font-medium">
-                Causa raíz <span className="text-primario">*</span>
-              </label>
-              <p className="mb-1.5 mt-0.5 text-[11px] text-atenuado-contraste">
-                La conclusión del análisis, en una frase: qué es lo que falta o falla y que, si se
-                corrige, evita que vuelva a pasar.
-              </p>
-              <AreaTexto
-                id="causa_raiz"
-                name="causa_raiz"
-                defaultValue={inicial?.causaRaiz ?? ""}
-                rows={2}
-                required
-                minLength={10}
-              />
-            </div>
-          </div>
+              `nc_porques` NO SE TOCA: las seis cadenas ya cargadas
+              siguen en la base y la ficha de la acción correctiva las
+              sigue mostrando. Este formulario ni las escribe ni las
+              borra, así que editar una respuesta vieja no puede
+              perderlas. */}
+          <GrupoCampo
+            etiqueta="Causa raíz"
+            htmlFor="causa_raiz"
+            requerido
+            className="sm:col-span-2"
+            ayuda="En una frase: qué es lo que falta o falla y que, si se corrige, evita que la desviación vuelva a pasar."
+          >
+            <AreaTexto
+              id="causa_raiz"
+              name="causa_raiz"
+              defaultValue={inicial?.causaRaiz ?? ""}
+              rows={3}
+              required
+              minLength={10}
+            />
+          </GrupoCampo>
 
           {/* El tipo de acción se fue del formulario: acá siempre es una
               acción correctiva, y un desplegable con una sola respuesta

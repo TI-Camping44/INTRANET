@@ -8,7 +8,6 @@ import { hoyEnAsuncion } from "@/lib/formato";
 import {
   DEPARTAMENTOS,
   ORIGENES_NC_VIGENTES,
-  PREGUNTAS_CINCO_PORQUES,
 } from "@/lib/constantes";
 import {
   archivosDelFormulario,
@@ -389,9 +388,15 @@ export async function cambiarEstadoNoConformidad(
 /**
  * Guarda la cadena de los cinco porques.
  *
- * Los cinco son obligatorios. Calidad lo pidio asi por una razon
- * concreta: cuando se permite cortar antes, se corta en el segundo, y el
- * segundo porque casi nunca es la causa raiz sino otro sintoma.
+ * HOY NO LA LLAMA NADA. Los cinco porques salieron del formulario el 4
+ * de noviembre, a pedido de Calidad, y queda escrita por si vuelven a
+ * pedirlos —como `hoja.ts` y `campo-propuestas.tsx`—. Si se la
+ * reconecta, tenga en cuenta que ninguna otra via escribe `nc_porques`:
+ * esta seria la unica.
+ *
+ * Los cinco eran obligatorios por una razon concreta: cuando se permite
+ * cortar antes, se corta en el segundo, y el segundo porque casi nunca
+ * es la causa raiz sino otro sintoma.
  */
 export async function guardarPorques(
   noConformidadId: string,
@@ -530,7 +535,6 @@ export async function responderNoConformidad(
   const supabase = crearClienteServidor();
 
   const descargo = String(datos.get("descargo") ?? "").trim();
-  const porques = datos.getAll("porque").map((valor) => String(valor).trim());
   const causaRaiz = String(datos.get("causa_raiz") ?? "").trim();
 
   // Las acciones llegan como tres listas paralelas y se arman por
@@ -567,39 +571,16 @@ export async function responderNoConformidad(
       return { exito: false, error: `Indique la fecha límite de ${cual}.` };
     }
   }
-  if (porques.length < 5 || porques.some((porque) => porque.length === 0)) {
-    return {
-      exito: false,
-      error:
-        "Complete los cinco porqués: si la cadena se corta antes, la acción ataca un síntoma.",
-    };
-  }
   if (causaRaiz.length < 10) {
     return {
       exito: false,
       error:
-        "Escriba la causa raíz debajo del quinto porqué, con al menos 10 caracteres. " +
-        "Es la conclusión del análisis, no la última respuesta de la cadena.",
+        "Escriba la causa raíz con al menos 10 caracteres: qué es lo que falta o falla y " +
+        "que, si se corrige, evita que la desviación vuelva a pasar.",
     };
   }
 
-  // 1 · El analisis. Se reemplaza el que hubiera: la cadena es una sola.
-  await supabase.from("nc_porques").delete().eq("no_conformidad_id", noConformidadId);
-
-  const { error: errorPorques } = await supabase.from("nc_porques").insert(
-    porques.map((respuesta, indice) => ({
-      no_conformidad_id: noConformidadId,
-      orden: indice + 1,
-      pregunta: PREGUNTAS_CINCO_PORQUES[indice] ?? `¿Por qué? (${indice + 1})`,
-      respuesta,
-    })),
-  );
-
-  if (errorPorques) {
-    return { exito: false, error: `No se pudo guardar el análisis: ${errorPorques.message}` };
-  }
-
-  // 2 · Las acciones, con el descargo. Quedan pendientes: son lo que se
+  // 1 · Las acciones, con el descargo. Quedan pendientes: son lo que se
   // sigue. El tipo es siempre 'accion_correctiva': esta pantalla es la
   // respuesta a una desviacion y no hay otra cosa que pueda ser, asi que
   // el desplegable se saco del formulario.
@@ -624,19 +605,23 @@ export async function responderNoConformidad(
     return { exito: false, error: `No se pudo cargar ${cuantas}: ${errorAccion.message}` };
   }
 
-  // 3 · LA CAUSA RAIZ SE DECLARA APARTE, no es el quinto porque.
+  // 2 · LA CAUSA RAIZ, QUE ES LO QUE QUEDO DEL ANALISIS.
   //
-  // Antes se copiaba la quinta respuesta y la ficha mostraba dos veces el
-  // mismo parrafo. Son dos cosas distintas: el quinto porque es el ultimo
-  // eslabon de la cadena, redactado como respuesta a una pregunta, y la
-  // causa raiz es la conclusion, redactada como enunciado. Quien analiza
-  // escribe las dos.
+  // Los cinco porques salieron del formulario el 4 de noviembre, a
+  // pedido de Calidad. Lo que la norma pide es determinar la causa, no
+  // el metodo con el que se la determina, asi que el campo queda y
+  // sigue siendo obligatorio: sin causa declarada la accion correctiva
+  // no tiene contra que medirse.
+  //
+  // `nc_porques` NO SE TOCA. Seis no conformidades tienen su cadena
+  // cargada y la ficha de la accion correctiva las sigue mostrando;
+  // esta funcion ya no las escribe ni las borra.
   await supabase
     .from("no_conformidades")
     .update({ conclusion_causa_raiz: causaRaiz })
     .eq("id", noConformidadId);
 
-  // 4 · El estado NO se toca aca. La desviacion pasa a «En proceso»
+  // 3 · El estado NO se toca aca. La desviacion pasa a «En proceso»
   // sola, por el disparador `sincronizar_estado_nc_por_accion()`, en
   // cuanto existe la accion que se acaba de insertar.
   //

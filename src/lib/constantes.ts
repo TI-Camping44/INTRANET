@@ -516,7 +516,13 @@ export const TIPOS_AUDITORIA_VIGENTES = [
 /**
  * Las cinco preguntas de la cadena.
  *
- * EL QUINTO NO DICE «CAUSA RAIZ». Decia, y estaba mal: el quinto porque
+ * HOY NO LAS USA NINGUNA PANTALLA. El analisis de los cinco porques
+ * salio del modulo de no conformidades el 4 de noviembre, a pedido de
+ * Calidad: lo que se pide es la causa raiz, y el metodo para llegar a
+ * ella deja de estar impuesto por el formulario. Quedan escritas, como
+ * `guardarPorques()`, por si Calidad los vuelve a pedir.
+ *
+ * EL QUINTO NO DECIA «CAUSA RAIZ». Decia, y estaba mal: el quinto porque
  * es el ultimo eslabon de la cadena, una respuesta mas, y la causa raiz
  * es la conclusion que se escribe aparte, debajo de los cinco. Rotular el
  * quinto como la causa raiz invitaba justamente a lo que Calidad corrigio
