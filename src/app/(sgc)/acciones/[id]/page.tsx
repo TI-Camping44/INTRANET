@@ -19,7 +19,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import { esSoloLectura, puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { esResponsableDelProceso, esSoloLectura, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { estaEjecutada } from "@/lib/acciones";
 import { formatearFecha } from "@/lib/formato";
@@ -142,7 +142,7 @@ export default async function PaginaAccionCorrectiva({ params }: { params: { id:
     esCalidad ||
     nc.detectado_por === usuario.id ||
     nc.responsable_id === usuario.id ||
-    (puedeGestionar(usuario) && nc.proceso_id === usuario.proceso_id);
+    (puedeGestionar(usuario) && (await esResponsableDelProceso(usuario, nc.proceso_id)));
   const puedeEditar = gestiona && !esSoloLectura(usuario);
 
   return (

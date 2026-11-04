@@ -33,6 +33,8 @@ export type PublicoAplicacion =
   | "tecnologia"
   | "direccion";
 
+import type { Departamento } from "@/lib/tipos";
+
 /** Una fila de `aplicaciones`. */
 export interface Aplicacion {
   id: string;
@@ -41,6 +43,16 @@ export interface Aplicacion {
   url: string;
   publico: PublicoAplicacion;
   orden: number;
+  /**
+   * Qué área resuelve el pedido. Solo las solicitudes lo llevan.
+   *
+   * NULO ES UN VALOR: quiere decir «no corresponde o no se sabe». Lo
+   * tienen los catálogos y los tableros, que no son pedidos de nadie, y
+   * dos solicitudes que no se pueden mapear sin inventar —«Comercial»
+   * no es ninguno de los catorce departamentos y de «Compra Interna» no
+   * está confirmado quién la resuelve—.
+   */
+  departamento_que_resuelve: Departamento | null;
   /**
    * A qué roles se les muestra la tarjeta.
    *

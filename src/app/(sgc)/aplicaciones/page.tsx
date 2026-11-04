@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, LayoutGrid, Settings2 } from "lucide-react";
+import { ExternalLink, Inbox, LayoutGrid, Settings2 } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { Boton } from "@/components/ui/boton";
 import { EstadoVacio } from "@/components/ui/estado-vacio";
 import { Insignia } from "@/components/ui/insignia";
+import { DEPARTAMENTOS } from "@/lib/constantes";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import {
   agruparAplicaciones,
@@ -58,7 +59,7 @@ export default async function PaginaAplicaciones() {
       .from("aplicaciones")
       .select(
         "id, nombre, descripcion, url, publico, orden, roles_visibles, " +
-          "usuarios_visibles, empresa_de_la_aplicacion_id",
+          "usuarios_visibles, empresa_de_la_aplicacion_id, departamento_que_resuelve",
       )
       .order("orden"),
     supabase.rpc("empresas_del_grupo"),
@@ -155,6 +156,26 @@ export default async function PaginaAplicaciones() {
                         <span className="text-xs leading-relaxed text-atenuado-contraste">
                           {aplicacion.descripcion}
                         </span>
+
+                        {/* QUÉ ÁREA RESUELVE EL PEDIDO. La mayoría de las
+                          solicitudes lo lleva en el nombre —«para
+                          Logística»— pero no todas: «Nota de Retiro de
+                          Equipos» es de Informática y no había forma de
+                          saberlo sin abrirla. El dato va en la tarjeta y
+                          no un caso especial para Informática, así que
+                          la columna se escanea entera y una solicitud
+                          nueva se ubica sola. Donde no está cargado no
+                          se dibuja nada: un recuadro vacío diría que
+                          falta un dato que puede no corresponder. */}
+                        {aplicacion.departamento_que_resuelve ? (
+                          <span className="mt-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-atenuado-contraste">
+                            <Inbox className="size-3 shrink-0" aria-hidden />
+                            <span className="truncate">
+                              Lo resuelve{" "}
+                              {DEPARTAMENTOS[aplicacion.departamento_que_resuelve]}
+                            </span>
+                          </span>
+                        ) : null}
                         {/* Solo le aparece a quien administra la lista: es
                           la unica persona que recibe las ocultas, y sin
                           esto las vería mezcladas con las demás y

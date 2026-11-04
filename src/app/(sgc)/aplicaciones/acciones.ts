@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requerirModuloEditable } from "@/lib/sesion";
+import { esDepartamento } from "@/lib/constantes";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   esDireccionSegura,
@@ -30,6 +31,7 @@ function revisarCampos(datos: FormData): { error: string } | {
   roles: RolUsuario[];
   personas: string[];
   empresa: string | null;
+  departamento: string | null;
 } {
   const nombre = String(datos.get("nombre") ?? "").trim();
   const descripcion = String(datos.get("descripcion") ?? "").trim();
@@ -91,7 +93,16 @@ function revisarCampos(datos: FormData): { error: string } | {
   // pantalla de etiquetas que no distinguen nada.
   const empresa = String(datos.get("empresa") ?? "").trim() || null;
 
-  return { nombre, descripcion, url, publico, orden, roles, personas, empresa };
+  // QUE AREA RESUELVE EL PEDIDO. Vacio es un valor y quiere decir «no
+  // corresponde o no se sabe»: lo llevan los catalogos y los tableros,
+  // que no son pedidos de nadie. Se comprueba contra la lista de
+  // departamentos porque la columna tiene su `CHECK` en la base y un
+  // valor inventado volveria como error crudo de PostgreSQL.
+  const departamentoCrudo = String(datos.get("departamento") ?? "").trim();
+  const departamento =
+    departamentoCrudo && esDepartamento(departamentoCrudo) ? departamentoCrudo : null;
+
+  return { nombre, descripcion, url, publico, orden, roles, personas, empresa, departamento };
 }
 
 /**
@@ -138,6 +149,7 @@ export async function guardarAplicacion(datos: FormData): Promise<ResultadoAccio
     roles_visibles: revisado.roles,
     usuarios_visibles: revisado.personas,
     empresa_de_la_aplicacion_id: revisado.empresa,
+    departamento_que_resuelve: revisado.departamento,
   };
 
   const { error } = id

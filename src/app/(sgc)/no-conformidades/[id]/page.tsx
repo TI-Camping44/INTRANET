@@ -23,12 +23,7 @@ import {
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
 import { NombreDeEmpresa } from "@/components/comunes/marca-empresa";
-import {
-  esSoloLectura,
-  puedeGestionar,
-  puedeResponderLaDesviacion,
-  requerirUsuario,
-} from "@/lib/sesion";
+import { esResponsableDelProceso, esSoloLectura, puedeGestionar, puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { DEPARTAMENTOS, ETIQUETAS_ORIGEN_NC } from "@/lib/constantes";
 import { formatearFecha } from "@/lib/formato";
@@ -161,7 +156,7 @@ export default async function PaginaNoConformidad({ params }: { params: { id: st
     esCalidad ||
     nc.detectado_por === usuario.id ||
     nc.responsable_id === usuario.id ||
-    (puedeGestionar(usuario) && nc.proceso_id === usuario.proceso_id);
+    (puedeGestionar(usuario) && (await esResponsableDelProceso(usuario, nc.proceso_id)));
   const puedeEditar = gestiona && !esSoloLectura(usuario);
 
   // CARGAR LA RESPUESTA ES OTRO PERMISO QUE EDITAR LA DESVIACION.

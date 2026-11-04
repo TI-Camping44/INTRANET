@@ -20,7 +20,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { esResponsableDelProceso, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   ETIQUETAS_ESTADO_REVISION,
@@ -172,7 +172,7 @@ export default async function PaginaDocumento({ params }: { params: { id: string
     (usuario.rol === "administrador_sgc" ||
       documento.responsable_id === usuario.id ||
       documento.elaborador_id === usuario.id ||
-      documento.procesos?.id === usuario.proceso_id);
+      (await esResponsableDelProceso(usuario, documento.procesos?.id ?? null)));
 
   return (
     <div className="mx-auto max-w-6xl">

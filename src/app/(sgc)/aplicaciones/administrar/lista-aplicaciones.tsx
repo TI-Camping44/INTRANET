@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { LayoutGrid, Pencil, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/components/ui/boton";
+import { DEPARTAMENTOS, DEPARTAMENTOS_VIGENTES } from "@/lib/constantes";
 import {
   AreaTexto,
   Entrada,
@@ -330,6 +331,32 @@ export function ListaAplicaciones({
                 />
               </GrupoCampo>
             </div>
+
+            {/* QUÉ ÁREA RESUELVE EL PEDIDO. Solo lo llevan las
+                solicitudes: un catálogo o un tablero no es el pedido de
+                nadie, y por eso «No corresponde» es la opción por
+                omisión. Hizo falta porque la mayoría de las solicitudes
+                dice el área en su propio nombre —«para Logística»— pero
+                no todas: «Nota de Retiro de Equipos» es de Informática y
+                no había forma de saberlo sin abrirla. */}
+            <GrupoCampo
+              etiqueta="Qué área lo resuelve"
+              htmlFor="departamento"
+              ayuda="Solo para las solicitudes y pedidos. Se muestra abajo de la descripción, en la tarjeta."
+            >
+              <Seleccion
+                id="departamento"
+                name="departamento"
+                defaultValue={editando?.departamento_que_resuelve ?? ""}
+              >
+                <option value="">No corresponde</option>
+                {DEPARTAMENTOS_VIGENTES.map((departamento) => (
+                  <option key={departamento} value={departamento}>
+                    {DEPARTAMENTOS[departamento]}
+                  </option>
+                ))}
+              </Seleccion>
+            </GrupoCampo>
 
             {/* DE QUÉ EMPRESA ES. «Del grupo» es la opción por omisión y
                 la de casi todas: marcarlas todas llenaría la pantalla de

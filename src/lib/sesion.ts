@@ -101,6 +101,45 @@ export function puedeGestionar(usuario: Usuario | null): boolean {
   return !!usuario && ROLES_GESTION.includes(usuario.rol);
 }
 
+/**
+ * Si la persona es la responsable de ese proceso.
+ *
+ * ES EL ESPEJO EXACTO DE `es_responsable_de_proceso()` EN SQL, y tiene
+ * que seguir siéndolo: esa función es la que deciden las siete
+ * políticas que gobiernan las escrituras por proceso —documentos, no
+ * conformidades, acciones de NC, riesgos, cambios y mediciones de
+ * indicadores—.
+ *
+ * ANTES LAS PANTALLAS PREGUNTABAN OTRA COSA. Comparaban
+ * `registro.proceso_id === usuario.proceso_id`, que es un campo
+ * distinto: `usuarios.proceso_id` dice a qué proceso PERTENECE la
+ * persona, y la responsabilidad vive del lado del proceso, en
+ * `procesos.responsable_id`. Con los dos campos desalineados la
+ * pantalla dibujaba «Editar» y la base rechazaba la escritura, que es
+ * la peor de las dos equivocaciones posibles: un botón que promete algo
+ * que no va a pasar.
+ *
+ * Y LA RESPONSABILIDAD ADMITE VARIOS PROCESOS POR PERSONA, porque la
+ * columna está del lado del proceso: N procesos pueden apuntar al mismo
+ * responsable. El campo del perfil, en cambio, es uno solo, y está bien
+ * que lo sea: se pertenece a un proceso.
+ */
+export async function esResponsableDelProceso(
+  usuario: Usuario | null,
+  procesoId: string | null,
+): Promise<boolean> {
+  if (!usuario || !procesoId) return false;
+
+  const supabase = crearClienteServidor();
+  const { data } = await supabase
+    .from("procesos")
+    .select("responsable_id")
+    .eq("id", procesoId)
+    .maybeSingle();
+
+  return (data as { responsable_id: string | null } | null)?.responsable_id === usuario.id;
+}
+
 export function esAdministrador(usuario: Usuario | null): boolean {
   return usuario?.rol === "administrador_sgc";
 }

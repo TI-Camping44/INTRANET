@@ -397,6 +397,18 @@ export const DEPARTAMENTOS: Record<Departamento, string> = {
  * Los departamentos que se ofrecen hoy, en el orden de Calidad. El
  * retirado queda fuera: ya no se elige, pero se sigue pudiendo mostrar.
  */
+/**
+ * Si un texto suelto es uno de los departamentos.
+ *
+ * Hace falta porque el valor llega de un formulario y la columna que lo
+ * recibe tiene su `CHECK` en la base: sin esto, un valor inventado
+ * vuelve como error crudo de PostgreSQL en vez de como un mensaje que
+ * la persona pueda entender.
+ */
+export function esDepartamento(valor: string): valor is Departamento {
+  return Object.prototype.hasOwnProperty.call(DEPARTAMENTOS, valor);
+}
+
 export const DEPARTAMENTOS_VIGENTES: Departamento[] = [
   "administracion",
   "tesoreria_caja",

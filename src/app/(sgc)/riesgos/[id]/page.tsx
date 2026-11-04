@@ -25,7 +25,7 @@ import {
   TarjetaContenido,
   TarjetaTitulo,
 } from "@/components/ui/tarjeta";
-import { puedeGestionar, requerirUsuario } from "@/lib/sesion";
+import { esResponsableDelProceso, puedeGestionar, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   ETIQUETAS_TIPO_RIESGO,
@@ -167,7 +167,7 @@ export default async function PaginaRiesgo({ params }: { params: { id: string } 
   const gestiona =
     usuario.rol === "administrador_sgc" ||
     riesgo.responsable_id === usuario.id ||
-    (puedeGestionar(usuario) && riesgo.proceso_id === usuario.proceso_id);
+    (puedeGestionar(usuario) && (await esResponsableDelProceso(usuario, riesgo.proceso_id)));
 
   const prioridad = prioridadOportunidad(riesgo.indice);
 
