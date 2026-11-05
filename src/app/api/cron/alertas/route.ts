@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { notificar } from "@/lib/notificaciones";
+import { publicarEfemeridesDelDia } from "@/lib/anuncios-de-efemerides";
 import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
 import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import {
@@ -58,6 +59,7 @@ interface Resumen {
   reclamosVencidos: number;
   verificacionesPendientes: number;
   ncSinResponder: number;
+  saludosPublicados: number;
 }
 
 export async function GET(peticion: NextRequest) {
@@ -96,6 +98,7 @@ export async function GET(peticion: NextRequest) {
     reclamosVencidos: 0,
     verificacionesPendientes: 0,
     ncSinResponder: 0,
+    saludosPublicados: 0,
   };
 
   // -------------------------------------------------------------------
@@ -531,6 +534,29 @@ export async function GET(peticion: NextRequest) {
       claveUnicidad: `nc-sin-responder:${nc.id}:${hoy}`,
     });
     resumen.ncSinResponder += 1;
+  }
+
+  // -------------------------------------------------------------------
+  // Los saludos del día en el muro
+  // -------------------------------------------------------------------
+  //
+  // VA ACÁ Y NO EN UN CRON PROPIO. Son cuatro renglones de trabajo y el
+  // plan de Vercel cuenta los trabajos programados, así que un cuarto
+  // es gastar un cupo escaso en algo que este ya tiene resuelto: corre
+  // una vez por día, a las 11:00 UTC —las 08:00 en Asunción—, que es
+  // además buena hora para un saludo.
+  //
+  // Va al final y en su propio `try`: si algo falla acá, las alertas que
+  // se mandaron arriba ya salieron y no se pierden por un cumpleaños.
+  try {
+    const saludos = await publicarEfemeridesDelDia(supabase, hoy);
+    resumen.saludosPublicados = saludos.creadas;
+  } catch (error) {
+    return NextResponse.json({
+      ejecutado: hoy,
+      resumen,
+      saludosConError: error instanceof Error ? error.message : String(error),
+    });
   }
 
   return NextResponse.json({ ejecutado: hoy, resumen });

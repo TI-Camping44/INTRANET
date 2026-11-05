@@ -13,7 +13,28 @@ export const ETIQUETAS_TIPO_PUBLICACION: Record<TipoPublicacion, string> = {
   reconocimiento: "Reconocimiento",
   bienvenida: "Bienvenida",
   evento: "Evento",
+  cumpleanos: "Cumpleaños",
+  aniversario: "Aniversario",
 };
+
+/**
+ * Los que se pueden elegir al publicar a mano.
+ *
+ * «Cumpleaños» y «Aniversario» quedan afuera: los escribe el trabajo
+ * programado de las 11:00 el día que corresponde, y ofrecerlos en el
+ * desplegable invitaría a cargar a mano algo que el sistema ya hace
+ * —y a que el mismo día aparezcan dos saludos para la misma persona—.
+ * Las etiquetas y los iconos sí los llevan, porque el muro tiene que
+ * saber dibujar lo que el trabajo escribió.
+ */
+export const TIPOS_PUBLICACION_VIGENTES: TipoPublicacion[] = [
+  "anuncio",
+  "novedad_producto",
+  "logro",
+  "reconocimiento",
+  "bienvenida",
+  "evento",
+];
 
 export const ETIQUETAS_ESTADO_PUBLICACION: Record<EstadoPublicacion, string> = {
   borrador: "Borrador",
@@ -32,6 +53,8 @@ export const ICONOS_TIPO_PUBLICACION: Record<TipoPublicacion, string> = {
   reconocimiento: "Award",
   bienvenida: "UserPlus",
   evento: "CalendarDays",
+  cumpleanos: "Cake",
+  aniversario: "PartyPopper",
 };
 
 /**

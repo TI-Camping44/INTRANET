@@ -10,7 +10,9 @@ import {
   CalendarDays,
   FileText,
   ImagePlus,
+  Cake,
   Megaphone,
+  PartyPopper,
   MoreVertical,
   Paperclip,
   Pencil,
@@ -64,6 +66,7 @@ import {
 } from "@/lib/imagenes";
 import {
   ETIQUETAS_TIPO_PUBLICACION,
+  TIPOS_PUBLICACION_VIGENTES,
   resumirPublicacion,
 } from "@/lib/publicaciones";
 import { iniciales } from "@/lib/utilidades";
@@ -100,6 +103,8 @@ const ICONOS: Record<TipoPublicacion, React.ComponentType<{ className?: string }
   reconocimiento: Award,
   bienvenida: UserPlus,
   evento: CalendarDays,
+  cumpleanos: Cake,
+  aniversario: PartyPopper,
 };
 
 /**
@@ -114,6 +119,11 @@ const TONOS: Record<TipoPublicacion, string> = {
   reconocimiento: "bg-semaforo-bajo/15 text-semaforo-bajo",
   bienvenida: "bg-primario/10 text-primario",
   evento: "bg-atenuado text-atenuado-contraste",
+  // El mismo rojo de la marca que usa la tarjeta de efemérides para el
+  // que cumple hoy: las dos cosas hablan de lo mismo y conviene que el
+  // ojo las asocie.
+  cumpleanos: "bg-primario/10 text-primario",
+  aniversario: "bg-primario/10 text-primario",
 };
 
 type Filtro = "todas" | TipoPublicacion;
@@ -560,7 +570,7 @@ export function MuroPublicaciones({
               <div className="grid gap-3 sm:grid-cols-2">
                 <GrupoCampo etiqueta="Tipo" htmlFor="tipo" requerido>
                   <Seleccion id="tipo" name="tipo" defaultValue={editando?.tipo ?? "anuncio"}>
-                    {(Object.keys(ETIQUETAS_TIPO_PUBLICACION) as TipoPublicacion[]).map(
+                    {TIPOS_PUBLICACION_VIGENTES.map(
                       (clave) => (
                         <option key={clave} value={clave}>
                           {ETIQUETAS_TIPO_PUBLICACION[clave]}

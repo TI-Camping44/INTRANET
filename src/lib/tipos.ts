@@ -123,7 +123,11 @@ export type TipoPublicacion =
   | "logro"
   | "reconocimiento"
   | "bienvenida"
-  | "evento";
+  | "evento"
+  // Los escribe el trabajo programado, no una persona: quedan fuera de
+  // `TIPOS_PUBLICACION_VIGENTES`, que es lo que ofrece el alta manual.
+  | "cumpleanos"
+  | "aniversario";
 
 export type EstadoPublicacion = "borrador" | "publicada" | "archivada";
 
