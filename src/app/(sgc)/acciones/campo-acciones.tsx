@@ -16,19 +16,31 @@ import { hoyEnAsuncion, sumarDias } from "@/lib/formato";
  * las demás en el mismo párrafo, y entonces el responsable quedaba mal:
  * figuraba uno solo para un trabajo de tres.
  *
- * Los tres campos de cada acción se envían con el mismo `name`, que es
- * como el navegador manda una lista. La acción de servidor las recoge
- * con `getAll` y las arma por posición: el primer responsable es del
- * primer plazo y de la primera descripción. Por eso los tres campos se
- * envían siempre, aunque estén vacíos, y por eso el bloque entero se
- * agrega y se quita junto.
+ * Los campos de cada acción se envían con el mismo `name`, que es como
+ * el navegador manda una lista. La acción de servidor las recoge con
+ * `getAll` y las arma por posición: el primer responsable es del primer
+ * plazo y de la primera descripción. Por eso TODOS los campos se envían
+ * siempre, aunque estén vacíos, y por eso el bloque entero se agrega y
+ * se quita junto.
+ *
+ * LOS DOS INFORMADOS VAN CON NOMBRES DISTINTOS —`accion_informado_1` y
+ * `accion_informado_2`— y no con el mismo repetido: con un solo nombre
+ * el envío traería dos entradas por bloque y habría que agruparlas de a
+ * pares, que es una regla más frágil que la de «una por bloque y por
+ * posición» que ya rige para los demás campos.
+ *
+ * INFORMAR NO ES RESPONDER: el responsable ejecuta y es contra quien
+ * corre el plazo; el informado se entera. No gana ningún permiso.
  */
 export interface AccionInicial {
   id: string;
   descripcion: string;
   responsable_id: string | null;
   fecha_limite: string;
+  /** Hasta dos personas a las que se avisa. Opcional. */
+  informados_ids?: string[];
 }
+
 
 export function CampoAcciones({
   personas,
@@ -138,6 +150,36 @@ export function CampoAcciones({
                 required
               />
             </GrupoCampo>
+
+            {/* A QUIÉN MÁS SE LE AVISA. Los dos son opcionales y no
+                cambian de quién es la acción: el responsable sigue
+                siendo uno. Se enteran por correo y en la ficha figuran
+                como informados, nada más. */}
+            {[0, 1].map((puesto) => (
+              <GrupoCampo
+                key={puesto}
+                etiqueta={puesto === 0 ? "Informar a (opcional)" : "Informar también a (opcional)"}
+                htmlFor={`accion-informado-${puesto}-${clave}`}
+                ayuda={
+                  puesto === 0
+                    ? "Recibe el aviso pero no queda a su cargo."
+                    : "La segunda persona a la que se le avisa."
+                }
+              >
+                <Seleccion
+                  id={`accion-informado-${puesto}-${clave}`}
+                  name={`accion_informado_${puesto + 1}`}
+                  defaultValue={accion?.informados_ids?.[puesto] ?? ""}
+                >
+                  <option value="">Sin informar a nadie más</option>
+                  {personas.map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo}
+                    </option>
+                  ))}
+                </Seleccion>
+              </GrupoCampo>
+            ))}
           </div>
         </div>
       ))}

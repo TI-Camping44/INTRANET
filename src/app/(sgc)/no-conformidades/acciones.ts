@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
+import { depurarInformados, idsAComprobar } from "@/lib/informados";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
   DEPARTAMENTOS,
@@ -568,11 +569,24 @@ export async function responderNoConformidad(
   const plazos = datos.getAll("accion_fecha_limite").map((valor) => String(valor));
   const responsables = datos.getAll("accion_responsable").map((valor) => String(valor));
 
-  const acciones = descripciones.map((descripcion, indice) => ({
-    descripcion,
-    fechaLimite: plazos[indice] ?? "",
-    responsableId: responsables[indice] || null,
-  }));
+  // Los dos informados van con nombres distintos y no con el mismo
+  // repetido, para que la regla siga siendo «una entrada por bloque y
+  // por posicion» como en los otros campos.
+  const informadosUno = datos.getAll("accion_informado_1").map((valor) => String(valor));
+  const informadosDos = datos.getAll("accion_informado_2").map((valor) => String(valor));
+
+  const acciones = descripciones.map((descripcion, indice) => {
+    const responsableId = responsables[indice] || null;
+    return {
+      descripcion,
+      fechaLimite: plazos[indice] ?? "",
+      responsableId,
+      informados: depurarInformados(
+        [informadosUno[indice], informadosDos[indice]],
+        responsableId,
+      ),
+    };
+  });
 
   if (descargo.length < 10) {
     return {
@@ -602,6 +616,28 @@ export async function responderNoConformidad(
     };
   }
 
+  // LOS INFORMADOS SE COMPRUEBAN CONTRA `usuarios`. La columna es un
+  // arreglo y PostgreSQL no admite clave foranea sobre un arreglo, asi
+  // que el control vive aca, igual que en `guardarAplicacion()`. Un id
+  // que no existe no rompe nada, pero el aviso no le llegaria a nadie.
+  const aComprobar = idsAComprobar(acciones.map((accion) => accion.informados));
+
+  if (aComprobar.length > 0) {
+    const { data: existen } = await supabase
+      .from("usuarios")
+      .select("id")
+      .in("id", aComprobar);
+
+    if ((existen?.length ?? 0) !== aComprobar.length) {
+      return {
+        exito: false,
+        error:
+          "Alguna de las personas a informar ya no existe. Vuelva a abrir el formulario y " +
+          "elíjalas de nuevo.",
+      };
+    }
+  }
+
   // 1 · Las acciones, con el descargo. Quedan pendientes: son lo que se
   // sigue. El tipo es siempre 'accion_correctiva': esta pantalla es la
   // respuesta a una desviacion y no hay otra cosa que pueda ser, asi que
@@ -617,6 +653,7 @@ export async function responderNoConformidad(
       descripcion: accion.descripcion,
       descargo,
       responsable_id: accion.responsableId,
+      informados_ids: accion.informados,
       fecha_limite: accion.fechaLimite,
       estado: "pendiente",
     })),
@@ -686,6 +723,52 @@ export async function responderNoConformidad(
           suyas.length === 1
             ? `Tiene a su cargo: ${suyas[0]}.`
             : `Tiene a su cargo:\n${suyas.map((una) => `· ${una}`).join("\n")}`,
+        enlace: `/no-conformidades/${noConformidadId}`,
+        entidad: "no_conformidades",
+        entidadId: noConformidadId,
+      });
+    }
+  }
+
+  // EL AVISO AL INFORMADO ES OTRO MENSAJE, no el mismo con otra lista.
+  // Al responsable se le dice «tiene a su cargo», que es una obligacion
+  // con plazo; al informado se le dice que lo mantienen al tanto. Usar
+  // el texto del responsable le haria creer que la tarea es suya.
+  //
+  // Se agrupa por persona por el mismo motivo que arriba: si a alguien
+  // lo informaron en dos acciones, recibe un correo con las dos y no
+  // dos correos.
+  const informadoPor = new Map<string, string[]>();
+  for (const accion of acciones) {
+    for (const informadoId of accion.informados) {
+      if (informadoId === usuario.id) continue;
+      const suyas = informadoPor.get(informadoId) ?? [];
+      suyas.push(`${accion.descripcion} (para el ${accion.fechaLimite})`);
+      informadoPor.set(informadoId, suyas);
+    }
+  }
+
+  if (informadoPor.size > 0) {
+    const [{ data: aInformar }, { data: noConformidad }] = await Promise.all([
+      supabase.from("usuarios").select("id, correo").in("id", Array.from(informadoPor.keys())),
+      supabase.from("no_conformidades").select("codigo").eq("id", noConformidadId).maybeSingle(),
+    ]);
+
+    for (const persona of (aInformar as { id: string; correo: string }[] | null) ?? []) {
+      const suyas = informadoPor.get(persona.id) ?? [];
+      await notificar(supabase, {
+        deParteDe: departe(usuario),
+        usuarioId: persona.id,
+        correoDestino: persona.correo,
+        tipo: "no_conformidad_asignada",
+        titulo: `Para su conocimiento · ${noConformidad?.codigo ?? ""}`,
+        mensaje:
+          (suyas.length === 1
+            ? `Se cargó una acción correctiva y lo pusieron como informado: ${suyas[0]}.`
+            : `Se cargaron acciones correctivas y lo pusieron como informado:\n${suyas
+                .map((una) => `· ${una}`)
+                .join("\n")}`) +
+          "\n\nNo queda a su cargo: es para que esté al tanto.",
         enlace: `/no-conformidades/${noConformidadId}`,
         entidad: "no_conformidades",
         entidadId: noConformidadId,

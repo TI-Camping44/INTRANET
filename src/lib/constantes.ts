@@ -540,6 +540,15 @@ export const TIPOS_AUDITORIA_VIGENTES = [
  * quinto como la causa raiz invitaba justamente a lo que Calidad corrigio
  * el 5 de octubre: copiar uno en el otro.
  */
+/**
+ * A cuantas personas mas se puede informar en una accion correctiva,
+ * ademas del responsable. Lo pidio Calidad el 5 de noviembre.
+ *
+ * El mismo numero esta en el `CHECK` de `nc_acciones.informados_ids`: si
+ * cambia, cambia en los dos lados.
+ */
+export const MAXIMO_INFORMADOS = 2;
+
 export const PREGUNTAS_CINCO_PORQUES = [
   "¿Por qué ocurrió la desviación?",
   "¿Por qué?",

@@ -88,7 +88,8 @@ export default async function PaginaAccionCorrectiva({ params }: { params: { id:
       .from("nc_acciones")
       .select(
         "id, descripcion, descargo, estado, ejecucion_en_plazo, fecha_limite, " +
-          "fecha_ejecucion, creado_en, responsable:responsable_id (nombre_completo)",
+          "fecha_ejecucion, creado_en, informados_ids, " +
+          "responsable:responsable_id (nombre_completo)",
       )
       .eq("no_conformidad_id", params.id)
       .order("creado_en"),
@@ -128,9 +129,37 @@ export default async function PaginaAccionCorrectiva({ params }: { params: { id:
     porTarea.set(adjunto.entidad_id, lista);
   }
 
+  // LOS NOMBRES DE LOS INFORMADOS SE BUSCAN APARTE. `informados_ids` es
+  // un arreglo de uuid y PostgREST no sabe unirlo con `usuarios`, así
+  // que se junta todo lo que aparece en el plan y se resuelve en una
+  // sola consulta, no una por tarea.
+  const idsInformados = Array.from(
+    new Set(
+      filasDelPlan.flatMap(
+        (tarea) => (tarea as { informados_ids?: string[] | null }).informados_ids ?? [],
+      ),
+    ),
+  );
+
+  const { data: gente } = idsInformados.length
+    ? await supabase.from("usuarios").select("id, nombre_completo").in("id", idsInformados)
+    : { data: null };
+
+  const nombrePorId = new Map(
+    ((gente as { id: string; nombre_completo: string }[] | null) ?? []).map((persona) => [
+      persona.id,
+      persona.nombre_completo,
+    ]),
+  );
+
   const tareas = filasDelPlan.map((tarea) => ({
     ...tarea,
     adjuntos: porTarea.get(tarea.id) ?? [],
+    // Un id que ya no resuelve se saltea: la persona pudo haberse dado
+    // de baja, y mostrar un uuid crudo no le dice nada a nadie.
+    informados: ((tarea as { informados_ids?: string[] | null }).informados_ids ?? [])
+      .map((id) => nombrePorId.get(id))
+      .filter((nombre): nombre is string => Boolean(nombre)),
   }));
   // El descargo es el mismo en todas las filas: se escribe en todas
   // porque es de la persona y de la desviacion, no de cada tarea.

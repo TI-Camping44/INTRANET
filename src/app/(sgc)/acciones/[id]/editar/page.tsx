@@ -42,7 +42,7 @@ export default async function PaginaEditarAccionCorrectiva({
         .maybeSingle(),
       supabase
         .from("nc_acciones")
-        .select("id, descripcion, descargo, responsable_id, fecha_limite")
+        .select("id, descripcion, descargo, responsable_id, fecha_limite, informados_ids")
         .eq("no_conformidad_id", params.id)
         .order("creado_en"),
       supabase
@@ -74,6 +74,7 @@ export default async function PaginaEditarAccionCorrectiva({
           descargo: string | null;
           responsable_id: string | null;
           fecha_limite: string;
+          informados_ids: string[] | null;
         }[]
       | null) ?? [];
 
@@ -109,6 +110,7 @@ export default async function PaginaEditarAccionCorrectiva({
             descripcion: accion.descripcion,
             responsable_id: accion.responsable_id,
             fecha_limite: accion.fecha_limite,
+            informados_ids: accion.informados_ids ?? [],
           })),
         }}
       />

@@ -44,6 +44,12 @@ export interface TareaPlan {
   fecha_ejecucion: string | null;
   creado_en: string;
   responsable: { nombre_completo: string } | null;
+  /**
+   * A quién más se le avisó. Llegan los nombres ya resueltos: la columna
+   * es un arreglo de ids y PostgREST no puede unirla con `usuarios`, así
+   * que los nombres se buscan en la pantalla y se pasan hechos.
+   */
+  informados?: string[];
   /** La evidencia de ESTA tarea. */
   adjuntos?: EvidenciaDeTarea[];
 }
@@ -144,6 +150,17 @@ export function PanelAcciones({
                   {tarea.responsable?.nombre_completo ?? "Sin asignar"}
                 </span>
               </span>
+              {/* Solo cuando hay alguien. «Informar a» es opcional y un
+                  renglón que diga «Informados: —» agrega ruido a una
+                  tarjeta que ya tiene cuatro datos. */}
+              {tarea.informados && tarea.informados.length > 0 ? (
+                <span>
+                  Se informa a:{" "}
+                  <span className="font-medium text-texto">
+                    {tarea.informados.join(" y ")}
+                  </span>
+                </span>
+              ) : null}
               <span>
                 Fecha límite:{" "}
                 <span className="font-medium text-texto">

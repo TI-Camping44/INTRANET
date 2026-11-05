@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { esSoloLectura, puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
+import { depurarInformados, idsAComprobar } from "@/lib/informados";
 import { hoyEnAsuncion } from "@/lib/formato";
 import {
   archivosDelFormulario,
@@ -280,13 +281,22 @@ export async function actualizarRespuesta(
   const descripciones = datos.getAll("accion_descripcion").map((valor) => String(valor).trim());
   const plazos = datos.getAll("accion_fecha_limite").map((valor) => String(valor));
   const responsables = datos.getAll("accion_responsable").map((valor) => String(valor));
+  const informadosUno = datos.getAll("accion_informado_1").map((valor) => String(valor));
+  const informadosDos = datos.getAll("accion_informado_2").map((valor) => String(valor));
 
-  const tareas = descripciones.map((descripcion, indice) => ({
-    id: ids[indice] || null,
-    descripcion,
-    fechaLimite: plazos[indice] ?? "",
-    responsableId: responsables[indice] || null,
-  }));
+  const tareas = descripciones.map((descripcion, indice) => {
+    const responsableDeLaTarea = responsables[indice] || null;
+    return {
+      id: ids[indice] || null,
+      descripcion,
+      fechaLimite: plazos[indice] ?? "",
+      responsableId: responsableDeLaTarea,
+      informados: depurarInformados(
+        [informadosUno[indice], informadosDos[indice]],
+        responsableDeLaTarea,
+      ),
+    };
+  });
 
   if (descargo.length < 10) {
     return { exito: false, error: "El descargo debe tener al menos 10 caracteres." };
@@ -322,6 +332,23 @@ export async function actualizarRespuesta(
     }
     if (!tareas[indice].fechaLimite) {
       return { exito: false, error: `Indique la fecha límite de ${cual}.` };
+    }
+  }
+
+  // Los informados se comprueban contra `usuarios`: la columna es un
+  // arreglo y no admite clave foranea.
+  const aComprobar = idsAComprobar(tareas.map((tarea) => tarea.informados));
+
+  if (aComprobar.length > 0) {
+    const { data: existen } = await supabase.from("usuarios").select("id").in("id", aComprobar);
+
+    if ((existen?.length ?? 0) !== aComprobar.length) {
+      return {
+        exito: false,
+        error:
+          "Alguna de las personas a informar ya no existe. Vuelva a abrir el formulario y " +
+          "elíjalas de nuevo.",
+      };
     }
   }
 
@@ -372,6 +399,7 @@ export async function actualizarRespuesta(
         descripcion: tarea.descripcion,
         descargo,
         responsable_id: tarea.responsableId,
+        informados_ids: tarea.informados,
         fecha_limite: tarea.fechaLimite,
         estado: "pendiente",
       })),
@@ -388,6 +416,7 @@ export async function actualizarRespuesta(
           descripcion: tarea.descripcion,
           descargo,
           responsable_id: tarea.responsableId,
+          informados_ids: tarea.informados,
           fecha_limite: tarea.fechaLimite,
         })
         .eq("id", tarea.id as string),
