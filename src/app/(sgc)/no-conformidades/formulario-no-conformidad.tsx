@@ -84,7 +84,7 @@ export function FormularioNoConformidad({
 
   const hoy = hoyEnAsuncion();
 
-  // El plazo de cierre no se elige: son diez dias corridos desde la
+  // El plazo de cierre no se elige: son quince dias corridos desde la
   // deteccion. Se muestra para que quien registra sepa a que se
   // compromete, pero lo fija la base de datos.
   const [deteccion, definirDeteccion] = React.useState(inicial?.fecha_deteccion ?? hoy);

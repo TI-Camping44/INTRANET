@@ -286,7 +286,7 @@ export default async function PaginaNoConformidades({
                 </TablaEncabezado>
                 {/* EL PLAZO ES PARA RESPONDER, NO PARA CERRAR. Las acciones
                     pueden necesitar mas tiempo y eso no es un incumplimiento;
-                    lo que se exige dentro de los cinco dias es que la
+                    lo que se exige dentro de los quince dias es que la
                     desviacion tenga su accion correctiva cargada. */}
                 <TablaEncabezado className="w-[11rem]">
                   Límite para responder la NC

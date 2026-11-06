@@ -117,7 +117,7 @@ export async function crearNoConformidad(datos: FormData): Promise<ResultadoAcci
       responsable_id: responsableId,
       fecha_deteccion: String(datos.get("fecha_deteccion") ?? hoyEnAsuncion()),
       // fecha_limite_cierre no se manda: la fija el disparador
-      // fijar_limite_cierre_nc(). Son DIAS_LIMITE_CIERRE_NC dias corridos
+      // completar_no_conformidad(). Son DIAS_LIMITE_CIERRE_NC dias corridos
       // desde la deteccion, y es el plazo para RESPONDER la desviacion
       // —cargar la accion correctiva—, no para cerrarla: las acciones
       // pueden necesitar mas tiempo y eso no es un incumplimiento.

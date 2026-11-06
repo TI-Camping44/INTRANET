@@ -134,7 +134,7 @@ export function diasHasta(valor: string | Date | null | undefined): number | nul
  * Dias corridos entre dos fechas, la segunda menos la primera.
  *
  * Corridos quiere decir corridos: cuenta fines de semana y feriados. Es
- * la misma cuenta que hace la base con `fecha_deteccion + 5`, y tiene que
+ * la misma cuenta que hace la base con `fecha_deteccion + 15`, y tiene que
  * seguir siendo la misma para que el plazo que se muestra y el que se
  * guarda no digan cosas distintas.
  *

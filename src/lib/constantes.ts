@@ -565,14 +565,15 @@ export const ESTADOS_NC_ABIERTOS: EstadoNoConformidad[] = [
 ];
 
 /**
- * Plazo para cerrar una no conformidad: cinco dias corridos desde la
- * deteccion, siempre. Lo bajo Calidad de diez a cinco.
+ * Plazo para responder una no conformidad: quince dias corridos desde la
+ * deteccion, siempre. Lo bajo Calidad de diez a cinco y el 5 de noviembre
+ * Direccion lo subio a quince, como plazo maximo del proceso.
  *
  * No se escribe a mano: lo fija el disparador completar_no_conformidad()
  * para que valga por cualquier via de escritura. Si cambia, cambia en los
  * dos lados.
  */
-export const DIAS_LIMITE_CIERRE_NC = 5;
+export const DIAS_LIMITE_CIERRE_NC = 15;
 
 /** Dias sin resolver a partir de los cuales se escala al lider inmediato. */
 export const DIAS_ESCALAMIENTO_NC = 10;

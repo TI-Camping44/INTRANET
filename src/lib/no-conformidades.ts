@@ -102,7 +102,7 @@ function plural(cantidad: number): string {
  *
  * Corridos quiere decir corridos: incluye fines de semana y feriados. Es
  * lo que pidió Calidad y es lo que ya hace el plazo de cierre en la base
- * —`fecha_deteccion + 5`—, así que las dos cuentas dan lo mismo.
+ * —`fecha_deteccion + 15`—, así que las dos cuentas dan lo mismo.
  *
  * Mientras está abierta el contador corre; cuando se cierra deja de
  * correr y pasa a decir cuánto tardó, que es el dato que después se
