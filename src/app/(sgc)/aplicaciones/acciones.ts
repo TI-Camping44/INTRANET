@@ -7,6 +7,7 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   esDireccionSegura,
   esPublicoDeAplicacion,
+  esTipoDeAplicacion,
   LARGO_MAXIMO_DESCRIPCION_APLICACION,
   LARGO_MAXIMO_NOMBRE_APLICACION,
   ROLES_DE_APLICACION,
@@ -27,7 +28,7 @@ function revisarCampos(datos: FormData): { error: string } | {
   descripcion: string;
   url: string;
   publico: string;
-  orden: number;
+  tipo: string;
   roles: RolUsuario[];
   personas: string[];
   empresa: string | null;
@@ -69,8 +70,19 @@ function revisarCampos(datos: FormData): { error: string } | {
     return { error: "Elija en qué grupo se muestra la aplicación." };
   }
 
-  const crudo = Number(datos.get("orden") ?? 0);
-  const orden = Number.isFinite(crudo) ? Math.trunc(crudo) : 0;
+  // QUE ES LA APLICACION, que es una pregunta distinta de para quien
+  // es. El grupo dice de quien es —«Comercial y marketing»— y el tipo
+  // dice que es —un catalogo, una herramienta—, y con eso la pantalla
+  // los separa adentro del grupo. Se comprueba contra la misma lista
+  // que el `CHECK` de la base.
+  //
+  // `orden` ya no se lee: la pantalla ordena por nombre desde el 9 de
+  // noviembre y el campo salio del formulario. La columna queda con sus
+  // valores, asi que guardar no se los pisa.
+  const tipo = String(datos.get("tipo") ?? "").trim();
+  if (!esTipoDeAplicacion(tipo)) {
+    return { error: "Elija qué es la aplicación: una solicitud, un catálogo, una herramienta o un tablero." };
+  }
 
   const marcados = new Set(datos.getAll("rol").map((valor) => String(valor)));
   const roles = ROLES_DE_APLICACION.filter((rol) => marcados.has(rol));
@@ -102,7 +114,7 @@ function revisarCampos(datos: FormData): { error: string } | {
   const departamento =
     departamentoCrudo && esDepartamento(departamentoCrudo) ? departamentoCrudo : null;
 
-  return { nombre, descripcion, url, publico, orden, roles, personas, empresa, departamento };
+  return { nombre, descripcion, url, publico, tipo, roles, personas, empresa, departamento };
 }
 
 /**
@@ -145,7 +157,7 @@ export async function guardarAplicacion(datos: FormData): Promise<ResultadoAccio
     descripcion: revisado.descripcion,
     url: revisado.url,
     publico: revisado.publico,
-    orden: revisado.orden,
+    tipo: revisado.tipo,
     roles_visibles: revisado.roles,
     usuarios_visibles: revisado.personas,
     empresa_de_la_aplicacion_id: revisado.empresa,

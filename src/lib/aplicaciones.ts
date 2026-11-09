@@ -42,6 +42,15 @@ export interface Aplicacion {
   descripcion: string;
   url: string;
   publico: PublicoAplicacion;
+  /** Qué ES la aplicación. El grupo dice de quién es; esto, qué es. */
+  tipo: TipoAplicacion;
+  /**
+   * YA NO SE USA PARA MOSTRAR. La pantalla ordena por nombre desde el 9
+   * de noviembre, y el campo salió del formulario: los números habían
+   * quedado sin sentido —`comercial` arrancaba en 7, `general` en 12—
+   * porque son restos de cuando era una sola lista. La columna queda por
+   * si alguna vez hace falta fijar una arriba.
+   */
   orden: number;
   /**
    * Qué área resuelve el pedido. Solo las solicitudes lo llevan.
@@ -99,6 +108,49 @@ export interface PersonaDeAplicacion {
   rol: RolUsuario;
 }
 
+/**
+ * Qué es cada aplicación, que es una pregunta distinta de para quién es.
+ *
+ * `solicitud` se completa y se manda a un área; `catalogo` se consulta;
+ * `herramienta` se opera y se escribe en ella; `tablero` se mira.
+ *
+ * LA CLASIFICACIÓN SALE DE LA DESCRIPCIÓN Y NO DEL NOMBRE: «Objetivos
+ * Mensuales · Comercial» se llama como un tablero y es una herramienta
+ * —«para cargar las metas del mes»—, y el «Canal de denuncias» no es
+ * algo que se mira sino un formulario que se completa.
+ */
+export type TipoAplicacion = "solicitud" | "catalogo" | "herramienta" | "tablero";
+
+export const ETIQUETAS_TIPO_APLICACION: Record<TipoAplicacion, string> = {
+  solicitud: "Solicitudes y pedidos",
+  catalogo: "Catálogos",
+  herramienta: "Herramientas",
+  tablero: "Tableros e informes",
+};
+
+/** En qué orden se muestran los tipos dentro de un grupo. */
+export const ORDEN_TIPO: TipoAplicacion[] = [
+  "solicitud",
+  "catalogo",
+  "herramienta",
+  "tablero",
+];
+
+/** Los mismos valores que el `CHECK` de `aplicaciones.tipo`. */
+export function esTipoDeAplicacion(valor: string): valor is TipoAplicacion {
+  return (ORDEN_TIPO as string[]).includes(valor);
+}
+
+/**
+ * A partir de cuántas tarjetas el subtítulo por tipo aporta algo.
+ *
+ * Con dos tarjetas la lista se escanea de un vistazo y dos subtítulos
+ * encima de una tarjeta cada uno son más ruido que orden. Pasa hoy en
+ * «Para toda la empresa», que tiene el Canal de denuncias y el Panel de
+ * NPS: dos cosas, dos tipos.
+ */
+export const MINIMO_PARA_SUBTITULAR = 3;
+
 export const ETIQUETAS_PUBLICO: Record<PublicoAplicacion, string> = {
   solicitudes: "Solicitudes y pedidos",
   general: "Para toda la empresa",
@@ -144,20 +196,70 @@ export const LARGO_MAXIMO_NOMBRE_APLICACION = 80;
 export const LARGO_MAXIMO_DESCRIPCION_APLICACION = 300;
 
 /**
- * Las aplicaciones agrupadas por público, en el orden de presentación.
+ * Compara dos nombres como los leería una persona.
+ *
+ * `sensitivity: "base"` ignora tildes y mayúsculas, que es lo que hace
+ * que «Catálogo de Salón» quede antes que «Catálogo Mayorista» y no
+ * después por una M mayúscula.
+ */
+function porNombre(uno: Aplicacion, otro: Aplicacion): number {
+  return uno.nombre.localeCompare(otro.nombre, "es", { sensitivity: "base" });
+}
+
+/** Un tramo de un grupo: las aplicaciones de un mismo tipo. */
+export interface TramoDeAplicaciones {
+  tipo: TipoAplicacion;
+  aplicaciones: Aplicacion[];
+}
+
+export interface GrupoDeAplicaciones {
+  publico: PublicoAplicacion;
+  /** Todas las del grupo, ya ordenadas, para cuando no se subtitula. */
+  aplicaciones: Aplicacion[];
+  /** Los tramos por tipo, en el orden de `ORDEN_TIPO`. */
+  tramos: TramoDeAplicaciones[];
+  /**
+   * Si corresponde dibujar los subtítulos por tipo.
+   *
+   * SOLO CUANDO EL GRUPO MEZCLA TIPOS Y TIENE TARJETAS SUFICIENTES. Un
+   * grupo de un solo tipo subtitulado se leería «Solicitudes y pedidos»
+   * dentro de «Solicitudes y pedidos», que es decir dos veces lo mismo;
+   * y con dos tarjetas de dos tipos los subtítulos ocupan más que lo que
+   * ordenan.
+   */
+  subtitular: boolean;
+}
+
+/**
+ * Las aplicaciones agrupadas por público y, dentro, por tipo.
+ *
+ * EL GRUPO SIGUE SIENDO EL ÁREA porque es como la gente busca: «lo
+ * mío». El tipo entra como segundo nivel y solo donde hace falta.
+ *
+ * Todo va en orden alfabético: el `orden` numérico dejó de usarse el 9
+ * de noviembre porque sus valores eran restos de cuando la lista era
+ * una sola y nadie podía explicar por qué una tarjeta iba antes que
+ * otra.
  *
  * Los grupos sin aplicaciones no se dibujan: una etiqueta sola, sin nada
  * abajo, se lee como un error de carga.
  */
-export function agruparAplicaciones(
-  aplicaciones: Aplicacion[],
-): { publico: PublicoAplicacion; aplicaciones: Aplicacion[] }[] {
-  return ORDEN_PUBLICO.map((publico) => ({
-    publico,
-    aplicaciones: aplicaciones
-      .filter((a) => a.publico === publico)
-      .sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, "es")),
-  })).filter((grupo) => grupo.aplicaciones.length > 0);
+export function agruparAplicaciones(aplicaciones: Aplicacion[]): GrupoDeAplicaciones[] {
+  return ORDEN_PUBLICO.map((publico) => {
+    const delGrupo = aplicaciones.filter((a) => a.publico === publico).sort(porNombre);
+
+    const tramos = ORDEN_TIPO.map((tipo) => ({
+      tipo,
+      aplicaciones: delGrupo.filter((a) => a.tipo === tipo),
+    })).filter((tramo) => tramo.aplicaciones.length > 0);
+
+    return {
+      publico,
+      aplicaciones: delGrupo,
+      tramos,
+      subtitular: tramos.length > 1 && delGrupo.length >= MINIMO_PARA_SUBTITULAR,
+    };
+  }).filter((grupo) => grupo.aplicaciones.length > 0);
 }
 
 /**

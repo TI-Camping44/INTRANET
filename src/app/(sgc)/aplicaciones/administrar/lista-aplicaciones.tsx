@@ -37,9 +37,11 @@ import {
 import {
   estaOculta,
   ETIQUETAS_PUBLICO,
+  ETIQUETAS_TIPO_APLICACION,
   LARGO_MAXIMO_DESCRIPCION_APLICACION,
   LARGO_MAXIMO_NOMBRE_APLICACION,
   ORDEN_PUBLICO,
+  ORDEN_TIPO,
   ROLES_DE_APLICACION,
   type Aplicacion,
   type EmpresaDelGrupo,
@@ -147,8 +149,8 @@ export function ListaAplicaciones({
           <TablaCabecera>
             <TablaFila>
               <TablaEncabezado>Aplicación</TablaEncabezado>
-              <TablaEncabezado className="hidden w-[11rem] md:table-cell">
-                Grupo
+              <TablaEncabezado className="hidden w-[12rem] md:table-cell">
+                Dónde va
               </TablaEncabezado>
               <TablaEncabezado>Quién la ve</TablaEncabezado>
               <TablaEncabezado className="w-[5rem]" />
@@ -166,10 +168,11 @@ export function ListaAplicaciones({
                   ) ? (
                     <MarcaVitalica className="ml-1.5" />
                   ) : null}
-                  {/* El grupo se esconde en el celular, pero no se
-                      pierde: reaparece acá abajo. */}
+                  {/* El grupo y el tipo se esconden en el celular,
+                      pero no se pierden: reaparecen acá abajo. */}
                   <span className="block text-[10px] text-atenuado-contraste md:hidden">
-                    {ETIQUETAS_PUBLICO[aplicacion.publico]}
+                    {ETIQUETAS_PUBLICO[aplicacion.publico]} ·{" "}
+                    {ETIQUETAS_TIPO_APLICACION[aplicacion.tipo]}
                   </span>
                   <span className="block truncate text-[10px] text-atenuado-contraste">
                     {aplicacion.url}
@@ -177,6 +180,9 @@ export function ListaAplicaciones({
                 </TablaCelda>
                 <TablaCelda className="hidden text-xs text-atenuado-contraste md:table-cell">
                   {ETIQUETAS_PUBLICO[aplicacion.publico]}
+                  <span className="block text-[10px]">
+                    {ETIQUETAS_TIPO_APLICACION[aplicacion.tipo]}
+                  </span>
                 </TablaCelda>
                 <TablaCelda>
                   {estaOculta(aplicacion) ? (
@@ -301,7 +307,18 @@ export function ListaAplicaciones({
               />
             </GrupoCampo>
 
-            <div className="grid gap-3 sm:grid-cols-[1fr_7rem]">
+            {/* DÓNDE VA LA TARJETA, que son dos preguntas y no una:
+                el grupo dice DE QUIÉN es —«Comercial y marketing»— y el
+                tipo dice QUÉ ES —un catálogo, una herramienta—. La
+                pantalla agrupa por lo primero y separa por lo segundo.
+
+                «Orden» salió el 9 de noviembre: era un entero que se
+                cargaba a mano y sus valores eran restos de cuando la
+                lista era una sola —`comercial` arrancaba en 7— y encima
+                tenía repetidos, así que el desempate lo decidía
+                PostgreSQL. Hoy se ordena por nombre. La columna queda
+                en la tabla y guardar no la toca. */}
+            <div className="grid gap-3 sm:grid-cols-2">
               <GrupoCampo etiqueta="Grupo" htmlFor="publico" requerido>
                 <Seleccion
                   id="publico"
@@ -318,17 +335,23 @@ export function ListaAplicaciones({
               </GrupoCampo>
 
               <GrupoCampo
-                etiqueta="Orden"
-                htmlFor="orden"
-                ayuda="Menor, más arriba."
+                etiqueta="Qué es"
+                htmlFor="tipo"
+                requerido
+                ayuda="Separa las tarjetas adentro del grupo."
               >
-                <Entrada
-                  id="orden"
-                  name="orden"
-                  type="number"
-                  step={1}
-                  defaultValue={editando?.orden ?? 0}
-                />
+                <Seleccion
+                  id="tipo"
+                  name="tipo"
+                  required
+                  defaultValue={editando?.tipo ?? "tablero"}
+                >
+                  {ORDEN_TIPO.map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {ETIQUETAS_TIPO_APLICACION[tipo]}
+                    </option>
+                  ))}
+                </Seleccion>
               </GrupoCampo>
             </div>
 

@@ -24,14 +24,21 @@ export default async function PaginaAdministrarAplicaciones() {
   await requerirModuloEditable("aplicaciones");
   const supabase = crearClienteServidor();
 
+  // SE PIDEN TODAS LAS COLUMNAS QUE EL FORMULARIO LEE, y hay que
+  // mirarlo cada vez que se agrega un campo. Faltaban
+  // `departamento_que_resuelve` y después `tipo`: el formulario los lee
+  // de `editando`, así que llegaban `undefined`, el `defaultValue`
+  // caía en «No corresponde» y guardar le borraba a la tarjeta el área
+  // que tenía cargada sin que nadie lo pidiera. Es el mismo descuido
+  // que tuvo `puesto_manual_id` en la lista de usuarios.
   const { data } = await supabase
     .from("aplicaciones")
     .select(
-      "id, nombre, descripcion, url, publico, orden, roles_visibles, " +
-        "usuarios_visibles, empresa_de_la_aplicacion_id",
+      "id, nombre, descripcion, url, publico, tipo, orden, roles_visibles, " +
+        "usuarios_visibles, empresa_de_la_aplicacion_id, departamento_que_resuelve",
     )
     .order("publico")
-    .order("orden");
+    .order("nombre");
 
   const aplicaciones = (data as unknown as Aplicacion[] | null) ?? [];
 
