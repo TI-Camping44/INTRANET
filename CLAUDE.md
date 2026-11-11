@@ -389,10 +389,16 @@ Quedaron así por falta de definición explícita. Son reversibles:
   invitaba a confundir cuál rige. El **Panel de NPS** salió de «Comercial y marketing» al
   grupo «Para toda la empresa»: lo lleva Marketing, pero mide a toda la empresa y lo
   consulta cualquiera.
-- **Las solicitudes por área NO se absorben**: los siete formularios de
+- **Las solicitudes por área NO se absorben**: los ocho formularios de
   Apps Script —TI, Logística, Marketing, Administración, Calidad,
-  Comercial y compra interna— se enlazan desde Aplicaciones y siguen
-  viviendo en Workspace. **El de Comercial estuvo mal descrito hasta el
+  Capital Humano, Comercial y compra interna— se enlazan desde
+  Aplicaciones y siguen viviendo en Workspace. **El de Capital Humano
+  entró el 11 de noviembre** y se cargó igual que sus hermanas, con su
+  `departamento_que_resuelve`. Su dirección tiene otra forma
+  —`/a/camping44.com.py/macros/s/…` en vez de
+  `/a/macros/camping44.com.py/s/…`—: las dos son formas válidas de
+  publicar un Apps Script, así que se guarda como vino y no se
+  «corrige». **El de Comercial estuvo mal descrito hasta el
   15 de octubre**: decía que era la solicitud de crédito por QR que el
   asesor le comparte al cliente, que es otra cosa y además contradecía a
   su propio nombre —un tablero de pedidos AL área Comercial—. Lo escribí
