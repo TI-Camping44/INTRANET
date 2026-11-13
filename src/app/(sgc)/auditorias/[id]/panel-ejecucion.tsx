@@ -177,7 +177,7 @@ export function PanelEjecucion({
               rows={4}
               value={conclusiones}
               onChange={(evento) => definirConclusiones(evento.target.value)}
-              placeholder="Resultado general, hallazgos relevantes y recomendaciones al proceso auditado."
+              placeholder="Resultado general, hallazgos relevantes y recomendaciones al proceso auditado…"
             />
           </GrupoCampo>
 

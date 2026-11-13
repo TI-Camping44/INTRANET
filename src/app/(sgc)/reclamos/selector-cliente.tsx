@@ -143,7 +143,7 @@ export function SelectorCliente({
                 definirAbierto(true);
               }}
               onFocus={() => definirAbierto(true)}
-              placeholder="Nombre, RUC o cédula"
+              placeholder="Nombre, RUC o cédula…"
               className="pl-8 pr-8"
               autoComplete="off"
             />

@@ -444,7 +444,7 @@ export function FormularioOportunidad({
                           cambiarAccion(accion.clave, { responsable_id: evento.target.value })
                         }
                       >
-                        <option value="">Elija el responsable</option>
+                        <option value="">Elija el responsable…</option>
                         {usuarios.map((persona) => (
                           <option key={persona.id} value={persona.id}>
                             {persona.nombre_completo}

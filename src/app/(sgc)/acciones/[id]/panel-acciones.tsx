@@ -250,7 +250,7 @@ export function PanelAcciones({
                   required
                   minLength={5}
                   className="mt-1"
-                  placeholder="Qué se hizo, cómo se comprobó, qué quedó pendiente."
+                  placeholder="Qué se hizo, cómo se comprobó, qué quedó pendiente…"
                 />
                 <div className="mt-2 flex justify-end gap-2">
                   <Boton
@@ -391,7 +391,7 @@ export function CierreEficacia({
         value={texto}
         onChange={(evento) => definirTexto(evento.target.value)}
         rows={2}
-        placeholder="En qué se basa la verificación: qué se midió, qué se revisó, qué evidencia hay."
+        placeholder="En qué se basa la verificación: qué se midió, qué se revisó, qué evidencia hay…"
         aria-label="Fundamento de la verificación de eficacia"
       />
       <div className="mt-2 flex flex-wrap gap-2">

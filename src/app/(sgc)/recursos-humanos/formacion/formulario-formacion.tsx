@@ -197,7 +197,7 @@ export function FormularioFormacion({
                   name="objetivo"
                   rows={2}
                   required
-                  placeholder="Qué se espera que la persona sepa hacer al terminar."
+                  placeholder="Qué se espera que la persona sepa hacer al terminar…"
                   defaultValue={formacion?.objetivo ?? ""}
                 />
               </GrupoCampo>

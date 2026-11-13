@@ -327,7 +327,7 @@ export function PanelEvaluaciones({
                   id="comentario"
                   name="comentario"
                   rows={2}
-                  placeholder="Observaciones del período evaluado."
+                  placeholder="Observaciones del período evaluado…"
                 />
               </GrupoCampo>
             </div>

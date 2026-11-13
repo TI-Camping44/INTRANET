@@ -208,7 +208,7 @@ export function MedicionDelRiesgo({
                   rows={2}
                   value={comentario}
                   onChange={(evento) => definirComentario(evento.target.value)}
-                  placeholder="Con qué se verificó que el riesgo bajó."
+                  placeholder="Con qué se verificó que el riesgo bajó…"
                 />
               </GrupoCampo>
 

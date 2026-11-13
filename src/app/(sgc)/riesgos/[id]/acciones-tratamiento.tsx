@@ -467,7 +467,7 @@ export function AccionesTratamiento({
                   id="comentario-ejecucion"
                   name="comentario"
                   rows={3}
-                  placeholder="Qué se hizo y con qué resultado."
+                  placeholder="Qué se hizo y con qué resultado…"
                 />
               </GrupoCampo>
             </div>
@@ -508,7 +508,7 @@ export function AccionesTratamiento({
                   id="comentario-eficacia"
                   name="comentario"
                   rows={3}
-                  placeholder="Con qué se verificó."
+                  placeholder="Con qué se verificó…"
                 />
               </GrupoCampo>
             </div>
