@@ -61,6 +61,7 @@ import { describirTamano } from "@/lib/adjuntos";
 import {
   ACEPTA_ADJUNTO_PUBLICACION,
   esImagen,
+  LARGO_MAXIMO_DESCRIPCION_IMAGEN,
   motivoDeRechazoAdjunto,
   TAMANO_MAXIMO_IMAGEN,
 } from "@/lib/imagenes";
@@ -90,6 +91,11 @@ export interface Publicacion {
   procesos: { nombre: string } | null;
   /** Enlace firmado de la imagen, ya resuelto en el servidor. */
   imagen: string | null;
+  /**
+   * Que muestra la imagen de la tarjeta, escrito por quien publica.
+   * Nulo la deja como decorativa: la nombra el boton que la envuelve.
+   */
+  descripcion_imagen: string | null;
   /** Documento que originó el anuncio, cuando lo hay. */
   documento: { id: string; codigo: string | null; titulo: string } | null;
   /** Archivos anexados, con su enlace firmado ya resuelto. */
@@ -143,11 +149,15 @@ export function MuroPublicaciones({
   // null = alta. Con una publicacion adentro, el mismo dialogo edita.
   const [editando, definirEditando] = React.useState<Publicacion | null>(null);
   const [quitarImagen, definirQuitarImagen] = React.useState(false);
+  // Si entre los archivos elegidos hay una imagen. Decide si se
+  // pregunta la descripcion: sin imagen el campo no tiene sentido.
+  const [hayImagenElegida, definirHayImagenElegida] = React.useState(false);
 
   function abrirDialogo(publicacion: Publicacion | null) {
     definirEditando(publicacion);
     definirNombresElegidos([]);
     definirQuitarImagen(false);
+    definirHayImagenElegida(false);
     if (entradaArchivos.current) entradaArchivos.current.value = "";
     definirAbierto(true);
   }
@@ -271,11 +281,25 @@ export function MuroPublicaciones({
               (anexo) => !esImagen(anexo.nombre) || !anexo.enlace,
             );
 
+            // LA DESCRIPCION ES DE LA IMAGEN DE LA TARJETA Y DE NINGUNA
+            // OTRA: `url_imagen` es una columna, asi que el campo del
+            // formulario describe esa y no la galeria entera. Las anexas
+            // viajan sin descripcion y las nombra el boton.
             const imagenes = [
               ...(publicacion.imagen
-                ? [{ clave: `principal-${publicacion.id}`, src: publicacion.imagen }]
+                ? [
+                    {
+                      clave: `principal-${publicacion.id}`,
+                      src: publicacion.imagen,
+                      descripcion: publicacion.descripcion_imagen,
+                    },
+                  ]
                 : []),
-              ...anexosImagen.map((anexo) => ({ clave: anexo.id, src: anexo.enlace! })),
+              ...anexosImagen.map((anexo) => ({
+                clave: anexo.id,
+                src: anexo.enlace!,
+                descripcion: null as string | null,
+              })),
             ];
 
             return (
@@ -366,11 +390,18 @@ export function MuroPublicaciones({
                               // que con lector de pantalla no habia forma
                               // de saber de que publicacion era ni cuantas
                               // habia.
+                              // CUANDO HAY DESCRIPCION, ES EL NOMBRE DEL
+                              // BOTON. No alcanza con ponerla en el `alt`
+                              // de adentro: un `aria-label` en el boton
+                              // tapa el `alt` de la imagen que envuelve,
+                              // asi que la descripcion no se leeria nunca.
                               aria-label={
-                                imagenes.length === 1
-                                  ? `Ver en grande la imagen de «${publicacion.titulo}»`
-                                  : `Ver en grande la imagen ${indice + 1} de ` +
-                                    `${imagenes.length} de «${publicacion.titulo}»`
+                                imagen.descripcion
+                                  ? `Ver en grande: ${imagen.descripcion}`
+                                  : imagenes.length === 1
+                                    ? `Ver en grande la imagen de «${publicacion.titulo}»`
+                                    : `Ver en grande la imagen ${indice + 1} de ` +
+                                      `${imagenes.length} de «${publicacion.titulo}»`
                               }
                             >
                               {/* Sin next/image: la direccion es un enlace firmado
@@ -379,15 +410,11 @@ export function MuroPublicaciones({
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={imagen.src}
-                                // Decorativa a proposito: la nombra el
-                                // boton que la envuelve. Lo que no se
-                                // puede resolver desde el codigo es
-                                // DESCRIBIR lo que la imagen muestra
-                                // —media publicacion es una captura de
-                                // texto—: eso lo tiene que escribir
-                                // quien publica, y hoy el alta no lo
-                                // pide.
-                                alt=""
+                                // Sin descripcion queda decorativa y la
+                                // nombra el boton. Con descripcion la
+                                // lleva igual, que es lo que se lee si la
+                                // imagen no carga.
+                                alt={imagen.descripcion ?? ""}
                                 className={
                                   // `object-contain` y no `cover` con una
                                   // sola: la mitad de lo que se publica son
@@ -741,7 +768,11 @@ export function MuroPublicaciones({
                   className="sr-only"
                   onChange={(evento) => {
                     const elegidos = Array.from(evento.target.files ?? []);
-                    if (elegidos.length === 0) return definirNombresElegidos([]);
+                    definirHayImagenElegida(elegidos.some((a) => esImagen(a.name)));
+                    if (elegidos.length === 0) {
+                      definirHayImagenElegida(false);
+                      return definirNombresElegidos([]);
+                    }
 
                     // El control de verdad esta en la accion de servidor.
                     // Este evita que alguien espere una subida de 20 MB
@@ -757,6 +788,7 @@ export function MuroPublicaciones({
                       toast.error(rechazados.join(" · "));
                       evento.target.value = "";
                       definirNombresElegidos([]);
+                      definirHayImagenElegida(false);
                       return;
                     }
 
@@ -764,6 +796,43 @@ export function MuroPublicaciones({
                   }}
                 />
               </GrupoCampo>
+
+              {/* QUE MUESTRA LA IMAGEN, para quien no la puede ver.
+                  Lo pidio la auditoria de interfaz del 13 de noviembre:
+                  las imagenes del muro iban como decorativas y media
+                  publicacion es una captura de texto —una circular, una
+                  pauta—, asi que con lector de pantalla no existian.
+                  Describirla no lo puede hacer el codigo: solo quien
+                  la sube.
+
+                  OPCIONAL, y es deliberado. La regla del modulo es que
+                  cuanto menos pregunta la portada, mas gente publica;
+                  obligarlo haria que se escriba cualquier cosa para
+                  pasar el control, y un texto alternativo con basura es
+                  ruido y no accesibilidad.
+
+                  SOLO SE PREGUNTA SI VA A HABER IMAGEN: la que se acaba
+                  de elegir, o la que ya tiene y no se esta quitando. El
+                  bloque se DESMONTA cuando no corresponde en vez de
+                  esconderse, que es la regla del proyecto. */}
+              {hayImagenElegida || (editando?.imagen && !quitarImagen) ? (
+                <GrupoCampo
+                  etiqueta="Qué muestra la imagen"
+                  htmlFor="descripcion_imagen"
+                  ayuda={
+                    "Opcional. Una línea para quien no puede verla: con lector de pantalla, " +
+                    "o si la imagen no carga. Si es una circular o un texto, diga qué dice."
+                  }
+                >
+                  <Entrada
+                    id="descripcion_imagen"
+                    name="descripcion_imagen"
+                    maxLength={LARGO_MAXIMO_DESCRIPCION_IMAGEN}
+                    defaultValue={editando?.descripcion_imagen ?? ""}
+                    placeholder="Circular de Capital Humano sobre el horario de diciembre…"
+                  />
+                </GrupoCampo>
+              ) : null}
 
               {editando ? null : (
               <div className="space-y-1.5 rounded-md border border-borde p-3">

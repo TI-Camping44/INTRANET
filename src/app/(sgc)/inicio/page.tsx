@@ -28,7 +28,8 @@ export default async function PaginaInicio() {
       .from("publicaciones")
       .select(
         "id, tipo, titulo, cuerpo, resumen, estado, fijada, fecha_publicacion," +
-          " fecha_vencimiento, url_imagen, usuario_referido_id, proceso_id," +
+          " fecha_vencimiento, url_imagen, descripcion_imagen," +
+          " usuario_referido_id, proceso_id," +
           " autor:creado_por (nombre_completo, url_avatar)," +
           " referido:usuario_referido_id (nombre_completo, url_avatar)," +
           " procesos:proceso_id (nombre)," +

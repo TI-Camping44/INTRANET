@@ -12,8 +12,26 @@ import {
   motivoDeRechazoAdjunto,
   rutaDeAdjuntoPublicacion,
   rutaDeImagen,
+  LARGO_MAXIMO_DESCRIPCION_IMAGEN,
 } from "@/lib/imagenes";
 import type { EstadoPublicacion, ResultadoAccion } from "@/lib/tipos";
+
+/**
+ * Que muestra la imagen, tal como lo escribio quien publica.
+ *
+ * Vacio es nulo y no cadena vacia: `alt=""` significa «esta imagen es
+ * decoracion», que es justamente lo que se quiere cuando no se
+ * describio nada, y nulo es como la columna lo guarda.
+ *
+ * SE RECORTA AL TOPE en vez de rechazar: el `maxLength` del formulario
+ * ya lo impide y el `CHECK` de la base lo volveria a impedir, pero
+ * perder una publicacion entera porque la descripcion opcional se pasó
+ * de largo seria el peor de los tres finales posibles.
+ */
+function leerDescripcionDeImagen(datos: FormData): string | null {
+  const texto = String(datos.get("descripcion_imagen") ?? "").trim();
+  return texto ? texto.slice(0, LARGO_MAXIMO_DESCRIPCION_IMAGEN) : null;
+}
 
 export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
@@ -54,6 +72,7 @@ export async function crearPublicacion(datos: FormData): Promise<ResultadoAccion
       estado: publicar ? "publicada" : "borrador",
       fijada: publicar && datos.get("fijada") === "si",
       fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
+      descripcion_imagen: leerDescripcionDeImagen(datos),
       creado_por: usuario.id,
     })
     .select("id, titulo")
@@ -308,8 +327,21 @@ export async function editarPublicacion(
     fecha_vencimiento: String(datos.get("fecha_vencimiento") ?? "") || null,
   };
 
+  // LA DESCRIPCION SOLO SE TOCA SI EL FORMULARIO LA PREGUNTO. El campo
+  // se desmonta cuando no hay imagen, asi que en esa edicion no viaja:
+  // escribirla igual le borraria la descripcion a quien entro a
+  // corregir una coma del cuerpo. Es la misma precaucion que toman
+  // `actualizarRiesgo()` con los controles existentes y
+  // `actualizarReclamo()` con el material controlado.
+  if (datos.has("descripcion_imagen")) {
+    cambios.descripcion_imagen = leerDescripcionDeImagen(datos);
+  }
+
   if (datos.get("quitar_imagen") === "si") {
     cambios.url_imagen = null;
+    // Sin imagen no hay nada que describir, y una descripcion huerfana
+    // reaparece pegada a la proxima imagen que se suba.
+    cambios.descripcion_imagen = null;
   }
 
   const { error } = await supabase.from("publicaciones").update(cambios).eq("id", id);

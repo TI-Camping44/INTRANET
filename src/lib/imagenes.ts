@@ -31,6 +31,16 @@ export { BUCKET_DOCUMENTOS as BUCKET_IMAGENES };
  */
 export const TAMANO_MAXIMO_IMAGEN = 3 * 1024 * 1024;
 
+/**
+ * Tope de la descripcion de la imagen de una publicacion.
+ *
+ * Es un texto alternativo, no un parrafo: describe que muestra la
+ * imagen en una linea. El mismo numero esta en el `CHECK` de
+ * `publicaciones.descripcion_imagen`; este da el mensaje en castellano
+ * y corta antes de llegar a la base.
+ */
+export const LARGO_MAXIMO_DESCRIPCION_IMAGEN = 300;
+
 export const EXTENSIONES_IMAGEN = [".png", ".jpg", ".jpeg", ".webp"];
 
 /** Lo que el selector de archivos ofrece filtrar. */
