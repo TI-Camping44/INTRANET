@@ -8,6 +8,8 @@ import { Boton } from "@/components/ui/boton";
 import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { SelectorDrive } from "@/components/comunes/selector-drive";
+import { ErrorDeFormulario } from "@/components/ui/error-de-formulario";
+import { AvisoDeCambiosSinGuardar } from "@/components/ui/aviso-cambios-sin-guardar";
 import {
   actualizarDocumento,
   crearDocumento,
@@ -467,7 +469,8 @@ export function FormularioDocumento({
           )}
         </div>
 
-        {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
+        <AvisoDeCambiosSinGuardar />
+        {error ? <ErrorDeFormulario error={error} className="mt-4" /> : null}
 
         <div className="mt-6 flex justify-end gap-2">
           <Boton type="button" variante="contorno" onClick={() => router.back()}>

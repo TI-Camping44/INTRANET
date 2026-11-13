@@ -40,6 +40,7 @@ export function FormularioPerfil({
         <Entrada
           id="nombre_completo"
           name="nombre_completo"
+              autoComplete="name"
           defaultValue={nombre}
           required
           minLength={3}
@@ -58,6 +59,7 @@ export function FormularioPerfil({
         <Entrada
           id="telefono"
           name="telefono"
+              autoComplete="tel" inputMode="tel"
           defaultValue={telefono ?? ""}
           placeholder="0981 123 456"
         />

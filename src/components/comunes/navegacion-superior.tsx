@@ -95,7 +95,12 @@ function MenuDeGrupo({
     <Menu>
       <MenuDisparador
         className={cn(
-          "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm outline-none",
+          // EL CONTORNO SE REEMPLAZA, no se apaga y ya: `outline-none`
+          // sin anillo dejaba la barra principal sin ninguna senal de
+          // foco, y es la que esta en las 77 pantallas.
+          "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
+          "focus-visible:ring-anillo",
           "transition-colors data-[state=open]:bg-acento/50",
           hayAlgunaActiva
             ? "border-primario font-medium text-texto"

@@ -358,6 +358,20 @@ export function MuroPublicaciones({
                                     " border border-borde"
                               }
                               title="Ver la imagen en grande"
+                              // QUIEN NOMBRA A LA IMAGEN ES EL BOTON, y
+                              // por eso el `alt` de adentro va vacio: con
+                              // los dos puestos, el nombre del boton gana
+                              // y el `alt` no se lee nunca. Antes el boton
+                              // decia solo «Ver la imagen en grande», asi
+                              // que con lector de pantalla no habia forma
+                              // de saber de que publicacion era ni cuantas
+                              // habia.
+                              aria-label={
+                                imagenes.length === 1
+                                  ? `Ver en grande la imagen de «${publicacion.titulo}»`
+                                  : `Ver en grande la imagen ${indice + 1} de ` +
+                                    `${imagenes.length} de «${publicacion.titulo}»`
+                              }
                             >
                               {/* Sin next/image: la direccion es un enlace firmado
                                   que cambia en cada carga, asi que el optimizador
@@ -365,6 +379,14 @@ export function MuroPublicaciones({
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={imagen.src}
+                                // Decorativa a proposito: la nombra el
+                                // boton que la envuelve. Lo que no se
+                                // puede resolver desde el codigo es
+                                // DESCRIBIR lo que la imagen muestra
+                                // —media publicacion es una captura de
+                                // texto—: eso lo tiene que escribir
+                                // quien publica, y hoy el alta no lo
+                                // pide.
                                 alt=""
                                 className={
                                   // `object-contain` y no `cover` con una

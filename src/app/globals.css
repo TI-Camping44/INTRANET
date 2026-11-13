@@ -100,6 +100,55 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /*
+    Nada de esperar 300 ms despues de tocar.
+
+    El navegador del celular retiene el toque por si viene un segundo
+    para acercar la pantalla. En una interfaz de tablas y botones chicos
+    eso se siente como que la aplicacion esta lenta, y se usa desde el
+    piso de venta y el deposito. `manipulation` conserva el gesto de
+    acercar con dos dedos, que es el que hace falta para leer una tabla
+    densa; lo unico que apaga es el doble toque.
+  */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  summary {
+    touch-action: manipulation;
+  }
+
+  /*
+    Quien pidio menos movimiento recibe menos movimiento.
+
+    Vale para todo: las transiciones de color de los botones, el abrir y
+    cerrar de los dialogos y los menus de Radix, y el giro de los
+    indicadores de carga. No se apaga del todo —un cambio instantaneo
+    tambien desorienta— sino que se lo reduce a un parpadeo.
+
+    EL GIRO DEL INDICADOR DE CARGA SE CONSERVA, aunque mas lento: es la
+    unica senal de que la accion sigue en curso, y un boton que no
+    responde y ademas no se mueve se lee como roto. Es la misma razon
+    por la que el sistema usa `cargando` y no `disabled`.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .animate-spin {
+      animation-duration: 1.5s !important;
+      animation-iteration-count: infinite !important;
+    }
+  }
+
   /* Barra de desplazamiento discreta, la interfaz es densa. */
   ::-webkit-scrollbar {
     width: 10px;

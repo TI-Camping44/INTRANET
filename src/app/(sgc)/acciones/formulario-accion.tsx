@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { ErrorDeFormulario } from "@/components/ui/error-de-formulario";
+import { AvisoDeCambiosSinGuardar } from "@/components/ui/aviso-cambios-sin-guardar";
 import { responderNoConformidad } from "@/app/(sgc)/no-conformidades/acciones";
 import { CampoAcciones, type AccionInicial } from "@/app/(sgc)/acciones/campo-acciones";
 import { CampoAnalisisHorizontal } from "@/app/(sgc)/acciones/campo-analisis-horizontal";
@@ -208,7 +210,8 @@ export function FormularioAccion({
           </div>
         </div>
 
-        {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
+        <AvisoDeCambiosSinGuardar />
+        {error ? <ErrorDeFormulario error={error} className="mt-4" /> : null}
 
         <div className="mt-6 flex justify-end gap-2">
           <Boton type="button" variante="contorno" onClick={() => router.back()}>

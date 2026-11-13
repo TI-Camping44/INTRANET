@@ -24,7 +24,8 @@ const DialogoContenido = React.forwardRef<
       className={cn(
         "fixed left-1/2 top-1/2 z-50 grid w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 " +
           "-translate-y-1/2 gap-4 border border-borde bg-fondo p-5 shadow-xl duration-150 " +
-          "rounded-lg max-h-[90vh] overflow-y-auto data-[state=open]:animate-in " +
+          "rounded-lg max-h-[90vh] overflow-y-auto overscroll-contain " +
+          "data-[state=open]:animate-in " +
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 " +
           "data-[state=open]:fade-in-0",
         className,

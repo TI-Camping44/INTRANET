@@ -63,6 +63,24 @@ export default async function SgcLayout({ children }: { children: React.ReactNod
           no por la etiqueta en el CSS: ocultar todo <header> se llevaba
           por delante el membrete de la carta de evaluacion, que tambien
           es un <header>. */}
+      {/* SALTAR LA NAVEGACION. Son sesenta y una entradas de menu entre
+          el principio de la pagina y el contenido: quien navega con
+          teclado las recorria todas en cada pantalla. Solo se ve al
+          enfocarlo, asi que no ocupa lugar para el resto.
+
+          `z-50` para quedar por encima de la cabecera pegajosa, que es
+          `z-40`: un enlace de foco tapado por el encabezado no sirve. */}
+      <a
+        href="#contenido"
+        className="no-imprimir sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3
+                   focus:z-50 focus:rounded-md focus:bg-primario focus:px-3 focus:py-2
+                   focus:text-sm focus:font-medium focus:text-primario-contraste
+                   focus:outline-none focus:ring-2 focus:ring-anillo focus:ring-offset-2
+                   focus:ring-offset-fondo"
+      >
+        Saltar al contenido
+      </a>
+
       <div className="no-imprimir sticky top-0 z-40">
         <Cabecera
           usuario={usuario}
@@ -73,7 +91,26 @@ export default async function SgcLayout({ children }: { children: React.ReactNod
         <NavegacionSuperior grupos={grupos} />
       </div>
 
-      <main className="mx-auto max-w-[110rem] px-3 py-5 sm:px-5 lg:px-6">{children}</main>
+      {/* El relleno de los costados respeta la muesca y las esquinas
+          redondeadas del celular: sin esto, en horizontal el borde de
+          una tabla queda debajo del recorte de la pantalla.
+
+          `tabIndex={-1}` para que «Saltar al contenido» pueda dejar el
+          foco aca; sin eso el navegador mueve la vista pero el foco se
+          queda en la barra y el siguiente tabulador vuelve al menu. */}
+      <main
+        id="contenido"
+        tabIndex={-1}
+        className="mx-auto max-w-[110rem] py-5 focus-visible:outline-none
+                   ps-[max(0.75rem,env(safe-area-inset-left))]
+                   pe-[max(0.75rem,env(safe-area-inset-right))]
+                   sm:ps-[max(1.25rem,env(safe-area-inset-left))]
+                   sm:pe-[max(1.25rem,env(safe-area-inset-right))]
+                   lg:ps-[max(1.5rem,env(safe-area-inset-left))]
+                   lg:pe-[max(1.5rem,env(safe-area-inset-right))]"
+      >
+        {children}
+      </main>
     </div>
   );
 }

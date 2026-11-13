@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { ErrorDeFormulario } from "@/components/ui/error-de-formulario";
+import { AvisoDeCambiosSinGuardar } from "@/components/ui/aviso-cambios-sin-guardar";
 import { actualizarReclamo, crearReclamo } from "@/app/(sgc)/reclamos/acciones";
 import {
   SelectorCliente,
@@ -275,7 +277,8 @@ export function FormularioReclamo({
           </GrupoCampo>
         </div>
 
-        {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
+        <AvisoDeCambiosSinGuardar />
+        {error ? <ErrorDeFormulario error={error} className="mt-4" /> : null}
 
         <div className="mt-6 flex justify-end gap-2">
           <Boton type="button" variante="contorno" onClick={() => router.back()}>

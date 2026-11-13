@@ -10,7 +10,7 @@ import {
   ritmoNecesario,
   type VentaDelMes,
 } from "@/lib/ventas";
-import { formatearGuaranies } from "@/lib/formato";
+import { formatearGuaranies, formatearNumero } from "@/lib/formato";
 import { Tarjeta } from "@/components/ui/tarjeta";
 import { cn } from "@/lib/utilidades";
 
@@ -209,5 +209,5 @@ export function AvanceDelMes({
 
 /** Los días hábiles llevan medio día el sábado: `21,5`, no `21.5`. */
 function formatearDias(dias: number): string {
-  return Number.isInteger(dias) ? String(dias) : dias.toFixed(1).replace(".", ",");
+  return formatearNumero(dias, Number.isInteger(dias) ? 0 : 1);
 }

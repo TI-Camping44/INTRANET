@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { AreaTexto, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { ErrorDeFormulario } from "@/components/ui/error-de-formulario";
 import { cambiarEstadoCambio } from "@/app/(sgc)/cambios/acciones";
 import {
   DECISIONES_CAMBIO,
@@ -168,7 +169,7 @@ export function PanelEstado({
             </div>
           ) : null}
 
-          {error ? <p className="mt-3 text-xs text-semaforo-critico">{error}</p> : null}
+          {error ? <ErrorDeFormulario error={error} className="mt-3" /> : null}
 
           <div className="mt-4 flex justify-end">
             <Boton type="submit" tamano="pequeno" cargando={enviando}>

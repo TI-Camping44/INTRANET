@@ -33,7 +33,7 @@ const PestanaDisparador = React.forwardRef<
     ref={ref}
     className={cn(
       "inline-flex items-center justify-center whitespace-nowrap rounded px-3 py-1 text-xs " +
-        "font-medium transition-all focus-visible:outline-none focus-visible:ring-2 " +
+        "font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 " +
         "focus-visible:ring-anillo disabled:pointer-events-none disabled:opacity-50 " +
         "data-[state=active]:bg-fondo data-[state=active]:text-texto data-[state=active]:shadow-sm",
       className,

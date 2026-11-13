@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Boton } from "@/components/ui/boton";
 import { Entrada, GrupoCampo, Seleccion } from "@/components/ui/campo";
 import { Tarjeta } from "@/components/ui/tarjeta";
+import { ErrorDeFormulario } from "@/components/ui/error-de-formulario";
+import { AvisoDeCambiosSinGuardar } from "@/components/ui/aviso-cambios-sin-guardar";
 import { actualizarProveedor, crearProveedor } from "@/app/(sgc)/proveedores/acciones";
 
 /** Las dos empresas del grupo, como las devuelve `empresas_del_grupo()`. */
@@ -112,6 +114,7 @@ export function FormularioProveedor({
             <Entrada
               id="razon_social"
               name="razon_social"
+              autoComplete="organization"
               required
               minLength={3}
               defaultValue={inicial?.razon_social ?? ""}
@@ -131,6 +134,7 @@ export function FormularioProveedor({
             <Entrada
               id="ruc"
               name="ruc"
+              inputMode="numeric" spellCheck={false}
               required
               placeholder="80012345-6"
               className="tabular"
@@ -152,6 +156,7 @@ export function FormularioProveedor({
             <Entrada
               id="correo"
               name="correo"
+              autoComplete="email" inputMode="email" spellCheck={false}
               type="email"
               required
               defaultValue={inicial?.correo ?? ""}
@@ -183,6 +188,7 @@ export function FormularioProveedor({
             <Entrada
               id="ciudad"
               name="ciudad"
+              autoComplete="address-level2"
               required
               placeholder="Asunción"
               defaultValue={inicial?.ciudad ?? ""}
@@ -218,7 +224,8 @@ export function FormularioProveedor({
           </GrupoCampo>
         </div>
 
-        {error ? <p className="mt-4 text-xs text-semaforo-critico">{error}</p> : null}
+        <AvisoDeCambiosSinGuardar />
+        {error ? <ErrorDeFormulario error={error} className="mt-4" /> : null}
 
         <div className="mt-6 flex justify-end gap-2">
           <Boton type="button" variante="contorno" onClick={() => router.back()}>

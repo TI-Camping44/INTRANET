@@ -21,7 +21,7 @@ export function EncabezadoPagina({
       )}
     >
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold tracking-tight">{titulo}</h1>
+        <h1 className="text-balance text-lg font-semibold tracking-tight">{titulo}</h1>
         {descripcion ? (
           <p className="mt-0.5 text-xs leading-relaxed text-atenuado-contraste">{descripcion}</p>
         ) : null}
