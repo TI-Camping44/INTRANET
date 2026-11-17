@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Wrench } from "lucide-react";
+import { Plus, Tag, Wrench } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FiltrosListado } from "@/components/comunes/filtros-listado";
 import {
@@ -143,13 +143,29 @@ export default async function PaginaActivos({
             : "Infraestructura y Tecnología"
         }
         acciones={
-          gestiona ? (
-            <Boton comoHijo>
-              <Link href={claseMirada ? `/activos/nuevo?clase=${claseMirada}` : "/activos/nuevo"}>
-                <Plus /> Nuevo activo
+          <>
+            {/* Las etiquetas salen de lo filtrado: la misma dirección
+                lleva la clase, la categoría y la búsqueda. */}
+            <Boton variante="contorno" comoHijo>
+              <Link
+                href={`/activos/etiquetas?${new URLSearchParams(
+                  Object.entries({
+                    clase: claseMirada ?? "",
+                    q: searchParams.q ?? "",
+                  }).filter(([, valor]) => valor),
+                ).toString()}`}
+              >
+                <Tag /> Imprimir etiquetas
               </Link>
             </Boton>
-          ) : null
+            {gestiona ? (
+              <Boton comoHijo>
+                <Link href={claseMirada ? `/activos/nuevo?clase=${claseMirada}` : "/activos/nuevo"}>
+                  <Plus /> Nuevo activo
+                </Link>
+              </Boton>
+            ) : null}
+          </>
         }
       />
 

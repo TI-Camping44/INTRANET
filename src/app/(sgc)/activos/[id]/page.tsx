@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil, Tag } from "lucide-react";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { HistorialBitacora } from "@/components/comunes/historial-bitacora";
 import {
@@ -131,6 +131,11 @@ export default async function PaginaActivo({ params }: { params: { id: string } 
         descripcion={activo.descripcion ?? undefined}
         acciones={
           <>
+            <Boton variante="contorno" tamano="pequeno" comoHijo>
+              <Link href={`/activos/etiquetas?ids=${params.id}`}>
+                <Tag /> Etiqueta
+              </Link>
+            </Boton>
             {puedeGestionar(usuario) ? (
               <Boton variante="contorno" tamano="pequeno" comoHijo>
                 <Link href={`/activos/${params.id}/editar`}>
