@@ -37,6 +37,8 @@ export const CLAVES_MODULO = [
   "activos",
   "personas",
   "proveedores",
+  // Informática
+  "informatica",
   // Configuraciones
   "usuarios",
   "padron",
@@ -46,7 +48,7 @@ export const CLAVES_MODULO = [
 
 export type ClaveModulo = (typeof CLAVES_MODULO)[number];
 
-export type GrupoModulo = "Intranet" | "Calidad · SGC" | "Configuraciones";
+export type GrupoModulo = "Intranet" | "Calidad · SGC" | "Informática" | "Configuraciones";
 
 export interface Modulo {
   clave: ClaveModulo;
@@ -164,6 +166,13 @@ export const MODULOS: Modulo[] = [
     queEsEditar: "Cargar asociados y registrar sus evaluaciones.",
   },
   {
+    clave: "informatica",
+    nombre: "Controles periódicos de TI",
+    grupo: "Informática",
+    queEsEditar:
+      "Cargar y reprogramar controles, y registrar sus ejecuciones con la evidencia.",
+  },
+  {
     clave: "usuarios",
     nombre: "Usuarios y roles",
     grupo: "Configuraciones",
@@ -189,7 +198,12 @@ export const MODULOS: Modulo[] = [
   },
 ];
 
-export const GRUPOS_MODULO: GrupoModulo[] = ["Intranet", "Calidad · SGC", "Configuraciones"];
+export const GRUPOS_MODULO: GrupoModulo[] = [
+  "Intranet",
+  "Calidad · SGC",
+  "Informática",
+  "Configuraciones",
+];
 
 export interface PermisoDeModulo {
   ver: boolean;
@@ -270,6 +284,7 @@ export const MODULO_POR_RUTA: Record<string, ClaveModulo> = {
   "/activos": "activos",
   "/recursos-humanos": "personas",
   "/proveedores": "proveedores",
+  "/informatica/controles": "informatica",
   "/administracion/usuarios": "usuarios",
   "/administracion/padron": "padron",
   "/administracion/accesos": "ingresos",

@@ -298,6 +298,28 @@ export const NAVEGACION: GrupoNavegacion[] = [
     ],
   },
   {
+    // EL AREA DE TI TIENE SU PROPIA SECCION desde el 17 de noviembre.
+    // Va aparte de Calidad · SGC porque no es un modulo del sistema de
+    // gestion sino el trabajo de un area: lo primero que entro son los
+    // controles periodicos que piden el MP-SOP-03 y el MP-SOP-07, que la
+    // auditoria interna (NC-2026-014 y NC-2026-022) pidio ver
+    // programados aca. Lo que venga despues del area —licencias,
+    // tickets— se cuelga de este mismo grupo.
+    titulo: "Informática",
+    entradas: [
+      {
+        titulo: "Controles periódicos",
+        ruta: "/informatica/controles",
+        icono: "CalendarCheck",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Cronograma", ruta: "/informatica/controles" },
+          { titulo: "+ Nuevo control", ruta: "/informatica/controles/nuevo", soloGestion: true },
+        ],
+      },
+    ],
+  },
+  {
     // Se llamaba «Administración» y pasó a «Configuraciones» el 9 de
     // octubre. Administración es además un área de la empresa, así que
     // el menú se leía como «las pantallas del área de Administración»,

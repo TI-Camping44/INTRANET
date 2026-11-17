@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarCheck,
   ClipboardCheck,
   Contact,
   FileText,
@@ -52,6 +53,7 @@ const ICONOS: Record<string, LucideIcon> = {
   Wrench,
   UserCog,
   History,
+  CalendarCheck,
 };
 
 export function Icono({ nombre, className }: { nombre: string; className?: string }) {
