@@ -1,0 +1,22 @@
+-- =====================================================================
+-- Intranet - Camping 44 S.A.
+-- Alerta de vencimiento de licencias, dominios y certificados
+-- =====================================================================
+-- El MP-SOP-03, actividad 1, pone a cargo del Responsable de TI los
+-- activos intangibles —licencias, dominios y certificados— «con alerta
+-- de vencimiento a 30 dias». La ficha del activo ya guardaba la fecha en
+-- `vencimiento_garantia`, pero ningun trabajo la miraba: la alerta que
+-- el proceso promete no existia. Lo encontro la auditoria interna en la
+-- NC-2026-024 (inventario de licencias).
+--
+-- Desde ahora el trabajo programado de las 11:00 avisa al responsable
+-- del activo una vez cuando entra en los 30 dias, y todos los dias
+-- cuando ya vencio, hasta que se cargue la fecha nueva o el activo se
+-- de de baja.
+--
+-- Tipo propio y no «mantenimiento_programado» ni «general»: la campana
+-- se filtra por tipo, y un vencimiento de licencia mezclado con los
+-- mantenimientos no se encuentra.
+-- ---------------------------------------------------------------------
+
+alter type public.tipo_notificacion add value if not exists 'vencimiento_de_activo';

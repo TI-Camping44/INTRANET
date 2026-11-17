@@ -9,10 +9,12 @@ import {
   CORREO_TODOS,
   DIAS_AVISO_ACCION,
   DIAS_AVISO_REVISION_DOCUMENTO,
+  DIAS_AVISO_VENCIMIENTO_INTANGIBLE,
   DIAS_DE_REENVIO_DE_CORREO,
   DIAS_LIMITE_CIERRE_NC,
   ESTADOS_NC_ABIERTOS,
   ETIQUETAS_TIPO_AUDITORIA,
+  esIntangible,
 } from "@/lib/constantes";
 import {
   DIAS_AVISO_RECLAMO,
@@ -38,6 +40,8 @@ import {
  *      por vencer y verificacion del Plan C pendiente.
  *   9. No conformidades sin responder: aviso diario al responsable
  *      mientras la desviacion no tenga ninguna accion correctiva.
+ *  10. Licencias, dominios y certificados que vencen en 30 dias o ya
+ *      vencieron (MP-SOP-03, actividad 1).
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -59,6 +63,7 @@ interface Resumen {
   reclamosVencidos: number;
   verificacionesPendientes: number;
   ncSinResponder: number;
+  vencimientosDeActivos: number;
   saludosPublicados: number;
 }
 
@@ -98,6 +103,7 @@ export async function GET(peticion: NextRequest) {
     reclamosVencidos: 0,
     verificacionesPendientes: 0,
     ncSinResponder: 0,
+    vencimientosDeActivos: 0,
     saludosPublicados: 0,
   };
 
@@ -534,6 +540,59 @@ export async function GET(peticion: NextRequest) {
       claveUnicidad: `nc-sin-responder:${nc.id}:${hoy}`,
     });
     resumen.ncSinResponder += 1;
+  }
+
+  // ---------------------------------------------------------------
+  // 10 · Vencimiento de licencias, dominios y certificados
+  // ---------------------------------------------------------------
+  // Lo exige el MP-SOP-03, actividad 1: los intangibles se registran con
+  // «alerta de vencimiento a 30 días». La ficha ya guardaba la fecha en
+  // `vencimiento_garantia`, pero nada la miraba: lo encontró la auditoría
+  // interna en la NC-2026-024.
+  //
+  // Por vencer se avisa UNA vez por fecha de vencimiento —es un adelanto—
+  // y vencido se avisa TODOS LOS DÍAS, con la fecha de hoy en la clave:
+  // la misma convención que las acciones y los reclamos, por la misma
+  // razón. Una licencia vencida que avisa una vez y se calla es una
+  // licencia que nadie renueva. Renovar es cargar la fecha nueva en la
+  // ficha, y eso corta el aviso.
+  //
+  // Las suscripciones mensuales van sin fecha: se renuevan con cada
+  // factura y no tienen un vencimiento que avisar.
+  const { data: porVencer } = await supabase
+    .from("activos")
+    .select(
+      "id, codigo, nombre, categoria, vencimiento_garantia, " +
+        "responsable:responsable_id (id, correo)",
+    )
+    .neq("estado", "dado_de_baja")
+    .not("vencimiento_garantia", "is", null)
+    .lte("vencimiento_garantia", sumarDias(hoy, DIAS_AVISO_VENCIMIENTO_INTANGIBLE));
+
+  for (const activo of (porVencer ?? []) as any[]) {
+    if (!activo.responsable || !esIntangible(activo.categoria)) continue;
+
+    const vencido = activo.vencimiento_garantia < hoy;
+    const fecha = formatearFecha(activo.vencimiento_garantia);
+
+    await notificar(supabase, {
+      usuarioId: activo.responsable.id,
+      correoDestino: activo.responsable.correo,
+      tipo: "vencimiento_de_activo",
+      titulo: `${vencido ? "Vencido" : "Por vencer"} · ${activo.codigo}`,
+      mensaje: vencido
+        ? `"${activo.nombre}" venció el ${fecha}. Renuévelo y cargue la fecha nueva en la ficha, ` +
+          "o pase el activo a «Dado de baja» si ya no se usa."
+        : `"${activo.nombre}" vence el ${fecha}. Gestione la renovación y cargue la fecha nueva ` +
+          "en la ficha cuando esté confirmada.",
+      enlace: `/activos/${activo.id}`,
+      entidad: "activos",
+      entidadId: activo.id,
+      claveUnicidad: vencido
+        ? `activo-vencido:${activo.id}:${hoy}`
+        : `activo-por-vencer:${activo.id}:${activo.vencimiento_garantia}`,
+    });
+    resumen.vencimientosDeActivos += 1;
   }
 
   // -------------------------------------------------------------------

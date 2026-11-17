@@ -1,3 +1,5 @@
+import { esIntangible } from "@/lib/constantes";
+
 /**
  * Etiquetas de los activos: qué se imprime y en qué formato.
  *
@@ -10,13 +12,12 @@
  */
 
 /**
- * Lo que no se etiqueta: los intangibles no tienen dónde pegar nada. Se
- * comparan sin mayúsculas porque la categoría es texto libre.
+ * Lo que no se etiqueta: los intangibles no tienen dónde pegar nada. La
+ * lista vive en `CATEGORIAS_INTANGIBLES`, la misma que usa la alerta de
+ * vencimiento, para que las dos no digan cosas distintas.
  */
-export const CATEGORIAS_SIN_ETIQUETA = ["licencia", "certificado", "dominio"];
-
 export function llevaEtiqueta(categoria: string | null | undefined): boolean {
-  return !CATEGORIAS_SIN_ETIQUETA.includes((categoria ?? "").trim().toLowerCase());
+  return !esIntangible(categoria);
 }
 
 export type FormatoEtiqueta = "a4" | "cinta";
