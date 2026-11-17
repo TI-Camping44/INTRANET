@@ -6,6 +6,7 @@ import {
   Contact,
   FileText,
   History,
+  KeyRound,
   Home,
   LayoutDashboard,
   LogIn,
@@ -54,6 +55,7 @@ const ICONOS: Record<string, LucideIcon> = {
   UserCog,
   History,
   CalendarCheck,
+  KeyRound,
 };
 
 export function Icono({ nombre, className }: { nombre: string; className?: string }) {
