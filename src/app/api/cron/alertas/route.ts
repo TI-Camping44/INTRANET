@@ -3,6 +3,13 @@ import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { notificar } from "@/lib/notificaciones";
 import { publicarEfemeridesDelDia } from "@/lib/anuncios-de-efemerides";
+import {
+  DIAS_AVISO_CIERRE_CONTROL,
+  describirPeriodo,
+  periodoDe,
+  periodosPendientes,
+  sumarMesesAPeriodo,
+} from "@/lib/controles-ti";
 import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
 import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import {
@@ -42,6 +49,8 @@ import {
  *      mientras la desviacion no tenga ninguna accion correctiva.
  *  10. Licencias, dominios y certificados que vencen en 30 dias o ya
  *      vencieron (MP-SOP-03, actividad 1).
+ *  11. Controles periodicos de TI que tocan este mes, estan por cerrar
+ *      sin registro o vencieron.
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -64,6 +73,7 @@ interface Resumen {
   verificacionesPendientes: number;
   ncSinResponder: number;
   vencimientosDeActivos: number;
+  controlesTiPendientes: number;
   saludosPublicados: number;
 }
 
@@ -104,6 +114,7 @@ export async function GET(peticion: NextRequest) {
     verificacionesPendientes: 0,
     ncSinResponder: 0,
     vencimientosDeActivos: 0,
+    controlesTiPendientes: 0,
     saludosPublicados: 0,
   };
 
@@ -593,6 +604,74 @@ export async function GET(peticion: NextRequest) {
         : `activo-por-vencer:${activo.id}:${activo.vencimiento_garantia}`,
     });
     resumen.vencimientosDeActivos += 1;
+  }
+
+  // ---------------------------------------------------------------
+  // 11 · Controles periódicos de TI que tocan o vencieron
+  // ---------------------------------------------------------------
+  // El cronograma de Informática dice qué control toca cada mes, pero
+  // hasta ahora solo lo veía quien abría la pantalla. Ahora el
+  // responsable recibe tres avisos por período, y ninguno más:
+  //   - el primer día que corre el trabajo en el mes que le toca;
+  //   - cuando quedan DIAS_AVISO_CIERRE_CONTROL días para que el mes
+  //     termine y sigue sin registro;
+  //   - una vez, cuando el mes terminó sin registro.
+  // Las claves llevan el período y no la fecha de hoy: un control
+  // vencido no se recuerda todos los días, porque sigue a la vista en
+  // el cronograma con su estado «Vencido» y la auditoría lo va a mirar
+  // ahí.
+  const { data: controles } = await supabase
+    .from("controles_ti")
+    .select(
+      "id, codigo, nombre, frecuencia_meses, primer_periodo, " +
+        "responsable:responsable_id (id, correo), control_ti_ejecuciones (periodo)",
+    )
+    .eq("vigente", true);
+
+  const periodoActual = periodoDe(hoy);
+  const finDeMes = sumarDias(sumarMesesAPeriodo(periodoActual, 1), -1);
+  const cierreCercano = hoy >= sumarDias(finDeMes, -DIAS_AVISO_CIERRE_CONTROL);
+
+  for (const control of (controles ?? []) as any[]) {
+    if (!control.responsable) continue;
+
+    const ejecutados = new Set<string>(
+      (control.control_ti_ejecuciones ?? []).map((e: { periodo: string }) => e.periodo),
+    );
+
+    for (const periodo of periodosPendientes(control, ejecutados, hoy)) {
+      const enCurso = periodo === periodoActual;
+      const momento = !enCurso ? "vencido" : cierreCercano ? "por-cerrar" : "toca";
+      const titulos = {
+        toca: `Control de TI este mes · ${control.codigo}`,
+        "por-cerrar": `Control de TI sin registrar · ${control.codigo}`,
+        vencido: `Control de TI vencido · ${control.codigo}`,
+      } as const;
+      const mensajes = {
+        toca:
+          `«${control.nombre}» toca en ${describirPeriodo(periodo).toLowerCase()}. ` +
+          "Ejecútelo y registre el resultado con su evidencia en Informática → Controles.",
+        "por-cerrar":
+          `«${control.nombre}» toca en ${describirPeriodo(periodo).toLowerCase()} y sigue sin ` +
+          `registro. El mes termina el ${formatearFecha(finDeMes)}.`,
+        vencido:
+          `«${control.nombre}» tocaba en ${describirPeriodo(periodo).toLowerCase()} y no se ` +
+          "registró. Ejecútelo y regístrelo en ese período, o deje escrito por qué no se hizo.",
+      } as const;
+
+      await notificar(supabase, {
+        usuarioId: control.responsable.id,
+        correoDestino: control.responsable.correo,
+        tipo: "control_ti_pendiente",
+        titulo: titulos[momento],
+        mensaje: mensajes[momento],
+        enlace: `/informatica/controles/${control.id}`,
+        entidad: "controles_ti",
+        entidadId: control.id,
+        claveUnicidad: `control-ti:${control.id}:${periodo}:${momento}`,
+      });
+      resumen.controlesTiPendientes += 1;
+    }
   }
 
   // -------------------------------------------------------------------
