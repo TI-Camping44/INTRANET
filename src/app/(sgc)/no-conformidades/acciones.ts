@@ -560,6 +560,17 @@ export async function responderNoConformidad(
   const descargo = String(datos.get("descargo") ?? "").trim();
   const causaRaiz = String(datos.get("causa_raiz") ?? "").trim();
 
+  // ¿EXISTEN NO CONFORMIDADES SIMILARES? El formulario lo pregunta desde
+  // el alta, pero hasta el 17 de noviembre esta función no lo leía: la
+  // respuesta y el análisis horizontal se perdían al responder y solo se
+  // guardaban si después alguien editaba. Lo encontró la NC-2026-014,
+  // que al editarla mostró la pregunta vacía. `null` es «no contestó»,
+  // distinto de «no», y se valida igual que en `actualizarRespuesta()`.
+  const respuestaSimilares = String(datos.get("hay_nc_similares") ?? "");
+  const hayNcSimilares =
+    respuestaSimilares === "si" ? true : respuestaSimilares === "no" ? false : null;
+  const analisisHorizontal = String(datos.get("analisis_horizontal") ?? "").trim();
+
   // Las acciones llegan como tres listas paralelas y se arman por
   // posicion: la primera descripcion va con el primer responsable y el
   // primer plazo. El navegador conserva el orden de los campos, y el
@@ -613,6 +624,19 @@ export async function responderNoConformidad(
       error:
         "Escriba la causa raíz con al menos 10 caracteres: qué es lo que falta o falla y " +
         "que, si se corrige, evita que la desviación vuelva a pasar.",
+    };
+  }
+  if (hayNcSimilares === null) {
+    return {
+      exito: false,
+      error: "Indique si existen no conformidades similares o que puedan ocurrir.",
+    };
+  }
+  if (hayNcSimilares && analisisHorizontal.length < 15) {
+    return {
+      exito: false,
+      error:
+        "Detalle el análisis horizontal con al menos 15 caracteres: dónde más ocurrió o puede ocurrir.",
     };
   }
 
@@ -677,7 +701,13 @@ export async function responderNoConformidad(
   // esta funcion ya no las escribe ni las borra.
   await supabase
     .from("no_conformidades")
-    .update({ conclusion_causa_raiz: causaRaiz })
+    .update({
+      conclusion_causa_raiz: causaRaiz,
+      hay_nc_similares: hayNcSimilares,
+      // Si contestó que no, no queda guardado un análisis que contradice
+      // la respuesta.
+      analisis_horizontal: hayNcSimilares ? analisisHorizontal : null,
+    })
     .eq("id", noConformidadId);
 
   // 3 · El estado NO se toca aca. La desviacion pasa a «En proceso»
