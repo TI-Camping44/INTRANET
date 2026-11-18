@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
-import { esSoloLectura, puedeResponderLaDesviacion, requerirUsuario } from "@/lib/sesion";
+import {
+  esSoloLectura,
+  puedeRegistrarNoConformidad,
+  puedeResponderLaDesviacion,
+  requerirUsuario,
+} from "@/lib/sesion";
 import { departe, notificar } from "@/lib/notificaciones";
 import { depurarInformados, idsAComprobar } from "@/lib/informados";
 import { hoyEnAsuncion } from "@/lib/formato";
@@ -23,11 +28,11 @@ import type {
   ResultadoAccion,
 } from "@/lib/tipos";
 
-/** Alta de una desviacion. Cualquier colaborador puede registrarla. */
+/** Alta de una desviacion. Cualquier persona puede registrarla, Direccion incluida. */
 export async function crearNoConformidad(datos: FormData): Promise<ResultadoAccion> {
   const usuario = await requerirUsuario();
-  if (esSoloLectura(usuario)) {
-    return { exito: false, error: "El perfil de Dirección es de solo lectura." };
+  if (!puedeRegistrarNoConformidad(usuario)) {
+    return { exito: false, error: "Su perfil no puede registrar no conformidades." };
   }
 
   const supabase = crearClienteServidor();

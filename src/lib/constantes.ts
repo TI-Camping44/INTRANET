@@ -143,7 +143,8 @@ export const ETIQUETAS_ROL: Record<RolUsuario, string> = {
 
 export const DESCRIPCION_ROL: Record<RolUsuario, string> = {
   administrador_sgc: "Control total del sistema de gestión.",
-  direccion: "Consulta de indicadores y tableros, sin edición.",
+  direccion:
+    "Consulta de indicadores y tableros, sin edición. Registra desviaciones y responde las que tiene a cargo.",
   responsable_proceso: "Gestiona la documentación y los registros de su área.",
   auditor: "Lectura amplia y gestión de auditorías internas.",
   vendedor:
