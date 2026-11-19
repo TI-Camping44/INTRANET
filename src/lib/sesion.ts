@@ -149,6 +149,25 @@ export function esSoloLectura(usuario: Usuario | null): boolean {
 }
 
 /**
+ * Quien puede dar de alta una no conformidad: todos, Direccion incluida.
+ *
+ * ES LA TERCERA ESCRITURA DE DIRECCION, despues del organigrama y de la
+ * respuesta de la desviacion que tiene a cargo. Se abrio el 18/11/2026:
+ * Ariel Kemper quiso levantar una NC y el menu le ofrecia «+ Nueva No
+ * Conformidad» —la matriz le da `editar`— pero la pantalla lo mandaba a
+ * «Sin acceso». El Responsable de TI fijo el criterio: Direccion tiene
+ * que poder registrar desviaciones, como cualquier colaborador.
+ *
+ * Es SOLO el alta. Editar la cabecera, cerrarla o cargar acciones sigue
+ * cerrado para Direccion (`esSoloLectura`). En la base lo acota
+ * `no_conformidades_alta`: Direccion inserta unicamente filas donde ella
+ * misma figura como quien la detecto, y sube evidencia unicamente a esas.
+ */
+export function puedeRegistrarNoConformidad(usuario: Usuario | null): boolean {
+  return !!usuario;
+}
+
+/**
  * Quien puede cargar y corregir la respuesta de una desviacion.
  *
  * ES LA SEGUNDA ESCRITURA DE DIRECCION EN TODO EL SISTEMA, despues de

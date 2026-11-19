@@ -223,6 +223,8 @@ export type TipoNotificacion =
   | "auditoria_programada"
   | "indicador_fuera_de_meta"
   | "mantenimiento_programado"
+  | "vencimiento_de_activo"
+  | "control_ti_pendiente"
   | "reclamo_asignado"
   | "reclamo_por_vencer"
   | "reclamo_vencido"

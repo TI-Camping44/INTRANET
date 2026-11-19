@@ -143,7 +143,8 @@ export const ETIQUETAS_ROL: Record<RolUsuario, string> = {
 
 export const DESCRIPCION_ROL: Record<RolUsuario, string> = {
   administrador_sgc: "Control total del sistema de gestión.",
-  direccion: "Consulta de indicadores y tableros, sin edición.",
+  direccion:
+    "Consulta de indicadores y tableros, sin edición. Registra desviaciones y responde las que tiene a cargo.",
   responsable_proceso: "Gestiona la documentación y los registros de su área.",
   auditor: "Lectura amplia y gestión de auditorías internas.",
   vendedor:
@@ -880,6 +881,27 @@ export const DIAS_AVISO_REVISION_DOCUMENTO = 30;
 
 /** Ventana de aviso para acciones proximas a vencer. */
 export const DIAS_AVISO_ACCION = 3;
+
+/**
+ * Ventana de aviso del vencimiento de un activo intangible: licencia,
+ * dominio o certificado. La fija el MP-SOP-03, actividad 1: «intangibles
+ * (licencias, dominios y certificados, con alerta de vencimiento a 30
+ * días)». La pidió la NC-2026-024: el vencimiento estaba cargado en la
+ * ficha y nada avisaba cuando se acercaba.
+ */
+export const DIAS_AVISO_VENCIMIENTO_INTANGIBLE = 30;
+
+/**
+ * Las categorías de activo que son intangibles. Se comparan sin
+ * mayúsculas porque la categoría es texto libre. Las usan la alerta de
+ * vencimiento y las etiquetas, que no se imprimen para lo que no tiene
+ * dónde pegarse.
+ */
+export const CATEGORIAS_INTANGIBLES = ["licencia", "certificado", "dominio"];
+
+export function esIntangible(categoria: string | null | undefined): boolean {
+  return CATEGORIAS_INTANGIBLES.includes((categoria ?? "").trim().toLowerCase());
+}
 
 /** Tamano maximo por archivo adjunto: 20 MB. */
 export const TAMANO_MAXIMO_ADJUNTO = 20 * 1024 * 1024;

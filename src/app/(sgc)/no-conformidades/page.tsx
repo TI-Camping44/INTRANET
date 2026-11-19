@@ -19,7 +19,7 @@ import {
   TablaEncabezado,
   TablaFila,
 } from "@/components/ui/tabla";
-import { esSoloLectura, requerirModulo } from "@/lib/sesion";
+import { esSoloLectura, puedeRegistrarNoConformidad, requerirModulo } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 import {
   DEPARTAMENTOS,
@@ -187,7 +187,7 @@ export default async function PaginaNoConformidades({
       <EncabezadoPagina
         titulo="No Conformidades"
         acciones={
-          !soloLectura ? (
+          puedeRegistrarNoConformidad(usuario) ? (
             <Boton comoHijo>
               <Link href="/no-conformidades/nueva">
                 <Plus /> Nueva No Conformidad

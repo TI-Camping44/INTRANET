@@ -35,6 +35,13 @@ export const ETIQUETAS_RESULTADO_CONTROL: Record<ResultadoControl, string> = {
   no_conforme: "No conforme",
 };
 
+/**
+ * Cuántos días antes de que termine el mes se recuerda un control que
+ * toca ese mes y sigue sin registro. El primer aviso sale cuando empieza
+ * el mes; este es el segundo y el último antes de que venza.
+ */
+export const DIAS_AVISO_CIERRE_CONTROL = 7;
+
 /** Cuánto tiene que decir la observación cuando el resultado no es conforme. */
 export const LARGO_MINIMO_OBSERVACION = 10;
 

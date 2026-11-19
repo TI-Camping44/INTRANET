@@ -5,7 +5,7 @@ import { Boton } from "@/components/ui/boton";
 import { redirect } from "next/navigation";
 import { EncabezadoPagina } from "@/components/comunes/encabezado-pagina";
 import { FormularioNoConformidad } from "@/app/(sgc)/no-conformidades/formulario-no-conformidad";
-import { esSoloLectura, requerirUsuario } from "@/lib/sesion";
+import { puedeRegistrarNoConformidad, requerirUsuario } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/servidor";
 
 export const metadata: Metadata = { title: "Nueva No Conformidad" };
@@ -27,7 +27,7 @@ export default async function PaginaNuevaNoConformidad({
   searchParams: { auditoria?: string };
 }) {
   const usuario = await requerirUsuario();
-  if (esSoloLectura(usuario)) redirect("/sin-acceso?motivo=permisos");
+  if (!puedeRegistrarNoConformidad(usuario)) redirect("/sin-acceso?motivo=permisos");
 
   const supabase = crearClienteServidor();
 

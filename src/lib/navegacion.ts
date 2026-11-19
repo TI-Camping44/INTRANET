@@ -317,6 +317,15 @@ export const NAVEGACION: GrupoNavegacion[] = [
           { titulo: "+ Nuevo control", ruta: "/informatica/controles/nuevo", soloGestion: true },
         ],
       },
+      {
+        // La matriz de accesos por puesto, que pidió la NC-2026-019: qué
+        // recibe cada puesto en cada sistema, contra lo que se demuestra
+        // el mínimo privilegio.
+        titulo: "Accesos por puesto",
+        ruta: "/informatica/accesos",
+        icono: "KeyRound",
+        fase: "operativo",
+      },
     ],
   },
   {

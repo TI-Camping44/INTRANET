@@ -3,16 +3,25 @@ import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { botonesDelAviso, notificar } from "@/lib/notificaciones";
 import { publicarEfemeridesDelDia } from "@/lib/anuncios-de-efemerides";
+import {
+  DIAS_AVISO_CIERRE_CONTROL,
+  describirPeriodo,
+  periodoDe,
+  periodosPendientes,
+  sumarMesesAPeriodo,
+} from "@/lib/controles-ti";
 import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
 import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
 import {
   CORREO_TODOS,
   DIAS_AVISO_ACCION,
   DIAS_AVISO_REVISION_DOCUMENTO,
+  DIAS_AVISO_VENCIMIENTO_INTANGIBLE,
   DIAS_DE_REENVIO_DE_CORREO,
   DIAS_LIMITE_CIERRE_NC,
   ESTADOS_NC_ABIERTOS,
   ETIQUETAS_TIPO_AUDITORIA,
+  esIntangible,
 } from "@/lib/constantes";
 import {
   DIAS_AVISO_RECLAMO,
@@ -38,6 +47,10 @@ import {
  *      por vencer y verificacion del Plan C pendiente.
  *   9. No conformidades sin responder: aviso diario al responsable
  *      mientras la desviacion no tenga ninguna accion correctiva.
+ *  10. Licencias, dominios y certificados que vencen en 30 dias o ya
+ *      vencieron (MP-SOP-03, actividad 1).
+ *  11. Controles periodicos de TI que tocan este mes, estan por cerrar
+ *      sin registro o vencieron.
  *
  * Corre con la clave de servicio porque no hay sesion de usuario. La
  * duplicacion de avisos se evita con la clave de unicidad de cada
@@ -59,6 +72,8 @@ interface Resumen {
   reclamosVencidos: number;
   verificacionesPendientes: number;
   ncSinResponder: number;
+  vencimientosDeActivos: number;
+  controlesTiPendientes: number;
   saludosPublicados: number;
 }
 
@@ -98,6 +113,8 @@ export async function GET(peticion: NextRequest) {
     reclamosVencidos: 0,
     verificacionesPendientes: 0,
     ncSinResponder: 0,
+    vencimientosDeActivos: 0,
+    controlesTiPendientes: 0,
     saludosPublicados: 0,
   };
 
@@ -561,6 +578,127 @@ export async function GET(peticion: NextRequest) {
       claveUnicidad: `nc-sin-responder:${nc.id}:${hoy}`,
     });
     resumen.ncSinResponder += 1;
+  }
+
+  // ---------------------------------------------------------------
+  // 10 · Vencimiento de licencias, dominios y certificados
+  // ---------------------------------------------------------------
+  // Lo exige el MP-SOP-03, actividad 1: los intangibles se registran con
+  // «alerta de vencimiento a 30 días». La ficha ya guardaba la fecha en
+  // `vencimiento_garantia`, pero nada la miraba: lo encontró la auditoría
+  // interna en la NC-2026-024.
+  //
+  // Por vencer se avisa UNA vez por fecha de vencimiento —es un adelanto—
+  // y vencido se avisa TODOS LOS DÍAS, con la fecha de hoy en la clave:
+  // la misma convención que las acciones y los reclamos, por la misma
+  // razón. Una licencia vencida que avisa una vez y se calla es una
+  // licencia que nadie renueva. Renovar es cargar la fecha nueva en la
+  // ficha, y eso corta el aviso.
+  //
+  // Las suscripciones mensuales van sin fecha: se renuevan con cada
+  // factura y no tienen un vencimiento que avisar.
+  const { data: porVencer } = await supabase
+    .from("activos")
+    .select(
+      "id, codigo, nombre, categoria, vencimiento_garantia, " +
+        "responsable:responsable_id (id, correo)",
+    )
+    .neq("estado", "dado_de_baja")
+    .not("vencimiento_garantia", "is", null)
+    .lte("vencimiento_garantia", sumarDias(hoy, DIAS_AVISO_VENCIMIENTO_INTANGIBLE));
+
+  for (const activo of (porVencer ?? []) as any[]) {
+    if (!activo.responsable || !esIntangible(activo.categoria)) continue;
+
+    const vencido = activo.vencimiento_garantia < hoy;
+    const fecha = formatearFecha(activo.vencimiento_garantia);
+
+    await notificar(supabase, {
+      usuarioId: activo.responsable.id,
+      correoDestino: activo.responsable.correo,
+      tipo: "vencimiento_de_activo",
+      titulo: `${vencido ? "Vencido" : "Por vencer"} · ${activo.codigo}`,
+      mensaje: vencido
+        ? `"${activo.nombre}" venció el ${fecha}. Renuévelo y cargue la fecha nueva en la ficha, ` +
+          "o pase el activo a «Dado de baja» si ya no se usa."
+        : `"${activo.nombre}" vence el ${fecha}. Gestione la renovación y cargue la fecha nueva ` +
+          "en la ficha cuando esté confirmada.",
+      enlace: `/activos/${activo.id}`,
+      entidad: "activos",
+      entidadId: activo.id,
+      claveUnicidad: vencido
+        ? `activo-vencido:${activo.id}:${hoy}`
+        : `activo-por-vencer:${activo.id}:${activo.vencimiento_garantia}`,
+    });
+    resumen.vencimientosDeActivos += 1;
+  }
+
+  // ---------------------------------------------------------------
+  // 11 · Controles periódicos de TI que tocan o vencieron
+  // ---------------------------------------------------------------
+  // El cronograma de Informática dice qué control toca cada mes, pero
+  // hasta ahora solo lo veía quien abría la pantalla. Ahora el
+  // responsable recibe tres avisos por período, y ninguno más:
+  //   - el primer día que corre el trabajo en el mes que le toca;
+  //   - cuando quedan DIAS_AVISO_CIERRE_CONTROL días para que el mes
+  //     termine y sigue sin registro;
+  //   - una vez, cuando el mes terminó sin registro.
+  // Las claves llevan el período y no la fecha de hoy: un control
+  // vencido no se recuerda todos los días, porque sigue a la vista en
+  // el cronograma con su estado «Vencido» y la auditoría lo va a mirar
+  // ahí.
+  const { data: controles } = await supabase
+    .from("controles_ti")
+    .select(
+      "id, codigo, nombre, frecuencia_meses, primer_periodo, " +
+        "responsable:responsable_id (id, correo), control_ti_ejecuciones (periodo)",
+    )
+    .eq("vigente", true);
+
+  const periodoActual = periodoDe(hoy);
+  const finDeMes = sumarDias(sumarMesesAPeriodo(periodoActual, 1), -1);
+  const cierreCercano = hoy >= sumarDias(finDeMes, -DIAS_AVISO_CIERRE_CONTROL);
+
+  for (const control of (controles ?? []) as any[]) {
+    if (!control.responsable) continue;
+
+    const ejecutados = new Set<string>(
+      (control.control_ti_ejecuciones ?? []).map((e: { periodo: string }) => e.periodo),
+    );
+
+    for (const periodo of periodosPendientes(control, ejecutados, hoy)) {
+      const enCurso = periodo === periodoActual;
+      const momento = !enCurso ? "vencido" : cierreCercano ? "por-cerrar" : "toca";
+      const titulos = {
+        toca: `Control de TI este mes · ${control.codigo}`,
+        "por-cerrar": `Control de TI sin registrar · ${control.codigo}`,
+        vencido: `Control de TI vencido · ${control.codigo}`,
+      } as const;
+      const mensajes = {
+        toca:
+          `«${control.nombre}» toca en ${describirPeriodo(periodo).toLowerCase()}. ` +
+          "Ejecútelo y registre el resultado con su evidencia en Informática → Controles.",
+        "por-cerrar":
+          `«${control.nombre}» toca en ${describirPeriodo(periodo).toLowerCase()} y sigue sin ` +
+          `registro. El mes termina el ${formatearFecha(finDeMes)}.`,
+        vencido:
+          `«${control.nombre}» tocaba en ${describirPeriodo(periodo).toLowerCase()} y no se ` +
+          "registró. Ejecútelo y regístrelo en ese período, o deje escrito por qué no se hizo.",
+      } as const;
+
+      await notificar(supabase, {
+        usuarioId: control.responsable.id,
+        correoDestino: control.responsable.correo,
+        tipo: "control_ti_pendiente",
+        titulo: titulos[momento],
+        mensaje: mensajes[momento],
+        enlace: `/informatica/controles/${control.id}`,
+        entidad: "controles_ti",
+        entidadId: control.id,
+        claveUnicidad: `control-ti:${control.id}:${periodo}:${momento}`,
+      });
+      resumen.controlesTiPendientes += 1;
+    }
   }
 
   // -------------------------------------------------------------------
