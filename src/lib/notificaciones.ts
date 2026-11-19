@@ -40,6 +40,46 @@ export function departe(usuario: { nombre_completo: string; correo: string }) {
   return { nombre: usuario.nombre_completo, correo: usuario.correo };
 }
 
+/**
+ * El segundo boton del correo, deducido de lo que la notificacion ya
+ * guarda.
+ *
+ * SE DEDUCE Y NO SE GUARDA, y ese es el punto. El correo sale por dos
+ * caminos: el envio dentro de la peticion, que tiene un tope de seis
+ * segundos y casi nunca llega, y el reenvio de las 11:00, que es por
+ * donde sale practicamente todo. El reenvio lee la fila de
+ * `notificaciones`, que tiene una sola columna `enlace`: si el segundo
+ * boton viajara como parametro, se perderia justo en el camino por el
+ * que se entrega el correo de verdad. Deduciendolo de `tipo` y
+ * `entidad_id` los dos caminos mandan el mismo mensaje, sin columna
+ * nueva.
+ *
+ * DEVUELVE LOS DOS BOTONES, no solo el segundo, y el primero PISA al
+ * `enlace` guardado. Las 212 filas escritas antes del 19 de noviembre
+ * guardan el enlace viejo —el del formulario— y el reenvio las toma tal
+ * como estan: rotular ese enlace «Ver la no conformidad» seria mandar un
+ * boton que miente. Deduciendo los dos de `entidad_id`, una fila vieja y
+ * una nueva salen igual y no hay que corregir nada en la base.
+ *
+ * Hoy lo usa un solo aviso. Cuando aparezca el segundo, se agrega acá y
+ * los dos caminos lo toman solos.
+ */
+export function botonesDelAviso(datos: {
+  tipo?: string | null;
+  entidadId?: string | null;
+}): { enlace: string; texto: string; enlaceSecundario: string; textoSecundario: string } | null {
+  if (datos.tipo === "no_conformidad_por_responder" && datos.entidadId) {
+    return {
+      enlace: `/no-conformidades/${datos.entidadId}`,
+      texto: "Ver la no conformidad",
+      enlaceSecundario: `/acciones/nueva?nc=${datos.entidadId}`,
+      textoSecundario: "Cargar la acción correctiva",
+    };
+  }
+
+  return null;
+}
+
 export async function crearNotificacion(
   supabase: SupabaseClient,
   datos: DatosNotificacion,
@@ -103,13 +143,18 @@ export async function notificar(
   // Si no hay id, la alerta ya existía (clave de unicidad) y no se reenvía.
   if (!id || datos.enviarPorCorreo === false || !datos.correoDestino) return;
 
+  const botones = botonesDelAviso({ tipo: datos.tipo, entidadId: datos.entidadId });
+
   const enviado = await conTope(
     enviarCorreo({
       para: datos.correoDestino,
       asunto: datos.titulo,
       titulo: datos.titulo,
       cuerpo: datos.mensaje,
-      enlace: urlAbsoluta(datos.enlace),
+      enlace: urlAbsoluta(botones?.enlace ?? datos.enlace),
+      textoEnlace: botones?.texto,
+      enlaceSecundario: botones ? urlAbsoluta(botones.enlaceSecundario) : null,
+      textoEnlaceSecundario: botones?.textoSecundario,
       deParteDe: datos.deParteDe,
     }),
     false,

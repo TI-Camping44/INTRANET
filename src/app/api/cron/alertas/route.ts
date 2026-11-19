@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
-import { notificar } from "@/lib/notificaciones";
+import { botonesDelAviso, notificar } from "@/lib/notificaciones";
 import { publicarEfemeridesDelDia } from "@/lib/anuncios-de-efemerides";
 import { enviarCorreo, urlAbsoluta } from "@/lib/correo";
 import { formatearFecha, hoyEnAsuncion, sumarDias } from "@/lib/formato";
@@ -273,7 +273,7 @@ export async function GET(peticion: NextRequest) {
   // momento se reintenta aca, donde nadie esta esperando.
   const { data: pendientes } = await supabase
     .from("notificaciones")
-    .select("id, titulo, mensaje, enlace, usuarios:usuario_id (correo)")
+    .select("id, tipo, titulo, mensaje, enlace, entidad_id, usuarios:usuario_id (correo)")
     .eq("requiere_correo", true)
     .eq("correo_enviado", false)
     .gte(
@@ -287,12 +287,27 @@ export async function GET(peticion: NextRequest) {
     const destino = notificacion.usuarios?.correo;
     if (!destino) continue;
 
+    // LOS BOTONES SE DEDUCEN ACA TAMBIEN. Por este camino sale casi
+    // todo el correo —el envio dentro de la peticion tiene seis segundos
+    // y rara vez llega— asi que si el reenvio mandara un solo boton, el
+    // correo que la gente recibe seria el incompleto. Y el enlace
+    // deducido pisa al guardado: las filas escritas antes del 19 de
+    // noviembre apuntan al formulario, y rotular eso «Ver la no
+    // conformidad» seria peor que el problema original.
+    const botones = botonesDelAviso({
+      tipo: notificacion.tipo,
+      entidadId: notificacion.entidad_id,
+    });
+
     const enviado = await enviarCorreo({
       para: destino,
       asunto: notificacion.titulo,
       titulo: notificacion.titulo,
       cuerpo: notificacion.mensaje,
-      enlace: urlAbsoluta(notificacion.enlace),
+      enlace: urlAbsoluta(botones?.enlace ?? notificacion.enlace),
+      textoEnlace: botones?.texto,
+      enlaceSecundario: botones ? urlAbsoluta(botones.enlaceSecundario) : null,
+      textoEnlaceSecundario: botones?.textoSecundario,
     });
 
     if (enviado) {
@@ -528,7 +543,19 @@ export async function GET(peticion: NextRequest) {
         `"${nc.titulo}" sigue sin ninguna acción correctiva cargada. ${cuanto} ` +
         "Responder es cargar el análisis de causa raíz y al menos una acción; el cierre " +
         "puede llevar el tiempo que las acciones necesiten.",
-      enlace: `/acciones/nueva?nc=${nc.id}`,
+      // LLEVA A LA DESVIACION, NO AL FORMULARIO DE CARGA. Hasta el 19 de
+      // noviembre apuntaba a `/acciones/nueva?nc=<id>`, asi que quien
+      // apretaba «Abrir en la Intranet» caia en el formulario vacio sin
+      // haber visto nunca la desviacion: ni la descripcion completa, ni
+      // el area, ni la severidad, ni quien la detecto. Lo marco Ariel
+      // Kemper, que es justamente el responsable de la NC-2026-010 y el
+      // destinatario del aviso. El correo le pide analizar la causa
+      // raiz: para eso hay que leer el hallazgo primero. La ficha ya
+      // lleva «Cargar la accion correctiva» para quien puede cargarla,
+      // asi que no se pierde el camino, se le antepone el detalle. Y es
+      // ademas lo que hacen las otras seis alertas del archivo, que
+      // llevan todas a la ficha del registro.
+      enlace: `/no-conformidades/${nc.id}`,
       entidad: "no_conformidades",
       entidadId: nc.id,
       claveUnicidad: `nc-sin-responder:${nc.id}:${hoy}`,

@@ -54,6 +54,20 @@ interface OpcionesCorreo {
   enlace?: string | null;
   textoEnlace?: string;
   /**
+   * El segundo boton, cuando el aviso ofrece dos caminos.
+   *
+   * HIZO FALTA PORQUE UN SOLO BOTON OBLIGA A ELEGIR MAL. El aviso de
+   * «Sin responder» de una no conformidad llevaba derecho al formulario
+   * de carga de la accion correctiva, asi que quien lo abria nunca veia
+   * la desviacion: ese formulario solo muestra el codigo y el titulo.
+   * Lo marco Ariel Kemper el 19 de noviembre, responsable de la
+   * NC-2026-010, y pidio los dos: ver la desviacion y cargar la accion.
+   * Mandarlo solo a la ficha tampoco alcanzaba —le agrega un clic a lo
+   * que el correo le esta pidiendo que haga—.
+   */
+  enlaceSecundario?: string | null;
+  textoEnlaceSecundario?: string;
+  /**
    * Quien origino el aviso: quien asigno la accion, quien mando el
    * documento a revision, quien registro la no conformidad.
    *
@@ -96,13 +110,40 @@ function construirHtml({
   cuerpo,
   enlace,
   textoEnlace,
+  enlaceSecundario,
+  textoEnlaceSecundario,
   deParteDe,
 }: OpcionesCorreo): string {
-  const boton = enlace
-    ? `<tr><td style="padding:24px 32px 0 32px;">
+  const botonPrimario = enlace
+    ? `<td style="padding-right:8px;">
          <a href="${enlace}" style="display:inline-block;background:#E01E37;color:#ffffff;
             text-decoration:none;padding:11px 20px;border-radius:6px;font-weight:600;
             font-size:14px;">${textoEnlace ?? `Abrir en la ${NOMBRE_SISTEMA}`}</a>
+       </td>`
+    : "";
+
+  // EL RELLENO DEL SEGUNDO ES UN PIXEL MENOR EN CADA LADO, porque lleva
+  // borde de un pixel: con el mismo relleno quedaria un boton mas alto
+  // que el otro, que es lo que se ve cuando dos botones se pusieron sin
+  // mirarlos juntos.
+  const botonSecundario =
+    enlace && enlaceSecundario && textoEnlaceSecundario
+      ? `<td>
+           <a href="${enlaceSecundario}" style="display:inline-block;background:#ffffff;
+              color:#14161B;text-decoration:none;padding:10px 19px;border-radius:6px;
+              font-weight:600;font-size:14px;border:1px solid #d1d5db;"
+              >${textoEnlaceSecundario}</a>
+         </td>`
+      : "";
+
+  // VAN EN CELDAS DE UNA TABLA y no uno detras del otro: Outlook no
+  // respeta `display:inline-block` entre dos anclas sueltas y los
+  // apilaria.
+  const boton = botonPrimario
+    ? `<tr><td style="padding:24px 32px 0 32px;">
+         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+           <tr>${botonPrimario}${botonSecundario}</tr>
+         </table>
        </td></tr>`
     : "";
 
@@ -193,9 +234,21 @@ function armarMensaje(opciones: OpcionesCorreo) {
     replyTo: opciones.deParteDe?.correo ?? undefined,
     to: Array.isArray(opciones.para) ? opciones.para.join(", ") : opciones.para,
     subject: opciones.asunto,
-    text: `${opciones.titulo}\n\n${opciones.cuerpo}${
-      opciones.enlace ? `\n\n${opciones.enlace}` : ""
-    }`,
+    // CON DOS ENLACES SE ROTULAN LOS DOS. Con uno solo va pelado, como
+    // iba: dos direcciones seguidas y sin decir cual es cual no se
+    // pueden distinguir.
+    text: [
+      opciones.titulo,
+      opciones.cuerpo,
+      ...(opciones.enlace
+        ? opciones.enlaceSecundario && opciones.textoEnlaceSecundario
+          ? [
+              `${opciones.textoEnlace ?? `Abrir en la ${NOMBRE_SISTEMA}`}: ${opciones.enlace}`,
+              `${opciones.textoEnlaceSecundario}: ${opciones.enlaceSecundario}`,
+            ]
+          : [opciones.enlace]
+        : []),
+    ].join("\n\n"),
     html: construirHtml(opciones),
   };
 }
