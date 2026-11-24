@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 
 /**
- * Informática todavía no tiene pantalla propia: tiene un submódulo, los
- * controles periódicos. La ruta del grupo lleva a ese, así un enlace a
- * `/informatica` no termina en un 404 mientras la sección crece.
+ * Informática no tiene pantalla de portada: tiene sus submódulos. La ruta
+ * del grupo lleva al registro de avances y cambios, que es lo primero del
+ * menú y lo que más se mira, así un enlace a `/informatica` no termina en
+ * un 404.
  */
 export default function PaginaInformatica() {
-  redirect("/informatica/controles");
+  redirect("/informatica/avances");
 }

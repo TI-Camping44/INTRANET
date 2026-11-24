@@ -167,10 +167,11 @@ export const MODULOS: Modulo[] = [
   },
   {
     clave: "informatica",
-    nombre: "Controles periódicos de TI",
+    nombre: "Informática",
     grupo: "Informática",
     queEsEditar:
-      "Cargar y reprogramar controles, y registrar sus ejecuciones con la evidencia.",
+      "Registrar avances y cambios de TI, cargar y reprogramar controles con sus " +
+      "ejecuciones, y mantener la matriz de accesos.",
   },
   {
     clave: "usuarios",
@@ -284,6 +285,7 @@ export const MODULO_POR_RUTA: Record<string, ClaveModulo> = {
   "/activos": "activos",
   "/recursos-humanos": "personas",
   "/proveedores": "proveedores",
+  "/informatica/avances": "informatica",
   "/informatica/controles": "informatica",
   "/informatica/accesos": "informatica",
   "/administracion/usuarios": "usuarios",

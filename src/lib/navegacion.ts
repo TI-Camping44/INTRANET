@@ -308,6 +308,20 @@ export const NAVEGACION: GrupoNavegacion[] = [
     titulo: "Informática",
     entradas: [
       {
+        // EL REGISTRO DE LO QUE TI DEJA HECHO, desde el 24 de noviembre.
+        // Lo que se pide y se sigue vive en la ticketera; acá queda qué
+        // cambió en cada sistema, para que Dirección y la auditoría lo
+        // vean sin preguntar. Va primero porque es lo que más se mira.
+        titulo: "Avances y cambios",
+        ruta: "/informatica/avances",
+        icono: "ClipboardList",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Todos", ruta: "/informatica/avances" },
+          { titulo: "+ Registrar avance", ruta: "/informatica/avances/nuevo", soloGestion: true },
+        ],
+      },
+      {
         titulo: "Controles periódicos",
         ruta: "/informatica/controles",
         icono: "CalendarCheck",

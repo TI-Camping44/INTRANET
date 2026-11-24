@@ -3,6 +3,7 @@
 import {
   CalendarCheck,
   ClipboardCheck,
+  ClipboardList,
   Contact,
   FileText,
   History,
@@ -56,6 +57,7 @@ const ICONOS: Record<string, LucideIcon> = {
   History,
   CalendarCheck,
   KeyRound,
+  ClipboardList,
 };
 
 export function Icono({ nombre, className }: { nombre: string; className?: string }) {
