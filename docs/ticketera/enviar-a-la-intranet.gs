@@ -213,3 +213,34 @@ function avisarALaIntranet_(clave, resultado, mensaje) {
     // Avisar nunca puede romper el script que avisa.
   }
 }
+
+// ---------------------------------------------------------------------
+// Avisos de los demás automatismos de la ticketera
+//
+// Los activadores de este proyecto se crearon a mano y llaman a cada
+// función por su nombre. Para que avisen sin tocar los activadores, en
+// Código.gs cada función pasó a llamarse <nombre>_sinAviso_ y acá queda
+// una con el nombre original que la corre y avisa cómo salió. Para
+// volver atrás: borrar estas funciones y devolverles el nombre en
+// Código.gs.
+// ---------------------------------------------------------------------
+
+function conAvisoALaIntranet_(clave, funcion, argumentos) {
+  try {
+    const resultado = funcion.apply(null, argumentos);
+    avisarALaIntranet_(clave, 'ok');
+    return resultado;
+  } catch (e) {
+    avisarALaIntranet_(clave, 'error', e && e.message ? e.message : String(e));
+    throw e;
+  }
+}
+
+function revisarSLA() { return conAvisoALaIntranet_('ticketera.revisar-sla', revisarSLA_sinAviso_, arguments); }
+function revisarEspera() { return conAvisoALaIntranet_('ticketera.revisar-espera', revisarEspera_sinAviso_, arguments); }
+function buscarRespuestas() { return conAvisoALaIntranet_('ticketera.buscar-respuestas', buscarRespuestas_sinAviso_, arguments); }
+function sincronizarDirectorio() { return conAvisoALaIntranet_('ticketera.sincronizar-directorio', sincronizarDirectorio_sinAviso_, arguments); }
+function resumenSemanal() { return conAvisoALaIntranet_('ticketera.resumen-semanal', resumenSemanal_sinAviso_, arguments); }
+function informeSemanalAutomatico() { return conAvisoALaIntranet_('ticketera.informe-semanal', informeSemanalAutomatico_sinAviso_, arguments); }
+function informeMensualAutomatico() { return conAvisoALaIntranet_('ticketera.informe-mensual', informeMensualAutomatico_sinAviso_, arguments); }
+function informeAnualAutomatico() { return conAvisoALaIntranet_('ticketera.informe-anual', informeAnualAutomatico_sinAviso_, arguments); }
