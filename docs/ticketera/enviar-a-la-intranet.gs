@@ -63,24 +63,34 @@ function enviarTicketsALaIntranet() {
 function leerTicketsParaLaIntranet_(hoja) {
   if (!hoja) throw new Error('No encuentro la hoja ' + INTRANET_HOJA_TICKETS);
   const valores = hoja.getDataRange().getValues();
-  const titulos = valores.shift().map(function (t) { return String(t).trim(); });
-  const col = function (nombre) { return titulos.indexOf(nombre); };
+  const titulos = valores.shift().map(normalizarTitulo_);
+  // Se busca por el comienzo del título y sin tildes ni espacios: la
+  // planilla dice «Área / Sector» y «Descripción del problema o
+  // solicitud», y un retoque del formulario no tiene que cortar el envío.
+  const col = function () {
+    for (let i = 0; i < arguments.length; i++) {
+      const buscado = normalizarTitulo_(arguments[i]);
+      const indice = titulos.findIndex(function (t) { return t.indexOf(buscado) === 0; });
+      if (indice >= 0) return indice;
+    }
+    return -1;
+  };
   const c = {
     fecha: col('Marca temporal'),
-    correo: col('Dirección de correo electrónico') >= 0 ? col('Dirección de correo electrónico') : col('Dirección de correo'),
-    area: col('Área/Sector'),
+    correo: col('Dirección de correo'),
+    area: col('Área'),
     tipo: col('Tipo de solicitud'),
-    categoria: col('Categoría del problema'),
+    categoria: col('Categoría'),
     prioridad: col('Prioridad'),
     descripcion: col('Descripción'),
-    adjunto: col('Adjunto'),
+    adjunto: col('Adjunt'),
     impacto: col('Impacto'),
-    numero: col('N° Ticket'),
+    numero: col('N° Ticket', 'Nº Ticket', 'Ticket'),
     estado: col('Estado'),
     responsable: col('Responsable'),
     inicio: col('Fecha Inicio'),
-    cierre: col('Fecha Cierra'),
-    observaciones: col('Observaciones TI'),
+    cierre: col('Fecha Cierr'),
+    observaciones: col('Observaciones'),
     comprometida: col('Fecha comprometida'),
     avance: col('Avance'),
   };
@@ -93,21 +103,21 @@ function leerTicketsParaLaIntranet_(hoja) {
       return {
         numero: String(v(fila, c.numero)).trim(),
         fecha_solicitud: fechaHoraIntranet_(v(fila, c.fecha)),
-        solicitante_correo: texto_(v(fila, c.correo)),
-        area: texto_(v(fila, c.area)),
-        tipo_solicitud: texto_(v(fila, c.tipo)),
-        categoria: texto_(v(fila, c.categoria)),
-        prioridad: texto_(v(fila, c.prioridad)),
-        descripcion: texto_(v(fila, c.descripcion)),
-        adjunto: texto_(v(fila, c.adjunto)),
-        impacto: texto_(v(fila, c.impacto)),
-        estado: texto_(v(fila, c.estado)),
-        responsable_correo: texto_(v(fila, c.responsable)),
+        solicitante_correo: textoIntranet_(v(fila, c.correo)),
+        area: textoIntranet_(v(fila, c.area)),
+        tipo_solicitud: textoIntranet_(v(fila, c.tipo)),
+        categoria: textoIntranet_(v(fila, c.categoria)),
+        prioridad: textoIntranet_(v(fila, c.prioridad)),
+        descripcion: textoIntranet_(v(fila, c.descripcion)),
+        adjunto: textoIntranet_(v(fila, c.adjunto)),
+        impacto: textoIntranet_(v(fila, c.impacto)),
+        estado: textoIntranet_(v(fila, c.estado)),
+        responsable_correo: textoIntranet_(v(fila, c.responsable)),
         fecha_inicio: fechaIntranet_(v(fila, c.inicio)),
         fecha_cierre: fechaIntranet_(v(fila, c.cierre)),
         fecha_comprometida: fechaIntranet_(v(fila, c.comprometida)),
-        observaciones: texto_(v(fila, c.observaciones)),
-        avance: texto_(v(fila, c.avance)).replace('%', '').replace(',', '.').trim(),
+        observaciones: textoIntranet_(v(fila, c.observaciones)),
+        avance: textoIntranet_(v(fila, c.avance)).replace('%', '').replace(',', '.').trim(),
       };
     });
 }
@@ -122,14 +132,19 @@ function leerComentariosParaLaIntranet_(hoja) {
       return {
         fecha: fechaHoraIntranet_(fila[0]),
         numero_ticket: String(fila[1]).trim(),
-        autor_correo: texto_(fila[2]),
+        autor_correo: textoIntranet_(fila[2]),
         mensaje: String(fila[3]),
-        id_mensaje: texto_(fila[4]),
+        id_mensaje: textoIntranet_(fila[4]),
       };
     });
 }
 
-function texto_(valor) {
+function normalizarTitulo_(texto) {
+  return String(texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '').toLowerCase();
+}
+
+function textoIntranet_(valor) {
   return valor === null || valor === undefined ? '' : String(valor).trim();
 }
 
@@ -147,7 +162,7 @@ function fechaIntranet_(valor) {
 
 function aFecha_(valor) {
   if (valor instanceof Date && !isNaN(valor)) return valor;
-  const texto = texto_(valor);
+  const texto = textoIntranet_(valor);
   const m = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (!m) return null;
   return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]),
