@@ -123,7 +123,9 @@ function FilaPaso({ paso, puedeEditar }: { paso: Paso; puedeEditar: boolean }) {
               <RotateCcw aria-hidden /> Pendiente
             </Boton>
           ) : null}
-          {paso.estado !== "pendiente" && nota !== (paso.observacion ?? "") ? (
+          {/* También en un paso pendiente: «la entrega queda para el 25/11»
+              es una nota que se escribe antes de que el paso se resuelva. */}
+          {nota.trim() !== (paso.observacion ?? "") ? (
             <Boton
               type="button"
               tamano="pequeno"
