@@ -11,6 +11,8 @@ import { AvisoDeCambiosSinGuardar } from "@/components/ui/aviso-cambios-sin-guar
 import { actualizarAvance, crearAvance } from "@/app/(sgc)/informatica/avances/acciones";
 import {
   DEFINICION_TIPO_AVANCE,
+  ENTORNOS_AVANCE,
+  ETIQUETAS_ENTORNO_AVANCE,
   ETIQUETAS_SISTEMA_AVANCE,
   ETIQUETAS_TIPO_AVANCE,
   SISTEMAS_AVANCE,
@@ -29,6 +31,10 @@ export interface AvanceInicial {
   ticket: string | null;
   descripcion: string;
   impacto: string | null;
+  entorno: string;
+  aprobado_por: string | null;
+  como_revertir: string | null;
+  verificacion: string | null;
 }
 
 /**
@@ -44,10 +50,13 @@ export function FormularioAvance({
   empresas,
   hoy,
   inicial,
+  ticketSugerido,
 }: {
   empresas: EmpresaDelGrupo[];
   hoy: string;
   inicial?: AvanceInicial;
+  /** Cuando se llega desde la ficha de un ticket, viene puesto. */
+  ticketSugerido?: string;
 }) {
   const router = useRouter();
   const [enviando, definirEnviando] = React.useState(false);
@@ -110,7 +119,7 @@ export function FormularioAvance({
             <Entrada
               id="ticket"
               name="ticket"
-              defaultValue={inicial?.ticket ?? ""}
+              defaultValue={inicial?.ticket ?? ticketSugerido ?? ""}
               maxLength={7}
               placeholder="TI-0142"
               className="tabular"
@@ -138,6 +147,21 @@ export function FormularioAvance({
               {SISTEMAS_AVANCE.map((sistema) => (
                 <option key={sistema} value={sistema}>
                   {ETIQUETAS_SISTEMA_AVANCE[sistema]}
+                </option>
+              ))}
+            </Seleccion>
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="Entorno" htmlFor="entorno" requerido>
+            <Seleccion
+              id="entorno"
+              name="entorno"
+              required
+              defaultValue={inicial?.entorno ?? "produccion"}
+            >
+              {ENTORNOS_AVANCE.map((entorno) => (
+                <option key={entorno} value={entorno}>
+                  {ETIQUETAS_ENTORNO_AVANCE[entorno]}
                 </option>
               ))}
             </Seleccion>
@@ -175,7 +199,7 @@ export function FormularioAvance({
               required
               minLength={10}
               defaultValue={inicial?.descripcion ?? ""}
-              placeholder="La causa si fue una corrección, qué se cambió y cómo se verificó…"
+              placeholder="La causa si fue una corrección y qué se cambió…"
             />
           </GrupoCampo>
 
@@ -191,6 +215,40 @@ export function FormularioAvance({
               rows={3}
               defaultValue={inicial?.impacto ?? ""}
               placeholder="Quién lo nota y qué hace distinto desde ahora…"
+            />
+          </GrupoCampo>
+
+          <GrupoCampo
+            etiqueta="Pedido o aprobado por"
+            htmlFor="aprobado_por"
+            ayuda="Quién lo pidió o lo aprobó, y por qué medio."
+            className="sm:col-span-2"
+          >
+            <Entrada
+              id="aprobado_por"
+              name="aprobado_por"
+              defaultValue={inicial?.aprobado_por ?? ""}
+              placeholder="Alicia Ortiz, por correo del 24/11/2026"
+            />
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="Cómo se revierte" htmlFor="como_revertir" className="sm:col-span-2">
+            <AreaTexto
+              id="como_revertir"
+              name="como_revertir"
+              rows={2}
+              defaultValue={inicial?.como_revertir ?? ""}
+              placeholder="Qué hay que hacer para volver atrás y dónde está el respaldo…"
+            />
+          </GrupoCampo>
+
+          <GrupoCampo etiqueta="Cómo se verificó" htmlFor="verificacion" className="sm:col-span-2">
+            <AreaTexto
+              id="verificacion"
+              name="verificacion"
+              rows={2}
+              defaultValue={inicial?.verificacion ?? ""}
+              placeholder="Qué se probó para confirmar que quedó bien…"
             />
           </GrupoCampo>
         </div>

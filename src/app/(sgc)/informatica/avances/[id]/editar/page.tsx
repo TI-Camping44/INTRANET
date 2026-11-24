@@ -23,7 +23,10 @@ export default async function PaginaEditarAvance({ params }: { params: { id: str
   const [{ data: avance }, { data: empresas }] = await Promise.all([
     supabase
       .from("avances_ti")
-      .select("id, fecha, titulo, tipo, sistema, empresa_afectada_id, ticket, descripcion, impacto")
+      .select(
+        "id, fecha, titulo, tipo, sistema, empresa_afectada_id, ticket, descripcion, impacto, " +
+          "entorno, aprobado_por, como_revertir, verificacion",
+      )
       .eq("id", params.id)
       .maybeSingle(),
     supabase.rpc("empresas_del_grupo"),
@@ -37,7 +40,7 @@ export default async function PaginaEditarAvance({ params }: { params: { id: str
       <FormularioAvance
         empresas={(empresas as EmpresaDelGrupo[] | null) ?? []}
         hoy={hoyEnAsuncion()}
-        inicial={avance as AvanceInicial}
+        inicial={avance as unknown as AvanceInicial}
       />
     </div>
   );

@@ -322,6 +322,18 @@ export const NAVEGACION: GrupoNavegacion[] = [
         ],
       },
       {
+        // Copia de la ticketera de TI —la planilla «TICKETS - BASE»—, que
+        // manda un Apps Script de la planilla cada hora. Los pedidos se
+        // siguen haciendo por el formulario de siempre: acá se ve qué se
+        // hizo en cada uno y qué avances quedaron registrados con su
+        // número. Va al lado de «Avances y cambios» porque son las dos
+        // caras del mismo trabajo: lo pedido y lo hecho.
+        titulo: "Seguimiento de tickets",
+        ruta: "/informatica/tickets",
+        icono: "ListChecks",
+        fase: "operativo",
+      },
+      {
         titulo: "Controles periódicos",
         ruta: "/informatica/controles",
         icono: "CalendarCheck",

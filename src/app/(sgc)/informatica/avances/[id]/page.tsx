@@ -18,9 +18,11 @@ import { crearClienteServidor } from "@/lib/supabase/servidor";
 import { formatearFecha, formatearFechaHora } from "@/lib/formato";
 import { nombrePorEmpresa, type EmpresaDelGrupo } from "@/lib/empresas";
 import {
+  ETIQUETAS_ENTORNO_AVANCE,
   ETIQUETAS_SISTEMA_AVANCE,
   ETIQUETAS_TIPO_AVANCE,
   VARIANTE_TIPO_AVANCE,
+  esEntornoAvance,
   esSistemaAvance,
   esTipoAvance,
 } from "@/lib/avances-ti";
@@ -39,6 +41,10 @@ interface Avance {
   ticket: string | null;
   descripcion: string;
   impacto: string | null;
+  entorno: string;
+  aprobado_por: string | null;
+  como_revertir: string | null;
+  verificacion: string | null;
   creado_en: string;
   actualizado_en: string;
   autor: { nombre_completo: string } | null;
@@ -56,6 +62,7 @@ export default async function PaginaAvance({ params }: { params: { id: string } 
       .from("avances_ti")
       .select(
         "id, fecha, titulo, tipo, sistema, empresa_afectada_id, ticket, descripcion, impacto, " +
+          "entorno, aprobado_por, como_revertir, verificacion, " +
           "creado_en, actualizado_en, autor:creado_por (nombre_completo)",
       )
       .eq("id", params.id)
@@ -124,6 +131,20 @@ export default async function PaginaAvance({ params }: { params: { id: string } 
               </dd>
             </div>
             <div>
+              <dt className="text-atenuado-contraste">Entorno</dt>
+              <dd className="mt-0.5">
+                <Insignia variante={avance.entorno === "pruebas" ? "neutra" : "primaria"}>
+                  {esEntornoAvance(avance.entorno)
+                    ? ETIQUETAS_ENTORNO_AVANCE[avance.entorno]
+                    : avance.entorno}
+                </Insignia>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-atenuado-contraste">Pedido o aprobado por</dt>
+              <dd className="mt-0.5 font-medium">{avance.aprobado_por ?? "—"}</dd>
+            </div>
+            <div>
               <dt className="text-atenuado-contraste">Empresa</dt>
               <dd className="mt-0.5 font-medium">
                 <NombreDeEmpresa
@@ -138,7 +159,18 @@ export default async function PaginaAvance({ params }: { params: { id: string } 
             </div>
             <div>
               <dt className="text-atenuado-contraste">Ticket</dt>
-              <dd className="tabular mt-0.5 font-medium">{avance.ticket ?? "Sin ticket"}</dd>
+              <dd className="tabular mt-0.5 font-medium">
+                {avance.ticket ? (
+                  <Link
+                    href={`/informatica/tickets/${encodeURIComponent(avance.ticket)}`}
+                    className="text-primario hover:underline"
+                  >
+                    {avance.ticket}
+                  </Link>
+                ) : (
+                  "Sin ticket"
+                )}
+              </dd>
             </div>
             <div>
               <dt className="text-atenuado-contraste">Registró</dt>
@@ -171,6 +203,31 @@ export default async function PaginaAvance({ params }: { params: { id: string } 
             <p className="whitespace-pre-line text-sm leading-relaxed">{avance.impacto}</p>
           </TarjetaContenido>
         </Tarjeta>
+      ) : null}
+
+      {avance.como_revertir || avance.verificacion ? (
+        <div className="grid gap-5 md:grid-cols-2">
+          <Tarjeta>
+            <TarjetaCabecera>
+              <TarjetaTitulo className="text-sm">Cómo se revierte</TarjetaTitulo>
+            </TarjetaCabecera>
+            <TarjetaContenido>
+              <p className="whitespace-pre-line text-sm leading-relaxed">
+                {avance.como_revertir ?? "Sin cargar."}
+              </p>
+            </TarjetaContenido>
+          </Tarjeta>
+          <Tarjeta>
+            <TarjetaCabecera>
+              <TarjetaTitulo className="text-sm">Cómo se verificó</TarjetaTitulo>
+            </TarjetaCabecera>
+            <TarjetaContenido>
+              <p className="whitespace-pre-line text-sm leading-relaxed">
+                {avance.verificacion ?? "Sin cargar."}
+              </p>
+            </TarjetaContenido>
+          </Tarjeta>
+        </div>
       ) : null}
 
       <Tarjeta>

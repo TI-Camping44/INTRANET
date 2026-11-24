@@ -103,3 +103,20 @@ export function normalizarTicket(valor: string): string | null {
   const numero = limpio.replace(/^TI[\s-]*/, "");
   return /^\d{1,4}$/.test(numero) ? `TI-${numero.padStart(4, "0")}` : limpio;
 }
+
+/**
+ * En qué entorno se hizo el cambio. Entró el 24 de noviembre junto con
+ * quién lo aprobó, cómo se revierte y cómo se verificó. ESTÁ TAMBIÉN EN
+ * EL `CHECK` `avances_ti_entorno`.
+ */
+export const ENTORNOS_AVANCE = ["produccion", "pruebas"] as const;
+export type EntornoAvance = (typeof ENTORNOS_AVANCE)[number];
+
+export const ETIQUETAS_ENTORNO_AVANCE: Record<EntornoAvance, string> = {
+  produccion: "Producción",
+  pruebas: "Pruebas",
+};
+
+export function esEntornoAvance(valor: string): valor is EntornoAvance {
+  return (ENTORNOS_AVANCE as readonly string[]).includes(valor);
+}

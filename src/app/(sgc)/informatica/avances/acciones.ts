@@ -7,6 +7,7 @@ import { hoyEnAsuncion } from "@/lib/formato";
 import {
   LARGO_MINIMO_DESCRIPCION_AVANCE,
   PATRON_TICKET,
+  esEntornoAvance,
   esSistemaAvance,
   esTipoAvance,
   normalizarTicket,
@@ -40,6 +41,10 @@ function leerCampos(datos: FormData) {
     ticket: normalizarTicket(String(datos.get("ticket") ?? "")),
     descripcion: String(datos.get("descripcion") ?? "").trim(),
     impacto: String(datos.get("impacto") ?? "").trim() || null,
+    entorno: String(datos.get("entorno") ?? "") || "produccion",
+    aprobado_por: String(datos.get("aprobado_por") ?? "").trim() || null,
+    como_revertir: String(datos.get("como_revertir") ?? "").trim() || null,
+    verificacion: String(datos.get("verificacion") ?? "").trim() || null,
   };
 }
 
@@ -52,6 +57,7 @@ async function revisarCampos(campos: ReturnType<typeof leerCampos>): Promise<str
   if (campos.titulo.length > 200) return "El título no puede pasar de 200 caracteres.";
   if (!esTipoAvance(campos.tipo)) return "Elija el tipo de cambio.";
   if (!esSistemaAvance(campos.sistema)) return "Elija el sistema en el que se hizo.";
+  if (!esEntornoAvance(campos.entorno)) return "Elija si el cambio fue en producción o en pruebas.";
   if (campos.ticket && !PATRON_TICKET.test(campos.ticket)) {
     return "El ticket va con el formato de la ticketera, por ejemplo TI-0142.";
   }
@@ -97,6 +103,7 @@ export async function crearAvance(datos: FormData): Promise<ResultadoAccion> {
   }
 
   revalidatePath(RUTA);
+  revalidatePath("/informatica/tickets");
   return { exito: true, mensaje: "Avance registrado.", id: (data as { id: string }).id };
 }
 

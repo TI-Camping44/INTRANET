@@ -288,6 +288,7 @@ export const MODULO_POR_RUTA: Record<string, ClaveModulo> = {
   "/informatica/avances": "informatica",
   "/informatica/controles": "informatica",
   "/informatica/accesos": "informatica",
+  "/informatica/tickets": "informatica",
   "/administracion/usuarios": "usuarios",
   "/administracion/padron": "padron",
   "/administracion/accesos": "ingresos",
