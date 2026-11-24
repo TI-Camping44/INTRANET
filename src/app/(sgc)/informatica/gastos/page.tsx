@@ -148,6 +148,7 @@ export default async function PaginaGastosTi({
   }).filter((fila) => fila.cantidad > 0);
 
   const monto = (valor: number, moneda: string) => formatearMonto(valor, moneda, formatearGuaranies);
+  const registros = (cantidad: number) => `${cantidad} ${cantidad === 1 ? "registro" : "registros"}`;
 
   return (
     <div className="space-y-5">
@@ -173,12 +174,12 @@ export default async function PaginaGastosTi({
         <TarjetaIndicador
           titulo={`En ${anioActual} · USD`}
           valor={monto(suma(delAnio, "USD"), "USD")}
-          contexto={`${delAnio.filter((gasto) => gasto.moneda === "USD").length} registros`}
+          contexto={registros(delAnio.filter((gasto) => gasto.moneda === "USD").length)}
         />
         <TarjetaIndicador
           titulo={`En ${anioActual} · Gs.`}
           valor={monto(suma(delAnio, "PYG"), "PYG")}
-          contexto={`${delAnio.filter((gasto) => gasto.moneda === "PYG").length} registros`}
+          contexto={registros(delAnio.filter((gasto) => gasto.moneda === "PYG").length)}
         />
         <TarjetaIndicador
           titulo="Este mes"

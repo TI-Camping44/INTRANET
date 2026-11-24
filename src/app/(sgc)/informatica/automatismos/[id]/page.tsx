@@ -167,7 +167,8 @@ export default async function PaginaAutomatismo({ params }: { params: { id: stri
             <div>
               <dt className="text-atenuado-contraste">Últimos 7 días</dt>
               <dd className="tabular mt-0.5 font-medium">
-                {automatismo.latidos_7_dias} avisos · {automatismo.errores_7_dias} con error
+                {automatismo.latidos_7_dias} {automatismo.latidos_7_dias === 1 ? "aviso" : "avisos"} ·{" "}
+                {automatismo.errores_7_dias} con error
               </dd>
             </div>
             <div>
