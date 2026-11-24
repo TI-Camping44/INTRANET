@@ -352,6 +352,51 @@ export const NAVEGACION: GrupoNavegacion[] = [
         icono: "KeyRound",
         fase: "operativo",
       },
+      {
+        // Cada persona que entra o sale, con lo que TI hizo en cada
+        // sistema. La matriz de arriba dice qué corresponde; esto deja
+        // constancia de qué se hizo. Entró el 24 de noviembre.
+        titulo: "Altas y bajas",
+        ruta: "/informatica/altas-bajas",
+        icono: "UserPlus",
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Todas", ruta: "/informatica/altas-bajas" },
+          { titulo: "+ Registrar alta o baja", ruta: "/informatica/altas-bajas/nuevo", soloGestion: true },
+        ],
+      },
+      {
+        // Los scripts que corren solos y su último aviso. Un Apps Script
+        // que pierde su activador no avisa a nadie: esto lo hace visible.
+        titulo: "Automatismos",
+        ruta: "/informatica/automatismos",
+        icono: "Activity",
+        fase: "operativo",
+      },
+      {
+        // Los intangibles de Activos vistos desde TI: cantidades, costo
+        // mensual y vencimientos. No tienen tabla propia.
+        titulo: "Licencias y vencimientos",
+        ruta: "/informatica/licencias",
+        icono: "BadgeCheck",
+        fase: "operativo",
+      },
+      {
+        // Facturas y pagos del área. Lo ven quien edita Informática y
+        // Dirección: es un dato económico.
+        titulo: "Gastos de TI",
+        ruta: "/informatica/gastos",
+        icono: "Wallet",
+        // La tabla la leen quien edita Informática y Dirección. El Auditor
+        // ve el módulo pero no los gastos: sin esto el menú le ofrecería
+        // una pantalla que lo manda a «Sin acceso».
+        roles: ["administrador_sgc", "direccion"],
+        fase: "operativo",
+        subentradas: [
+          { titulo: "Todos", ruta: "/informatica/gastos" },
+          { titulo: "+ Registrar gasto", ruta: "/informatica/gastos/nuevo", soloGestion: true },
+        ],
+      },
     ],
   },
   {

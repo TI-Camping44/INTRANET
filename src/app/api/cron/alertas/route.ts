@@ -3,6 +3,7 @@ import { revisarSecreto } from "@/lib/trabajos-programados";
 import { crearClienteAdministrador } from "@/lib/supabase/administrador";
 import { botonesDelAviso, notificar } from "@/lib/notificaciones";
 import { publicarEfemeridesDelDia } from "@/lib/anuncios-de-efemerides";
+import { describirHace, estadoDelAutomatismo } from "@/lib/automatismos-ti";
 import {
   DIAS_AVISO_CIERRE_CONTROL,
   describirPeriodo,
@@ -74,6 +75,7 @@ interface Resumen {
   ncSinResponder: number;
   vencimientosDeActivos: number;
   controlesTiPendientes: number;
+  automatismosCaidos: number;
   saludosPublicados: number;
 }
 
@@ -115,6 +117,7 @@ export async function GET(peticion: NextRequest) {
     ncSinResponder: 0,
     vencimientosDeActivos: 0,
     controlesTiPendientes: 0,
+    automatismosCaidos: 0,
     saludosPublicados: 0,
   };
 
@@ -699,6 +702,57 @@ export async function GET(peticion: NextRequest) {
       });
       resumen.controlesTiPendientes += 1;
     }
+  }
+
+  // ---------------------------------------------------------------
+  // 12 · Automatismos de TI caídos o con error
+  // ---------------------------------------------------------------
+  // Un Apps Script que pierde su activador o su autorización deja de
+  // correr sin avisar a nadie. Cada script avisa a la Intranet que
+  // corrió; acá se mira quién se calló.
+  //
+  // Caído se avisa UNA vez por caída: la clave lleva el último aviso
+  // del script, así que no se repite todos los días —el automatismo
+  // sigue en rojo en la pantalla— y vuelve a avisar si el script revive
+  // y se vuelve a caer. Con error se avisa una vez por día mientras el
+  // último aviso siga siendo un error.
+  //
+  // El estado sale de `estadoDelAutomatismo`, la misma regla que usa la
+  // pantalla: si cada uno tuviera su cuenta, la pantalla podría decir
+  // «al día» de un automatismo por el que ya llegó el aviso de caído.
+  const { data: automatismos } = await supabase
+    .from("vista_automatismos_ti")
+    .select(
+      "id, nombre, clave, vigente, frecuencia_horas, ultimo_latido_en, ultimo_resultado, " +
+        "ultimo_mensaje, responsable:responsable_id (id, correo)",
+    )
+    .eq("vigente", true)
+    .not("responsable_id", "is", null);
+
+  const ahora = new Date();
+  for (const automatismo of (automatismos ?? []) as any[]) {
+    if (!automatismo.responsable) continue;
+    const estado = estadoDelAutomatismo(automatismo, ahora);
+    if (estado !== "caido" && estado !== "con_error") continue;
+
+    const caido = estado === "caido";
+    await notificar(supabase, {
+      usuarioId: automatismo.responsable.id,
+      correoDestino: automatismo.responsable.correo,
+      tipo: "automatismo_caido",
+      titulo: `${caido ? "Automatismo caído" : "Automatismo con error"} · ${automatismo.nombre}`,
+      mensaje: caido
+        ? `«${automatismo.nombre}» no avisa desde ${describirHace(automatismo.ultimo_latido_en, ahora)}. ` +
+          "Revise su activador y su autorización en el proyecto de Apps Script."
+        : `«${automatismo.nombre}» avisó un error: ${automatismo.ultimo_mensaje ?? "sin detalle"}.`,
+      enlace: `/informatica/automatismos/${automatismo.id}`,
+      entidad: "automatismos_ti",
+      entidadId: automatismo.id,
+      claveUnicidad: caido
+        ? `automatismo-caido:${automatismo.id}:${automatismo.ultimo_latido_en}`
+        : `automatismo-error:${automatismo.id}:${hoy}`,
+    });
+    resumen.automatismosCaidos += 1;
   }
 
   // -------------------------------------------------------------------

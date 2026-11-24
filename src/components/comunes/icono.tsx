@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  Activity,
+  BadgeCheck,
   CalendarCheck,
   ClipboardCheck,
   ClipboardList,
@@ -23,7 +25,9 @@ import {
   TriangleAlert,
   Truck,
   UserCog,
+  UserPlus,
   Users,
+  Wallet,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +62,10 @@ const ICONOS: Record<string, LucideIcon> = {
   CalendarCheck,
   KeyRound,
   ClipboardList,
+  UserPlus,
+  Activity,
+  BadgeCheck,
+  Wallet,
 };
 
 export function Icono({ nombre, className }: { nombre: string; className?: string }) {
