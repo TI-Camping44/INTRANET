@@ -225,6 +225,7 @@ export type TipoNotificacion =
   | "mantenimiento_programado"
   | "vencimiento_de_activo"
   | "control_ti_pendiente"
+  | "automatismo_caido"
   | "reclamo_asignado"
   | "reclamo_por_vencer"
   | "reclamo_vencido"
