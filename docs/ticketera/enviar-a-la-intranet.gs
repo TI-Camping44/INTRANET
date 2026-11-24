@@ -14,6 +14,10 @@
  *   3. Ejecutar una vez instalarEnvioALaIntranet(): autoriza el script y
  *      deja el envío programado cada hora.
  *
+ *   4. Para el aviso a Informática → Automatismos, agregar también la
+ *      propiedad INTRANET_SECRETO_AUTOMATISMOS. Sin ella el envío sigue
+ *      funcionando y simplemente no avisa.
+ *
  * Llama a la función recibir_ticketera() de la base de la Intranet. La
  * clave pública de Supabase no es un secreto (es la misma que usa el
  * navegador); lo que protege la función es INTRANET_SECRETO.
@@ -35,8 +39,23 @@ function instalarEnvioALaIntranet() {
   return enviarTicketsALaIntranet();
 }
 
-/** Manda todos los tickets y comentarios. Es reintentable: no duplica. */
+/**
+ * Manda todos los tickets y comentarios. Es reintentable: no duplica.
+ * Además avisa a Informática → Automatismos si salió bien o mal, así la
+ * Intranet se entera si este envío deja de correr.
+ */
 function enviarTicketsALaIntranet() {
+  try {
+    const resultado = enviarTicketsALaIntranetSinAviso_();
+    avisarALaIntranet_('ticketera.envio-a-la-intranet', 'ok', resultado);
+    return resultado;
+  } catch (e) {
+    avisarALaIntranet_('ticketera.envio-a-la-intranet', 'error', e && e.message ? e.message : String(e));
+    throw e;
+  }
+}
+
+function enviarTicketsALaIntranetSinAviso_() {
   const secreto = PropertiesService.getScriptProperties().getProperty('INTRANET_SECRETO');
   if (!secreto) throw new Error('Falta la propiedad del script INTRANET_SECRETO.');
 
@@ -167,4 +186,30 @@ function aFecha_(valor) {
   if (!m) return null;
   return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]),
     Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0));
+}
+
+/**
+ * Avisa a la Intranet (Informática → Automatismos) que un script corrió.
+ * Nunca rompe al que avisa: si falta la propiedad o la Intranet no
+ * responde, sigue de largo.
+ */
+function avisarALaIntranet_(clave, resultado, mensaje) {
+  try {
+    const secreto = PropertiesService.getScriptProperties().getProperty('INTRANET_SECRETO_AUTOMATISMOS');
+    if (!secreto) return;
+    UrlFetchApp.fetch(INTRANET_URL.replace('recibir_ticketera', 'registrar_latido'), {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { apikey: INTRANET_CLAVE_PUBLICA },
+      payload: JSON.stringify({
+        p_secreto: secreto,
+        p_clave: clave,
+        p_resultado: resultado || 'ok',
+        p_mensaje: mensaje ? String(mensaje).slice(0, 2000) : null,
+      }),
+      muteHttpExceptions: true,
+    });
+  } catch (e) {
+    // Avisar nunca puede romper el script que avisa.
+  }
 }
